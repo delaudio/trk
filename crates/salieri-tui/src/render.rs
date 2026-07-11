@@ -479,7 +479,7 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
     }
 
     let status = Paragraph::new(format!(
-        " {}{} | H Help | Space Play/Stop | Shift+Space Start | Enter Play Row | L Loop | F8 Stop | F1/F2 Oct | r Rename | : Command | i Edit | V Select | Ctrl+C/X/V | Ctrl+S Save | q Quit ",
+        " {}{} | H Help | Space Play/Stop | Enter Play Row | L Loop | N/P/X Pattern | F1/F2 Oct | r Rename | : Command | i Edit | V Select | Ctrl+S Save | q Quit ",
         state.mode_label,
         if state.selection.is_some() { " SEL" } else { "" }
     ));
@@ -565,6 +565,7 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
         )),
+        Line::from("  N new pattern   P duplicate pattern   X delete pattern"),
         Line::from("  :pattern new   :pattern duplicate   :pattern delete   :pattern length 128"),
         Line::from("  :pattern rename Intro   :pattern 1   [ previous pattern   ] next pattern"),
         Line::from("  :sequence add   :sequence remove 0   :sequence duplicate 0"),

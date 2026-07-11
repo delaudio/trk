@@ -654,6 +654,18 @@ impl App {
                 self.duplicate_track(self.cursor.track);
                 return;
             }
+            KeyCode::Char('N') => {
+                self.create_pattern();
+                return;
+            }
+            KeyCode::Char('P') => {
+                self.duplicate_current_pattern();
+                return;
+            }
+            KeyCode::Char('X') => {
+                self.request_delete_current_pattern();
+                return;
+            }
             KeyCode::Char('L') => {
                 self.toggle_loop();
                 return;
@@ -3175,6 +3187,34 @@ mod tests {
 
         app.handle_key(KeyEvent::new(KeyCode::Char(']'), KeyModifiers::NONE));
         assert_eq!(app.pattern_index, 2);
+    }
+
+    #[test]
+    fn uppercase_pattern_shortcuts_create_duplicate_and_delete() {
+        let mut app = App::default();
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('N'), KeyModifiers::SHIFT));
+        assert_eq!(app.song.patterns.len(), 2);
+        assert_eq!(app.pattern_index, 1);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('P'), KeyModifiers::SHIFT));
+        assert_eq!(app.song.patterns.len(), 3);
+        assert_eq!(app.pattern_index, 2);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('X'), KeyModifiers::SHIFT));
+        assert_eq!(app.mode, AppMode::Dialog);
+        assert!(matches!(
+            app.dialog,
+            Some(Dialog::DeletePattern {
+                pattern_index: 2,
+                ..
+            })
+        ));
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE));
+        assert_eq!(app.song.patterns.len(), 2);
+        assert_eq!(app.pattern_index, 1);
+        assert!(app.dirty);
     }
 
     #[test]
