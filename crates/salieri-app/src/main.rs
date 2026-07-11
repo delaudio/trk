@@ -55,6 +55,7 @@ fn run() -> Result<()> {
                     mode_label: app.mode.label(),
                     octave: app.octave,
                     dirty: app.dirty,
+                    command_line: app.command_line(),
                 },
             );
         })?;
@@ -97,6 +98,7 @@ struct App {
     mode: AppMode,
     octave: u8,
     edit_step: usize,
+    command_buffer: String,
     undo_stack: Vec<Song>,
     redo_stack: Vec<Song>,
     dirty: bool,
@@ -116,6 +118,7 @@ impl Default for App {
             mode: AppMode::Normal,
             octave: DEFAULT_OCTAVE,
             edit_step: DEFAULT_EDIT_STEP,
+            command_buffer: String::new(),
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             dirty: false,
@@ -144,6 +147,7 @@ impl App {
         match self.mode {
             AppMode::Normal => self.handle_normal_key(key),
             AppMode::Edit => self.handle_edit_key(key),
+            AppMode::Command => self.handle_command_key(key),
         }
     }
 
@@ -187,6 +191,11 @@ impl App {
             }
             KeyCode::Char('i') | KeyCode::Enter => {
                 self.mode = AppMode::Edit;
+                return;
+            }
+            KeyCode::Char(':') => {
+                self.command_buffer.clear();
+                self.mode = AppMode::Command;
                 return;
             }
             KeyCode::Up => Some(Direction::Up),
@@ -257,6 +266,21 @@ impl App {
                     self.insert_note(note);
                 }
             }
+            _ => {}
+        }
+    }
+
+    fn handle_command_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Esc => {
+                self.command_buffer.clear();
+                self.mode = AppMode::Normal;
+            }
+            KeyCode::Enter => self.execute_command(),
+            KeyCode::Backspace => {
+                self.command_buffer.pop();
+            }
+            KeyCode::Char(value) => self.command_buffer.push(value),
             _ => {}
         }
     }
@@ -367,6 +391,56 @@ impl App {
         });
     }
 
+    fn set_bpm(&mut self, bpm: u16) {
+        self.mutate_song(|song, _| {
+            song.transport.bpm = bpm;
+        });
+    }
+
+    fn set_lpb(&mut self, lpb: u8) {
+        self.mutate_song(|song, _| {
+            song.transport.lines_per_beat = lpb;
+        });
+    }
+
+    fn execute_command(&mut self) {
+        let command = self.command_buffer.trim().to_string();
+        self.command_buffer.clear();
+        self.mode = AppMode::Normal;
+
+        let mut parts = command.split_whitespace();
+        let Some(name) = parts.next() else {
+            return;
+        };
+
+        match name {
+            "q" | "quit" => self.should_quit = true,
+            "w" | "write" | "save" => {
+                if let Err(error) = self.save() {
+                    tracing::error!(?error, "failed to save project");
+                }
+            }
+            "wq" => {
+                if let Err(error) = self.save() {
+                    tracing::error!(?error, "failed to save project");
+                    return;
+                }
+                self.should_quit = true;
+            }
+            "bpm" => {
+                if let Some(value) = parts.next().and_then(|value| value.parse::<u16>().ok()) {
+                    self.set_bpm(value);
+                }
+            }
+            "lpb" => {
+                if let Some(value) = parts.next().and_then(|value| value.parse::<u8>().ok()) {
+                    self.set_lpb(value);
+                }
+            }
+            _ => {}
+        }
+    }
+
     fn mutate_song(&mut self, mutate: impl FnOnce(&mut Song, Cursor)) {
         let before = self.song.clone();
         mutate(&mut self.song, self.cursor);
@@ -452,12 +526,21 @@ impl App {
             .current_pattern()
             .map_or(0, |pattern| pattern.row_count())
     }
+
+    fn command_line(&self) -> Option<&str> {
+        if self.mode == AppMode::Command {
+            Some(self.command_buffer.as_str())
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AppMode {
     Normal,
     Edit,
+    Command,
 }
 
 impl AppMode {
@@ -465,6 +548,7 @@ impl AppMode {
         match self {
             AppMode::Normal => "NORMAL",
             AppMode::Edit => "EDIT",
+            AppMode::Command => "COMMAND",
         }
     }
 }
@@ -655,6 +739,77 @@ mod tests {
     }
 
     #[test]
+    fn command_mode_sets_bpm_and_lpb() {
+        let mut app = App::default();
+
+        type_command(&mut app, "bpm 140");
+        type_command(&mut app, "lpb 8");
+
+        assert_eq!(app.song.transport.bpm, 140);
+        assert_eq!(app.song.transport.lines_per_beat, 8);
+        assert!(app.dirty);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
+        assert_eq!(app.song.transport.lines_per_beat, 4);
+        app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
+        assert_eq!(app.song.transport.bpm, 120);
+        assert!(!app.dirty);
+    }
+
+    #[test]
+    fn command_mode_write_saves_project() {
+        let path = std::env::temp_dir().join(format!(
+            "salieri-command-write-{}.salieri",
+            std::process::id()
+        ));
+        let mut app = App {
+            mode: AppMode::Edit,
+            project_path: Some(path.clone()),
+            ..App::default()
+        };
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+        type_command(&mut app, "write");
+
+        let saved = load_project(&path).expect("saved project loads");
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(saved, app.song);
+        assert!(!app.dirty);
+        assert!(!app.should_quit);
+    }
+
+    #[test]
+    fn command_mode_quit_marks_app_for_exit() {
+        let mut app = App::default();
+
+        type_command(&mut app, "quit");
+
+        assert!(app.should_quit);
+    }
+
+    #[test]
+    fn command_mode_wq_saves_and_quits() {
+        let path =
+            std::env::temp_dir().join(format!("salieri-command-wq-{}.salieri", std::process::id()));
+        let mut app = App {
+            mode: AppMode::Edit,
+            project_path: Some(path.clone()),
+            ..App::default()
+        };
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+        type_command(&mut app, "wq");
+
+        let saved = load_project(&path).expect("saved project loads");
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(saved, app.song);
+        assert!(!app.dirty);
+        assert!(app.should_quit);
+    }
+
+    #[test]
     fn ctrl_t_creates_track_and_undo_restores_previous_shape() {
         let mut app = App::default();
 
@@ -730,5 +885,15 @@ mod tests {
         assert!(app.song.tracks[2].muted);
         assert!(app.song.tracks[2].solo);
         assert!(app.dirty);
+    }
+
+    fn type_command(app: &mut App, command: &str) {
+        app.handle_key(KeyEvent::new(KeyCode::Char(':'), KeyModifiers::NONE));
+        assert_eq!(app.mode, AppMode::Command);
+        for value in command.chars() {
+            app.handle_key(KeyEvent::new(KeyCode::Char(value), KeyModifiers::NONE));
+        }
+        app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        assert_eq!(app.mode, AppMode::Normal);
     }
 }

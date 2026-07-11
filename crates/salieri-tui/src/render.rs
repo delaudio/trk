@@ -12,6 +12,7 @@ pub struct TuiState<'a> {
     pub mode_label: &'a str,
     pub octave: u8,
     pub dirty: bool,
+    pub command_line: Option<&'a str>,
 }
 
 pub fn render(frame: &mut Frame<'_>, song: &Song, state: TuiState<'_>) {
@@ -235,8 +236,14 @@ fn cell_spans(cell: &PatternCell, focused_field: CellField, focused: bool) -> Ve
 }
 
 fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
+    if let Some(command_line) = state.command_line {
+        let status = Paragraph::new(format!(" :{command_line}"));
+        frame.render_widget(status, area);
+        return;
+    }
+
     let status = Paragraph::new(format!(
-        " {} | i Edit | Ctrl+T Track | M Mute | S Solo | Del Clear/Delete Track | Ctrl+S Save | Ctrl+Z Undo | q Quit ",
+        " {} | : Command | i Edit | Ctrl+T Track | M Mute | S Solo | Ctrl+S Save | Ctrl+Z Undo | q Quit ",
         state.mode_label
     ));
     frame.render_widget(status, area);
@@ -284,6 +291,7 @@ mod tests {
                         mode_label: "NORMAL",
                         octave: 4,
                         dirty: false,
+                        command_line: None,
                     },
                 );
             })
