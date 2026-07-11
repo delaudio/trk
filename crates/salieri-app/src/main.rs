@@ -355,6 +355,14 @@ impl App {
             KeyCode::Char('h') => Some(Direction::Left),
             KeyCode::Right => Some(Direction::Right),
             KeyCode::Char('l') => Some(Direction::Right),
+            KeyCode::Tab => {
+                self.next_track();
+                return;
+            }
+            KeyCode::BackTab => {
+                self.previous_track();
+                return;
+            }
             KeyCode::Home => {
                 self.cursor.row = 0;
                 return;
@@ -398,6 +406,8 @@ impl App {
             KeyCode::Down => self.move_cursor(Direction::Down),
             KeyCode::Left => self.move_cursor(Direction::Left),
             KeyCode::Right => self.move_cursor(Direction::Right),
+            KeyCode::Tab => self.next_track(),
+            KeyCode::BackTab => self.previous_track(),
             KeyCode::Home => self.cursor.row = 0,
             KeyCode::End => self.cursor.row = self.current_row_count().saturating_sub(1),
             KeyCode::PageUp => self.page_cursor_up(),
@@ -449,6 +459,23 @@ impl App {
         let row_count = self.current_row_count();
         let track_count = self.song.tracks.len();
         self.cursor.move_in(direction, row_count, track_count);
+    }
+
+    fn next_track(&mut self) {
+        if self.song.tracks.is_empty() {
+            return;
+        }
+        self.cursor.track = self
+            .cursor
+            .track
+            .saturating_add(1)
+            .min(self.song.tracks.len().saturating_sub(1));
+        self.cursor.digit = 0;
+    }
+
+    fn previous_track(&mut self) {
+        self.cursor.track = self.cursor.track.saturating_sub(1);
+        self.cursor.digit = 0;
     }
 
     fn page_cursor_up(&mut self) {
@@ -1222,6 +1249,26 @@ mod tests {
         app.keep_cursor_visible(20);
 
         assert_eq!(app.row_offset, 44);
+    }
+
+    #[test]
+    fn tab_and_backtab_move_between_tracks() {
+        let mut app = App::default();
+
+        app.handle_key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+        assert_eq!(app.cursor.track, 1);
+
+        app.handle_key(KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT));
+        assert_eq!(app.cursor.track, 0);
+
+        app.mode = AppMode::Edit;
+        for _ in 0..10 {
+            app.handle_key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+        }
+        assert_eq!(app.cursor.track, 3);
+
+        app.handle_key(KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT));
+        assert_eq!(app.cursor.track, 2);
     }
 
     #[test]
