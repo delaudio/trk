@@ -442,7 +442,14 @@ struct App {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Dialog {
     QuitDirty,
-    DeleteTrack { track_index: usize, message: String },
+    DeleteTrack {
+        track_index: usize,
+        message: String,
+    },
+    DeletePattern {
+        pattern_index: usize,
+        message: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -795,11 +802,18 @@ impl App {
                     self.mode = AppMode::Normal;
                     self.delete_track(track_index);
                 }
+                Some(Dialog::DeletePattern { pattern_index, .. }) => {
+                    self.dialog = None;
+                    self.mode = AppMode::Normal;
+                    self.delete_pattern(pattern_index);
+                }
                 None => self.mode = AppMode::Normal,
             },
             KeyCode::Char('n') | KeyCode::Char('N') => match self.dialog {
                 Some(Dialog::QuitDirty) => self.force_quit(),
-                Some(Dialog::DeleteTrack { .. }) | None => self.cancel_dialog(),
+                Some(Dialog::DeleteTrack { .. } | Dialog::DeletePattern { .. }) | None => {
+                    self.cancel_dialog();
+                }
             },
             KeyCode::Char('c') | KeyCode::Char('C') | KeyCode::Esc => {
                 self.cancel_dialog();
@@ -1241,8 +1255,28 @@ impl App {
         }
     }
 
-    fn delete_current_pattern(&mut self) {
-        let pattern_index = self.pattern_index;
+    fn request_delete_current_pattern(&mut self) {
+        if self.song.patterns.len() <= 1 {
+            self.notify_warning("Cannot delete the last pattern");
+            return;
+        }
+
+        let pattern_index = self
+            .pattern_index
+            .min(self.song.patterns.len().saturating_sub(1));
+        let Some(pattern) = self.song.patterns.get(pattern_index) else {
+            self.notify_warning("Pattern out of range");
+            return;
+        };
+        self.dialog = Some(Dialog::DeletePattern {
+            pattern_index,
+            message: format!("Delete pattern {:02} {}?", pattern_index + 1, pattern.name),
+        });
+        self.mode = AppMode::Dialog;
+        self.notify_warning("Confirm pattern delete");
+    }
+
+    fn delete_pattern(&mut self, pattern_index: usize) {
         let before_count = self.song.patterns.len();
         self.mutate_song(|song, _| {
             let _ = song.delete_pattern(pattern_index);
@@ -1253,6 +1287,7 @@ impl App {
                 .min(self.song.patterns.len().saturating_sub(1));
             self.clamp_cursor();
             self.row_offset = 0;
+            self.notify_success("Pattern deleted");
         }
     }
 
@@ -1501,7 +1536,7 @@ impl App {
             "pattern" => match parts.next() {
                 Some("new") => self.create_pattern(),
                 Some("duplicate") | Some("dup") => self.duplicate_current_pattern(),
-                Some("delete") | Some("del") => self.delete_current_pattern(),
+                Some("delete") | Some("del") => self.request_delete_current_pattern(),
                 Some("length") | Some("len") => {
                     if let Some(row_count) =
                         parts.next().and_then(|value| value.parse::<usize>().ok())
@@ -1938,6 +1973,7 @@ impl App {
 
         match &self.dialog {
             Some(Dialog::DeleteTrack { message, .. }) => Some(message.as_str()),
+            Some(Dialog::DeletePattern { message, .. }) => Some(message.as_str()),
             Some(Dialog::QuitDirty) | None => None,
         }
     }
@@ -3021,7 +3057,17 @@ mod tests {
         assert_eq!(app.song.patterns.len(), 3);
         assert_eq!(app.pattern_index, 2);
 
-        type_command(&mut app, "pattern delete");
+        enter_command(&mut app, "pattern delete");
+        assert_eq!(app.mode, AppMode::Dialog);
+        assert!(matches!(
+            app.dialog,
+            Some(Dialog::DeletePattern {
+                pattern_index: 2,
+                ..
+            })
+        ));
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE));
         assert_eq!(app.song.patterns.len(), 2);
         assert_eq!(app.pattern_index, 1);
 
