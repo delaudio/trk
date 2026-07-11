@@ -1,6 +1,10 @@
 use std::{
     io::{self, Stdout},
     panic,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Once, OnceLock,
+    },
 };
 
 use anyhow::Result;
@@ -14,11 +18,13 @@ use ratatui::{backend::CrosstermBackend, Terminal};
 
 pub struct TerminalGuard {
     terminal: Terminal<CrosstermBackend<Stdout>>,
+    interrupted: Arc<AtomicBool>,
 }
 
 impl TerminalGuard {
     pub fn enter() -> Result<Self> {
         install_panic_restore_hook();
+        let interrupted = install_sigint_restore_handler()?;
 
         enable_raw_mode()?;
         let mut stdout = io::stdout();
@@ -26,7 +32,10 @@ impl TerminalGuard {
         let backend = CrosstermBackend::new(stdout);
         let terminal = Terminal::new(backend)?;
 
-        Ok(Self { terminal })
+        Ok(Self {
+            terminal,
+            interrupted,
+        })
     }
 
     pub fn draw<F>(&mut self, draw: F) -> Result<()>
@@ -41,6 +50,10 @@ impl TerminalGuard {
         let height = self.terminal.size().map_or(0, |area| area.height);
         height.saturating_sub(7) as usize
     }
+
+    pub fn interrupted(&self) -> bool {
+        self.interrupted.load(Ordering::SeqCst)
+    }
 }
 
 impl Drop for TerminalGuard {
@@ -50,11 +63,34 @@ impl Drop for TerminalGuard {
 }
 
 fn install_panic_restore_hook() {
-    let original_hook = panic::take_hook();
-    panic::set_hook(Box::new(move |panic_info| {
-        let _ = restore_terminal();
-        original_hook(panic_info);
-    }));
+    static PANIC_HOOK: Once = Once::new();
+    PANIC_HOOK.call_once(|| {
+        let original_hook = panic::take_hook();
+        panic::set_hook(Box::new(move |panic_info| {
+            let _ = restore_terminal();
+            original_hook(panic_info);
+        }));
+    });
+}
+
+fn install_sigint_restore_handler() -> Result<Arc<AtomicBool>> {
+    static INTERRUPTED: OnceLock<Arc<AtomicBool>> = OnceLock::new();
+    let interrupted = INTERRUPTED
+        .get_or_init(|| Arc::new(AtomicBool::new(false)))
+        .clone();
+
+    static SIGINT_HANDLER: Once = Once::new();
+    let handler_flag = interrupted.clone();
+    let mut install_result = Ok(());
+    SIGINT_HANDLER.call_once(|| {
+        install_result = ctrlc::set_handler(move || {
+            handler_flag.store(true, Ordering::SeqCst);
+            let _ = restore_terminal();
+        });
+    });
+    install_result?;
+    interrupted.store(false, Ordering::SeqCst);
+    Ok(interrupted)
 }
 
 fn restore_terminal() -> io::Result<()> {

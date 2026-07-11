@@ -15,6 +15,7 @@ version = "0.1.0"
 [workspace.dependencies]
 anyhow = "1"
 crossterm = "0.28"
+ctrlc = "3"
 midir = { version = "0.10", features = ["coremidi_send_timestamped"] }
 ratatui = "0.29"
 serde = { version = "1", features = ["derive"] }

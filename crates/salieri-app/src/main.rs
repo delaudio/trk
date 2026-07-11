@@ -88,6 +88,9 @@ fn run(args: CliArgs) -> Result<()> {
         None => App::new(config),
     };
     let mut terminal = TerminalGuard::enter()?;
+    if std::env::var_os("SALIERI_DEBUG_PANIC_AFTER_TERMINAL_ENTER").is_some() {
+        panic!("debug panic after terminal enter");
+    }
 
     loop {
         app.drain_playback_updates();
@@ -124,7 +127,7 @@ fn run(args: CliArgs) -> Result<()> {
             );
         })?;
 
-        if app.should_quit {
+        if app.should_quit || terminal.interrupted() {
             break;
         }
 
