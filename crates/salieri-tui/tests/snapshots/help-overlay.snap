@@ -6,7 +6,7 @@
 │  02 Bass │Enter Play Row   Shift+Enter Play Sequence From Cursor   L Loop   F8 Stop                       │          │
 │  03 Lead │F7 Sequence View   F9 Track View   F10 Pattern View   Esc returns from focused views            │          │
 │  04 Pad  │:play pattern from start   :play sequence arrangement                                           │          │
-│          │Ctrl+S Save   Ctrl+Z Undo   Ctrl+Y Redo   Ctrl+Arrows BPM/LPB                                   │          │
+│          │Ctrl+S Save   Ctrl+Shift+S Save As   Ctrl+Z Undo   Ctrl+Y Redo   Ctrl+Arrows BPM/LPB            │          │
 │          │                                                                                                │          │
 │          │MIDI                                                                                            │          │
 │          │F4 or :midi outputs opens MIDI settings and lists output ports                                  │          │

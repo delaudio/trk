@@ -697,22 +697,22 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
 
     let text = if state.active_view == TuiView::Sequence {
         format!(
-            " {} | H Help | Esc Pattern | A Add | R Remove | Y Duplicate | T Set Pattern | </> Move | Enter Play | : Command | Ctrl+S Save | q Quit ",
+            " {} | H Help | Esc Pattern | A Add | R Remove | Y Duplicate | T Set Pattern | </> Move | Enter Play | : Command | Ctrl+S Save | Ctrl+Shift+S Save As | q Quit ",
             state.mode_label
         )
     } else if state.active_view == TuiView::Tracks {
         format!(
-            " {} | H Help | Esc Pattern | N New | D Duplicate | r Rename | c Channel | Del Delete | {{/}} Move | M/S Mute/Solo | : Command | Ctrl+S Save | q Quit ",
+            " {} | H Help | Esc Pattern | N New | D Duplicate | r Rename | c Channel | Del Delete | {{/}} Move | M/S Mute/Solo | : Command | Ctrl+S Save | Ctrl+Shift+S Save As | q Quit ",
             state.mode_label
         )
     } else if state.active_view == TuiView::Patterns {
         format!(
-            " {} | H Help | Esc Pattern | N New | P Duplicate | r Rename | X/Del Delete | 1-5 Length Presets | F6 Length | : Command | Ctrl+S Save | q Quit ",
+            " {} | H Help | Esc Pattern | N New | P Duplicate | r Rename | X/Del Delete | 1-5 Length Presets | F6 Length | : Command | Ctrl+S Save | Ctrl+Shift+S Save As | q Quit ",
             state.mode_label
         )
     } else {
         format!(
-            " {}{} | H Help | F4 MIDI | F7 Sequence | F9 Tracks | F10 Patterns | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern | A/Y/R Seq | {{/}} Track | : Command | i Edit | V Select | Ctrl+S Save | q Quit ",
+            " {}{} | H Help | F4 MIDI | F7 Sequence | F9 Tracks | F10 Patterns | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern | A/Y/R Seq | {{/}} Track | : Command | i Edit | V Select | Ctrl+S Save | Ctrl+Shift+S Save As | q Quit ",
             state.mode_label,
             if state.selection.is_some() { " SEL" } else { "" }
         )
@@ -734,7 +734,7 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
         Line::from("  Enter Play Row   Shift+Enter Play Sequence From Cursor   L Loop   F8 Stop"),
         Line::from("  F7 Sequence View   F9 Track View   F10 Pattern View   Esc returns from focused views"),
         Line::from("  :play pattern from start   :play sequence arrangement"),
-        Line::from("  Ctrl+S Save   Ctrl+Z Undo   Ctrl+Y Redo   Ctrl+Arrows BPM/LPB"),
+        Line::from("  Ctrl+S Save   Ctrl+Shift+S Save As   Ctrl+Z Undo   Ctrl+Y Redo   Ctrl+Arrows BPM/LPB"),
         Line::from(""),
         Line::from(Span::styled(
             "MIDI",

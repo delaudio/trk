@@ -167,6 +167,7 @@ Global:
 H or ?          Help
 q               Quit
 Ctrl+S          Save
+Ctrl+Shift+S    Save As prompt with current path
 Space           Play/stop
 Shift+Space     Play pattern from start
 Enter           Play from current row
