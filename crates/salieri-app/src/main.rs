@@ -619,6 +619,10 @@ impl App {
                 self.request_quit(false);
                 return;
             }
+            KeyCode::Char(' ') if key.modifiers.contains(KeyModifiers::SHIFT) => {
+                self.start_playback();
+                return;
+            }
             KeyCode::Char(' ') => {
                 self.toggle_playback();
                 return;
@@ -2842,6 +2846,23 @@ mod tests {
 
         assert!(!app.is_playing);
         assert_eq!(app.playhead_row, None);
+    }
+
+    #[test]
+    fn shift_space_starts_playback_from_pattern_start() {
+        let mut app = App {
+            cursor: Cursor {
+                row: 12,
+                ..Cursor::new()
+            },
+            ..App::default()
+        };
+
+        app.handle_key(KeyEvent::new(KeyCode::Char(' '), KeyModifiers::SHIFT));
+
+        assert!(app.is_playing);
+        assert_eq!(app.playhead_row, Some(0));
+        assert_eq!(app.sequence_position, None);
     }
 
     #[test]
