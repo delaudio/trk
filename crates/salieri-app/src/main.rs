@@ -656,6 +656,14 @@ impl App {
                 self.duplicate_track(self.cursor.track);
                 return;
             }
+            KeyCode::Char('{') => {
+                self.move_current_track_left();
+                return;
+            }
+            KeyCode::Char('}') => {
+                self.move_current_track_right();
+                return;
+            }
             KeyCode::Char('N') => {
                 self.create_pattern();
                 return;
@@ -1230,6 +1238,25 @@ impl App {
             self.cursor.digit = 0;
             self.notify_success("Track moved");
         }
+    }
+
+    fn move_current_track_left(&mut self) {
+        if self.cursor.track == 0 {
+            self.notify_warning("Track already at first position");
+            return;
+        }
+
+        self.move_track(self.cursor.track, self.cursor.track - 1);
+    }
+
+    fn move_current_track_right(&mut self) {
+        let next_track = self.cursor.track.saturating_add(1);
+        if next_track >= self.song.tracks.len() {
+            self.notify_warning("Track already at last position");
+            return;
+        }
+
+        self.move_track(self.cursor.track, next_track);
     }
 
     fn toggle_current_mute(&mut self) {
@@ -3796,6 +3823,51 @@ mod tests {
 
         assert_eq!(app.song.tracks[1].name, "Bass");
         assert_eq!(app.song.tracks[2].name, "Lead");
+    }
+
+    #[test]
+    fn brace_shortcuts_move_current_track_left_and_right() {
+        let mut app = App {
+            cursor: Cursor {
+                track: 1,
+                ..Cursor::new()
+            },
+            ..App::default()
+        };
+        app.song
+            .current_pattern_mut()
+            .expect("pattern")
+            .set_note(0, 1, NoteEvent::Note { pitch: 48 }, 0x60)
+            .expect("set bass note");
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('{'), KeyModifiers::SHIFT));
+
+        assert_eq!(app.song.tracks[0].name, "Bass");
+        assert_eq!(app.cursor.track, 0);
+        assert_eq!(
+            app.song
+                .current_pattern()
+                .expect("pattern")
+                .cell(0, 0)
+                .expect("cell")
+                .note,
+            Some(NoteEvent::Note { pitch: 48 })
+        );
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('}'), KeyModifiers::SHIFT));
+
+        assert_eq!(app.song.tracks[1].name, "Bass");
+        assert_eq!(app.cursor.track, 1);
+        assert_eq!(
+            app.song
+                .current_pattern()
+                .expect("pattern")
+                .cell(0, 1)
+                .expect("cell")
+                .note,
+            Some(NoteEvent::Note { pitch: 48 })
+        );
+        assert!(app.dirty);
     }
 
     #[test]
