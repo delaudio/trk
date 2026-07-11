@@ -2043,6 +2043,9 @@ impl App {
     fn connect_selected_midi_port(&mut self) {
         if let Some(port) = self.midi_ports.get(self.midi_port_cursor) {
             self.connect_midi(port.index);
+        } else {
+            self.midi_status = "MIDI No Outputs".to_string();
+            self.notify_warning("No MIDI output selected");
         }
     }
 
@@ -2690,6 +2693,25 @@ mod tests {
 
         app.handle_key(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE));
         assert_eq!(app.mode, AppMode::Normal);
+    }
+
+    #[test]
+    fn midi_settings_connect_without_ports_reports_warning() {
+        let mut app = App {
+            midi_ports: Vec::new(),
+            mode: AppMode::MidiSettings,
+            ..App::default()
+        };
+
+        app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+
+        assert_eq!(app.mode, AppMode::MidiSettings);
+        assert_eq!(app.midi_status, "MIDI No Outputs");
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("No MIDI output selected")
+        );
+        assert!(!app.dirty);
     }
 
     #[test]
