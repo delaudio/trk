@@ -650,6 +650,10 @@ impl App {
                 self.start_track_rename_command();
                 return;
             }
+            KeyCode::Char('D') => {
+                self.duplicate_track(self.cursor.track);
+                return;
+            }
             KeyCode::Char('L') => {
                 self.toggle_loop();
                 return;
@@ -3455,6 +3459,24 @@ mod tests {
 
         assert_eq!(app.song.tracks.len(), 4);
         assert_eq!(app.cursor.track, 3);
+    }
+
+    #[test]
+    fn uppercase_d_duplicates_current_track() {
+        let mut app = App {
+            cursor: Cursor {
+                track: 1,
+                ..Cursor::new()
+            },
+            ..App::default()
+        };
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('D'), KeyModifiers::SHIFT));
+
+        assert_eq!(app.song.tracks.len(), 5);
+        assert_eq!(app.song.tracks[4].name, "Bass Copy");
+        assert_eq!(app.cursor.track, 4);
+        assert!(app.dirty);
     }
 
     #[test]
