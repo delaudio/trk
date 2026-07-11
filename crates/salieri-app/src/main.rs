@@ -1355,30 +1355,62 @@ impl App {
     }
 
     fn remove_sequence_position(&mut self, position: usize) {
+        let mut next_song = self.song.clone();
+        if let Err(error) = next_song.remove_sequence_position(position) {
+            self.notify_warning(format!("Sequence remove failed: {error}"));
+            return;
+        }
+
         self.mutate_song(|song, _| {
-            let _ = song.remove_sequence_position(position);
+            *song = next_song;
         });
+        self.notify_success(format!("Sequence removed position {position:02}"));
     }
 
     fn duplicate_sequence_position(&mut self, position: usize) {
+        let mut next_song = self.song.clone();
+        if let Err(error) = next_song.duplicate_sequence_position(position) {
+            self.notify_warning(format!("Sequence duplicate failed: {error}"));
+            return;
+        }
+
         self.mutate_song(|song, _| {
-            let _ = song.duplicate_sequence_position(position);
+            *song = next_song;
         });
+        self.notify_success(format!("Sequence duplicated position {position:02}"));
     }
 
     fn set_sequence_pattern(&mut self, position: usize, pattern_index: usize) {
         let Some(pattern_id) = self.song.pattern(pattern_index).map(|pattern| pattern.id) else {
+            self.notify_warning("Pattern out of range");
             return;
         };
+        let mut next_song = self.song.clone();
+        if let Err(error) = next_song.set_sequence_pattern(position, pattern_id) {
+            self.notify_warning(format!("Sequence set failed: {error}"));
+            return;
+        }
+
         self.mutate_song(|song, _| {
-            let _ = song.set_sequence_pattern(position, pattern_id);
+            *song = next_song;
         });
+        self.notify_success(format!(
+            "Sequence position {position:02} set to pattern {:02}",
+            pattern_index + 1
+        ));
     }
 
     fn move_sequence_position(&mut self, from: usize, to: usize) {
+        let mut next_song = self.song.clone();
+        if let Err(error) = next_song.move_sequence_position(from, to) {
+            self.notify_warning(format!("Sequence move failed: {error}"));
+            return;
+        }
+
         self.mutate_song(|song, _| {
-            let _ = song.move_sequence_position(from, to);
+            *song = next_song;
         });
+        self.notify_success(format!("Sequence moved position {from:02} to {to:02}"));
     }
 
     fn execute_command(&mut self) {
@@ -3222,6 +3254,10 @@ mod tests {
         type_command(&mut app, "sequence remove 0");
         assert_eq!(app.song.sequence, vec![salieri_core::PatternId(2)]);
         assert_eq!(app.song.patterns.len(), 2);
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("Sequence removed position 00")
+        );
     }
 
     #[test]
@@ -3257,9 +3293,17 @@ mod tests {
                 salieri_core::PatternId(3)
             ]
         );
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("Sequence duplicated position 01")
+        );
 
         type_command(&mut app, "sequence set 0 3");
         assert_eq!(app.song.sequence[0], salieri_core::PatternId(3));
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("Sequence position 00 set to pattern 03")
+        );
 
         type_command(&mut app, "sequence move 3 1");
         assert_eq!(
@@ -3271,9 +3315,49 @@ mod tests {
                 salieri_core::PatternId(2)
             ]
         );
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("Sequence moved position 03 to 01")
+        );
 
         app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
         assert_eq!(app.song.sequence[1], salieri_core::PatternId(2));
+    }
+
+    #[test]
+    fn command_mode_reports_sequence_position_errors() {
+        let mut app = App::default();
+
+        type_command(&mut app, "sequence remove 99");
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("Sequence remove failed: sequence out of bounds: position 99")
+        );
+        assert!(!app.dirty);
+
+        type_command(&mut app, "sequence duplicate 99");
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("Sequence duplicate failed: sequence out of bounds: position 99")
+        );
+
+        type_command(&mut app, "sequence set 99 1");
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("Sequence set failed: sequence out of bounds: position 99")
+        );
+
+        type_command(&mut app, "sequence set 0 99");
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("Pattern out of range")
+        );
+
+        type_command(&mut app, "sequence move 99 0");
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("Sequence move failed: sequence out of bounds: position 99")
+        );
     }
 
     #[test]
