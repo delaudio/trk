@@ -10,6 +10,7 @@ use anyhow::{Context, Result};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use persistence::{load_project, save_project};
 use salieri_core::{CellField, Cursor, Direction, NoteEvent, Song};
+use salieri_midi::list_output_ports;
 use salieri_tui::{render, TuiState};
 use terminal::TerminalGuard;
 
@@ -36,7 +37,24 @@ fn main() -> Result<()> {
 }
 
 fn run() -> Result<()> {
-    let project_path = std::env::args_os().nth(1).map(PathBuf::from);
+    let args = CliArgs::parse(std::env::args().skip(1));
+    match args.command {
+        CliCommand::Help => {
+            print_help();
+            return Ok(());
+        }
+        CliCommand::Version => {
+            println!("salieri {}", env!("CARGO_PKG_VERSION"));
+            return Ok(());
+        }
+        CliCommand::ListMidiOutputs => {
+            print_midi_outputs()?;
+            return Ok(());
+        }
+        CliCommand::Run => {}
+    }
+
+    let project_path = args.project_path;
     let mut app = match &project_path {
         Some(path) => App::from_file(path)
             .with_context(|| format!("failed to open project {}", path.display()))?,
@@ -84,6 +102,82 @@ fn run() -> Result<()> {
             app.last_tick = Instant::now();
             app.keep_cursor_visible(terminal.visible_pattern_rows());
         }
+    }
+
+    Ok(())
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CliArgs {
+    command: CliCommand,
+    project_path: Option<PathBuf>,
+}
+
+impl CliArgs {
+    fn parse(args: impl IntoIterator<Item = String>) -> Self {
+        let mut project_path = None;
+
+        for arg in args {
+            match arg.as_str() {
+                "-h" | "--help" => {
+                    return Self {
+                        command: CliCommand::Help,
+                        project_path: None,
+                    }
+                }
+                "-V" | "--version" => {
+                    return Self {
+                        command: CliCommand::Version,
+                        project_path: None,
+                    }
+                }
+                "--list-midi-outputs" => {
+                    return Self {
+                        command: CliCommand::ListMidiOutputs,
+                        project_path: None,
+                    }
+                }
+                _ if project_path.is_none() => project_path = Some(PathBuf::from(arg)),
+                _ => {}
+            }
+        }
+
+        Self {
+            command: CliCommand::Run,
+            project_path,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CliCommand {
+    Run,
+    Help,
+    Version,
+    ListMidiOutputs,
+}
+
+fn print_help() {
+    println!(
+        "Salieri Tracker\n\nUsage:\n  salieri [FILE]\n  salieri --list-midi-outputs\n  salieri --help\n  salieri --version\n\nOptions:\n  --list-midi-outputs  List available MIDI output ports\n  --help               Show this help\n  --version            Show version"
+    );
+}
+
+fn print_midi_outputs() -> Result<()> {
+    let ports = match list_output_ports() {
+        Ok(ports) => ports,
+        Err(error) => {
+            println!("MIDI output unavailable: {error}");
+            return Ok(());
+        }
+    };
+    if ports.is_empty() {
+        println!("No MIDI output ports found");
+        return Ok(());
+    }
+
+    for port in ports {
+        println!("{}: {}", port.index, port.name);
     }
 
     Ok(())
@@ -607,6 +701,36 @@ fn keyboard_note(key: char, octave: u8) -> Option<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cli_parses_help_version_and_midi_listing() {
+        assert_eq!(
+            CliArgs::parse(["--help".to_string()]),
+            CliArgs {
+                command: CliCommand::Help,
+                project_path: None
+            }
+        );
+        assert_eq!(
+            CliArgs::parse(["--version".to_string()]).command,
+            CliCommand::Version
+        );
+        assert_eq!(
+            CliArgs::parse(["--list-midi-outputs".to_string()]).command,
+            CliCommand::ListMidiOutputs
+        );
+    }
+
+    #[test]
+    fn cli_parses_optional_project_path() {
+        assert_eq!(
+            CliArgs::parse(["song.salieri".to_string()]),
+            CliArgs {
+                command: CliCommand::Run,
+                project_path: Some(PathBuf::from("song.salieri"))
+            }
+        );
+    }
 
     #[test]
     fn scrolls_down_to_keep_cursor_visible() {
