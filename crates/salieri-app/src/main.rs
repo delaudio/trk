@@ -661,6 +661,14 @@ impl App {
                 self.start_selection();
                 return;
             }
+            KeyCode::Char('[') => {
+                self.select_pattern(self.pattern_index.saturating_sub(1));
+                return;
+            }
+            KeyCode::Char(']') => {
+                self.select_pattern(self.pattern_index.saturating_add(1));
+                return;
+            }
             KeyCode::Up => Some(Direction::Up),
             KeyCode::Char('k') if self.vim_navigation => Some(Direction::Up),
             KeyCode::Down => Some(Direction::Down),
@@ -3020,6 +3028,33 @@ mod tests {
         app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
         assert_eq!(app.song.patterns.len(), 3);
         assert_eq!(app.pattern_index, 1);
+    }
+
+    #[test]
+    fn bracket_keys_select_previous_and_next_pattern() {
+        let mut app = App::default();
+        type_command(&mut app, "pattern new");
+        type_command(&mut app, "pattern new");
+
+        assert_eq!(app.pattern_index, 2);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('['), KeyModifiers::NONE));
+        assert_eq!(app.pattern_index, 1);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('['), KeyModifiers::NONE));
+        assert_eq!(app.pattern_index, 0);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('['), KeyModifiers::NONE));
+        assert_eq!(app.pattern_index, 0);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char(']'), KeyModifiers::NONE));
+        assert_eq!(app.pattern_index, 1);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char(']'), KeyModifiers::NONE));
+        assert_eq!(app.pattern_index, 2);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char(']'), KeyModifiers::NONE));
+        assert_eq!(app.pattern_index, 2);
     }
 
     #[test]
