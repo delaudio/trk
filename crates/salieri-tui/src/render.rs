@@ -26,6 +26,20 @@ pub struct TuiState<'a> {
     pub midi_status: &'a str,
     pub sequence_position: Option<usize>,
     pub quit_confirmation: bool,
+    pub midi_settings: Option<MidiSettingsState<'a>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MidiSettingsState<'a> {
+    pub ports: &'a [MidiPortView<'a>],
+    pub selected_port: usize,
+    pub status: &'a str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MidiPortView<'a> {
+    pub index: usize,
+    pub name: &'a str,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -63,6 +77,9 @@ pub fn render(frame: &mut Frame<'_>, song: &Song, state: TuiState<'_>) {
 
     if state.show_help {
         render_help_overlay(frame, area, state.mode_label);
+    }
+    if let Some(midi_settings) = state.midi_settings {
+        render_midi_settings_overlay(frame, area, midi_settings);
     }
     if state.quit_confirmation {
         render_quit_confirmation(frame, area);
@@ -421,9 +438,9 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
         )),
-        Line::from("  1. In another terminal run: salieri --list-midi-outputs"),
-        Line::from("  2. Pick the output number for your DAW, synth, or virtual MIDI port"),
-        Line::from("  3. In Salieri run: :midi connect 0"),
+        Line::from("  :midi outputs opens MIDI settings and lists available output ports"),
+        Line::from("  In MIDI settings: arrows select, Enter connects, d disconnects, p panic"),
+        Line::from("  CLI fallback: salieri --list-midi-outputs, then :midi connect 0"),
         Line::from("  4. Press Space or run :play pattern to send notes to the connected output"),
         Line::from("  :midi disconnect closes the output   :midi panic sends All Notes Off"),
         Line::from("  Use :track channel 2 10 to set track 02 to MIDI channel 10"),
@@ -488,6 +505,69 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
 
     let paragraph = Paragraph::new(lines)
         .block(Block::default().title(" Help ").borders(Borders::ALL))
+        .wrap(Wrap { trim: true })
+        .style(Style::default().fg(Color::White));
+    frame.render_widget(Clear, overlay);
+    frame.render_widget(paragraph, overlay);
+}
+
+fn render_midi_settings_overlay(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    midi_settings: MidiSettingsState<'_>,
+) {
+    let overlay = centered_rect(76, 18, area);
+    let mut lines = vec![
+        Line::from(Span::styled(
+            "Output Ports",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::from(format!("  Status: {}", midi_settings.status)),
+        Line::from(""),
+    ];
+
+    if midi_settings.ports.is_empty() {
+        lines.push(Line::from("  No MIDI output ports found"));
+        lines.push(Line::from(""));
+        lines.push(Line::from(
+            "  On macOS, enable IAC Driver in Audio MIDI Setup.",
+        ));
+    } else {
+        for (row, port) in midi_settings.ports.iter().enumerate() {
+            let marker = if row == midi_settings.selected_port {
+                ">"
+            } else {
+                " "
+            };
+            let line = format!("{marker} {:02} {}", port.index, port.name);
+            if row == midi_settings.selected_port {
+                lines.push(Line::styled(
+                    line,
+                    Style::default()
+                        .fg(Color::Black)
+                        .bg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                ));
+            } else {
+                lines.push(Line::from(line));
+            }
+        }
+    }
+
+    lines.extend([
+        Line::from(""),
+        Line::from("Enter connect selected   d disconnect   p panic/all notes off"),
+        Line::from("r refresh ports   Esc/q close"),
+    ]);
+
+    let paragraph = Paragraph::new(lines)
+        .block(
+            Block::default()
+                .title(" MIDI Settings ")
+                .borders(Borders::ALL),
+        )
         .wrap(Wrap { trim: true })
         .style(Style::default().fg(Color::White));
     frame.render_widget(Clear, overlay);
@@ -572,6 +652,7 @@ mod tests {
                         midi_status: "MIDI Disconnected",
                         sequence_position: None,
                         quit_confirmation: false,
+                        midi_settings: None,
                     },
                 );
             })
@@ -616,6 +697,7 @@ mod tests {
                         midi_status: "MIDI Disconnected",
                         sequence_position: None,
                         quit_confirmation: false,
+                        midi_settings: None,
                     },
                 );
             })
@@ -633,8 +715,8 @@ mod tests {
         assert!(rendered.contains("Global"));
         assert!(rendered.contains("Notes"));
         assert!(rendered.contains("MIDI"));
+        assert!(rendered.contains(":midi outputs"));
         assert!(rendered.contains("salieri --list-midi-outputs"));
-        assert!(rendered.contains(":midi connect 0"));
     }
 
     #[test]
@@ -668,6 +750,7 @@ mod tests {
                         midi_status: "MIDI Connected 0",
                         sequence_position: Some(0),
                         quit_confirmation: false,
+                        midi_settings: None,
                     },
                 );
             })
@@ -713,6 +796,7 @@ mod tests {
                         midi_status: "MIDI Disconnected",
                         sequence_position: None,
                         quit_confirmation: true,
+                        midi_settings: None,
                     },
                 );
             })
@@ -728,5 +812,65 @@ mod tests {
 
         assert!(rendered.contains("Unsaved changes"));
         assert!(rendered.contains("[Y]es"));
+    }
+
+    #[test]
+    fn renders_midi_settings_overlay() {
+        let song = Song::empty();
+        let backend = TestBackend::new(100, 32);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+        let ports = [
+            MidiPortView {
+                index: 0,
+                name: "IAC Driver Bus 1",
+            },
+            MidiPortView {
+                index: 2,
+                name: "External Synth",
+            },
+        ];
+
+        terminal
+            .draw(|frame| {
+                render(
+                    frame,
+                    &song,
+                    TuiState {
+                        cursor: Cursor::new(),
+                        row_offset: 0,
+                        pattern_index: 0,
+                        selection: None,
+                        mode_label: "MIDI",
+                        octave: 4,
+                        dirty: false,
+                        command_line: None,
+                        show_help: false,
+                        is_playing: false,
+                        playhead_row: None,
+                        midi_status: "MIDI Disconnected",
+                        sequence_position: None,
+                        quit_confirmation: false,
+                        midi_settings: Some(MidiSettingsState {
+                            ports: &ports,
+                            selected_port: 1,
+                            status: "MIDI Disconnected",
+                        }),
+                    },
+                );
+            })
+            .expect("draw");
+
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+
+        assert!(rendered.contains("MIDI Settings"));
+        assert!(rendered.contains("IAC Driver Bus 1"));
+        assert!(rendered.contains("External Synth"));
+        assert!(rendered.contains("Enter connect selected"));
     }
 }

@@ -1,3 +1,3 @@
 pub mod render;
 
-pub use render::{render, SelectionRect, TuiState};
+pub use render::{render, MidiPortView, MidiSettingsState, SelectionRect, TuiState};

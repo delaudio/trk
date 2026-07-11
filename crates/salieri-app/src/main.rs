@@ -18,7 +18,7 @@ use persistence::{load_project, save_project};
 use playback_runtime::{PlaybackRuntime, PlaybackUpdate};
 use salieri_core::{CellField, Cursor, Direction, NoteEvent, PatternCell, Song};
 use salieri_midi::{list_output_ports, MidiMessage, MidiOutput, MidiOutputPort, MidirMidiOutput};
-use salieri_tui::{render, SelectionRect, TuiState};
+use salieri_tui::{render, MidiPortView, MidiSettingsState, SelectionRect, TuiState};
 use terminal::TerminalGuard;
 
 const UI_TICK_RATE: Duration = Duration::from_millis(33);
@@ -85,6 +85,8 @@ fn run(args: CliArgs) -> Result<()> {
         app.drain_playback_updates();
         app.keep_active_row_visible(terminal.visible_pattern_rows());
         terminal.draw(|frame| {
+            let midi_ports = app.tui_midi_ports();
+            let midi_settings = app.tui_midi_settings(&midi_ports);
             render(
                 frame,
                 &app.song,
@@ -103,6 +105,7 @@ fn run(args: CliArgs) -> Result<()> {
                     midi_status: app.midi_status.as_str(),
                     sequence_position: app.sequence_position,
                     quit_confirmation: app.mode == AppMode::Dialog,
+                    midi_settings,
                 },
             );
         })?;
@@ -332,7 +335,7 @@ fn run_midi_test(config: &AppConfig, args: &MidiTestArgs) -> Result<()> {
         .as_deref()
         .filter(|value| !value.trim().is_empty())
         .unwrap_or(config.midi.default_output.as_str());
-    let Some(port) = resolve_midi_output_port(&ports, output) else {
+    let Some((_, port)) = resolve_midi_output_port(&ports, output) else {
         anyhow::bail!("MIDI output not found: {output}");
     };
 
@@ -414,6 +417,8 @@ struct App {
     playhead_row: Option<usize>,
     sequence_position: Option<usize>,
     midi_status: String,
+    midi_ports: Vec<MidiOutputPort>,
+    midi_port_cursor: usize,
     dirty: bool,
     should_quit: bool,
     last_tick: Instant,
@@ -473,6 +478,8 @@ impl App {
             playhead_row: None,
             sequence_position: None,
             midi_status,
+            midi_ports: Vec::new(),
+            midi_port_cursor: 0,
             dirty: false,
             should_quit: false,
             last_tick: Instant::now(),
@@ -502,6 +509,7 @@ impl App {
             AppMode::Command => self.handle_command_key(key),
             AppMode::Help => self.handle_help_key(key),
             AppMode::Dialog => self.handle_dialog_key(key),
+            AppMode::MidiSettings => self.handle_midi_settings_key(key),
         }
     }
 
@@ -708,6 +716,25 @@ impl App {
             KeyCode::Char('c') | KeyCode::Char('C') | KeyCode::Esc => {
                 self.mode = AppMode::Normal;
             }
+            _ => {}
+        }
+    }
+
+    fn handle_midi_settings_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Esc | KeyCode::Char('q') => self.mode = AppMode::Normal,
+            KeyCode::Up => self.previous_midi_port(),
+            KeyCode::Char('k') if self.vim_navigation => self.previous_midi_port(),
+            KeyCode::Down => self.next_midi_port(),
+            KeyCode::Char('j') if self.vim_navigation => self.next_midi_port(),
+            KeyCode::Home => self.midi_port_cursor = 0,
+            KeyCode::End => {
+                self.midi_port_cursor = self.midi_ports.len().saturating_sub(1);
+            }
+            KeyCode::Enter => self.connect_selected_midi_port(),
+            KeyCode::Char('d') | KeyCode::Char('D') => self.disconnect_midi(),
+            KeyCode::Char('p') | KeyCode::Char('P') => self.panic_midi(),
+            KeyCode::Char('r') | KeyCode::Char('R') => self.refresh_midi_ports(),
             _ => {}
         }
     }
@@ -1199,6 +1226,7 @@ impl App {
                 }
             }
             "midi" => match parts.next() {
+                Some("outputs") | Some("settings") | Some("ports") => self.open_midi_settings(),
                 Some("connect") => {
                     if let Some(port_index) =
                         parts.next().and_then(|value| value.parse::<usize>().ok())
@@ -1388,6 +1416,47 @@ impl App {
         self.playback.connect_midi(port_index);
     }
 
+    fn open_midi_settings(&mut self) {
+        self.refresh_midi_ports();
+        self.mode = AppMode::MidiSettings;
+    }
+
+    fn refresh_midi_ports(&mut self) {
+        match list_output_ports() {
+            Ok(ports) => {
+                self.midi_ports = ports;
+                self.midi_port_cursor = self
+                    .midi_port_cursor
+                    .min(self.midi_ports.len().saturating_sub(1));
+                if self.midi_ports.is_empty() {
+                    self.midi_status = "MIDI No Outputs".to_string();
+                }
+            }
+            Err(error) => {
+                self.midi_ports.clear();
+                self.midi_port_cursor = 0;
+                self.midi_status = format!("MIDI Error: {error}");
+            }
+        }
+    }
+
+    fn next_midi_port(&mut self) {
+        self.midi_port_cursor = self
+            .midi_port_cursor
+            .saturating_add(1)
+            .min(self.midi_ports.len().saturating_sub(1));
+    }
+
+    fn previous_midi_port(&mut self) {
+        self.midi_port_cursor = self.midi_port_cursor.saturating_sub(1);
+    }
+
+    fn connect_selected_midi_port(&mut self) {
+        if let Some(port) = self.midi_ports.get(self.midi_port_cursor) {
+            self.connect_midi(port.index);
+        }
+    }
+
     fn connect_default_midi_output(&mut self, output_name: &str) {
         if output_name.trim().is_empty() {
             return;
@@ -1395,7 +1464,11 @@ impl App {
 
         match list_output_ports() {
             Ok(ports) => {
-                if let Some(port) = resolve_midi_output_port(&ports, output_name) {
+                self.midi_ports = ports;
+                if let Some((position, port)) =
+                    resolve_midi_output_port(&self.midi_ports, output_name)
+                {
+                    self.midi_port_cursor = position;
                     self.midi_status = format!("MIDI Connecting {} ({})", port.index, port.name);
                     self.playback.connect_midi(port.index);
                 } else {
@@ -1565,6 +1638,27 @@ impl App {
             None
         }
     }
+
+    fn tui_midi_ports(&self) -> Vec<MidiPortView<'_>> {
+        self.midi_ports
+            .iter()
+            .map(|port| MidiPortView {
+                index: port.index,
+                name: port.name.as_str(),
+            })
+            .collect()
+    }
+
+    fn tui_midi_settings<'a>(
+        &'a self,
+        ports: &'a [MidiPortView<'a>],
+    ) -> Option<MidiSettingsState<'a>> {
+        (self.mode == AppMode::MidiSettings).then_some(MidiSettingsState {
+            ports,
+            selected_port: self.midi_port_cursor.min(ports.len().saturating_sub(1)),
+            status: self.midi_status.as_str(),
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1574,6 +1668,7 @@ enum AppMode {
     Command,
     Help,
     Dialog,
+    MidiSettings,
 }
 
 impl AppMode {
@@ -1584,6 +1679,7 @@ impl AppMode {
             AppMode::Command => "COMMAND",
             AppMode::Help => "HELP",
             AppMode::Dialog => "DIALOG",
+            AppMode::MidiSettings => "MIDI",
         }
     }
 }
@@ -1635,7 +1731,7 @@ fn keyboard_note(key: char, octave: u8) -> Option<u8> {
 fn find_midi_output_port<'a>(
     ports: &'a [MidiOutputPort],
     output_name: &str,
-) -> Option<&'a MidiOutputPort> {
+) -> Option<(usize, &'a MidiOutputPort)> {
     let needle = output_name.trim().to_lowercase();
     let normalized_needle = normalize_midi_port_name(output_name);
     if needle.is_empty() {
@@ -1644,14 +1740,16 @@ fn find_midi_output_port<'a>(
 
     ports
         .iter()
-        .find(|port| port.name.eq_ignore_ascii_case(output_name.trim()))
+        .enumerate()
+        .find(|(_, port)| port.name.eq_ignore_ascii_case(output_name.trim()))
         .or_else(|| {
             ports
                 .iter()
-                .find(|port| port.name.to_lowercase().contains(&needle))
+                .enumerate()
+                .find(|(_, port)| port.name.to_lowercase().contains(&needle))
         })
         .or_else(|| {
-            ports.iter().find(|port| {
+            ports.iter().enumerate().find(|(_, port)| {
                 let normalized_name = normalize_midi_port_name(&port.name);
                 normalized_name == normalized_needle
                     || normalized_name.contains(&normalized_needle)
@@ -1663,12 +1761,17 @@ fn find_midi_output_port<'a>(
 fn resolve_midi_output_port<'a>(
     ports: &'a [MidiOutputPort],
     output_name_or_index: &str,
-) -> Option<&'a MidiOutputPort> {
+) -> Option<(usize, &'a MidiOutputPort)> {
     let value = output_name_or_index.trim();
     value
         .parse::<usize>()
         .ok()
-        .and_then(|index| ports.iter().find(|port| port.index == index))
+        .and_then(|index| {
+            ports
+                .iter()
+                .enumerate()
+                .find(|(_, port)| port.index == index)
+        })
         .or_else(|| find_midi_output_port(ports, value))
 }
 
@@ -1837,22 +1940,53 @@ mod tests {
         ];
 
         assert_eq!(
-            find_midi_output_port(&ports, "IAC Driver").map(|port| port.index),
-            Some(1)
+            find_midi_output_port(&ports, "IAC Driver")
+                .map(|(position, port)| (position, port.index)),
+            Some((1, 1))
         );
         assert_eq!(
-            find_midi_output_port(&ports, "iac driver bus 1").map(|port| port.index),
-            Some(1)
+            find_midi_output_port(&ports, "iac driver bus 1")
+                .map(|(position, port)| (position, port.index)),
+            Some((1, 1))
         );
         assert_eq!(
-            find_midi_output_port(&ports, "IAC Driver (Bus 1)").map(|port| port.index),
-            Some(1)
+            find_midi_output_port(&ports, "IAC Driver (Bus 1)")
+                .map(|(position, port)| (position, port.index)),
+            Some((1, 1))
         );
         assert_eq!(
-            resolve_midi_output_port(&ports, "1").map(|port| port.name.as_str()),
-            Some("IAC Driver Bus 1")
+            resolve_midi_output_port(&ports, "1")
+                .map(|(position, port)| (position, port.name.as_str())),
+            Some((1, "IAC Driver Bus 1"))
         );
         assert!(find_midi_output_port(&ports, "Missing").is_none());
+    }
+
+    #[test]
+    fn midi_settings_keys_select_connect_and_close() {
+        let mut app = App {
+            midi_ports: vec![
+                MidiOutputPort {
+                    index: 0,
+                    name: "First".to_string(),
+                },
+                MidiOutputPort {
+                    index: 2,
+                    name: "Second".to_string(),
+                },
+            ],
+            mode: AppMode::MidiSettings,
+            ..App::default()
+        };
+
+        app.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+        assert_eq!(app.midi_port_cursor, 1);
+
+        app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        assert_eq!(app.midi_status, "MIDI Connecting 2");
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE));
+        assert_eq!(app.mode, AppMode::Normal);
     }
 
     #[test]
