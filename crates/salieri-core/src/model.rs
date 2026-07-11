@@ -253,6 +253,23 @@ impl Song {
         Ok(())
     }
 
+    pub fn set_track_midi_channel(
+        &mut self,
+        track_index: usize,
+        midi_channel: u8,
+    ) -> Result<(), EditError> {
+        if !(1..=16).contains(&midi_channel) {
+            return Err(EditError::InvalidMidiChannel { midi_channel });
+        }
+
+        let track = self
+            .tracks
+            .get_mut(track_index)
+            .ok_or(EditError::TrackOutOfBounds { track: track_index })?;
+        track.midi_channel = midi_channel;
+        Ok(())
+    }
+
     fn next_track_id(&self) -> TrackId {
         let next = self
             .tracks
@@ -427,6 +444,8 @@ pub enum EditError {
     SequenceOutOfBounds { position: usize },
     #[error("invalid pattern length: {row_count}")]
     InvalidPatternLength { row_count: usize },
+    #[error("invalid MIDI channel: {midi_channel}")]
+    InvalidMidiChannel { midi_channel: u8 },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -727,6 +746,26 @@ mod tests {
 
         assert!(song.tracks[0].muted);
         assert!(song.tracks[1].solo);
+    }
+
+    #[test]
+    fn track_midi_channel_can_be_changed_with_validation() {
+        let mut song = Song::empty();
+
+        song.set_track_midi_channel(1, 12)
+            .expect("set MIDI channel");
+
+        assert_eq!(song.tracks[1].midi_channel, 12);
+        assert_eq!(
+            song.set_track_midi_channel(1, 0)
+                .expect_err("channel out of range"),
+            EditError::InvalidMidiChannel { midi_channel: 0 }
+        );
+        assert_eq!(
+            song.set_track_midi_channel(99, 1)
+                .expect_err("track out of range"),
+            EditError::TrackOutOfBounds { track: 99 }
+        );
     }
 
     #[test]

@@ -538,6 +538,12 @@ impl App {
         });
     }
 
+    fn set_track_midi_channel(&mut self, track_index: usize, midi_channel: u8) {
+        self.mutate_song(|song, _| {
+            let _ = song.set_track_midi_channel(track_index, midi_channel);
+        });
+    }
+
     fn set_bpm(&mut self, bpm: u16) {
         self.mutate_song(|song, _| {
             song.transport.bpm = bpm;
@@ -699,6 +705,26 @@ impl App {
                 Some(_) => {}
             },
             "stop" => self.stop_playback(),
+            "track" => match parts.next() {
+                Some("new") => self.create_track(),
+                Some("channel") | Some("ch") => {
+                    let first = parts.next().and_then(|value| value.parse::<u8>().ok());
+                    let second = parts.next().and_then(|value| value.parse::<u8>().ok());
+                    match (first, second) {
+                        (Some(channel), None) => {
+                            self.set_track_midi_channel(self.cursor.track, channel);
+                        }
+                        (Some(track_number), Some(channel)) => {
+                            self.set_track_midi_channel(
+                                usize::from(track_number.saturating_sub(1)),
+                                channel,
+                            );
+                        }
+                        _ => {}
+                    }
+                }
+                None | Some(_) => {}
+            },
             "pattern" => match parts.next() {
                 Some("new") => self.create_pattern(),
                 Some("duplicate") | Some("dup") => self.duplicate_current_pattern(),
@@ -1504,6 +1530,30 @@ mod tests {
         assert!(app.song.tracks[2].muted);
         assert!(app.song.tracks[2].solo);
         assert!(app.dirty);
+    }
+
+    #[test]
+    fn command_mode_changes_current_or_named_track_midi_channel() {
+        let mut app = App {
+            cursor: Cursor {
+                track: 1,
+                ..Cursor::new()
+            },
+            ..App::default()
+        };
+
+        type_command(&mut app, "track channel 12");
+        assert_eq!(app.song.tracks[1].midi_channel, 12);
+        assert!(app.dirty);
+
+        type_command(&mut app, "track channel 3 15");
+        assert_eq!(app.song.tracks[2].midi_channel, 15);
+
+        type_command(&mut app, "track channel 3 0");
+        assert_eq!(app.song.tracks[2].midi_channel, 15);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
+        assert_eq!(app.song.tracks[2].midi_channel, 2);
     }
 
     fn type_command(app: &mut App, command: &str) {
