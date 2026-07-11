@@ -77,6 +77,8 @@ salieri analyze song.salieri --format json --output song-profile.json
 salieri compare song-a.salieri song-b.salieri --format markdown --output comparison.md
 salieri compare song-a.salieri song-profile.json --format json --output comparison.json
 salieri stems scan ./audio/stems stems.json
+salieri plugins inventory plugins.json
+salieri plugins inventory plugins.json --root vst3=/Library/Audio/Plug-Ins/VST3 --include-paths
 salieri interop validate-midi song.salieri
 salieri render-chain song.salieri render-chain.json --sample-rate 48000 --channels 2 --bit-depth 24
 salieri guidance dossier research.json
@@ -91,6 +93,8 @@ salieri transform variation song.salieri song-var.salieri --pattern 1 --seed 7 -
 `analyze` produces deterministic, local project profiles: track role guesses, note density, rhythm and pitch-class profiles, pitch range, sequence energy, scene energy, and generation guidance. `compare` accepts either `.salieri` projects or JSON profiles produced by `analyze`.
 
 `stems scan` walks a local folder and writes a stable JSON manifest for supported audio files (`wav`, `aif`, `aiff`, `flac`, `mp3`, `ogg`, `m4a`). Entries include source path, display name, role, group, order, file size, and modified time. Projects may reference a manifest and individual stem entries as optional metadata; missing manifests warn when a project is opened but do not make the project invalid.
+
+`plugins inventory` scans common desktop AU/VST/VST3/CLAP folders, or explicit `--root FORMAT=PATH` folders, and writes a versioned JSON inventory. It records prompt-safe metadata for planning and future module choices without loading plugin binaries or hosting plugins. Full paths are hidden by default and are only written with `--include-paths`. See [docs/plugin-inventory.md](docs/plugin-inventory.md).
 
 `interop validate-midi` exports the selected project subset to Standard MIDI, imports it back, and reports preserved/lost note counts. The interop crate supports MIDI format 0 and format 1 note import, pattern/sequence/clip/scene MIDI export targets, plus explicit lightweight MusicXML and Renoise Song.xml subset helpers. `.salieri` remains the canonical lossless format.
 

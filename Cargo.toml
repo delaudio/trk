@@ -7,6 +7,7 @@ members = [
     "crates/salieri-core",
     "crates/salieri-interop",
     "crates/salieri-midi",
+    "crates/salieri-plugins",
     "crates/salieri-sampler",
     "crates/salieri-stems",
     "crates/salieri-tui",

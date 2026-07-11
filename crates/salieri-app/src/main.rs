@@ -28,6 +28,10 @@ use salieri_core::{
 };
 use salieri_interop::{validate_midi_round_trip, MidiExportOptions};
 use salieri_midi::{list_output_ports, MidiMessage, MidiOutput, MidiOutputPort, MidirMidiOutput};
+use salieri_plugins::{
+    scan_default_plugin_inventory, scan_plugin_inventory, PluginFormat, PluginInventoryOptions,
+    PluginRoot,
+};
 use salieri_stems::{scan_stem_manifest, stem_reference_warnings};
 use salieri_transform::{
     apply_euclidean, apply_humanize, create_variation, EuclideanRhythm, HumanizeSpec, VariationSpec,
@@ -93,6 +97,10 @@ fn run(args: CliArgs) -> Result<()> {
         }
         CliCommand::StemScan(stem_args) => {
             run_stem_scan(stem_args)?;
+            return Ok(());
+        }
+        CliCommand::PluginInventory(plugin_args) => {
+            run_plugin_inventory(plugin_args)?;
             return Ok(());
         }
         CliCommand::InteropValidateMidi(args) => {
@@ -297,6 +305,16 @@ impl CliArgs {
                         midi_test,
                     }
                 }
+                "plugins" => {
+                    return Self {
+                        command: parse_plugins_command(args),
+                        project_path: None,
+                        config_path,
+                        log_level,
+                        midi_log_path,
+                        midi_test,
+                    }
+                }
                 "interop" => {
                     return Self {
                         command: parse_interop_command(args),
@@ -441,6 +459,7 @@ enum CliCommand {
     Analyze(AnalyzeArgs),
     Compare(CompareArgs),
     StemScan(StemScanArgs),
+    PluginInventory(PluginInventoryArgs),
     InteropValidateMidi(InteropValidateMidiArgs),
     RenderChain(RenderChainArgs),
     Guidance(GuidanceArgs),
@@ -478,6 +497,13 @@ struct CompareArgs {
 struct StemScanArgs {
     folder_path: Option<PathBuf>,
     output_path: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+struct PluginInventoryArgs {
+    output_path: Option<PathBuf>,
+    include_paths: bool,
+    roots: Vec<PluginRoot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -537,7 +563,7 @@ enum ReportFormat {
 
 fn print_help() {
     println!(
-        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri analyze INPUT [--format json|markdown] [--output PATH]\n  salieri compare LEFT RIGHT [--format json|markdown] [--output PATH]\n  salieri stems scan FOLDER OUTPUT_JSON\n  salieri interop validate-midi PROJECT\n  salieri render-chain PROJECT OUTPUT_JSON [--sample-rate N] [--channels N] [--bit-depth N]\n  salieri guidance dossier FILE\n  salieri guidance palette FILE\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri transform humanize INPUT OUTPUT [OPTIONS]\n  salieri transform variation INPUT OUTPUT [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nAnalysis options:\n  --format FORMAT               markdown/md or json (default markdown)\n  --output PATH                 Write report to PATH instead of stdout\n\nGuidance options:\n  guidance dossier FILE         Validate and summarize a local research dossier JSON file\n  guidance palette FILE         Validate and summarize a local operational palette JSON file\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index; omitted means all tracks\n  --seed N                      Deterministic transform seed\n  --dry-run                     Print summary without writing OUTPUT\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Euclidean velocity or humanize velocity amount\n  --delay VALUE                 Humanize max delay command value, 0-255\n  --thin PERCENT                Variation probability for removing notes\n  --fill PERCENT                Variation probability for adding notes\n  --transpose SEMITONES         Variation transpose amount\n  --name NAME                   Variation target pattern name\n\n  --help                        Show this help\n  --version                     Show version"
+        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri analyze INPUT [--format json|markdown] [--output PATH]\n  salieri compare LEFT RIGHT [--format json|markdown] [--output PATH]\n  salieri stems scan FOLDER OUTPUT_JSON\n  salieri plugins inventory OUTPUT_JSON [--include-paths] [--root FORMAT=PATH]\n  salieri interop validate-midi PROJECT\n  salieri render-chain PROJECT OUTPUT_JSON [--sample-rate N] [--channels N] [--bit-depth N]\n  salieri guidance dossier FILE\n  salieri guidance palette FILE\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri transform humanize INPUT OUTPUT [OPTIONS]\n  salieri transform variation INPUT OUTPUT [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nAnalysis options:\n  --format FORMAT               markdown/md or json (default markdown)\n  --output PATH                 Write report to PATH instead of stdout\n\nPlugin inventory options:\n  --include-paths               Include full plugin paths in output; default output is prompt-safe\n  --root FORMAT=PATH            Scan an extra or replacement root, e.g. vst3=/Library/Audio/Plug-Ins/VST3\n\nGuidance options:\n  guidance dossier FILE         Validate and summarize a local research dossier JSON file\n  guidance palette FILE         Validate and summarize a local operational palette JSON file\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index; omitted means all tracks\n  --seed N                      Deterministic transform seed\n  --dry-run                     Print summary without writing OUTPUT\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Euclidean velocity or humanize velocity amount\n  --delay VALUE                 Humanize max delay command value, 0-255\n  --thin PERCENT                Variation probability for removing notes\n  --fill PERCENT                Variation probability for adding notes\n  --transpose SEMITONES         Variation transpose amount\n  --name NAME                   Variation target pattern name\n\n  --help                        Show this help\n  --version                     Show version"
     );
 }
 
@@ -602,6 +628,14 @@ fn parse_stems_command(args: impl IntoIterator<Item = String>) -> CliCommand {
     let mut args = args.into_iter();
     match args.next().as_deref() {
         Some("scan") => CliCommand::StemScan(parse_stem_scan_args(args)),
+        _ => CliCommand::Help,
+    }
+}
+
+fn parse_plugins_command(args: impl IntoIterator<Item = String>) -> CliCommand {
+    let mut args = args.into_iter();
+    match args.next().as_deref() {
+        Some("inventory") => CliCommand::PluginInventory(parse_plugin_inventory_args(args)),
         _ => CliCommand::Help,
     }
 }
@@ -687,6 +721,48 @@ fn parse_stem_scan_args(args: impl IntoIterator<Item = String>) -> StemScanArgs 
         }
     }
     parsed
+}
+
+fn parse_plugin_inventory_args(args: impl IntoIterator<Item = String>) -> PluginInventoryArgs {
+    let mut parsed = PluginInventoryArgs::default();
+    let mut args = args.into_iter();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--include-paths" => parsed.include_paths = true,
+            "--root" => {
+                if let Some(root) = args.next().and_then(parse_plugin_root) {
+                    parsed.roots.push(root);
+                }
+            }
+            _ if arg.starts_with("--root=") => {
+                if let Some(root) = parse_plugin_root(arg.trim_start_matches("--root=").to_string())
+                {
+                    parsed.roots.push(root);
+                }
+            }
+            _ if parsed.output_path.is_none() => parsed.output_path = Some(PathBuf::from(arg)),
+            _ => {}
+        }
+    }
+    parsed
+}
+
+fn parse_plugin_root(value: String) -> Option<PluginRoot> {
+    let (format, path) = value.split_once('=')?;
+    Some(PluginRoot {
+        format: parse_plugin_format(format)?,
+        path: PathBuf::from(path),
+    })
+}
+
+fn parse_plugin_format(value: &str) -> Option<PluginFormat> {
+    match value {
+        "au" | "audio-unit" | "component" => Some(PluginFormat::AudioUnit),
+        "vst" => Some(PluginFormat::Vst),
+        "vst3" => Some(PluginFormat::Vst3),
+        "clap" => Some(PluginFormat::Clap),
+        _ => None,
+    }
 }
 
 fn parse_report_format(value: &str, target: &mut ReportFormat) {
@@ -1036,6 +1112,32 @@ fn run_stem_scan(args: &StemScanArgs) -> Result<()> {
     println!(
         "Wrote {} stem entries to {}",
         manifest.entries.len(),
+        output_path.display()
+    );
+    Ok(())
+}
+
+fn run_plugin_inventory(args: &PluginInventoryArgs) -> Result<()> {
+    let output_path = args
+        .output_path
+        .as_deref()
+        .context("missing plugin inventory output path")?;
+    let options = PluginInventoryOptions {
+        prompt_safe: !args.include_paths,
+    };
+    let inventory = if args.roots.is_empty() {
+        scan_default_plugin_inventory(options)
+    } else {
+        scan_plugin_inventory(&args.roots, options)
+    };
+    let json =
+        serde_json::to_string_pretty(&inventory).context("failed to serialize plugin inventory")?;
+    fs::write(output_path, format!("{json}\n"))
+        .with_context(|| format!("failed to write plugin inventory {}", output_path.display()))?;
+    println!(
+        "Wrote {} plugin entries and {} scan failure(s) to {}",
+        inventory.entries.len(),
+        inventory.failures.len(),
         output_path.display()
     );
     Ok(())
@@ -4342,6 +4444,36 @@ mod tests {
     }
 
     #[test]
+    fn cli_parses_plugin_inventory_options() {
+        assert_eq!(
+            CliArgs::parse([
+                "plugins".to_string(),
+                "inventory".to_string(),
+                "plugins.json".to_string(),
+                "--include-paths".to_string(),
+                "--root".to_string(),
+                "vst3=/plugins/vst3".to_string(),
+                "--root=clap=/plugins/clap".to_string(),
+            ])
+            .command,
+            CliCommand::PluginInventory(PluginInventoryArgs {
+                output_path: Some(PathBuf::from("plugins.json")),
+                include_paths: true,
+                roots: vec![
+                    PluginRoot {
+                        format: PluginFormat::Vst3,
+                        path: PathBuf::from("/plugins/vst3"),
+                    },
+                    PluginRoot {
+                        format: PluginFormat::Clap,
+                        path: PathBuf::from("/plugins/clap"),
+                    },
+                ],
+            })
+        );
+    }
+
+    #[test]
     fn cli_parses_interop_validate_midi_options() {
         assert_eq!(
             CliArgs::parse([
@@ -4431,6 +4563,39 @@ mod tests {
 
         assert_eq!(manifest.entries.len(), 1);
         assert_eq!(manifest.entries[0].source_path, "drums/kick.wav");
+    }
+
+    #[test]
+    fn plugin_inventory_command_writes_prompt_safe_manifest() {
+        let root = std::env::temp_dir().join(format!("salieri-plugin-cli-{}", std::process::id()));
+        let vendor = root.join("Vendor");
+        let output_path = root.join("plugins.json");
+        std::fs::create_dir_all(&vendor).expect("mkdir");
+        std::fs::write(vendor.join("Juno Chorus.vst3"), b"plugin").expect("write plugin");
+
+        run_plugin_inventory(&PluginInventoryArgs {
+            output_path: Some(output_path.clone()),
+            include_paths: false,
+            roots: vec![PluginRoot {
+                format: PluginFormat::Vst3,
+                path: root.clone(),
+            }],
+        })
+        .expect("plugin inventory");
+
+        let contents = std::fs::read_to_string(&output_path).expect("inventory");
+        let value: serde_json::Value = serde_json::from_str(&contents).expect("json");
+
+        let _ = std::fs::remove_dir_all(&root);
+
+        assert_eq!(value["schemaVersion"], 1);
+        assert_eq!(value["promptSafe"], true);
+        assert_eq!(value["entries"][0]["name"], "Juno Chorus");
+        assert_eq!(value["entries"][0]["pathHint"], "Vendor/Juno Chorus.vst3");
+        assert!(!value["entries"][0]["pathHint"]
+            .as_str()
+            .expect("path hint")
+            .contains("/tmp"));
     }
 
     #[test]

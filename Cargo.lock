@@ -662,6 +662,7 @@ dependencies = [
  "salieri-core",
  "salieri-interop",
  "salieri-midi",
+ "salieri-plugins",
  "salieri-stems",
  "salieri-transform",
  "salieri-tui",
@@ -706,6 +707,13 @@ dependencies = [
  "midir",
  "salieri-core",
  "thiserror",
+]
+
+[[package]]
+name = "salieri-plugins"
+version = "0.1.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

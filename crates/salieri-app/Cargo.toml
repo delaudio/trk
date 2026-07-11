@@ -19,6 +19,7 @@ salieri-audio = { path = "../salieri-audio" }
 salieri-core = { path = "../salieri-core" }
 salieri-interop = { path = "../salieri-interop" }
 salieri-midi = { path = "../salieri-midi" }
+salieri-plugins = { path = "../salieri-plugins" }
 salieri-stems = { path = "../salieri-stems" }
 salieri-transform = { path = "../salieri-transform" }
 salieri-tui = { path = "../salieri-tui" }
