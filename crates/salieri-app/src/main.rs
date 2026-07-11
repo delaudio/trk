@@ -98,6 +98,7 @@ fn run(args: CliArgs) -> Result<()> {
                     mode_label: app.mode.label(),
                     octave: app.octave,
                     dirty: app.dirty,
+                    show_line_numbers_hex: app.show_line_numbers_hex,
                     command_line: app.command_line(),
                     show_help: app.mode == AppMode::Help,
                     is_playing: app.is_playing,
@@ -408,6 +409,7 @@ struct App {
     edit_step: usize,
     vim_navigation: bool,
     follow_playhead: bool,
+    show_line_numbers_hex: bool,
     command_buffer: String,
     clipboard: Option<Clipboard>,
     selection_anchor: Option<SelectionAnchor>,
@@ -470,6 +472,7 @@ impl App {
             edit_step: config.keyboard.edit_step.max(1),
             vim_navigation: config.keyboard.vim_navigation,
             follow_playhead: config.ui.follow_playhead,
+            show_line_numbers_hex: config.ui.show_line_numbers_hex,
             command_buffer: String::new(),
             clipboard: None,
             selection_anchor: None,
@@ -1924,12 +1927,17 @@ mod tests {
                 edit_step: 4,
                 vim_navigation: false,
             },
+            ui: config::UiConfig {
+                show_line_numbers_hex: true,
+                ..config::UiConfig::default()
+            },
             ..AppConfig::default()
         });
 
         assert_eq!(app.octave, 5);
         assert_eq!(app.edit_step, 4);
         assert!(!app.vim_navigation);
+        assert!(app.show_line_numbers_hex);
     }
 
     #[test]

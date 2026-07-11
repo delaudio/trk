@@ -19,6 +19,7 @@ pub struct TuiState<'a> {
     pub mode_label: &'a str,
     pub octave: u8,
     pub dirty: bool,
+    pub show_line_numbers_hex: bool,
     pub command_line: Option<&'a str>,
     pub show_help: bool,
     pub is_playing: bool,
@@ -249,6 +250,7 @@ fn render_pattern(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiStat
             state.cursor,
             state.playhead_row,
             state.selection,
+            state.show_line_numbers_hex,
         ));
     }
 
@@ -299,12 +301,17 @@ fn pattern_row(
     cursor: Cursor,
     playhead_row: Option<usize>,
     selection: Option<SelectionRect>,
+    show_line_numbers_hex: bool,
 ) -> Line<'static> {
     let is_playhead = playhead_row == Some(row_index);
     let mut spans = vec![Span::styled(
         format!(
             "{:<ROW_GUTTER_WIDTH$}",
-            format!("{}{row_index:02}", if is_playhead { ">" } else { " " })
+            format!(
+                "{}{}",
+                if is_playhead { ">" } else { " " },
+                format_row_number(row_index, show_line_numbers_hex)
+            )
         ),
         if is_playhead {
             Style::default()
@@ -337,6 +344,14 @@ fn pattern_row(
     }
 
     Line::from(spans)
+}
+
+fn format_row_number(row: usize, hexadecimal: bool) -> String {
+    if hexadecimal {
+        format!("{:02X}", row.min(0xff))
+    } else {
+        format!("{row:02}")
+    }
 }
 
 fn cell_spans(
@@ -654,6 +669,7 @@ mod tests {
                         mode_label: "NORMAL",
                         octave: 4,
                         dirty: false,
+                        show_line_numbers_hex: false,
                         command_line: None,
                         show_help: false,
                         is_playing: false,
@@ -700,6 +716,7 @@ mod tests {
                         mode_label: "HELP",
                         octave: 4,
                         dirty: false,
+                        show_line_numbers_hex: false,
                         command_line: None,
                         show_help: true,
                         is_playing: false,
@@ -754,6 +771,7 @@ mod tests {
                         mode_label: "NORMAL",
                         octave: 4,
                         dirty: false,
+                        show_line_numbers_hex: false,
                         command_line: None,
                         show_help: false,
                         is_playing: true,
@@ -783,6 +801,51 @@ mod tests {
     }
 
     #[test]
+    fn renders_hex_line_numbers_when_enabled() {
+        let song = Song::empty();
+        let backend = TestBackend::new(160, 32);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+
+        terminal
+            .draw(|frame| {
+                render(
+                    frame,
+                    &song,
+                    TuiState {
+                        cursor: Cursor::new(),
+                        row_offset: 8,
+                        pattern_index: 0,
+                        selection: None,
+                        mode_label: "NORMAL",
+                        octave: 4,
+                        dirty: false,
+                        show_line_numbers_hex: true,
+                        command_line: None,
+                        show_help: false,
+                        is_playing: false,
+                        loop_pattern: true,
+                        playhead_row: None,
+                        midi_status: "MIDI Disconnected",
+                        sequence_position: None,
+                        quit_confirmation: false,
+                        midi_settings: None,
+                    },
+                );
+            })
+            .expect("draw");
+
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+
+        assert!(rendered.contains(" 0A"));
+    }
+
+    #[test]
     fn renders_quit_confirmation_overlay() {
         let song = Song::empty();
         let backend = TestBackend::new(100, 32);
@@ -801,6 +864,7 @@ mod tests {
                         mode_label: "DIALOG",
                         octave: 4,
                         dirty: true,
+                        show_line_numbers_hex: false,
                         command_line: None,
                         show_help: false,
                         is_playing: false,
@@ -856,6 +920,7 @@ mod tests {
                         mode_label: "MIDI",
                         octave: 4,
                         dirty: false,
+                        show_line_numbers_hex: false,
                         command_line: None,
                         show_help: false,
                         is_playing: false,
