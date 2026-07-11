@@ -257,6 +257,8 @@ enum PlaybackOutput {
     Fake(FakeMidiOutput),
     Midir(MidirMidiOutput),
     #[cfg(test)]
+    Recording(RecordingMidiOutput),
+    #[cfg(test)]
     Failing(FailingMidiOutput),
 }
 
@@ -269,6 +271,11 @@ impl PlaybackOutput {
     fn failing() -> Self {
         Self::Failing(FailingMidiOutput)
     }
+
+    #[cfg(test)]
+    fn recording(messages: std::sync::Arc<std::sync::Mutex<Vec<MidiMessage>>>) -> Self {
+        Self::Recording(RecordingMidiOutput { messages })
+    }
 }
 
 impl MidiOutput for PlaybackOutput {
@@ -277,8 +284,26 @@ impl MidiOutput for PlaybackOutput {
             Self::Fake(output) => output.send(message),
             Self::Midir(output) => output.send(message),
             #[cfg(test)]
+            Self::Recording(output) => output.send(message),
+            #[cfg(test)]
             Self::Failing(output) => output.send(message),
         }
+    }
+}
+
+#[cfg(test)]
+struct RecordingMidiOutput {
+    messages: std::sync::Arc<std::sync::Mutex<Vec<MidiMessage>>>,
+}
+
+#[cfg(test)]
+impl MidiOutput for RecordingMidiOutput {
+    fn send(&mut self, message: MidiMessage) -> Result<(), MidiError> {
+        self.messages
+            .lock()
+            .expect("recorded MIDI messages")
+            .push(message);
+        Ok(())
     }
 }
 
@@ -588,12 +613,73 @@ mod tests {
         positions
     }
 
+    fn speed_up_transport(song: &mut Song) {
+        song.transport.bpm = u16::MAX;
+        song.transport.lines_per_beat = u8::MAX;
+    }
+
+    fn run_pattern_with_recording(
+        song: &Song,
+        pattern_index: usize,
+        start_row: usize,
+        loop_pattern: bool,
+        command_rx: &Receiver<PlaybackCommand>,
+    ) -> (PatternRunResult, Vec<MidiMessage>, Vec<PlaybackUpdate>) {
+        let messages = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let (update_tx, update_rx) = mpsc::channel();
+        let mut output = PlaybackOutput::recording(messages.clone());
+        let mut midi_logger = MidiLogger::new(None, &update_tx);
+        let mut context = PlaybackRunContext {
+            command_rx,
+            update_tx: &update_tx,
+            output: &mut output,
+            midi_logger: &mut midi_logger,
+        };
+
+        let result = run_pattern(
+            song,
+            pattern_index,
+            start_row,
+            None,
+            loop_pattern,
+            &mut context,
+        );
+        let sent = messages.lock().expect("recorded MIDI messages").clone();
+        let updates = update_rx.try_iter().collect();
+        (result, sent, updates)
+    }
+
+    fn run_sequence_with_recording(
+        song: Song,
+        start_sequence_index: usize,
+    ) -> (
+        Option<PlaybackCommand>,
+        Vec<MidiMessage>,
+        Vec<PlaybackUpdate>,
+    ) {
+        let messages = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let (_command_tx, command_rx) = mpsc::channel();
+        let (update_tx, update_rx) = mpsc::channel();
+        let mut output = PlaybackOutput::recording(messages.clone());
+        let mut midi_logger = MidiLogger::new(None, &update_tx);
+        let mut context = PlaybackRunContext {
+            command_rx: &command_rx,
+            update_tx: &update_tx,
+            output: &mut output,
+            midi_logger: &mut midi_logger,
+        };
+
+        let next_command = run_sequence(song, start_sequence_index, &mut context);
+        let sent = messages.lock().expect("recorded MIDI messages").clone();
+        let updates = update_rx.try_iter().collect();
+        (next_command, sent, updates)
+    }
+
     #[test]
     fn runtime_emits_positions_and_stops() {
         let runtime = PlaybackRuntime::spawn(None);
         let mut song = Song::empty();
-        song.transport.bpm = u16::MAX;
-        song.transport.lines_per_beat = u8::MAX;
+        speed_up_transport(&mut song);
         song.current_pattern_mut()
             .expect("pattern")
             .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x7f)
@@ -636,8 +722,7 @@ mod tests {
     fn runtime_starts_pattern_from_requested_row() {
         let runtime = PlaybackRuntime::spawn(None);
         let mut song = Song::empty();
-        song.transport.bpm = u16::MAX;
-        song.transport.lines_per_beat = u8::MAX;
+        speed_up_transport(&mut song);
 
         runtime.start_pattern_from(song, 0, 4, true);
 
@@ -660,8 +745,7 @@ mod tests {
     fn runtime_stops_when_pattern_loop_is_disabled() {
         let runtime = PlaybackRuntime::spawn(None);
         let mut song = Song::empty();
-        song.transport.bpm = u16::MAX;
-        song.transport.lines_per_beat = u8::MAX;
+        speed_up_transport(&mut song);
 
         runtime.start_pattern_from(song, 0, 0, false);
 
@@ -687,8 +771,7 @@ mod tests {
     fn runtime_starts_sequence_from_requested_position() {
         let runtime = PlaybackRuntime::spawn(None);
         let mut song = Song::empty();
-        song.transport.bpm = u16::MAX;
-        song.transport.lines_per_beat = u8::MAX;
+        speed_up_transport(&mut song);
         let second_pattern_id = song.create_pattern(64);
         song.push_sequence_pattern(second_pattern_id)
             .expect("add second pattern to sequence");
@@ -774,8 +857,7 @@ mod tests {
             std::env::temp_dir().join(format!("salieri-midi-log-{}.log", std::process::id()));
         let runtime = PlaybackRuntime::spawn(Some(path.clone()));
         let mut song = Song::empty();
-        song.transport.bpm = u16::MAX;
-        song.transport.lines_per_beat = u8::MAX;
+        speed_up_transport(&mut song);
         song.current_pattern_mut()
             .expect("pattern")
             .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x7f)
@@ -806,8 +888,7 @@ mod tests {
             std::process::id()
         ));
         let mut song = Song::empty();
-        song.transport.bpm = u16::MAX;
-        song.transport.lines_per_beat = u8::MAX;
+        speed_up_transport(&mut song);
         song.current_pattern_mut()
             .expect("pattern")
             .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x7f)
@@ -849,5 +930,120 @@ mod tests {
         assert!(contents.contains("SEND_ERROR stopping playback"));
         assert!(contents.contains("CC ch=1 controller=123 value=0"));
         assert!(contents.contains("ALL_NOTES_OFF_ERROR during MIDI recovery"));
+    }
+
+    #[test]
+    fn fake_midi_pattern_playback_emits_note_on_and_note_off() {
+        let mut song = Song::empty();
+        speed_up_transport(&mut song);
+        song.current_pattern_mut()
+            .expect("pattern")
+            .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x64)
+            .expect("set note");
+        let (_command_tx, command_rx) = mpsc::channel();
+
+        let (result, sent, _updates) = run_pattern_with_recording(&song, 0, 0, false, &command_rx);
+
+        assert!(matches!(result, PatternRunResult::Finished));
+        assert!(sent.contains(&MidiMessage::note_on(10, 60, 0x64)));
+        assert!(sent.contains(&MidiMessage::note_off(10, 60, 0)));
+    }
+
+    #[test]
+    fn fake_midi_sequence_playback_emits_each_pattern_and_panic_cleanup() {
+        let mut song = Song::empty();
+        speed_up_transport(&mut song);
+        song.current_pattern_mut()
+            .expect("pattern")
+            .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x7f)
+            .expect("set first note");
+        let second_pattern_id = song.create_pattern(4);
+        let second_pattern_index = song
+            .patterns
+            .iter()
+            .position(|pattern| pattern.id == second_pattern_id)
+            .expect("second pattern");
+        song.pattern_mut(second_pattern_index)
+            .expect("second pattern")
+            .set_note(0, 1, NoteEvent::Note { pitch: 48 }, 0x50)
+            .expect("set second note");
+        song.push_sequence_pattern(second_pattern_id)
+            .expect("push sequence");
+
+        let (next_command, sent, updates) = run_sequence_with_recording(song, 0);
+
+        assert!(next_command.is_none());
+        assert!(sent.contains(&MidiMessage::note_on(10, 60, 0x7f)));
+        assert!(sent.contains(&MidiMessage::note_on(1, 48, 0x50)));
+        assert_eq!(
+            sent.iter()
+                .filter(|message| matches!(
+                    message,
+                    MidiMessage::ControlChange {
+                        controller: 123,
+                        ..
+                    }
+                ))
+                .count(),
+            16
+        );
+        assert!(updates
+            .iter()
+            .any(|update| matches!(update, PlaybackUpdate::Stopped)));
+    }
+
+    #[test]
+    fn fake_midi_stop_command_sends_all_notes_off() {
+        let mut song = Song::empty();
+        speed_up_transport(&mut song);
+        let (command_tx, command_rx) = mpsc::channel();
+        command_tx.send(PlaybackCommand::Stop).expect("queue stop");
+
+        let (result, sent, updates) = run_pattern_with_recording(&song, 0, 0, true, &command_rx);
+
+        assert!(matches!(
+            result,
+            PatternRunResult::Command(PlaybackCommand::Stop)
+        ));
+        assert_eq!(sent.len(), 16);
+        assert_eq!(sent[0], MidiMessage::all_notes_off(1));
+        assert_eq!(sent[15], MidiMessage::all_notes_off(16));
+        assert!(updates
+            .iter()
+            .any(|update| matches!(update, PlaybackUpdate::Stopped)));
+    }
+
+    #[test]
+    fn fake_midi_playback_honors_mute_and_solo() {
+        let mut muted_song = Song::empty();
+        speed_up_transport(&mut muted_song);
+        {
+            let pattern = muted_song.current_pattern_mut().expect("pattern");
+            pattern
+                .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x7f)
+                .expect("set drums note");
+            pattern
+                .set_note(0, 1, NoteEvent::Note { pitch: 48 }, 0x70)
+                .expect("set bass note");
+        }
+        muted_song.toggle_mute(0).expect("mute drums");
+        let (_command_tx, command_rx) = mpsc::channel();
+
+        let (_result, muted_sent, _updates) =
+            run_pattern_with_recording(&muted_song, 0, 0, false, &command_rx);
+
+        assert!(!muted_sent.contains(&MidiMessage::note_on(10, 60, 0x7f)));
+        assert!(muted_sent.contains(&MidiMessage::note_on(1, 48, 0x70)));
+
+        let mut solo_song = muted_song;
+        solo_song.toggle_mute(0).expect("unmute drums");
+        solo_song.toggle_solo(0).expect("solo drums");
+        let (_command_tx, command_rx) = mpsc::channel();
+
+        let (_result, solo_sent, _updates) =
+            run_pattern_with_recording(&solo_song, 0, 0, false, &command_rx);
+
+        assert!(solo_sent.contains(&MidiMessage::note_on(10, 60, 0x7f)));
+        assert!(!solo_sent.contains(&MidiMessage::note_on(1, 48, 0x70)));
     }
 }
