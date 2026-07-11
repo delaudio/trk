@@ -4,8 +4,9 @@
 ┌ Tracks ──│Global                                                                                          │──────────┐
 │> 01 Drums│?/H Help   :h/:help Help   q Quit   Space Play/Stop   Shift+Space Start                         │          │
 │  02 Bass │Enter Play Row   Shift+Enter Play Sequence From Cursor   L Loop   F8 Stop                       │          │
-│  03 Lead │:play pattern from start   :play sequence arrangement                                           │          │
-│  04 Pad  │Ctrl+S Save   Ctrl+Z Undo   Ctrl+Y Redo   Ctrl+Arrows BPM/LPB                                   │          │
+│  03 Lead │F7 Sequence View   Esc returns from focused views                                               │          │
+│  04 Pad  │:play pattern from start   :play sequence arrangement                                           │          │
+│          │Ctrl+S Save   Ctrl+Z Undo   Ctrl+Y Redo   Ctrl+Arrows BPM/LPB                                   │          │
 │          │                                                                                                │          │
 │          │MIDI                                                                                            │          │
 │          │F4 or :midi outputs opens MIDI settings and lists output ports                                  │          │
@@ -18,10 +19,10 @@
 │          │                                                                                                │          │
 │          │Navigation                                                                                      │          │
 │          │Arrows or h/j/k/l move   Tab/Shift+Tab track   PageUp/PageDown jump                             │          │
-│          │Home/End pattern bounds   gg first row   G last row                                             │          │
-└──────────│                                                                                                │          │
-┌ Sequence │Editing                                                                                         │          │
-│  00 Patte│i Edit   Esc Normal   Del/Backspace clear cell   Ctrl+C/X/V cell clipboard                      │          │
+└──────────│Home/End pattern bounds   gg first row   G last row                                             │          │
+┌ Sequence │                                                                                                │          │
+│  00 Patte│Editing                                                                                         │          │
+│          │i Edit   Esc Normal   Del/Backspace clear cell   Ctrl+C/X/V cell clipboard                      │          │
 │          │V select region   Esc cancel selection   Delete clears selection                                │          │
 │          │Insert row   Ctrl+Delete delete row   F1/- octave down                                          │          │
 │          │F2/+/= octave up   Velocity field accepts two hex digits                                        │          │
@@ -29,8 +30,7 @@
 │          │Notes                                                                                           │          │
 │          │z s x d c v g b h n j m = C C# D D# E F F# G G# A A# B                                          │          │
 │          │q 2 w 3 e r 5 t 6 y 7 u = same notes one octave higher                                          │          │
-│          │o = OFF   . = CUT                                                                               │          │
 │          └────────────────────────────────────────────────────────────────────────────────────────────────┘          │
 │                         ││ 28   --- --    --- --    --- --    --- --                                                 │
 └─────────────────────────┘└───────────────────────────────────────────────────────────────────────────────────────────┘
- HELP | H Help | F4 MIDI | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern | A/Y/R Seq | {/} Trac
+ HELP | H Help | F4 MIDI | F7 Sequence | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern | A/Y/R 

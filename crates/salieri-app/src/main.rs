@@ -20,7 +20,7 @@ use salieri_core::{CellField, Cursor, Direction, NoteEvent, PatternCell, Song};
 use salieri_midi::{list_output_ports, MidiMessage, MidiOutput, MidiOutputPort, MidirMidiOutput};
 use salieri_tui::{
     render, MidiPortView, MidiSettingsState, NotificationKind, NotificationView, SelectionRect,
-    TuiState,
+    TuiState, TuiView,
 };
 use terminal::TerminalGuard;
 
@@ -107,6 +107,7 @@ fn run(args: CliArgs) -> Result<()> {
                     cursor: app.cursor,
                     row_offset: app.row_offset,
                     pattern_index: app.pattern_index,
+                    active_view: app.tui_active_view(),
                     selection: app.selection_rect(),
                     mode_label: app.mode.label(),
                     octave: app.octave,
@@ -559,6 +560,7 @@ impl App {
             AppMode::Help => self.handle_help_key(key),
             AppMode::Dialog => self.handle_dialog_key(key),
             AppMode::MidiSettings => self.handle_midi_settings_key(key),
+            AppMode::Sequence => self.handle_sequence_key(key),
         }
     }
 
@@ -677,6 +679,10 @@ impl App {
             }
             KeyCode::F(4) => {
                 self.open_midi_settings();
+                return;
+            }
+            KeyCode::F(7) => {
+                self.open_sequence_view();
                 return;
             }
             KeyCode::F(6) => {
@@ -946,6 +952,42 @@ impl App {
             KeyCode::Char('d') | KeyCode::Char('D') => self.disconnect_midi(),
             KeyCode::Char('p') | KeyCode::Char('P') => self.panic_midi(),
             KeyCode::F(5) | KeyCode::Char('r') | KeyCode::Char('R') => self.refresh_midi_ports(),
+            _ => {}
+        }
+    }
+
+    fn handle_sequence_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Esc => self.mode = AppMode::Normal,
+            KeyCode::Char('q') => self.request_quit(false),
+            KeyCode::Char('?') | KeyCode::Char('H') => self.mode = AppMode::Help,
+            KeyCode::Char(':') => {
+                self.command_buffer.clear();
+                self.mode = AppMode::Command;
+            }
+            KeyCode::Char(' ') => self.toggle_playback(),
+            KeyCode::F(8) => self.stop_playback(),
+            KeyCode::F(4) => self.open_midi_settings(),
+            KeyCode::F(7) => self.mode = AppMode::Normal,
+            KeyCode::Up => self.previous_sequence_position(),
+            KeyCode::Char('k') if self.vim_navigation => self.previous_sequence_position(),
+            KeyCode::Down => self.next_sequence_position(),
+            KeyCode::Char('j') if self.vim_navigation => self.next_sequence_position(),
+            KeyCode::Home => {
+                self.sequence_cursor = 0;
+                self.notify_info("Sequence position 00");
+            }
+            KeyCode::End => {
+                self.sequence_cursor = self.song.sequence.len().saturating_sub(1);
+                self.notify_info(format!("Sequence position {:02}", self.sequence_cursor));
+            }
+            KeyCode::Char('A') => self.add_sequence_pattern(self.pattern_index),
+            KeyCode::Char('Y') => self.duplicate_selected_sequence_position(),
+            KeyCode::Char('R') => self.remove_selected_sequence_position(),
+            KeyCode::Char('T') => self.set_selected_sequence_to_current_pattern(),
+            KeyCode::Char('<') => self.move_selected_sequence_position_up(),
+            KeyCode::Char('>') => self.move_selected_sequence_position_down(),
+            KeyCode::Enter => self.start_sequence_playback_from_selected_position(),
             _ => {}
         }
     }
@@ -2039,6 +2081,12 @@ impl App {
         self.mode = AppMode::MidiSettings;
     }
 
+    fn open_sequence_view(&mut self) {
+        self.clamp_sequence_cursor();
+        self.mode = AppMode::Sequence;
+        self.notify_info(format!("Sequence position {:02}", self.sequence_cursor));
+    }
+
     fn refresh_midi_ports(&mut self) {
         match list_output_ports() {
             Ok(ports) => {
@@ -2261,6 +2309,14 @@ impl App {
         })
     }
 
+    fn tui_active_view(&self) -> TuiView {
+        if self.mode == AppMode::Sequence {
+            TuiView::Sequence
+        } else {
+            TuiView::Pattern
+        }
+    }
+
     fn keep_cursor_visible(&mut self, visible_rows: usize) {
         self.keep_row_visible(self.cursor.row, visible_rows);
     }
@@ -2389,6 +2445,7 @@ enum AppMode {
     Help,
     Dialog,
     MidiSettings,
+    Sequence,
 }
 
 impl AppMode {
@@ -2400,6 +2457,7 @@ impl AppMode {
             AppMode::Help => "HELP",
             AppMode::Dialog => "DIALOG",
             AppMode::MidiSettings => "MIDI",
+            AppMode::Sequence => "SEQUENCE",
         }
     }
 }
@@ -3835,6 +3893,58 @@ mod tests {
         );
         assert_eq!(app.sequence_cursor, 1);
         assert!(app.dirty);
+    }
+
+    #[test]
+    fn sequence_view_navigation_edits_and_playback() {
+        let mut app = App::default();
+        type_command(&mut app, "pattern new");
+        type_command(&mut app, "pattern new");
+        app.pattern_index = 1;
+
+        app.handle_key(KeyEvent::new(KeyCode::F(7), KeyModifiers::NONE));
+        assert_eq!(app.mode, AppMode::Sequence);
+        assert_eq!(app.tui_active_view(), TuiView::Sequence);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('A'), KeyModifiers::SHIFT));
+        assert_eq!(
+            app.song.sequence,
+            vec![salieri_core::PatternId(1), salieri_core::PatternId(2)]
+        );
+        assert_eq!(app.sequence_cursor, 1);
+
+        app.handle_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
+        assert_eq!(app.sequence_cursor, 0);
+        app.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+        assert_eq!(app.sequence_cursor, 1);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('Y'), KeyModifiers::SHIFT));
+        assert_eq!(
+            app.song.sequence,
+            vec![
+                salieri_core::PatternId(1),
+                salieri_core::PatternId(2),
+                salieri_core::PatternId(2)
+            ]
+        );
+        assert_eq!(app.sequence_cursor, 2);
+
+        app.pattern_index = 2;
+        app.handle_key(KeyEvent::new(KeyCode::Char('T'), KeyModifiers::SHIFT));
+        assert_eq!(app.song.sequence[2], salieri_core::PatternId(3));
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('<'), KeyModifiers::SHIFT));
+        assert_eq!(app.sequence_cursor, 1);
+        app.handle_key(KeyEvent::new(KeyCode::Char('>'), KeyModifiers::SHIFT));
+        assert_eq!(app.sequence_cursor, 2);
+
+        app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        assert!(app.is_playing);
+        assert_eq!(app.sequence_position, Some(2));
+
+        app.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+        assert_eq!(app.mode, AppMode::Normal);
+        assert_eq!(app.tui_active_view(), TuiView::Pattern);
     }
 
     #[test]

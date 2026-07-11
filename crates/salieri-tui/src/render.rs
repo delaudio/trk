@@ -24,6 +24,7 @@ pub struct TuiState<'a> {
     pub cursor: Cursor,
     pub row_offset: usize,
     pub pattern_index: usize,
+    pub active_view: TuiView,
     pub selection: Option<SelectionRect>,
     pub mode_label: &'a str,
     pub octave: u8,
@@ -40,6 +41,12 @@ pub struct TuiState<'a> {
     pub quit_confirmation: bool,
     pub delete_confirmation: Option<&'a str>,
     pub midi_settings: Option<MidiSettingsState<'a>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TuiView {
+    Pattern,
+    Sequence,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -158,6 +165,11 @@ fn render_header(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState
 }
 
 fn render_body(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
+    if state.active_view == TuiView::Sequence {
+        render_sequence_editor(frame, area, song, state.sequence_position);
+        return;
+    }
+
     match layout_kind(area.width) {
         LayoutKind::Large => {
             let chunks = Layout::default()
@@ -271,6 +283,71 @@ fn render_sequence(
 
     let sequence =
         Paragraph::new(lines).block(Block::default().title(" Sequence ").borders(Borders::ALL));
+    frame.render_widget(sequence, area);
+}
+
+fn render_sequence_editor(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    song: &Song,
+    active_sequence_position: Option<usize>,
+) {
+    let mut lines = vec![Line::from(vec![
+        Span::styled("POS  ", Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            "PATTERN",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+    ])];
+
+    if song.sequence.is_empty() {
+        lines.push(Line::from("No sequence positions"));
+    } else {
+        for (index, pattern_id) in song.sequence.iter().enumerate() {
+            let pattern = song
+                .patterns
+                .iter()
+                .find(|pattern| pattern.id == *pattern_id);
+            let name = pattern.map_or("Missing Pattern", |pattern| pattern.name.as_str());
+            let marker = if active_sequence_position == Some(index) {
+                ">"
+            } else {
+                " "
+            };
+            let line = format!(
+                "{marker}{index:02}  {:<24} id {}",
+                truncate(name, 24),
+                pattern_id.0
+            );
+            if active_sequence_position == Some(index) {
+                lines.push(Line::styled(
+                    line,
+                    Style::default()
+                        .fg(Color::Black)
+                        .bg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                ));
+            } else {
+                lines.push(Line::from(line));
+            }
+        }
+    }
+
+    lines.extend([
+        Line::from(""),
+        Line::from("A add current pattern   R remove   Y duplicate   T set current"),
+        Line::from("</> move position   Enter play from position   Esc pattern view"),
+    ]);
+
+    let sequence = Paragraph::new(lines)
+        .block(
+            Block::default()
+                .title(" Sequence Editor ")
+                .borders(Borders::ALL),
+        )
+        .wrap(Wrap { trim: true });
     frame.render_widget(sequence, area);
 }
 
@@ -509,11 +586,19 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
         return;
     }
 
-    let status = Paragraph::new(format!(
-        " {}{} | H Help | F4 MIDI | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern | A/Y/R Seq | {{/}} Track | : Command | i Edit | V Select | Ctrl+S Save | q Quit ",
-        state.mode_label,
-        if state.selection.is_some() { " SEL" } else { "" }
-    ));
+    let text = if state.active_view == TuiView::Sequence {
+        format!(
+            " {} | H Help | Esc Pattern | A Add | R Remove | Y Duplicate | T Set Pattern | </> Move | Enter Play | : Command | Ctrl+S Save | q Quit ",
+            state.mode_label
+        )
+    } else {
+        format!(
+            " {}{} | H Help | F4 MIDI | F7 Sequence | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern | A/Y/R Seq | {{/}} Track | : Command | i Edit | V Select | Ctrl+S Save | q Quit ",
+            state.mode_label,
+            if state.selection.is_some() { " SEL" } else { "" }
+        )
+    };
+    let status = Paragraph::new(text);
     frame.render_widget(status, area);
 }
 
@@ -528,6 +613,7 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
         )),
         Line::from("  ?/H Help   :h/:help Help   q Quit   Space Play/Stop   Shift+Space Start"),
         Line::from("  Enter Play Row   Shift+Enter Play Sequence From Cursor   L Loop   F8 Stop"),
+        Line::from("  F7 Sequence View   Esc returns from focused views"),
         Line::from("  :play pattern from start   :play sequence arrangement"),
         Line::from("  Ctrl+S Save   Ctrl+Z Undo   Ctrl+Y Redo   Ctrl+Arrows BPM/LPB"),
         Line::from(""),
@@ -775,6 +861,7 @@ mod tests {
                         cursor: Cursor::new(),
                         row_offset: 0,
                         pattern_index: 0,
+                        active_view: TuiView::Pattern,
                         selection: None,
                         mode_label: "NORMAL",
                         octave: 4,
@@ -824,6 +911,7 @@ mod tests {
                         cursor: Cursor::new(),
                         row_offset: 0,
                         pattern_index: 0,
+                        active_view: TuiView::Pattern,
                         selection: None,
                         mode_label: "NORMAL",
                         octave: 4,
@@ -855,7 +943,7 @@ mod tests {
 
         assert!(rendered.contains("Pattern Editor"));
         assert!(!rendered.contains("Tracks"));
-        assert!(!rendered.contains("Sequence"));
+        assert!(!rendered.contains("Sequence Editor"));
     }
 
     #[test]
@@ -873,6 +961,7 @@ mod tests {
                         cursor: Cursor::new(),
                         row_offset: 0,
                         pattern_index: 0,
+                        active_view: TuiView::Pattern,
                         selection: None,
                         mode_label: "NORMAL",
                         octave: 4,
@@ -922,6 +1011,7 @@ mod tests {
                         cursor: Cursor::new(),
                         row_offset: 0,
                         pattern_index: 0,
+                        active_view: TuiView::Pattern,
                         selection: None,
                         mode_label: "HELP",
                         octave: 4,
@@ -974,6 +1064,7 @@ mod tests {
                         cursor: Cursor::new(),
                         row_offset: 0,
                         pattern_index: 0,
+                        active_view: TuiView::Pattern,
                         selection: Some(SelectionRect {
                             row_start: 0,
                             row_end: 1,
@@ -1029,6 +1120,7 @@ mod tests {
                         cursor: Cursor::new(),
                         row_offset: 8,
                         pattern_index: 0,
+                        active_view: TuiView::Pattern,
                         selection: None,
                         mode_label: "NORMAL",
                         octave: 4,
@@ -1076,6 +1168,7 @@ mod tests {
                         cursor: Cursor::new(),
                         row_offset: 0,
                         pattern_index: 0,
+                        active_view: TuiView::Pattern,
                         selection: None,
                         mode_label: "NORMAL",
                         octave: 4,
@@ -1127,6 +1220,7 @@ mod tests {
                         cursor: Cursor::new(),
                         row_offset: 0,
                         pattern_index: 0,
+                        active_view: TuiView::Pattern,
                         selection: None,
                         mode_label: "DIALOG",
                         octave: 4,
@@ -1175,6 +1269,7 @@ mod tests {
                         cursor: Cursor::new(),
                         row_offset: 0,
                         pattern_index: 0,
+                        active_view: TuiView::Pattern,
                         selection: None,
                         mode_label: "DIALOG",
                         octave: 4,
@@ -1233,6 +1328,7 @@ mod tests {
                         cursor: Cursor::new(),
                         row_offset: 0,
                         pattern_index: 0,
+                        active_view: TuiView::Pattern,
                         selection: None,
                         mode_label: "MIDI",
                         octave: 4,

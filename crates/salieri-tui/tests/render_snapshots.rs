@@ -2,7 +2,7 @@ use std::{fs, path::PathBuf};
 
 use ratatui::{backend::TestBackend, Terminal};
 use salieri_core::{Cursor, NoteEvent, Song};
-use salieri_tui::{render, MidiPortView, MidiSettingsState, SelectionRect, TuiState};
+use salieri_tui::{render, MidiPortView, MidiSettingsState, SelectionRect, TuiState, TuiView};
 
 #[test]
 fn snapshots_empty_pattern_editor() {
@@ -14,6 +14,7 @@ fn snapshots_empty_pattern_editor() {
                 cursor: Cursor::new(),
                 row_offset: 0,
                 pattern_index: 0,
+                active_view: TuiView::Pattern,
                 selection: None,
                 mode_label: "NORMAL",
                 octave: 4,
@@ -67,6 +68,7 @@ fn snapshots_populated_pattern_editor() {
                 },
                 row_offset: 0,
                 pattern_index: 0,
+                active_view: TuiView::Pattern,
                 selection: None,
                 mode_label: "NORMAL",
                 octave: 4,
@@ -105,6 +107,7 @@ fn snapshots_cursor_and_selection_state() {
                 },
                 row_offset: 0,
                 pattern_index: 0,
+                active_view: TuiView::Pattern,
                 selection: Some(SelectionRect {
                     row_start: 2,
                     row_end: 5,
@@ -143,6 +146,7 @@ fn snapshots_help_overlay() {
                 cursor: Cursor::new(),
                 row_offset: 0,
                 pattern_index: 0,
+                active_view: TuiView::Pattern,
                 selection: None,
                 mode_label: "HELP",
                 octave: 4,
@@ -187,6 +191,7 @@ fn snapshots_midi_settings_overlay() {
                 cursor: Cursor::new(),
                 row_offset: 0,
                 pattern_index: 0,
+                active_view: TuiView::Pattern,
                 selection: None,
                 mode_label: "MIDI",
                 octave: 4,
@@ -224,6 +229,7 @@ fn snapshots_small_layout() {
                 cursor: Cursor::new(),
                 row_offset: 0,
                 pattern_index: 0,
+                active_view: TuiView::Pattern,
                 selection: None,
                 mode_label: "NORMAL",
                 octave: 4,
@@ -257,6 +263,7 @@ fn snapshots_medium_layout() {
                 cursor: Cursor::new(),
                 row_offset: 0,
                 pattern_index: 0,
+                active_view: TuiView::Pattern,
                 selection: None,
                 mode_label: "NORMAL",
                 octave: 4,
@@ -290,6 +297,7 @@ fn snapshots_large_layout() {
                 cursor: Cursor::new(),
                 row_offset: 0,
                 pattern_index: 0,
+                active_view: TuiView::Pattern,
                 selection: None,
                 mode_label: "NORMAL",
                 octave: 4,
@@ -309,6 +317,40 @@ fn snapshots_large_layout() {
             },
             140,
             32,
+        ),
+    );
+}
+
+#[test]
+fn snapshots_sequence_view() {
+    assert_snapshot(
+        "sequence-view",
+        render_snapshot(
+            Song::empty(),
+            TuiState {
+                cursor: Cursor::new(),
+                row_offset: 0,
+                pattern_index: 0,
+                active_view: TuiView::Sequence,
+                selection: None,
+                mode_label: "SEQUENCE",
+                octave: 4,
+                dirty: false,
+                show_line_numbers_hex: false,
+                command_line: None,
+                notification: None,
+                show_help: false,
+                is_playing: false,
+                loop_pattern: true,
+                playhead_row: None,
+                midi_status: "MIDI Disconnected",
+                sequence_position: Some(0),
+                quit_confirmation: false,
+                delete_confirmation: None,
+                midi_settings: None,
+            },
+            72,
+            24,
         ),
     );
 }
