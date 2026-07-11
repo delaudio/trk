@@ -122,4 +122,15 @@ mod tests {
 
         assert!(error.to_string().contains("unsupported project format"));
     }
+
+    #[test]
+    fn loads_default_fixture() {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/default.salieri");
+        let song = load_project(&path).expect("load fixture");
+
+        assert_eq!(song.metadata.title, "Default Fixture");
+        assert_eq!(song.tracks.len(), 4);
+        assert_eq!(song.patterns.len(), 1);
+        assert_eq!(song.sequence, vec![salieri_core::PatternId(1)]);
+    }
 }

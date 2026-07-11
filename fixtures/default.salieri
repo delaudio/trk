@@ -1,0 +1,164 @@
+{
+  "formatVersion": 1,
+  "song": {
+    "metadata": {
+      "title": "Default Fixture",
+      "author": "Salieri",
+      "createdAt": null
+    },
+    "transport": {
+      "bpm": 120,
+      "linesPerBeat": 4,
+      "swing": 0.0
+    },
+    "tracks": [
+      {
+        "id": 1,
+        "name": "Drums",
+        "midiChannel": 1,
+        "muted": false,
+        "solo": false,
+        "armed": true
+      },
+      {
+        "id": 2,
+        "name": "Bass",
+        "midiChannel": 2,
+        "muted": false,
+        "solo": false,
+        "armed": false
+      },
+      {
+        "id": 3,
+        "name": "Lead",
+        "midiChannel": 3,
+        "muted": false,
+        "solo": false,
+        "armed": false
+      },
+      {
+        "id": 4,
+        "name": "Pad",
+        "midiChannel": 4,
+        "muted": false,
+        "solo": false,
+        "armed": false
+      }
+    ],
+    "patterns": [
+      {
+        "id": 1,
+        "name": "Pattern 01",
+        "rows": [
+          {
+            "cells": [
+              {
+                "note": {
+                  "type": "note",
+                  "pitch": 36
+                },
+                "velocity": 127
+              },
+              {
+                "note": {
+                  "type": "note",
+                  "pitch": 48
+                },
+                "velocity": 96
+              },
+              {},
+              {}
+            ]
+          },
+          {
+            "cells": [
+              {},
+              {},
+              {
+                "note": {
+                  "type": "note",
+                  "pitch": 64
+                },
+                "velocity": 80
+              },
+              {}
+            ]
+          },
+          {
+            "cells": [
+              {
+                "note": {
+                  "type": "note",
+                  "pitch": 38
+                },
+                "velocity": 112
+              },
+              {},
+              {},
+              {}
+            ]
+          },
+          {
+            "cells": [
+              {},
+              {
+                "note": {
+                  "type": "noteOff"
+                }
+              },
+              {
+                "note": {
+                  "type": "note",
+                  "pitch": 67
+                },
+                "velocity": 72
+              },
+              {
+                "note": {
+                  "type": "note",
+                  "pitch": 60
+                },
+                "velocity": 64
+              }
+            ]
+          },
+          {
+            "cells": [
+              {},
+              {},
+              {},
+              {}
+            ]
+          },
+          {
+            "cells": [
+              {},
+              {},
+              {},
+              {}
+            ]
+          },
+          {
+            "cells": [
+              {},
+              {},
+              {},
+              {}
+            ]
+          },
+          {
+            "cells": [
+              {},
+              {},
+              {},
+              {}
+            ]
+          }
+        ]
+      }
+    ],
+    "sequence": [
+      1
+    ]
+  }
+}
