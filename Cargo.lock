@@ -657,6 +657,7 @@ dependencies = [
  "ratatui",
  "salieri-analysis",
  "salieri-core",
+ "salieri-interop",
  "salieri-midi",
  "salieri-stems",
  "salieri-transform",

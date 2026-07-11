@@ -24,6 +24,7 @@ use salieri_core::{
     CellField, ClipId, ClipSource, Cursor, Direction, NoteEvent, PatternCell, SceneId, Song,
     TrackerCommand,
 };
+use salieri_interop::{validate_midi_round_trip, MidiExportOptions};
 use salieri_midi::{list_output_ports, MidiMessage, MidiOutput, MidiOutputPort, MidirMidiOutput};
 use salieri_stems::{scan_stem_manifest, stem_reference_warnings};
 use salieri_transform::{
@@ -90,6 +91,10 @@ fn run(args: CliArgs) -> Result<()> {
         }
         CliCommand::StemScan(stem_args) => {
             run_stem_scan(stem_args)?;
+            return Ok(());
+        }
+        CliCommand::InteropValidateMidi(args) => {
+            run_interop_validate_midi(args)?;
             return Ok(());
         }
         CliCommand::TransformEuclidean(transform_args) => {
@@ -282,6 +287,16 @@ impl CliArgs {
                         midi_test,
                     }
                 }
+                "interop" => {
+                    return Self {
+                        command: parse_interop_command(args),
+                        project_path: None,
+                        config_path,
+                        log_level,
+                        midi_log_path,
+                        midi_test,
+                    }
+                }
                 "--midi-test-output" => {
                     midi_test.output = args.next();
                 }
@@ -396,6 +411,7 @@ enum CliCommand {
     Analyze(AnalyzeArgs),
     Compare(CompareArgs),
     StemScan(StemScanArgs),
+    InteropValidateMidi(InteropValidateMidiArgs),
     TransformEuclidean(TransformEuclideanArgs),
     TransformHumanize(TransformHumanizeArgs),
     TransformVariation(TransformVariationArgs),
@@ -432,6 +448,11 @@ struct StemScanArgs {
     output_path: Option<PathBuf>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+struct InteropValidateMidiArgs {
+    project_path: Option<PathBuf>,
+}
+
 impl Default for CompareArgs {
     fn default() -> Self {
         Self {
@@ -451,7 +472,7 @@ enum ReportFormat {
 
 fn print_help() {
     println!(
-        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri analyze INPUT [--format json|markdown] [--output PATH]\n  salieri compare LEFT RIGHT [--format json|markdown] [--output PATH]\n  salieri stems scan FOLDER OUTPUT_JSON\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri transform humanize INPUT OUTPUT [OPTIONS]\n  salieri transform variation INPUT OUTPUT [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nAnalysis options:\n  --format FORMAT               markdown/md or json (default markdown)\n  --output PATH                 Write report to PATH instead of stdout\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index; omitted means all tracks\n  --seed N                      Deterministic transform seed\n  --dry-run                     Print summary without writing OUTPUT\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Euclidean velocity or humanize velocity amount\n  --delay VALUE                 Humanize max delay command value, 0-255\n  --thin PERCENT                Variation probability for removing notes\n  --fill PERCENT                Variation probability for adding notes\n  --transpose SEMITONES         Variation transpose amount\n  --name NAME                   Variation target pattern name\n\n  --help                        Show this help\n  --version                     Show version"
+        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri analyze INPUT [--format json|markdown] [--output PATH]\n  salieri compare LEFT RIGHT [--format json|markdown] [--output PATH]\n  salieri stems scan FOLDER OUTPUT_JSON\n  salieri interop validate-midi PROJECT\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri transform humanize INPUT OUTPUT [OPTIONS]\n  salieri transform variation INPUT OUTPUT [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nAnalysis options:\n  --format FORMAT               markdown/md or json (default markdown)\n  --output PATH                 Write report to PATH instead of stdout\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index; omitted means all tracks\n  --seed N                      Deterministic transform seed\n  --dry-run                     Print summary without writing OUTPUT\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Euclidean velocity or humanize velocity amount\n  --delay VALUE                 Humanize max delay command value, 0-255\n  --thin PERCENT                Variation probability for removing notes\n  --fill PERCENT                Variation probability for adding notes\n  --transpose SEMITONES         Variation transpose amount\n  --name NAME                   Variation target pattern name\n\n  --help                        Show this help\n  --version                     Show version"
     );
 }
 
@@ -516,6 +537,16 @@ fn parse_stems_command(args: impl IntoIterator<Item = String>) -> CliCommand {
     let mut args = args.into_iter();
     match args.next().as_deref() {
         Some("scan") => CliCommand::StemScan(parse_stem_scan_args(args)),
+        _ => CliCommand::Help,
+    }
+}
+
+fn parse_interop_command(args: impl IntoIterator<Item = String>) -> CliCommand {
+    let mut args = args.into_iter();
+    match args.next().as_deref() {
+        Some("validate-midi") => CliCommand::InteropValidateMidi(InteropValidateMidiArgs {
+            project_path: args.next().map(PathBuf::from),
+        }),
         _ => CliCommand::Help,
     }
 }
@@ -881,6 +912,23 @@ fn run_stem_scan(args: &StemScanArgs) -> Result<()> {
         manifest.entries.len(),
         output_path.display()
     );
+    Ok(())
+}
+
+fn run_interop_validate_midi(args: &InteropValidateMidiArgs) -> Result<()> {
+    let project_path = args
+        .project_path
+        .as_deref()
+        .context("missing interop validate-midi project path")?;
+    let song = load_project(project_path)?;
+    let report = validate_midi_round_trip(&song, MidiExportOptions::default())?;
+    println!(
+        "MIDI round-trip: source={} imported={} preserved={} lost={}",
+        report.source_notes, report.imported_notes, report.preserved_notes, report.lost_notes
+    );
+    for warning in report.warnings {
+        println!("warning: {warning}");
+    }
     Ok(())
 }
 
@@ -4097,6 +4145,21 @@ mod tests {
     }
 
     #[test]
+    fn cli_parses_interop_validate_midi_options() {
+        assert_eq!(
+            CliArgs::parse([
+                "interop".to_string(),
+                "validate-midi".to_string(),
+                "song.salieri".to_string(),
+            ])
+            .command,
+            CliCommand::InteropValidateMidi(InteropValidateMidiArgs {
+                project_path: Some(PathBuf::from("song.salieri")),
+            })
+        );
+    }
+
+    #[test]
     fn stem_scan_command_writes_manifest() {
         let root = std::env::temp_dir().join(format!("salieri-stems-cli-{}", std::process::id()));
         let drums = root.join("drums");
@@ -4118,6 +4181,27 @@ mod tests {
 
         assert_eq!(manifest.entries.len(), 1);
         assert_eq!(manifest.entries[0].source_path, "drums/kick.wav");
+    }
+
+    #[test]
+    fn interop_validate_midi_command_runs_on_project() {
+        let path = std::env::temp_dir().join(format!(
+            "salieri-interop-validate-{}.salieri",
+            std::process::id()
+        ));
+        let mut song = Song::empty();
+        song.current_pattern_mut()
+            .expect("pattern")
+            .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 100)
+            .expect("note");
+        save_project(&path, &song).expect("save project");
+
+        run_interop_validate_midi(&InteropValidateMidiArgs {
+            project_path: Some(path.clone()),
+        })
+        .expect("validate midi");
+
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
