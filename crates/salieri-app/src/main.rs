@@ -14,7 +14,7 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use persistence::{load_project, save_project};
 use playback_runtime::{PlaybackRuntime, PlaybackUpdate};
 use salieri_core::{CellField, Cursor, Direction, NoteEvent, PatternCell, Song};
-use salieri_midi::list_output_ports;
+use salieri_midi::{list_output_ports, MidiOutputPort};
 use salieri_tui::{render, SelectionRect, TuiState};
 use terminal::TerminalGuard;
 
@@ -281,12 +281,13 @@ impl Default for App {
 impl App {
     fn new(config: AppConfig) -> Self {
         let song = Song::empty();
-        let midi_status = if config.midi.default_output.is_empty() {
+        let default_midi_output = config.midi.default_output.trim().to_string();
+        let midi_status = if default_midi_output.is_empty() {
             "MIDI Disconnected".to_string()
         } else {
-            format!("MIDI Disconnected ({})", config.midi.default_output)
+            format!("MIDI Disconnected ({default_midi_output})")
         };
-        Self {
+        let mut app = Self {
             clean_song: song.clone(),
             song,
             project_path: None,
@@ -311,7 +312,9 @@ impl App {
             dirty: false,
             should_quit: false,
             last_tick: Instant::now(),
-        }
+        };
+        app.connect_default_midi_output(&default_midi_output);
+        app
     }
 
     fn from_file(path: &Path, config: AppConfig) -> Result<Self> {
@@ -1221,6 +1224,26 @@ impl App {
         self.playback.connect_midi(port_index);
     }
 
+    fn connect_default_midi_output(&mut self, output_name: &str) {
+        if output_name.trim().is_empty() {
+            return;
+        }
+
+        match list_output_ports() {
+            Ok(ports) => {
+                if let Some(port) = find_midi_output_port(&ports, output_name) {
+                    self.midi_status = format!("MIDI Connecting {} ({})", port.index, port.name);
+                    self.playback.connect_midi(port.index);
+                } else {
+                    self.midi_status = format!("MIDI Output Not Found ({output_name})");
+                }
+            }
+            Err(error) => {
+                self.midi_status = format!("MIDI Error: {error}");
+            }
+        }
+    }
+
     fn disconnect_midi(&mut self) {
         self.playback.disconnect_midi();
     }
@@ -1442,6 +1465,25 @@ fn keyboard_note(key: char, octave: u8) -> Option<u8> {
     u8::try_from(pitch).ok().filter(|pitch| *pitch <= 127)
 }
 
+fn find_midi_output_port<'a>(
+    ports: &'a [MidiOutputPort],
+    output_name: &str,
+) -> Option<&'a MidiOutputPort> {
+    let needle = output_name.trim().to_lowercase();
+    if needle.is_empty() {
+        return None;
+    }
+
+    ports
+        .iter()
+        .find(|port| port.name.eq_ignore_ascii_case(output_name.trim()))
+        .or_else(|| {
+            ports
+                .iter()
+                .find(|port| port.name.to_lowercase().contains(&needle))
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1547,6 +1589,30 @@ mod tests {
         app.keep_active_row_visible(10);
 
         assert_eq!(app.row_offset, 0);
+    }
+
+    #[test]
+    fn finds_midi_output_by_exact_or_partial_name() {
+        let ports = vec![
+            MidiOutputPort {
+                index: 0,
+                name: "External Synth".to_string(),
+            },
+            MidiOutputPort {
+                index: 1,
+                name: "IAC Driver Bus 1".to_string(),
+            },
+        ];
+
+        assert_eq!(
+            find_midi_output_port(&ports, "IAC Driver").map(|port| port.index),
+            Some(1)
+        );
+        assert_eq!(
+            find_midi_output_port(&ports, "iac driver bus 1").map(|port| port.index),
+            Some(1)
+        );
+        assert!(find_midi_output_port(&ports, "Missing").is_none());
     }
 
     #[test]

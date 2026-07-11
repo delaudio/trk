@@ -1,0 +1,11 @@
+[keyboard]
+vim_navigation = true
+edit_step = 1
+default_octave = 4
+
+[ui]
+show_line_numbers_hex = false
+follow_playhead = true
+
+[midi]
+default_output = "IAC Driver"

@@ -427,6 +427,7 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
         Line::from("  4. Press Space or run :play pattern to send notes to the connected output"),
         Line::from("  :midi disconnect closes the output   :midi panic sends All Notes Off"),
         Line::from("  Use :track channel 2 10 to set track 02 to MIDI channel 10"),
+        Line::from("  Config: [midi] default_output = \"IAC Driver\" auto-connects by name"),
         Line::from(""),
         Line::from(Span::styled(
             "Navigation",
