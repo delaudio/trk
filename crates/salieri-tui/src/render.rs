@@ -234,7 +234,7 @@ fn cell_spans(cell: &PatternCell, focused_field: CellField, focused: bool) -> Ve
 
 fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
     let status = Paragraph::new(format!(
-        " {} | i Edit | Esc Normal | z/s/x/d/c/v/g/b/h/n/j/m Notes | Del Clear | Ctrl+Z Undo | q Quit ",
+        " {} | i Edit | Esc Normal | z/s/x/d/c/v/g/b/h/n/j/m Notes | Del Clear | Ctrl+S Save | Ctrl+Z Undo | q Quit ",
         state.mode_label
     ));
     frame.render_widget(status, area);

@@ -1,9 +1,14 @@
+mod persistence;
 mod terminal;
 
-use std::time::{Duration, Instant};
+use std::{
+    path::{Path, PathBuf},
+    time::{Duration, Instant},
+};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
+use persistence::{load_project, save_project};
 use salieri_core::{CellField, Cursor, Direction, NoteEvent, Song};
 use salieri_tui::{render, TuiState};
 use terminal::TerminalGuard;
@@ -31,8 +36,13 @@ fn main() -> Result<()> {
 }
 
 fn run() -> Result<()> {
+    let project_path = std::env::args_os().nth(1).map(PathBuf::from);
+    let mut app = match &project_path {
+        Some(path) => App::from_file(path)
+            .with_context(|| format!("failed to open project {}", path.display()))?,
+        None => App::default(),
+    };
     let mut terminal = TerminalGuard::enter()?;
-    let mut app = App::default();
 
     loop {
         terminal.draw(|frame| {
@@ -81,6 +91,7 @@ fn run() -> Result<()> {
 struct App {
     song: Song,
     clean_song: Song,
+    project_path: Option<PathBuf>,
     cursor: Cursor,
     row_offset: usize,
     mode: AppMode,
@@ -99,6 +110,7 @@ impl Default for App {
         Self {
             clean_song: song.clone(),
             song,
+            project_path: None,
             cursor: Cursor::new(),
             row_offset: 0,
             mode: AppMode::Normal,
@@ -114,6 +126,16 @@ impl Default for App {
 }
 
 impl App {
+    fn from_file(path: &Path) -> Result<Self> {
+        let song = load_project(path)?;
+        Ok(Self {
+            clean_song: song.clone(),
+            song,
+            project_path: Some(path.to_path_buf()),
+            ..Self::default()
+        })
+    }
+
     fn handle_key(&mut self, key: KeyEvent) {
         if self.handle_control_key(key) {
             return;
@@ -131,6 +153,12 @@ impl App {
         }
 
         match key.code {
+            KeyCode::Char('s') | KeyCode::Char('S') => {
+                if let Err(error) = self.save() {
+                    tracing::error!(?error, "failed to save project");
+                }
+                true
+            }
             KeyCode::Char('z') | KeyCode::Char('Z') => {
                 if key.modifiers.contains(KeyModifiers::SHIFT) {
                     self.redo();
@@ -336,6 +364,18 @@ impl App {
         self.dirty = self.song != self.clean_song;
     }
 
+    fn save(&mut self) -> Result<()> {
+        let path = self
+            .project_path
+            .clone()
+            .unwrap_or_else(|| PathBuf::from("untitled.salieri"));
+        save_project(&path, &self.song)?;
+        self.project_path = Some(path);
+        self.clean_song = self.song.clone();
+        self.refresh_dirty();
+        Ok(())
+    }
+
     fn clamp_cursor(&mut self) {
         self.cursor
             .clamp(self.current_row_count(), self.song.tracks.len());
@@ -537,5 +577,26 @@ mod tests {
         assert_eq!(keyboard_note('s', 4), Some(61));
         assert_eq!(keyboard_note('q', 4), Some(72));
         assert_eq!(keyboard_note('u', 4), Some(83));
+    }
+
+    #[test]
+    fn ctrl_s_saves_project_and_clears_dirty_state() {
+        let path =
+            std::env::temp_dir().join(format!("salieri-app-save-{}.salieri", std::process::id()));
+        let mut app = App {
+            mode: AppMode::Edit,
+            project_path: Some(path.clone()),
+            ..App::default()
+        };
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::NONE));
+        assert!(app.dirty);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::CONTROL));
+
+        let saved = load_project(&path).expect("saved project loads");
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(saved, app.song);
+        assert!(!app.dirty);
     }
 }

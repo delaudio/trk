@@ -1,17 +1,22 @@
 use std::fmt;
 
+use serde::{Deserialize, Serialize};
+
 pub const DEFAULT_BPM: u16 = 120;
 pub const DEFAULT_LINES_PER_BEAT: u8 = 4;
 pub const DEFAULT_PATTERN_LEN: usize = 64;
 pub const DEFAULT_TRACK_COUNT: usize = 4;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct TrackId(pub u32);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct PatternId(pub u32);
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Song {
     pub metadata: SongMetadata,
     pub transport: TransportSettings,
@@ -68,21 +73,26 @@ impl Song {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SongMetadata {
     pub title: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub author: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TransportSettings {
     pub bpm: u16,
     pub lines_per_beat: u8,
     pub swing: f32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Track {
     pub id: TrackId,
     pub name: String,
@@ -92,7 +102,8 @@ pub struct Track {
     pub armed: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Pattern {
     pub id: PatternId,
     pub name: String,
@@ -180,27 +191,35 @@ pub enum EditError {
     CellOutOfBounds { row: usize, track: usize },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PatternRow {
     pub cells: Vec<PatternCell>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PatternCell {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<NoteEvent>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub velocity: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gate: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub command: Option<TrackerCommand>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
 pub enum NoteEvent {
     Note { pitch: u8 },
     NoteOff,
     NoteCut,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TrackerCommand {
     pub code: u8,
     pub value: u8,
