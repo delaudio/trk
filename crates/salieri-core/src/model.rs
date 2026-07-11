@@ -15,6 +15,14 @@ pub struct TrackId(pub u32);
 #[serde(transparent)]
 pub struct PatternId(pub u32);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct ClipId(pub u32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct SceneId(pub u32);
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Song {
@@ -23,6 +31,8 @@ pub struct Song {
     pub tracks: Vec<Track>,
     pub patterns: Vec<Pattern>,
     pub sequence: Vec<PatternId>,
+    #[serde(default)]
+    pub session: Session,
 }
 
 impl Song {
@@ -60,6 +70,7 @@ impl Song {
             tracks,
             patterns: vec![pattern],
             sequence: vec![PatternId(1)],
+            session: Session::default(),
         }
     }
 
@@ -177,6 +188,80 @@ impl Song {
             }
         }
 
+        let mut clip_ids = HashSet::new();
+        for (clip_index, clip) in self.session.clips.iter().enumerate() {
+            if !clip_ids.insert(clip.id) {
+                return Err(ValidationError::DuplicateClipId { clip_id: clip.id });
+            }
+            if clip.name.trim().is_empty() {
+                return Err(ValidationError::EmptyClipName { clip_index });
+            }
+            let ClipSource::Pattern {
+                pattern_id,
+                row_start,
+                row_count,
+            } = clip.source;
+            let pattern = self
+                .patterns
+                .iter()
+                .find(|pattern| pattern.id == pattern_id)
+                .ok_or(ValidationError::ClipPatternNotFound {
+                    clip_index,
+                    pattern_id,
+                })?;
+            if row_count == 0 {
+                return Err(ValidationError::InvalidClipRowRange {
+                    clip_index,
+                    row_start,
+                    row_count,
+                });
+            }
+            if row_start >= pattern.row_count()
+                || row_start.saturating_add(row_count) > pattern.row_count()
+            {
+                return Err(ValidationError::InvalidClipRowRange {
+                    clip_index,
+                    row_start,
+                    row_count,
+                });
+            }
+        }
+
+        let mut scene_ids = HashSet::new();
+        for (scene_index, scene) in self.session.scenes.iter().enumerate() {
+            if !scene_ids.insert(scene.id) {
+                return Err(ValidationError::DuplicateSceneId { scene_id: scene.id });
+            }
+            if scene.name.trim().is_empty() {
+                return Err(ValidationError::EmptySceneName { scene_index });
+            }
+            let mut scene_tracks = HashSet::new();
+            for (slot_index, slot) in scene.slots.iter().enumerate() {
+                if !track_ids.contains(&slot.track) {
+                    return Err(ValidationError::SceneSlotTrackNotFound {
+                        scene_index,
+                        slot_index,
+                        track_id: slot.track,
+                    });
+                }
+                if !scene_tracks.insert(slot.track) {
+                    return Err(ValidationError::DuplicateSceneTrackSlot {
+                        scene_index,
+                        track_id: slot.track,
+                    });
+                }
+                if let Some(clip_id) = slot.clip {
+                    if !clip_ids.contains(&clip_id) {
+                        return Err(ValidationError::SceneSlotClipNotFound {
+                            scene_index,
+                            slot_index,
+                            clip_id,
+                        });
+                    }
+                }
+            }
+        }
+
         Ok(())
     }
 
@@ -225,6 +310,16 @@ impl Song {
             return Err(EditError::PatternOutOfBounds {
                 pattern: pattern_index,
             });
+        }
+
+        let pattern_id = self.patterns[pattern_index].id;
+        if self
+            .session
+            .clips
+            .iter()
+            .any(|clip| clip.source.pattern_id() == pattern_id)
+        {
+            return Err(EditError::PatternInUseByClip { pattern_id });
         }
 
         let removed = self.patterns.remove(pattern_index);
@@ -411,7 +506,11 @@ impl Song {
             pattern.remove_track(track_index)?;
         }
 
-        Ok(self.tracks.remove(track_index))
+        let removed = self.tracks.remove(track_index);
+        for scene in &mut self.session.scenes {
+            scene.slots.retain(|slot| slot.track != removed.id);
+        }
+        Ok(removed)
     }
 
     pub fn move_track(&mut self, from: usize, to: usize) -> Result<(), EditError> {
@@ -484,6 +583,146 @@ impl Song {
         Ok(())
     }
 
+    pub fn create_clip(
+        &mut self,
+        pattern_id: PatternId,
+        name: impl Into<String>,
+        row_start: usize,
+        row_count: usize,
+    ) -> Result<ClipId, EditError> {
+        let name = clean_name(name.into())?;
+        let pattern = self
+            .patterns
+            .iter()
+            .find(|pattern| pattern.id == pattern_id)
+            .ok_or(EditError::PatternNotFound { pattern_id })?;
+        if row_count == 0
+            || row_start >= pattern.row_count()
+            || row_start.saturating_add(row_count) > pattern.row_count()
+        {
+            return Err(EditError::InvalidClipRowRange {
+                row_start,
+                row_count,
+            });
+        }
+
+        let id = self.next_clip_id();
+        self.session.clips.push(Clip {
+            id,
+            name,
+            source: ClipSource::Pattern {
+                pattern_id,
+                row_start,
+                row_count,
+            },
+            loop_enabled: true,
+            launch_quantization: ClipLaunchQuantization::Pattern,
+        });
+        Ok(id)
+    }
+
+    pub fn delete_clip(&mut self, clip_id: ClipId) -> Result<Clip, EditError> {
+        let index = self
+            .session
+            .clips
+            .iter()
+            .position(|clip| clip.id == clip_id)
+            .ok_or(EditError::ClipNotFound { clip_id })?;
+        for scene in &mut self.session.scenes {
+            for slot in &mut scene.slots {
+                if slot.clip == Some(clip_id) {
+                    slot.clip = None;
+                }
+            }
+        }
+        Ok(self.session.clips.remove(index))
+    }
+
+    pub fn move_clip(&mut self, from: usize, to: usize) -> Result<(), EditError> {
+        if from >= self.session.clips.len() {
+            return Err(EditError::ClipOutOfBounds { clip: from });
+        }
+        if to >= self.session.clips.len() {
+            return Err(EditError::ClipOutOfBounds { clip: to });
+        }
+        if from == to {
+            return Ok(());
+        }
+
+        let clip = self.session.clips.remove(from);
+        self.session.clips.insert(to, clip);
+        Ok(())
+    }
+
+    pub fn create_scene(&mut self, name: impl Into<String>) -> Result<SceneId, EditError> {
+        let name = clean_name(name.into())?;
+        let id = self.next_scene_id();
+        self.session.scenes.push(Scene {
+            id,
+            name,
+            slots: Vec::new(),
+        });
+        Ok(id)
+    }
+
+    pub fn delete_scene(&mut self, scene_id: SceneId) -> Result<Scene, EditError> {
+        let index = self
+            .session
+            .scenes
+            .iter()
+            .position(|scene| scene.id == scene_id)
+            .ok_or(EditError::SceneNotFound { scene_id })?;
+        Ok(self.session.scenes.remove(index))
+    }
+
+    pub fn move_scene(&mut self, from: usize, to: usize) -> Result<(), EditError> {
+        if from >= self.session.scenes.len() {
+            return Err(EditError::SceneOutOfBounds { scene: from });
+        }
+        if to >= self.session.scenes.len() {
+            return Err(EditError::SceneOutOfBounds { scene: to });
+        }
+        if from == to {
+            return Ok(());
+        }
+
+        let scene = self.session.scenes.remove(from);
+        self.session.scenes.insert(to, scene);
+        Ok(())
+    }
+
+    pub fn set_scene_clip(
+        &mut self,
+        scene_id: SceneId,
+        track_id: TrackId,
+        clip_id: Option<ClipId>,
+    ) -> Result<(), EditError> {
+        if !self.tracks.iter().any(|track| track.id == track_id) {
+            return Err(EditError::TrackNotFound { track_id });
+        }
+        if let Some(clip_id) = clip_id {
+            if !self.session.clips.iter().any(|clip| clip.id == clip_id) {
+                return Err(EditError::ClipNotFound { clip_id });
+            }
+        }
+
+        let scene = self
+            .session
+            .scenes
+            .iter_mut()
+            .find(|scene| scene.id == scene_id)
+            .ok_or(EditError::SceneNotFound { scene_id })?;
+        if let Some(slot) = scene.slots.iter_mut().find(|slot| slot.track == track_id) {
+            slot.clip = clip_id;
+        } else {
+            scene.slots.push(ClipSlot {
+                track: track_id,
+                clip: clip_id,
+            });
+        }
+        Ok(())
+    }
+
     fn next_track_id(&self) -> TrackId {
         let next = self
             .tracks
@@ -504,6 +743,30 @@ impl Song {
             .unwrap_or(0)
             .saturating_add(1);
         PatternId(next)
+    }
+
+    fn next_clip_id(&self) -> ClipId {
+        let next = self
+            .session
+            .clips
+            .iter()
+            .map(|clip| clip.id.0)
+            .max()
+            .unwrap_or(0)
+            .saturating_add(1);
+        ClipId(next)
+    }
+
+    fn next_scene_id(&self) -> SceneId {
+        let next = self
+            .session
+            .scenes
+            .iter()
+            .map(|scene| scene.id.0)
+            .max()
+            .unwrap_or(0)
+            .saturating_add(1);
+        SceneId(next)
     }
 }
 
@@ -571,6 +834,42 @@ pub enum ValidationError {
         position: usize,
         pattern_id: PatternId,
     },
+    #[error("duplicate clip id: {clip_id:?}")]
+    DuplicateClipId { clip_id: ClipId },
+    #[error("clip {clip_index} name cannot be empty")]
+    EmptyClipName { clip_index: usize },
+    #[error("clip {clip_index} references missing pattern {pattern_id:?}")]
+    ClipPatternNotFound {
+        clip_index: usize,
+        pattern_id: PatternId,
+    },
+    #[error("clip {clip_index} has invalid row range {row_start}..+{row_count}")]
+    InvalidClipRowRange {
+        clip_index: usize,
+        row_start: usize,
+        row_count: usize,
+    },
+    #[error("duplicate scene id: {scene_id:?}")]
+    DuplicateSceneId { scene_id: SceneId },
+    #[error("scene {scene_index} name cannot be empty")]
+    EmptySceneName { scene_index: usize },
+    #[error("scene {scene_index} slot {slot_index} references missing track {track_id:?}")]
+    SceneSlotTrackNotFound {
+        scene_index: usize,
+        slot_index: usize,
+        track_id: TrackId,
+    },
+    #[error("scene {scene_index} has duplicate slot for track {track_id:?}")]
+    DuplicateSceneTrackSlot {
+        scene_index: usize,
+        track_id: TrackId,
+    },
+    #[error("scene {scene_index} slot {slot_index} references missing clip {clip_id:?}")]
+    SceneSlotClipNotFound {
+        scene_index: usize,
+        slot_index: usize,
+        clip_id: ClipId,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -600,6 +899,72 @@ pub struct Track {
     pub muted: bool,
     pub solo: bool,
     pub armed: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Session {
+    #[serde(default)]
+    pub clips: Vec<Clip>,
+    #[serde(default)]
+    pub scenes: Vec<Scene>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Clip {
+    pub id: ClipId,
+    pub name: String,
+    pub source: ClipSource,
+    pub loop_enabled: bool,
+    #[serde(default)]
+    pub launch_quantization: ClipLaunchQuantization,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum ClipSource {
+    Pattern {
+        pattern_id: PatternId,
+        row_start: usize,
+        row_count: usize,
+    },
+}
+
+impl ClipSource {
+    #[must_use]
+    pub const fn pattern_id(self) -> PatternId {
+        match self {
+            Self::Pattern { pattern_id, .. } => pattern_id,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ClipLaunchQuantization {
+    None,
+    Row,
+    Beat,
+    #[default]
+    Pattern,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Scene {
+    pub id: SceneId,
+    pub name: String,
+    #[serde(default)]
+    pub slots: Vec<ClipSlot>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClipSlot {
+    pub track: TrackId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clip: Option<ClipId>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -788,8 +1153,22 @@ pub enum EditError {
     PatternOutOfBounds { pattern: usize },
     #[error("pattern not found: pattern id {pattern_id:?}")]
     PatternNotFound { pattern_id: PatternId },
+    #[error("pattern {pattern_id:?} is used by a clip")]
+    PatternInUseByClip { pattern_id: PatternId },
     #[error("cannot delete the last pattern")]
     CannotDeleteLastPattern,
+    #[error("clip not found: clip id {clip_id:?}")]
+    ClipNotFound { clip_id: ClipId },
+    #[error("clip out of bounds: clip {clip}")]
+    ClipOutOfBounds { clip: usize },
+    #[error("invalid clip row range {row_start}..+{row_count}")]
+    InvalidClipRowRange { row_start: usize, row_count: usize },
+    #[error("scene not found: scene id {scene_id:?}")]
+    SceneNotFound { scene_id: SceneId },
+    #[error("scene out of bounds: scene {scene}")]
+    SceneOutOfBounds { scene: usize },
+    #[error("track not found: track id {track_id:?}")]
+    TrackNotFound { track_id: TrackId },
     #[error("sequence out of bounds: position {position}")]
     SequenceOutOfBounds { position: usize },
     #[error("invalid pattern length: {row_count}")]
@@ -1494,6 +1873,216 @@ mod tests {
                 .expect_err("target out of bounds"),
             EditError::SequenceOutOfBounds { position: 10 }
         );
+    }
+
+    #[test]
+    fn clips_can_reference_pattern_ranges() {
+        let mut song = Song::empty();
+
+        let clip_id = song
+            .create_clip(PatternId(1), " Intro Loop ", 0, 16)
+            .expect("create clip");
+
+        assert_eq!(clip_id, ClipId(1));
+        assert_eq!(song.session.clips.len(), 1);
+        assert_eq!(song.session.clips[0].name, "Intro Loop");
+        assert_eq!(
+            song.session.clips[0].source,
+            ClipSource::Pattern {
+                pattern_id: PatternId(1),
+                row_start: 0,
+                row_count: 16,
+            }
+        );
+        assert!(song.session.clips[0].loop_enabled);
+        assert_eq!(
+            song.session.clips[0].launch_quantization,
+            ClipLaunchQuantization::Pattern
+        );
+    }
+
+    #[test]
+    fn clip_operations_validate_pattern_references_and_ranges() {
+        let mut song = Song::empty();
+
+        assert_eq!(
+            song.create_clip(PatternId(99), "Missing", 0, 16)
+                .expect_err("missing pattern"),
+            EditError::PatternNotFound {
+                pattern_id: PatternId(99)
+            }
+        );
+        assert_eq!(
+            song.create_clip(PatternId(1), "Empty", 0, 0)
+                .expect_err("empty row range"),
+            EditError::InvalidClipRowRange {
+                row_start: 0,
+                row_count: 0,
+            }
+        );
+        assert_eq!(
+            song.create_clip(PatternId(1), "Too Long", 60, 8)
+                .expect_err("range extends past pattern"),
+            EditError::InvalidClipRowRange {
+                row_start: 60,
+                row_count: 8,
+            }
+        );
+    }
+
+    #[test]
+    fn clips_and_scenes_can_be_deleted_and_moved() {
+        let mut song = Song::empty();
+        let clip_1 = song
+            .create_clip(PatternId(1), "Clip 1", 0, 16)
+            .expect("clip 1");
+        let clip_2 = song
+            .create_clip(PatternId(1), "Clip 2", 16, 16)
+            .expect("clip 2");
+        let scene_1 = song.create_scene("Scene 1").expect("scene 1");
+        let scene_2 = song.create_scene("Scene 2").expect("scene 2");
+
+        song.set_scene_clip(scene_1, TrackId(1), Some(clip_1))
+            .expect("set scene slot");
+        song.move_clip(0, 1).expect("move clip");
+        song.move_scene(0, 1).expect("move scene");
+
+        assert_eq!(song.session.clips[0].id, clip_2);
+        assert_eq!(song.session.clips[1].id, clip_1);
+        assert_eq!(song.session.scenes[0].id, scene_2);
+        assert_eq!(song.session.scenes[1].id, scene_1);
+
+        let removed = song.delete_clip(clip_1).expect("delete clip");
+        assert_eq!(removed.id, clip_1);
+        assert_eq!(song.session.scenes[1].slots[0].clip, None);
+
+        let removed_scene = song.delete_scene(scene_2).expect("delete scene");
+        assert_eq!(removed_scene.id, scene_2);
+        assert_eq!(song.session.scenes.len(), 1);
+    }
+
+    #[test]
+    fn scene_slots_validate_tracks_and_clips() {
+        let mut song = Song::empty();
+        let scene = song.create_scene("Scene").expect("scene");
+
+        assert_eq!(
+            song.set_scene_clip(scene, TrackId(99), None)
+                .expect_err("missing track"),
+            EditError::TrackNotFound {
+                track_id: TrackId(99)
+            }
+        );
+        assert_eq!(
+            song.set_scene_clip(scene, TrackId(1), Some(ClipId(99)))
+                .expect_err("missing clip"),
+            EditError::ClipNotFound {
+                clip_id: ClipId(99)
+            }
+        );
+        assert_eq!(
+            song.set_scene_clip(SceneId(99), TrackId(1), None)
+                .expect_err("missing scene"),
+            EditError::SceneNotFound {
+                scene_id: SceneId(99)
+            }
+        );
+    }
+
+    #[test]
+    fn deleting_track_removes_session_slots_for_that_track() {
+        let mut song = Song::empty();
+        let clip = song.create_clip(PatternId(1), "Clip", 0, 16).expect("clip");
+        let scene = song.create_scene("Scene").expect("scene");
+        song.set_scene_clip(scene, TrackId(2), Some(clip))
+            .expect("set scene slot");
+
+        let removed = song.delete_track(1).expect("delete bass track");
+
+        assert_eq!(removed.id, TrackId(2));
+        assert!(song.session.scenes[0].slots.is_empty());
+    }
+
+    #[test]
+    fn deleting_pattern_referenced_by_clip_is_rejected() {
+        let mut song = Song::empty();
+        let pattern_id = song.create_pattern(16);
+        song.create_clip(pattern_id, "Clip", 0, 16).expect("clip");
+
+        assert_eq!(
+            song.delete_pattern(1).expect_err("pattern in use"),
+            EditError::PatternInUseByClip { pattern_id }
+        );
+    }
+
+    #[test]
+    fn validation_rejects_invalid_session_references() {
+        let mut song = Song::empty();
+        song.session.clips.push(Clip {
+            id: ClipId(1),
+            name: "Dangling".to_string(),
+            source: ClipSource::Pattern {
+                pattern_id: PatternId(99),
+                row_start: 0,
+                row_count: 16,
+            },
+            loop_enabled: true,
+            launch_quantization: ClipLaunchQuantization::Pattern,
+        });
+
+        assert_eq!(
+            song.validate().expect_err("missing clip pattern"),
+            ValidationError::ClipPatternNotFound {
+                clip_index: 0,
+                pattern_id: PatternId(99),
+            }
+        );
+
+        let mut song = Song::empty();
+        song.session.scenes.push(Scene {
+            id: SceneId(1),
+            name: "Scene".to_string(),
+            slots: vec![ClipSlot {
+                track: TrackId(1),
+                clip: Some(ClipId(99)),
+            }],
+        });
+
+        assert_eq!(
+            song.validate().expect_err("missing scene clip"),
+            ValidationError::SceneSlotClipNotFound {
+                scene_index: 0,
+                slot_index: 0,
+                clip_id: ClipId(99),
+            }
+        );
+    }
+
+    #[test]
+    fn song_deserialization_defaults_missing_session() {
+        let json = r#"{
+            "metadata": { "title": "Legacy" },
+            "transport": { "bpm": 120, "linesPerBeat": 4, "swing": 0.0 },
+            "tracks": [
+                { "id": 1, "name": "Drums", "midiChannel": 10, "muted": false, "solo": false, "armed": true }
+            ],
+            "patterns": [
+                {
+                    "id": 1,
+                    "name": "Pattern 01",
+                    "rows": [
+                        { "cells": [ {} ] }
+                    ]
+                }
+            ],
+            "sequence": [1]
+        }"#;
+
+        let song: Song = serde_json::from_str(json).expect("deserialize legacy song");
+
+        assert!(song.session.clips.is_empty());
+        assert!(song.session.scenes.is_empty());
+        song.validate().expect("legacy song validates");
     }
 
     #[test]

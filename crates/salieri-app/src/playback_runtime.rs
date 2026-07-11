@@ -241,13 +241,13 @@ fn playback_thread(
 enum PatternRunResult {
     Finished,
     Stopped,
-    Command(PlaybackCommand),
+    Command(Box<PlaybackCommand>),
 }
 
 impl PatternRunResult {
     fn into_command(self) -> Option<PlaybackCommand> {
         match self {
-            Self::Command(command) => Some(command),
+            Self::Command(command) => Some(*command),
             Self::Finished | Self::Stopped => None,
         }
     }
@@ -353,7 +353,7 @@ fn run_pattern(
             if let Some(command) = wait_until(context.command_rx, deadline) {
                 let _ = send_all_notes_off_logged(context.output, context.midi_logger);
                 let _ = context.update_tx.send(PlaybackUpdate::Stopped);
-                return PatternRunResult::Command(command);
+                return PatternRunResult::Command(Box::new(command));
             }
 
             for event in events.iter().filter(|event| event.position.row == row) {
@@ -367,7 +367,7 @@ fn run_pattern(
                 if let Some(command) = wait_until(context.command_rx, event_deadline) {
                     let _ = send_all_notes_off_logged(context.output, context.midi_logger);
                     let _ = context.update_tx.send(PlaybackUpdate::Stopped);
-                    return PatternRunResult::Command(command);
+                    return PatternRunResult::Command(Box::new(command));
                 }
                 if !mark_event_for_started_playback(&mut active_sent_notes, event) {
                     continue;
@@ -427,7 +427,7 @@ fn run_sequence(
         ) {
             PatternRunResult::Finished => {}
             PatternRunResult::Stopped => return None,
-            PatternRunResult::Command(command) => return Some(command),
+            PatternRunResult::Command(command) => return Some(*command),
         }
     }
 
@@ -1017,7 +1017,7 @@ mod tests {
 
         assert!(matches!(
             result,
-            PatternRunResult::Command(PlaybackCommand::Stop)
+            PatternRunResult::Command(command) if matches!(*command, PlaybackCommand::Stop)
         ));
         assert_eq!(sent.len(), 16);
         assert_eq!(sent[0], MidiMessage::all_notes_off(1));

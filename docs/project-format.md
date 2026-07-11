@@ -24,6 +24,20 @@ On load, Salieri:
 
 Version `1` currently needs no migration. The migration entry point exists so future versions can be upgraded in one place before validation.
 
+## Session Model
+
+`song.session` stores the optional clip/session layer above tracker patterns.
+Older version `1` files that do not contain `session` still load with an empty
+session.
+
+Session data is intentionally reference-based:
+
+- `clips` point at an existing pattern and a row range inside that pattern;
+- `scenes` group clip slots by track;
+- `clip` values inside scene slots may be omitted to represent an empty slot.
+
+Pattern rows remain the canonical note storage. Clips do not duplicate cells.
+
 ## Validation Rules
 
 Loaded projects are rejected when they contain:
@@ -33,12 +47,18 @@ Loaded projects are rejected when they contain:
 - non-finite swing;
 - no tracks, no patterns, or an empty sequence;
 - duplicate track or pattern IDs;
+- duplicate clip or scene IDs;
 - empty track or pattern names;
+- empty clip or scene names;
 - MIDI channels outside `1..=16`;
 - patterns with zero rows;
 - pattern rows whose cell count does not match the track count;
 - note pitches, velocities, or gates outside MIDI `0..=127`;
 - sequence entries referencing missing pattern IDs.
+- clips referencing missing patterns;
+- clips with empty or out-of-bounds pattern row ranges;
+- scene slots referencing missing tracks or clips;
+- duplicate track slots within a scene.
 
 Save operations run the same validation before writing. This prevents Salieri from creating a `.salieri` file it would reject on the next load.
 
