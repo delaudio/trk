@@ -113,7 +113,8 @@ fn run(args: CliArgs) -> Result<()> {
                     playhead_row: app.playhead_row,
                     midi_status: app.midi_status.as_str(),
                     sequence_position: app.sequence_position,
-                    quit_confirmation: app.mode == AppMode::Dialog,
+                    quit_confirmation: app.quit_confirmation(),
+                    delete_confirmation: app.delete_confirmation_message(),
                     midi_settings,
                 },
             );
@@ -432,8 +433,15 @@ struct App {
     midi_port_cursor: usize,
     dirty: bool,
     should_quit: bool,
+    dialog: Option<Dialog>,
     notification: Option<Notification>,
     last_tick: Instant,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Dialog {
+    QuitDirty,
+    DeleteTrack { track_index: usize, message: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -503,6 +511,7 @@ impl App {
             midi_port_cursor: 0,
             dirty: false,
             should_quit: false,
+            dialog: None,
             notification: None,
             last_tick: Instant::now(),
         };
@@ -678,7 +687,7 @@ impl App {
                 if self.selection_anchor.is_some() {
                     self.clear_selection_region();
                 } else {
-                    self.delete_current_track();
+                    self.request_delete_current_track();
                 }
                 return;
             }
@@ -742,14 +751,28 @@ impl App {
 
     fn handle_dialog_key(&mut self, key: KeyEvent) {
         match key.code {
-            KeyCode::Char('y') | KeyCode::Char('Y') => {
-                if self.save().is_ok() {
-                    self.force_quit();
+            KeyCode::Char('y') | KeyCode::Char('Y') => match self.dialog.clone() {
+                Some(Dialog::QuitDirty) => {
+                    if let Err(error) = self.save() {
+                        tracing::error!(?error, "failed to save project");
+                        self.notify_error(format!("Save failed: {error}"));
+                    } else {
+                        self.force_quit();
+                    }
                 }
-            }
-            KeyCode::Char('n') | KeyCode::Char('N') => self.force_quit(),
+                Some(Dialog::DeleteTrack { track_index, .. }) => {
+                    self.dialog = None;
+                    self.mode = AppMode::Normal;
+                    self.delete_track(track_index);
+                }
+                None => self.mode = AppMode::Normal,
+            },
+            KeyCode::Char('n') | KeyCode::Char('N') => match self.dialog {
+                Some(Dialog::QuitDirty) => self.force_quit(),
+                Some(Dialog::DeleteTrack { .. }) | None => self.cancel_dialog(),
+            },
             KeyCode::Char('c') | KeyCode::Char('C') | KeyCode::Esc => {
-                self.mode = AppMode::Normal;
+                self.cancel_dialog();
             }
             _ => {}
         }
@@ -1041,8 +1064,30 @@ impl App {
         }
     }
 
-    fn delete_current_track(&mut self) {
-        let track = self.cursor.track;
+    fn request_delete_current_track(&mut self) {
+        if self.song.tracks.len() <= 1 {
+            self.notify_warning("Cannot delete the last track");
+            return;
+        }
+
+        let track_index = self
+            .cursor
+            .track
+            .min(self.song.tracks.len().saturating_sub(1));
+        let track_name = self
+            .song
+            .tracks
+            .get(track_index)
+            .map_or("Track", |track| track.name.as_str());
+        self.dialog = Some(Dialog::DeleteTrack {
+            track_index,
+            message: format!("Delete track {:02} {track_name}?", track_index + 1),
+        });
+        self.mode = AppMode::Dialog;
+        self.notify_warning("Confirm track delete");
+    }
+
+    fn delete_track(&mut self, track: usize) {
         let before_count = self.song.tracks.len();
         self.mutate_song(|song, _| {
             let _ = song.delete_track(track);
@@ -1051,6 +1096,7 @@ impl App {
         if self.song.tracks.len() < before_count {
             self.clamp_cursor();
             self.cursor.digit = 0;
+            self.notify_success("Track deleted");
         }
     }
 
@@ -1424,13 +1470,21 @@ impl App {
         } else {
             self.stop_playback();
             self.mode = AppMode::Dialog;
+            self.dialog = Some(Dialog::QuitDirty);
             self.notify_warning("Unsaved changes");
         }
     }
 
     fn force_quit(&mut self) {
         self.stop_playback();
+        self.dialog = None;
         self.should_quit = true;
+    }
+
+    fn cancel_dialog(&mut self) {
+        self.dialog = None;
+        self.mode = AppMode::Normal;
+        self.notify_info("Cancelled");
     }
 
     fn toggle_playback(&mut self) {
@@ -1759,6 +1813,21 @@ impl App {
             Some(self.command_buffer.as_str())
         } else {
             None
+        }
+    }
+
+    fn quit_confirmation(&self) -> bool {
+        self.mode == AppMode::Dialog && matches!(self.dialog, Some(Dialog::QuitDirty))
+    }
+
+    fn delete_confirmation_message(&self) -> Option<&str> {
+        if self.mode != AppMode::Dialog {
+            return None;
+        }
+
+        match &self.dialog {
+            Some(Dialog::DeleteTrack { message, .. }) => Some(message.as_str()),
+            Some(Dialog::QuitDirty) | None => None,
         }
     }
 
@@ -2995,6 +3064,14 @@ mod tests {
 
         app.handle_key(KeyEvent::new(KeyCode::Delete, KeyModifiers::NONE));
 
+        assert_eq!(app.mode, AppMode::Dialog);
+        assert!(matches!(
+            app.dialog,
+            Some(Dialog::DeleteTrack { track_index: 1, .. })
+        ));
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE));
+
         assert_eq!(app.song.tracks.len(), 3);
         assert_eq!(app.song.tracks[1].name, "Lead");
         assert_eq!(app.cursor.track, 1);
@@ -3008,15 +3085,39 @@ mod tests {
     }
 
     #[test]
+    fn delete_track_dialog_can_be_cancelled() {
+        let mut app = App {
+            cursor: Cursor {
+                track: 1,
+                ..Cursor::new()
+            },
+            ..App::default()
+        };
+
+        app.handle_key(KeyEvent::new(KeyCode::Delete, KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+
+        assert_eq!(app.mode, AppMode::Normal);
+        assert_eq!(app.song.tracks.len(), 4);
+        assert_eq!(app.song.tracks[1].name, "Bass");
+    }
+
+    #[test]
     fn cannot_delete_last_track_from_app() {
         let mut app = App::default();
 
         while app.song.tracks.len() > 1 {
             app.handle_key(KeyEvent::new(KeyCode::Delete, KeyModifiers::NONE));
+            app.handle_key(KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE));
         }
         app.handle_key(KeyEvent::new(KeyCode::Delete, KeyModifiers::NONE));
 
         assert_eq!(app.song.tracks.len(), 1);
+        assert_eq!(app.mode, AppMode::Normal);
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("Cannot delete the last track")
+        );
     }
 
     #[test]

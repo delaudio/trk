@@ -29,6 +29,7 @@ pub struct TuiState<'a> {
     pub midi_status: &'a str,
     pub sequence_position: Option<usize>,
     pub quit_confirmation: bool,
+    pub delete_confirmation: Option<&'a str>,
     pub midi_settings: Option<MidiSettingsState<'a>>,
 }
 
@@ -100,6 +101,9 @@ pub fn render(frame: &mut Frame<'_>, song: &Song, state: TuiState<'_>) {
     }
     if state.quit_confirmation {
         render_quit_confirmation(frame, area);
+    }
+    if let Some(message) = state.delete_confirmation {
+        render_delete_confirmation(frame, area, message);
     }
 }
 
@@ -653,6 +657,24 @@ fn render_quit_confirmation(frame: &mut Frame<'_>, area: Rect) {
     frame.render_widget(paragraph, overlay);
 }
 
+fn render_delete_confirmation(frame: &mut Frame<'_>, area: Rect, message: &str) {
+    let overlay = centered_rect(52, 7, area);
+    let lines = vec![
+        Line::from(message.to_string()),
+        Line::from(""),
+        Line::from("[Y]es   [N]o   [Esc] Cancel"),
+    ];
+    let paragraph = Paragraph::new(lines)
+        .block(
+            Block::default()
+                .title(" Confirm Delete ")
+                .borders(Borders::ALL),
+        )
+        .style(Style::default().fg(Color::White));
+    frame.render_widget(Clear, overlay);
+    frame.render_widget(paragraph, overlay);
+}
+
 fn centered_rect(width: u16, height: u16, area: Rect) -> Rect {
     let width = width.min(area.width);
     let height = height.min(area.height);
@@ -720,6 +742,7 @@ mod tests {
                         midi_status: "MIDI Disconnected",
                         sequence_position: None,
                         quit_confirmation: false,
+                        delete_confirmation: None,
                         midi_settings: None,
                     },
                 );
@@ -768,6 +791,7 @@ mod tests {
                         midi_status: "MIDI Disconnected",
                         sequence_position: None,
                         quit_confirmation: false,
+                        delete_confirmation: None,
                         midi_settings: None,
                     },
                 );
@@ -824,6 +848,7 @@ mod tests {
                         midi_status: "MIDI Connected 0",
                         sequence_position: Some(0),
                         quit_confirmation: false,
+                        delete_confirmation: None,
                         midi_settings: None,
                     },
                 );
@@ -873,6 +898,7 @@ mod tests {
                         midi_status: "MIDI Disconnected",
                         sequence_position: None,
                         quit_confirmation: false,
+                        delete_confirmation: None,
                         midi_settings: None,
                     },
                 );
@@ -922,6 +948,7 @@ mod tests {
                         midi_status: "MIDI Disconnected",
                         sequence_position: None,
                         quit_confirmation: false,
+                        delete_confirmation: None,
                         midi_settings: None,
                     },
                 );
@@ -969,6 +996,7 @@ mod tests {
                         midi_status: "MIDI Disconnected",
                         sequence_position: None,
                         quit_confirmation: true,
+                        delete_confirmation: None,
                         midi_settings: None,
                     },
                 );
@@ -985,6 +1013,54 @@ mod tests {
 
         assert!(rendered.contains("Unsaved changes"));
         assert!(rendered.contains("[Y]es"));
+    }
+
+    #[test]
+    fn renders_delete_confirmation_overlay() {
+        let song = Song::empty();
+        let backend = TestBackend::new(100, 32);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+
+        terminal
+            .draw(|frame| {
+                render(
+                    frame,
+                    &song,
+                    TuiState {
+                        cursor: Cursor::new(),
+                        row_offset: 0,
+                        pattern_index: 0,
+                        selection: None,
+                        mode_label: "DIALOG",
+                        octave: 4,
+                        dirty: false,
+                        show_line_numbers_hex: false,
+                        command_line: None,
+                        notification: None,
+                        show_help: false,
+                        is_playing: false,
+                        loop_pattern: true,
+                        playhead_row: None,
+                        midi_status: "MIDI Disconnected",
+                        sequence_position: None,
+                        quit_confirmation: false,
+                        delete_confirmation: Some("Delete track 02 Bass?"),
+                        midi_settings: None,
+                    },
+                );
+            })
+            .expect("draw");
+
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+
+        assert!(rendered.contains("Confirm Delete"));
+        assert!(rendered.contains("Delete track 02 Bass?"));
     }
 
     #[test]
@@ -1026,6 +1102,7 @@ mod tests {
                         midi_status: "MIDI Disconnected",
                         sequence_position: None,
                         quit_confirmation: false,
+                        delete_confirmation: None,
                         midi_settings: Some(MidiSettingsState {
                             ports: &ports,
                             selected_port: 1,
