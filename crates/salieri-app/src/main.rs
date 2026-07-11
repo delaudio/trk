@@ -4,11 +4,15 @@ use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
-use salieri_core::{Cursor, Direction, Song};
+use salieri_core::{CellField, Cursor, Direction, NoteEvent, Song};
 use salieri_tui::{render, TuiState};
 use terminal::TerminalGuard;
 
 const UI_TICK_RATE: Duration = Duration::from_millis(33);
+const DEFAULT_OCTAVE: u8 = 4;
+const DEFAULT_EDIT_STEP: usize = 1;
+const DEFAULT_NOTE_VELOCITY: u8 = 0x7f;
+const UNDO_LIMIT: usize = 100;
 
 fn main() -> Result<()> {
     tracing_subscriber::fmt()
@@ -38,6 +42,9 @@ fn run() -> Result<()> {
                 TuiState {
                     cursor: app.cursor,
                     row_offset: app.row_offset,
+                    mode_label: app.mode.label(),
+                    octave: app.octave,
+                    dirty: app.dirty,
                 },
             );
         })?;
@@ -73,18 +80,33 @@ fn run() -> Result<()> {
 #[derive(Debug)]
 struct App {
     song: Song,
+    clean_song: Song,
     cursor: Cursor,
     row_offset: usize,
+    mode: AppMode,
+    octave: u8,
+    edit_step: usize,
+    undo_stack: Vec<Song>,
+    redo_stack: Vec<Song>,
+    dirty: bool,
     should_quit: bool,
     last_tick: Instant,
 }
 
 impl Default for App {
     fn default() -> Self {
+        let song = Song::empty();
         Self {
-            song: Song::empty(),
+            clean_song: song.clone(),
+            song,
             cursor: Cursor::new(),
             row_offset: 0,
+            mode: AppMode::Normal,
+            octave: DEFAULT_OCTAVE,
+            edit_step: DEFAULT_EDIT_STEP,
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
+            dirty: false,
             should_quit: false,
             last_tick: Instant::now(),
         }
@@ -93,27 +115,230 @@ impl Default for App {
 
 impl App {
     fn handle_key(&mut self, key: KeyEvent) {
-        if key.modifiers.contains(KeyModifiers::CONTROL) {
+        if self.handle_control_key(key) {
             return;
         }
 
+        match self.mode {
+            AppMode::Normal => self.handle_normal_key(key),
+            AppMode::Edit => self.handle_edit_key(key),
+        }
+    }
+
+    fn handle_control_key(&mut self, key: KeyEvent) -> bool {
+        if !key.modifiers.contains(KeyModifiers::CONTROL) {
+            return false;
+        }
+
+        match key.code {
+            KeyCode::Char('z') | KeyCode::Char('Z') => {
+                if key.modifiers.contains(KeyModifiers::SHIFT) {
+                    self.redo();
+                } else {
+                    self.undo();
+                }
+                true
+            }
+            KeyCode::Char('y') | KeyCode::Char('Y') => {
+                self.redo();
+                true
+            }
+            _ => true,
+        }
+    }
+
+    fn handle_normal_key(&mut self, key: KeyEvent) {
         let direction = match key.code {
             KeyCode::Char('q') => {
                 self.should_quit = true;
                 return;
             }
+            KeyCode::Char('i') | KeyCode::Enter => {
+                self.mode = AppMode::Edit;
+                return;
+            }
             KeyCode::Up => Some(Direction::Up),
+            KeyCode::Char('k') => Some(Direction::Up),
             KeyCode::Down => Some(Direction::Down),
+            KeyCode::Char('j') => Some(Direction::Down),
             KeyCode::Left => Some(Direction::Left),
+            KeyCode::Char('h') => Some(Direction::Left),
             KeyCode::Right => Some(Direction::Right),
+            KeyCode::Char('l') => Some(Direction::Right),
+            KeyCode::Home => {
+                self.cursor.row = 0;
+                return;
+            }
+            KeyCode::End => {
+                self.cursor.row = self.current_row_count().saturating_sub(1);
+                return;
+            }
+            KeyCode::PageUp => {
+                self.page_cursor_up();
+                return;
+            }
+            KeyCode::PageDown => {
+                self.page_cursor_down();
+                return;
+            }
             _ => None,
         };
 
         if let Some(direction) = direction {
-            let row_count = self.current_row_count();
-            let track_count = self.song.tracks.len();
-            self.cursor.move_in(direction, row_count, track_count);
+            self.move_cursor(direction);
         }
+    }
+
+    fn handle_edit_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Esc => self.mode = AppMode::Normal,
+            KeyCode::Up => self.move_cursor(Direction::Up),
+            KeyCode::Down => self.move_cursor(Direction::Down),
+            KeyCode::Left => self.move_cursor(Direction::Left),
+            KeyCode::Right => self.move_cursor(Direction::Right),
+            KeyCode::Home => self.cursor.row = 0,
+            KeyCode::End => self.cursor.row = self.current_row_count().saturating_sub(1),
+            KeyCode::PageUp => self.page_cursor_up(),
+            KeyCode::PageDown => self.page_cursor_down(),
+            KeyCode::Delete | KeyCode::Backspace => self.clear_current_cell(),
+            KeyCode::F(1) | KeyCode::Char('-') => self.decrement_octave(),
+            KeyCode::F(2) | KeyCode::Char('+') | KeyCode::Char('=') => self.increment_octave(),
+            KeyCode::Char(value) if self.cursor.field == CellField::Velocity => {
+                if let Some(hex) = value.to_digit(16) {
+                    self.enter_velocity_digit(hex as u8);
+                }
+            }
+            KeyCode::Char(value) => {
+                if let Some(note) = keyboard_note(value, self.octave) {
+                    self.insert_note(note);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn move_cursor(&mut self, direction: Direction) {
+        let row_count = self.current_row_count();
+        let track_count = self.song.tracks.len();
+        self.cursor.move_in(direction, row_count, track_count);
+    }
+
+    fn page_cursor_up(&mut self) {
+        self.cursor.row = self.cursor.row.saturating_sub(16);
+    }
+
+    fn page_cursor_down(&mut self) {
+        self.cursor.row = self
+            .cursor
+            .row
+            .saturating_add(16)
+            .min(self.current_row_count().saturating_sub(1));
+    }
+
+    fn insert_note(&mut self, pitch: u8) {
+        self.mutate_song(|song, cursor| {
+            let Some(pattern) = song.current_pattern_mut() else {
+                return;
+            };
+            let _ = pattern.set_note(
+                cursor.row,
+                cursor.track,
+                NoteEvent::Note { pitch },
+                DEFAULT_NOTE_VELOCITY,
+            );
+        });
+        self.advance_after_edit();
+    }
+
+    fn enter_velocity_digit(&mut self, digit: u8) {
+        let current_digit = self.cursor.digit.min(1);
+        self.mutate_song(|song, cursor| {
+            let Some(pattern) = song.current_pattern_mut() else {
+                return;
+            };
+            let current_velocity = pattern
+                .cell(cursor.row, cursor.track)
+                .and_then(|cell| cell.velocity)
+                .unwrap_or(0);
+            let next_velocity = if current_digit == 0 {
+                (digit << 4) | (current_velocity & 0x0f)
+            } else {
+                (current_velocity & 0xf0) | digit
+            };
+            let _ = pattern.set_velocity(cursor.row, cursor.track, next_velocity);
+        });
+
+        if current_digit == 0 {
+            self.cursor.digit = 1;
+        } else {
+            self.cursor.digit = 0;
+            self.advance_after_edit();
+        }
+    }
+
+    fn clear_current_cell(&mut self) {
+        self.mutate_song(|song, cursor| {
+            let Some(pattern) = song.current_pattern_mut() else {
+                return;
+            };
+            let _ = pattern.clear_cell(cursor.row, cursor.track);
+        });
+    }
+
+    fn mutate_song(&mut self, mutate: impl FnOnce(&mut Song, Cursor)) {
+        let before = self.song.clone();
+        mutate(&mut self.song, self.cursor);
+        if self.song != before {
+            self.undo_stack.push(before);
+            if self.undo_stack.len() > UNDO_LIMIT {
+                self.undo_stack.remove(0);
+            }
+            self.redo_stack.clear();
+            self.refresh_dirty();
+        }
+    }
+
+    fn undo(&mut self) {
+        if let Some(previous) = self.undo_stack.pop() {
+            let current = std::mem::replace(&mut self.song, previous);
+            self.redo_stack.push(current);
+            self.refresh_dirty();
+            self.clamp_cursor();
+        }
+    }
+
+    fn redo(&mut self) {
+        if let Some(next) = self.redo_stack.pop() {
+            let current = std::mem::replace(&mut self.song, next);
+            self.undo_stack.push(current);
+            self.refresh_dirty();
+            self.clamp_cursor();
+        }
+    }
+
+    fn advance_after_edit(&mut self) {
+        self.cursor.row = self
+            .cursor
+            .row
+            .saturating_add(self.edit_step)
+            .min(self.current_row_count().saturating_sub(1));
+    }
+
+    fn increment_octave(&mut self) {
+        self.octave = self.octave.saturating_add(1).min(9);
+    }
+
+    fn decrement_octave(&mut self) {
+        self.octave = self.octave.saturating_sub(1);
+    }
+
+    fn refresh_dirty(&mut self) {
+        self.dirty = self.song != self.clean_song;
+    }
+
+    fn clamp_cursor(&mut self) {
+        self.cursor
+            .clamp(self.current_row_count(), self.song.tracks.len());
     }
 
     fn keep_cursor_visible(&mut self, visible_rows: usize) {
@@ -133,6 +358,55 @@ impl App {
             .current_pattern()
             .map_or(0, |pattern| pattern.row_count())
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AppMode {
+    Normal,
+    Edit,
+}
+
+impl AppMode {
+    const fn label(self) -> &'static str {
+        match self {
+            AppMode::Normal => "NORMAL",
+            AppMode::Edit => "EDIT",
+        }
+    }
+}
+
+fn keyboard_note(key: char, octave: u8) -> Option<u8> {
+    let (semitone, octave_offset) = match key.to_ascii_lowercase() {
+        'z' => (0, 0),
+        's' => (1, 0),
+        'x' => (2, 0),
+        'd' => (3, 0),
+        'c' => (4, 0),
+        'v' => (5, 0),
+        'g' => (6, 0),
+        'b' => (7, 0),
+        'h' => (8, 0),
+        'n' => (9, 0),
+        'j' => (10, 0),
+        'm' => (11, 0),
+        'q' => (0, 1),
+        '2' => (1, 1),
+        'w' => (2, 1),
+        '3' => (3, 1),
+        'e' => (4, 1),
+        'r' => (5, 1),
+        '5' => (6, 1),
+        't' => (7, 1),
+        '6' => (8, 1),
+        'y' => (9, 1),
+        '7' => (10, 1),
+        'u' => (11, 1),
+        _ => return None,
+    };
+
+    let midi_octave = i16::from(octave) + octave_offset + 1;
+    let pitch = midi_octave * 12 + semitone;
+    u8::try_from(pitch).ok().filter(|pitch| *pitch <= 127)
 }
 
 #[cfg(test)]
@@ -183,5 +457,85 @@ mod tests {
         app.keep_cursor_visible(20);
 
         assert_eq!(app.row_offset, 44);
+    }
+
+    #[test]
+    fn edit_mode_inserts_note_and_advances_cursor() {
+        let mut app = App::default();
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::NONE));
+
+        let pattern = app.song.current_pattern().expect("pattern");
+        let cell = pattern.cell(0, 0).expect("cell");
+        assert_eq!(app.mode, AppMode::Edit);
+        assert_eq!(cell.note, Some(NoteEvent::Note { pitch: 60 }));
+        assert_eq!(cell.velocity, Some(DEFAULT_NOTE_VELOCITY));
+        assert_eq!(app.cursor.row, 1);
+        assert!(app.dirty);
+    }
+
+    #[test]
+    fn velocity_entry_uses_two_hex_digits() {
+        let mut app = App {
+            mode: AppMode::Edit,
+            cursor: Cursor {
+                field: CellField::Velocity,
+                ..Cursor::new()
+            },
+            ..App::default()
+        };
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('4'), KeyModifiers::NONE));
+        assert_eq!(app.cursor.row, 0);
+        assert_eq!(app.cursor.digit, 1);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('f'), KeyModifiers::NONE));
+
+        let pattern = app.song.current_pattern().expect("pattern");
+        let cell = pattern.cell(0, 0).expect("cell");
+        assert_eq!(cell.velocity, Some(0x4f));
+        assert_eq!(app.cursor.row, 1);
+        assert_eq!(app.cursor.digit, 0);
+    }
+
+    #[test]
+    fn undo_and_redo_restore_song_snapshots() {
+        let mut app = App {
+            mode: AppMode::Edit,
+            ..App::default()
+        };
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
+        assert_eq!(
+            app.song
+                .current_pattern()
+                .expect("pattern")
+                .cell(0, 0)
+                .expect("cell"),
+            &salieri_core::PatternCell::default()
+        );
+        assert!(!app.dirty);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('y'), KeyModifiers::CONTROL));
+        assert_eq!(
+            app.song
+                .current_pattern()
+                .expect("pattern")
+                .cell(0, 0)
+                .expect("cell")
+                .note,
+            Some(NoteEvent::Note { pitch: 60 })
+        );
+        assert!(app.dirty);
+    }
+
+    #[test]
+    fn keyboard_note_maps_tracker_keys_to_midi_pitches() {
+        assert_eq!(keyboard_note('z', 4), Some(60));
+        assert_eq!(keyboard_note('s', 4), Some(61));
+        assert_eq!(keyboard_note('q', 4), Some(72));
+        assert_eq!(keyboard_note('u', 4), Some(83));
     }
 }

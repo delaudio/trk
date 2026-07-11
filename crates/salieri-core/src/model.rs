@@ -62,6 +62,10 @@ impl Song {
     pub fn current_pattern(&self) -> Option<&Pattern> {
         self.patterns.first()
     }
+
+    pub fn current_pattern_mut(&mut self) -> Option<&mut Pattern> {
+        self.patterns.first_mut()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -120,6 +124,60 @@ impl Pattern {
     pub fn row_count(&self) -> usize {
         self.rows.len()
     }
+
+    pub fn cell(&self, row: usize, track: usize) -> Option<&PatternCell> {
+        self.rows
+            .get(row)
+            .and_then(|pattern_row| pattern_row.cells.get(track))
+    }
+
+    pub fn cell_mut(&mut self, row: usize, track: usize) -> Option<&mut PatternCell> {
+        self.rows
+            .get_mut(row)
+            .and_then(|pattern_row| pattern_row.cells.get_mut(track))
+    }
+
+    pub fn set_note(
+        &mut self,
+        row: usize,
+        track: usize,
+        note: NoteEvent,
+        velocity: u8,
+    ) -> Result<(), EditError> {
+        let cell = self
+            .cell_mut(row, track)
+            .ok_or(EditError::CellOutOfBounds { row, track })?;
+        cell.note = Some(note);
+        cell.velocity = Some(velocity.min(0x7f));
+        Ok(())
+    }
+
+    pub fn set_velocity(
+        &mut self,
+        row: usize,
+        track: usize,
+        velocity: u8,
+    ) -> Result<(), EditError> {
+        let cell = self
+            .cell_mut(row, track)
+            .ok_or(EditError::CellOutOfBounds { row, track })?;
+        cell.velocity = Some(velocity.min(0x7f));
+        Ok(())
+    }
+
+    pub fn clear_cell(&mut self, row: usize, track: usize) -> Result<(), EditError> {
+        let cell = self
+            .cell_mut(row, track)
+            .ok_or(EditError::CellOutOfBounds { row, track })?;
+        *cell = PatternCell::default();
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum EditError {
+    #[error("cell out of bounds: row {row}, track {track}")]
+    CellOutOfBounds { row: usize, track: usize },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -306,5 +364,36 @@ mod tests {
         cursor.move_in(Direction::Left, 64, 4);
         assert_eq!(cursor.field, CellField::Velocity);
         assert_eq!(cursor.track, 0);
+    }
+
+    #[test]
+    fn pattern_cell_edits_are_addressed_by_row_and_track() {
+        let mut pattern = Pattern::empty(PatternId(1), "Pattern 01", 64, 4);
+
+        pattern
+            .set_note(2, 1, NoteEvent::Note { pitch: 60 }, 0x70)
+            .expect("set note");
+        assert_eq!(
+            pattern.cell(2, 1).expect("cell").note,
+            Some(NoteEvent::Note { pitch: 60 })
+        );
+        assert_eq!(pattern.cell(2, 1).expect("cell").velocity, Some(0x70));
+
+        pattern.set_velocity(2, 1, 0xff).expect("set velocity");
+        assert_eq!(pattern.cell(2, 1).expect("cell").velocity, Some(0x7f));
+
+        pattern.clear_cell(2, 1).expect("clear cell");
+        assert_eq!(pattern.cell(2, 1), Some(&PatternCell::default()));
+    }
+
+    #[test]
+    fn editing_outside_pattern_returns_error() {
+        let mut pattern = Pattern::empty(PatternId(1), "Pattern 01", 64, 4);
+
+        let error = pattern
+            .set_note(100, 0, NoteEvent::Note { pitch: 60 }, 0x7f)
+            .expect_err("out of bounds");
+
+        assert_eq!(error, EditError::CellOutOfBounds { row: 100, track: 0 });
     }
 }

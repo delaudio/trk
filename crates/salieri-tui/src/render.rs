@@ -6,12 +6,15 @@ use ratatui::{
 use salieri_core::{CellField, Cursor, NoteEvent, Pattern, PatternCell, Song};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TuiState {
+pub struct TuiState<'a> {
     pub cursor: Cursor,
     pub row_offset: usize,
+    pub mode_label: &'a str,
+    pub octave: u8,
+    pub dirty: bool,
 }
 
-pub fn render(frame: &mut Frame<'_>, song: &Song, state: TuiState) {
+pub fn render(frame: &mut Frame<'_>, song: &Song, state: TuiState<'_>) {
     let area = frame.area();
     let vertical = Layout::default()
         .direction(LayoutDirection::Vertical)
@@ -22,23 +25,27 @@ pub fn render(frame: &mut Frame<'_>, song: &Song, state: TuiState) {
         ])
         .split(area);
 
-    render_header(frame, vertical[0], song, state.cursor);
+    render_header(frame, vertical[0], song, state);
     render_body(frame, vertical[1], song, state);
-    render_status(frame, vertical[2]);
+    render_status(frame, vertical[2], state);
 }
 
-fn render_header(frame: &mut Frame<'_>, area: Rect, song: &Song, cursor: Cursor) {
+fn render_header(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
     let pattern_name = song
         .current_pattern()
         .map_or("No Pattern", |pattern| pattern.name.as_str());
+    let dirty = if state.dirty { " *" } else { "" };
     let text = format!(
-        " BPM {} | LPB {} | {} | Row {:02} | Track {:02} | Field {} | Edit OFF | MIDI Disconnected ",
+        " BPM {} | LPB {} | {}{} | Oct {} | Row {:02} | Track {:02} | Field {} | {} | MIDI Disconnected ",
         song.transport.bpm,
         song.transport.lines_per_beat,
         pattern_name,
-        cursor.row,
-        cursor.track + 1,
-        cursor.field
+        dirty,
+        state.octave,
+        state.cursor.row,
+        state.cursor.track + 1,
+        state.cursor.field,
+        state.mode_label
     );
     let header = Paragraph::new(text)
         .block(
@@ -50,7 +57,7 @@ fn render_header(frame: &mut Frame<'_>, area: Rect, song: &Song, cursor: Cursor)
     frame.render_widget(header, area);
 }
 
-fn render_body(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState) {
+fn render_body(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
     let chunks = if area.width >= 120 {
         Layout::default()
             .direction(LayoutDirection::Horizontal)
@@ -119,7 +126,7 @@ fn render_sequence(frame: &mut Frame<'_>, area: Rect, song: &Song) {
     frame.render_widget(sequence, area);
 }
 
-fn render_pattern(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState) {
+fn render_pattern(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
     let Some(pattern) = song.current_pattern() else {
         let empty = Paragraph::new("No pattern")
             .block(Block::default().title(" Pattern ").borders(Borders::ALL));
@@ -225,8 +232,11 @@ fn cell_spans(cell: &PatternCell, focused_field: CellField, focused: bool) -> Ve
     ]
 }
 
-fn render_status(frame: &mut Frame<'_>, area: Rect) {
-    let status = Paragraph::new(" NORMAL | Arrow keys move | q Quit ");
+fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
+    let status = Paragraph::new(format!(
+        " {} | i Edit | Esc Normal | z/s/x/d/c/v/g/b/h/n/j/m Notes | Del Clear | Ctrl+Z Undo | q Quit ",
+        state.mode_label
+    ));
     frame.render_widget(status, area);
 }
 
@@ -244,7 +254,7 @@ fn format_note(pitch: u8) -> String {
     const NAMES: [&str; 12] = [
         "C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-",
     ];
-    let octave = pitch / 12;
+    let octave = i16::from(pitch / 12) - 1;
     let note = NAMES[(pitch % 12) as usize];
     format!("{note}{octave}")
 }
@@ -269,6 +279,9 @@ mod tests {
                     TuiState {
                         cursor: Cursor::new(),
                         row_offset: 0,
+                        mode_label: "NORMAL",
+                        octave: 4,
+                        dirty: false,
                     },
                 );
             })
