@@ -725,6 +725,7 @@ impl App {
             AppMode::Dialog => self.handle_dialog_key(key),
             AppMode::MidiSettings => self.handle_midi_settings_key(key),
             AppMode::Sequence => self.handle_sequence_key(key),
+            AppMode::Clips => self.handle_clips_key(key),
             AppMode::Tracks => self.handle_tracks_key(key),
             AppMode::Patterns => self.handle_patterns_key(key),
         }
@@ -855,6 +856,10 @@ impl App {
             }
             KeyCode::F(7) => {
                 self.open_sequence_view();
+                return;
+            }
+            KeyCode::F(11) => {
+                self.open_clips_view();
                 return;
             }
             KeyCode::F(9) => {
@@ -1172,6 +1177,48 @@ impl App {
         }
     }
 
+    fn handle_clips_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Esc | KeyCode::F(11) => self.mode = AppMode::Normal,
+            KeyCode::Char('q') => self.request_quit(false),
+            KeyCode::Char('?') | KeyCode::Char('H') => self.mode = AppMode::Help,
+            KeyCode::Char(':') => {
+                self.command_buffer.clear();
+                self.mode = AppMode::Command;
+            }
+            KeyCode::Char(' ') => {
+                if self.is_playing {
+                    self.stop_playback();
+                } else {
+                    self.start_selected_scene_playback();
+                }
+            }
+            KeyCode::F(8) => self.stop_playback(),
+            KeyCode::F(4) => self.open_midi_settings(),
+            KeyCode::Enter if key.modifiers.contains(KeyModifiers::SHIFT) => {
+                self.start_selected_scene_playback();
+            }
+            KeyCode::Enter => self.start_selected_clip_playback(),
+            KeyCode::Up => self.previous_scene(),
+            KeyCode::Char('k') if self.vim_navigation => self.previous_scene(),
+            KeyCode::Down => self.next_scene(),
+            KeyCode::Char('j') if self.vim_navigation => self.next_scene(),
+            KeyCode::Left => self.previous_track(),
+            KeyCode::Char('h') if self.vim_navigation => self.previous_track(),
+            KeyCode::Right => self.next_track(),
+            KeyCode::Char('l') if self.vim_navigation => self.next_track(),
+            KeyCode::Home => {
+                self.sequence_cursor = 0;
+                self.notify_info("Scene 00");
+            }
+            KeyCode::End => {
+                self.sequence_cursor = self.song.session.scenes.len().saturating_sub(1);
+                self.notify_info(format!("Scene {:02}", self.sequence_cursor));
+            }
+            _ => {}
+        }
+    }
+
     fn handle_tracks_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Esc => self.mode = AppMode::Normal,
@@ -1273,6 +1320,19 @@ impl App {
     fn previous_track(&mut self) {
         self.cursor.track = self.cursor.track.saturating_sub(1);
         self.cursor.digit = 0;
+    }
+
+    fn next_scene(&mut self) {
+        self.sequence_cursor = self
+            .sequence_cursor
+            .saturating_add(1)
+            .min(self.song.session.scenes.len().saturating_sub(1));
+        self.notify_info(format!("Scene {:02}", self.sequence_cursor));
+    }
+
+    fn previous_scene(&mut self) {
+        self.sequence_cursor = self.sequence_cursor.saturating_sub(1);
+        self.notify_info(format!("Scene {:02}", self.sequence_cursor));
     }
 
     fn page_cursor_up(&mut self) {
@@ -2424,6 +2484,23 @@ impl App {
         self.notify_info(format!("Playing scene {}", scene_id.0));
     }
 
+    fn start_selected_clip_playback(&mut self) {
+        let Some(clip_id) = self.selected_scene_clip_id() else {
+            self.notify_warning("Empty clip slot");
+            return;
+        };
+        self.start_clip_playback(clip_id);
+    }
+
+    fn start_selected_scene_playback(&mut self) {
+        let Some(scene) = self.selected_scene() else {
+            self.notify_warning("No scene to play");
+            return;
+        };
+        let scene_id = scene.id;
+        self.start_scene_playback(scene_id);
+    }
+
     fn stop_playback(&mut self) {
         self.playback.stop();
         self.is_playing = false;
@@ -2447,6 +2524,16 @@ impl App {
         self.clamp_sequence_cursor();
         self.mode = AppMode::Sequence;
         self.notify_info(format!("Sequence position {:02}", self.sequence_cursor));
+    }
+
+    fn open_clips_view(&mut self) {
+        self.cursor.track = self
+            .cursor
+            .track
+            .min(self.song.tracks.len().saturating_sub(1));
+        self.clamp_scene_cursor();
+        self.mode = AppMode::Clips;
+        self.notify_info(format!("Scene {:02}", self.sequence_cursor));
     }
 
     fn open_tracks_view(&mut self) {
@@ -2693,7 +2780,42 @@ impl App {
         }
     }
 
+    fn clamp_scene_cursor(&mut self) {
+        if self.song.session.scenes.is_empty() {
+            self.sequence_cursor = 0;
+        } else {
+            self.sequence_cursor = self
+                .sequence_cursor
+                .min(self.song.session.scenes.len().saturating_sub(1));
+        }
+    }
+
+    fn selected_scene_index(&self) -> Option<usize> {
+        (!self.song.session.scenes.is_empty()).then_some(
+            self.sequence_cursor
+                .min(self.song.session.scenes.len().saturating_sub(1)),
+        )
+    }
+
+    fn selected_scene(&self) -> Option<&salieri_core::Scene> {
+        self.selected_scene_index()
+            .and_then(|index| self.song.session.scenes.get(index))
+    }
+
+    fn selected_scene_clip_id(&self) -> Option<ClipId> {
+        let scene = self.selected_scene()?;
+        let track = self.song.tracks.get(self.cursor.track)?;
+        scene
+            .slots
+            .iter()
+            .find(|slot| slot.track == track.id)
+            .and_then(|slot| slot.clip)
+    }
+
     fn tui_sequence_position(&self) -> Option<usize> {
+        if self.mode == AppMode::Clips {
+            return self.selected_scene_index();
+        }
         self.sequence_position.or_else(|| {
             (!self.song.sequence.is_empty()).then_some(
                 self.sequence_cursor
@@ -2705,6 +2827,7 @@ impl App {
     fn tui_active_view(&self) -> TuiView {
         match self.mode {
             AppMode::Sequence => TuiView::Sequence,
+            AppMode::Clips => TuiView::Clips,
             AppMode::Tracks => TuiView::Tracks,
             AppMode::Patterns => TuiView::Patterns,
             AppMode::Normal
@@ -2845,6 +2968,7 @@ enum AppMode {
     Dialog,
     MidiSettings,
     Sequence,
+    Clips,
     Tracks,
     Patterns,
 }
@@ -2859,6 +2983,7 @@ impl AppMode {
             AppMode::Dialog => "DIALOG",
             AppMode::MidiSettings => "MIDI",
             AppMode::Sequence => "SEQUENCE",
+            AppMode::Clips => "CLIPS",
             AppMode::Tracks => "TRACKS",
             AppMode::Patterns => "PATTERNS",
         }
@@ -4118,6 +4243,66 @@ mod tests {
         assert!(app.is_playing);
         assert_eq!(app.playhead_row, Some(0));
         assert_eq!(app.sequence_position, None);
+    }
+
+    #[test]
+    fn f11_opens_and_closes_clip_session_view() {
+        let mut app = App::default();
+
+        app.handle_key(KeyEvent::new(KeyCode::F(11), KeyModifiers::NONE));
+
+        assert_eq!(app.mode, AppMode::Clips);
+        assert_eq!(app.tui_active_view(), TuiView::Clips);
+        assert_eq!(app.tui_sequence_position(), None);
+
+        app.handle_key(KeyEvent::new(KeyCode::F(11), KeyModifiers::NONE));
+
+        assert_eq!(app.mode, AppMode::Normal);
+        assert_eq!(app.tui_active_view(), TuiView::Pattern);
+    }
+
+    #[test]
+    fn clip_session_view_navigates_and_launches_slots() {
+        let mut app = App::default();
+        let clip_id = app
+            .song
+            .create_clip(app.song.patterns[0].id, "Lead Clip", 0, 16)
+            .expect("clip");
+        app.song.create_scene("Intro").expect("intro");
+        let scene_id = app.song.create_scene("Drop").expect("drop");
+        app.song
+            .set_scene_clip(scene_id, app.song.tracks[1].id, Some(clip_id))
+            .expect("scene slot");
+
+        app.handle_key(KeyEvent::new(KeyCode::F(11), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
+
+        assert_eq!(app.mode, AppMode::Clips);
+        assert_eq!(app.sequence_cursor, 1);
+        assert_eq!(app.tui_sequence_position(), Some(1));
+        assert_eq!(app.cursor.track, 1);
+
+        app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+
+        assert!(app.is_playing);
+        assert_eq!(app.sequence_position, None);
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("Playing clip 1")
+        );
+
+        app.handle_key(KeyEvent::new(KeyCode::Char(' '), KeyModifiers::NONE));
+
+        assert!(!app.is_playing);
+
+        app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::SHIFT));
+
+        assert!(app.is_playing);
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("Playing scene 2")
+        );
     }
 
     #[test]

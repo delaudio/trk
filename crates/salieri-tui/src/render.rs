@@ -9,6 +9,7 @@ const TRACK_PANEL_WIDTH: u16 = 27;
 const ROW_GUTTER_WIDTH: usize = 5;
 const PATTERN_CELL_WIDTH: usize = 10;
 const TRACK_LIST_NAME_WIDTH: usize = 11;
+const CLIP_CELL_WIDTH: usize = 14;
 const MEDIUM_MIN_WIDTH: u16 = 80;
 const LARGE_MIN_WIDTH: u16 = 120;
 
@@ -46,6 +47,7 @@ pub struct TuiState<'a> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TuiView {
     Pattern,
+    Clips,
     Sequence,
     Tracks,
     Patterns,
@@ -171,6 +173,17 @@ fn render_body(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'
         render_sequence_editor(frame, area, song, state.sequence_position);
         return;
     }
+    if state.active_view == TuiView::Clips {
+        render_clip_session_editor(
+            frame,
+            area,
+            song,
+            state.cursor.track,
+            state.sequence_position.unwrap_or(0),
+            state.is_playing,
+        );
+        return;
+    }
     if state.active_view == TuiView::Tracks {
         render_track_editor(frame, area, song, state.cursor.track);
         return;
@@ -294,6 +307,133 @@ fn render_sequence(
     let sequence =
         Paragraph::new(lines).block(Block::default().title(" Sequence ").borders(Borders::ALL));
     frame.render_widget(sequence, area);
+}
+
+fn render_clip_session_editor(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    song: &Song,
+    active_track: usize,
+    active_scene: usize,
+    is_playing: bool,
+) {
+    let mut lines = Vec::new();
+    let mut header = vec![
+        Span::styled("SCN  ", Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            "SCENE           ",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+    ];
+    for (track_index, track) in song.tracks.iter().enumerate() {
+        let style = if track_index == active_track {
+            Style::default()
+                .fg(Color::Black)
+                .bg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
+        };
+        header.push(Span::styled(
+            format!(
+                "{:^CLIP_CELL_WIDTH$}",
+                truncate(&track.name, CLIP_CELL_WIDTH)
+            ),
+            style,
+        ));
+    }
+    lines.push(Line::from(header));
+
+    if song.session.scenes.is_empty() {
+        lines.push(Line::from("No scenes"));
+    } else {
+        for (scene_index, scene) in song.session.scenes.iter().enumerate() {
+            let mut spans = Vec::new();
+            let selected_scene = scene_index == active_scene;
+            let marker = if selected_scene { ">" } else { " " };
+            let state = if selected_scene && is_playing {
+                "PLAY"
+            } else {
+                "STOP"
+            };
+            let prefix_style = if selected_scene {
+                Style::default()
+                    .fg(Color::Black)
+                    .bg(Color::White)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::White)
+            };
+            spans.push(Span::styled(
+                format!("{marker}{scene_index:02}  "),
+                prefix_style,
+            ));
+            spans.push(Span::styled(
+                format!("{:<12} ", truncate(&scene.name, 12)),
+                prefix_style,
+            ));
+
+            for (track_index, track) in song.tracks.iter().enumerate() {
+                let slot = scene.slots.iter().find(|slot| slot.track == track.id);
+                let (label, loaded) = match slot.and_then(|slot| slot.clip) {
+                    Some(clip_id) => {
+                        let name = song
+                            .session
+                            .clips
+                            .iter()
+                            .find(|clip| clip.id == clip_id)
+                            .map_or("Missing", |clip| clip.name.as_str());
+                        (truncate(name, CLIP_CELL_WIDTH.saturating_sub(2)), true)
+                    }
+                    None => ("EMPTY".to_string(), false),
+                };
+                let selected_cell = selected_scene && track_index == active_track;
+                let cell_style = if selected_cell {
+                    Style::default()
+                        .fg(Color::Black)
+                        .bg(Color::White)
+                        .add_modifier(Modifier::BOLD)
+                } else if loaded {
+                    Style::default().fg(Color::LightGreen)
+                } else {
+                    Style::default().fg(Color::DarkGray)
+                };
+                let label = if selected_cell && is_playing {
+                    format!("PLAY {label}")
+                } else {
+                    label
+                };
+                spans.push(Span::styled(
+                    format!("{:^CLIP_CELL_WIDTH$}", truncate(&label, CLIP_CELL_WIDTH)),
+                    cell_style,
+                ));
+            }
+            spans.push(Span::styled(
+                format!(" {state}"),
+                Style::default().fg(Color::DarkGray),
+            ));
+            lines.push(Line::from(spans));
+        }
+    }
+
+    lines.extend([
+        Line::from(""),
+        Line::from("Arrows move   Enter launch clip   Shift+Enter launch scene"),
+        Line::from("Space play/stop scene   F11/Esc pattern view   : command"),
+    ]);
+
+    let clips = Paragraph::new(lines)
+        .block(
+            Block::default()
+                .title(" Clip Session ")
+                .borders(Borders::ALL),
+        )
+        .wrap(Wrap { trim: true });
+    frame.render_widget(clips, area);
 }
 
 fn render_sequence_editor(
@@ -798,12 +938,13 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
         Line::from("  Ctrl+T create track   D duplicate track   {/} move track left/right"),
         Line::from("  r rename track   c channel"),
         Line::from("  Del delete track   M mute   S solo"),
+        Line::from("  F11 clip/session view   Enter clip   Shift+Enter scene   Space scene stop/play"),
         Line::from("  :write [path]   :saveas path   :quit   :q!   :wq   :bpm 140   :lpb 4"),
         Line::from("  Dirty quit asks: [Y]es save, [N]o quit, [C]ancel"),
         Line::from("  :track new   :track duplicate 2   :track delete 2   :track move 2 3"),
         Line::from("  :track mute 2   :track solo 2   :track rename Acid Bass"),
         Line::from("  :track channel 12   :fx D 20 delay   :fx R 04 retrigger   :fx clear"),
-        Line::from("  :play pattern   :play sequence [position]   :stop"),
+        Line::from("  :play pattern   :play sequence [position]   :play clip 1   :play scene 1   :stop"),
         Line::from(""),
         Line::from(Span::styled(
             "Patterns And Sequence",
@@ -1123,6 +1264,67 @@ mod tests {
         assert!(rendered.contains("Pattern Editor"));
         assert!(rendered.contains("Tracks"));
         assert!(rendered.contains("Sequence"));
+    }
+
+    #[test]
+    fn renders_clip_session_view() {
+        let mut song = Song::empty();
+        let clip_id = song
+            .create_clip(song.patterns[0].id, "Lead Clip", 0, 16)
+            .expect("clip");
+        let scene_id = song.create_scene("Scene A").expect("scene");
+        song.set_scene_clip(scene_id, song.tracks[0].id, Some(clip_id))
+            .expect("slot");
+        let backend = TestBackend::new(160, 32);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+
+        terminal
+            .draw(|frame| {
+                render(
+                    frame,
+                    &song,
+                    TuiState {
+                        cursor: Cursor {
+                            track: 1,
+                            ..Cursor::new()
+                        },
+                        row_offset: 0,
+                        pattern_index: 0,
+                        active_view: TuiView::Clips,
+                        selection: None,
+                        mode_label: "CLIPS",
+                        octave: 4,
+                        dirty: false,
+                        show_line_numbers_hex: false,
+                        command_line: None,
+                        notification: None,
+                        show_help: false,
+                        is_playing: true,
+                        loop_pattern: true,
+                        playhead_row: None,
+                        midi_status: "MIDI Disconnected",
+                        sequence_position: Some(0),
+                        quit_confirmation: false,
+                        delete_confirmation: None,
+                        midi_settings: None,
+                    },
+                );
+            })
+            .expect("draw");
+
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+
+        assert!(rendered.contains("Clip Session"));
+        assert!(rendered.contains("Scene A"));
+        assert!(rendered.contains("Lead Clip"));
+        assert!(rendered.contains("EMPTY"));
+        assert!(rendered.contains("Shift+Enter launch scene"));
     }
 
     #[test]

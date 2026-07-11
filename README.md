@@ -175,6 +175,7 @@ Shift+Enter     Play sequence from selected position
 F8              Stop
 L               Toggle pattern loop
 F4              MIDI settings
+F11             Clip/session view
 :               Command mode
 ```
 
@@ -225,6 +226,16 @@ T               Set sequence position to current pattern
 < / >           Move sequence position up/down
 ```
 
+Clip/session view:
+
+```text
+Arrows          Move scene or track selection
+Enter           Launch selected clip
+Shift+Enter     Launch selected scene
+Space           Play/stop selected scene
+F11 or Esc      Return to pattern view
+```
+
 ## Command Mode Examples
 
 ```text
@@ -256,6 +267,8 @@ T               Set sequence position to current pattern
 :sequence move 1 0
 :play pattern
 :play sequence 0
+:play clip 1
+:play scene 1
 :stop
 ```
 
