@@ -1345,11 +1345,13 @@ impl App {
 
     fn add_sequence_pattern(&mut self, pattern_index: usize) {
         let Some(pattern_id) = self.song.pattern(pattern_index).map(|pattern| pattern.id) else {
+            self.notify_warning("Pattern out of range");
             return;
         };
         self.mutate_song(|song, _| {
             let _ = song.push_sequence_pattern(pattern_id);
         });
+        self.notify_success(format!("Sequence added pattern {:02}", pattern_index + 1));
     }
 
     fn remove_sequence_position(&mut self, position: usize) {
@@ -3212,10 +3214,28 @@ mod tests {
             app.song.sequence,
             vec![salieri_core::PatternId(1), salieri_core::PatternId(2)]
         );
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("Sequence added pattern 02")
+        );
 
         type_command(&mut app, "sequence remove 0");
         assert_eq!(app.song.sequence, vec![salieri_core::PatternId(2)]);
         assert_eq!(app.song.patterns.len(), 2);
+    }
+
+    #[test]
+    fn command_mode_reports_sequence_add_pattern_out_of_range() {
+        let mut app = App::default();
+
+        type_command(&mut app, "sequence add 99");
+
+        assert_eq!(app.song.sequence, vec![salieri_core::PatternId(1)]);
+        assert!(!app.dirty);
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("Pattern out of range")
+        );
     }
 
     #[test]
