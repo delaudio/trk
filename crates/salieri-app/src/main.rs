@@ -16,7 +16,10 @@ use config::{load_config, AppConfig};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use persistence::{load_project, save_project};
 use playback_runtime::{PlaybackRuntime, PlaybackUpdate};
-use salieri_core::{CellField, Cursor, Direction, NoteEvent, PatternCell, Song, TrackerCommand};
+use salieri_core::{
+    CellField, ClipId, ClipSource, Cursor, Direction, NoteEvent, PatternCell, SceneId, Song,
+    TrackerCommand,
+};
 use salieri_midi::{list_output_ports, MidiMessage, MidiOutput, MidiOutputPort, MidirMidiOutput};
 use salieri_transform::{apply_euclidean, EuclideanRhythm};
 use salieri_tui::{
@@ -2097,8 +2100,25 @@ impl App {
                         .unwrap_or(0);
                     self.start_sequence_playback_at(start_sequence_index);
                 }
+                Some("clip") => {
+                    if let Some(clip_id) = parts.next().and_then(|value| value.parse::<u32>().ok())
+                    {
+                        self.start_clip_playback(ClipId(clip_id));
+                    } else {
+                        self.notify_warning("Usage: :play clip CLIP_ID");
+                    }
+                }
+                Some("scene") => {
+                    if let Some(scene_id) = parts.next().and_then(|value| value.parse::<u32>().ok())
+                    {
+                        self.start_scene_playback(SceneId(scene_id));
+                    } else {
+                        self.notify_warning("Usage: :play scene SCENE_ID");
+                    }
+                }
                 Some("pattern") | Some("pat") | None => self.start_playback(),
-                Some(_) => self.notify_warning("Usage: :play [pattern|sequence [position]]"),
+                Some(_) => self
+                    .notify_warning("Usage: :play [pattern|sequence [position]|clip ID|scene ID]"),
             },
             "stop" => self.stop_playback(),
             "track" => match parts.next() {
@@ -2352,6 +2372,56 @@ impl App {
         if let Some(position) = self.selected_sequence_position() {
             self.start_sequence_playback_at(position);
         }
+    }
+
+    fn start_clip_playback(&mut self, clip_id: ClipId) {
+        let Some(clip) = self
+            .song
+            .session
+            .clips
+            .iter()
+            .find(|clip| clip.id == clip_id)
+        else {
+            self.notify_warning(format!("Clip {} not found", clip_id.0));
+            return;
+        };
+
+        let ClipSource::Pattern { pattern_id, .. } = clip.source;
+        if let Some(pattern_index) = self
+            .song
+            .patterns
+            .iter()
+            .position(|pattern| pattern.id == pattern_id)
+        {
+            self.pattern_index = pattern_index;
+        }
+
+        self.is_playing = true;
+        self.playhead_row = Some(0);
+        self.sequence_position = None;
+        self.playback
+            .start_clip(self.song.clone(), clip_id, self.loop_pattern);
+        self.notify_info(format!("Playing clip {}", clip_id.0));
+    }
+
+    fn start_scene_playback(&mut self, scene_id: SceneId) {
+        if !self
+            .song
+            .session
+            .scenes
+            .iter()
+            .any(|scene| scene.id == scene_id)
+        {
+            self.notify_warning(format!("Scene {} not found", scene_id.0));
+            return;
+        }
+
+        self.is_playing = true;
+        self.playhead_row = Some(0);
+        self.sequence_position = None;
+        self.playback
+            .start_scene(self.song.clone(), scene_id, self.loop_pattern);
+        self.notify_info(format!("Playing scene {}", scene_id.0));
     }
 
     fn stop_playback(&mut self) {
@@ -4018,6 +4088,57 @@ mod tests {
         assert_eq!(app.pattern_index, 1);
         assert_eq!(app.playhead_row, Some(0));
         assert_eq!(app.sequence_position, Some(1));
+    }
+
+    #[test]
+    fn command_mode_can_start_clip_and_scene_playback() {
+        let mut app = App::default();
+        app.song
+            .current_pattern_mut()
+            .expect("pattern")
+            .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x7f)
+            .expect("set note");
+        let clip_id = app
+            .song
+            .create_clip(app.song.patterns[0].id, "Clip", 0, 16)
+            .expect("clip");
+        let scene_id = app.song.create_scene("Scene").expect("scene");
+        app.song
+            .set_scene_clip(scene_id, app.song.tracks[0].id, Some(clip_id))
+            .expect("scene slot");
+
+        type_command(&mut app, "play clip 1");
+
+        assert!(app.is_playing);
+        assert_eq!(app.playhead_row, Some(0));
+        assert_eq!(app.sequence_position, None);
+
+        type_command(&mut app, "play scene 1");
+
+        assert!(app.is_playing);
+        assert_eq!(app.playhead_row, Some(0));
+        assert_eq!(app.sequence_position, None);
+    }
+
+    #[test]
+    fn command_mode_reports_missing_clip_and_scene() {
+        let mut app = App::default();
+
+        type_command(&mut app, "play clip 99");
+
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("Clip 99 not found")
+        );
+        assert!(!app.is_playing);
+
+        type_command(&mut app, "play scene 99");
+
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("Scene 99 not found")
+        );
+        assert!(!app.is_playing);
     }
 
     #[test]

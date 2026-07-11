@@ -7,7 +7,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-use salieri_core::{pattern_events, row_duration_micros, PlaybackPosition, Song};
+use salieri_core::{
+    pattern_events, row_duration_micros, ClipId, ClipSource, PlaybackEvent, PlaybackEventKind,
+    PlaybackPosition, SceneId, Song, TrackId,
+};
 use salieri_midi::{
     playback_event_to_midi, FakeMidiOutput, MidiError, MidiMessage, MidiOutput, MidirMidiOutput,
 };
@@ -16,6 +19,8 @@ use salieri_midi::{
 pub struct PlaybackCursor {
     pub pattern_index: usize,
     pub sequence_index: Option<usize>,
+    pub clip_id: Option<ClipId>,
+    pub scene_id: Option<SceneId>,
     pub position: PlaybackPosition,
 }
 
@@ -40,6 +45,16 @@ enum PlaybackCommand {
     StartSequence {
         song: Song,
         start_sequence_index: usize,
+    },
+    StartClip {
+        song: Song,
+        clip_id: ClipId,
+        loop_clip: bool,
+    },
+    StartScene {
+        song: Song,
+        scene_id: SceneId,
+        loop_scene: bool,
     },
     ConnectMidi {
         port_index: usize,
@@ -88,6 +103,22 @@ impl PlaybackRuntime {
         let _ = self.command_tx.send(PlaybackCommand::StartSequence {
             song,
             start_sequence_index,
+        });
+    }
+
+    pub fn start_clip(&self, song: Song, clip_id: ClipId, loop_clip: bool) {
+        let _ = self.command_tx.send(PlaybackCommand::StartClip {
+            song,
+            clip_id,
+            loop_clip,
+        });
+    }
+
+    pub fn start_scene(&self, song: Song, scene_id: SceneId, loop_scene: bool) {
+        let _ = self.command_tx.send(PlaybackCommand::StartScene {
+            song,
+            scene_id,
+            loop_scene,
         });
     }
 
@@ -189,6 +220,48 @@ fn playback_thread(
                     midi_logger: &mut midi_logger,
                 };
                 next_command = run_sequence(song, start_sequence_index, &mut context);
+                if matches!(next_command, Some(PlaybackCommand::Shutdown)) {
+                    break;
+                }
+            }
+            PlaybackCommand::StartClip {
+                song,
+                clip_id,
+                loop_clip,
+            } => {
+                let mut context = PlaybackRunContext {
+                    command_rx: &command_rx,
+                    update_tx: &update_tx,
+                    output: &mut output,
+                    midi_logger: &mut midi_logger,
+                };
+                let result = run_clip(&song, clip_id, loop_clip, &mut context);
+                if matches!(result, PatternRunResult::Finished) {
+                    let _ = send_all_notes_off_logged(&mut output, &mut midi_logger);
+                    let _ = update_tx.send(PlaybackUpdate::Stopped);
+                }
+                next_command = result.into_command();
+                if matches!(next_command, Some(PlaybackCommand::Shutdown)) {
+                    break;
+                }
+            }
+            PlaybackCommand::StartScene {
+                song,
+                scene_id,
+                loop_scene,
+            } => {
+                let mut context = PlaybackRunContext {
+                    command_rx: &command_rx,
+                    update_tx: &update_tx,
+                    output: &mut output,
+                    midi_logger: &mut midi_logger,
+                };
+                let result = run_scene(&song, scene_id, loop_scene, &mut context);
+                if matches!(result, PatternRunResult::Finished) {
+                    let _ = send_all_notes_off_logged(&mut output, &mut midi_logger);
+                    let _ = update_tx.send(PlaybackUpdate::Stopped);
+                }
+                next_command = result.into_command();
                 if matches!(next_command, Some(PlaybackCommand::Shutdown)) {
                     break;
                 }
@@ -386,6 +459,8 @@ fn run_pattern(
                     .send(PlaybackUpdate::Position(PlaybackCursor {
                         pattern_index,
                         sequence_index,
+                        clip_id: None,
+                        scene_id: None,
                         position: PlaybackPosition {
                             row,
                             offset_micros: row_duration.as_micros().saturating_mul(row as u128)
@@ -436,9 +511,257 @@ fn run_sequence(
     None
 }
 
+fn run_clip(
+    song: &Song,
+    clip_id: ClipId,
+    loop_clip: bool,
+    context: &mut PlaybackRunContext<'_>,
+) -> PatternRunResult {
+    let Some(spec) = clip_playback_spec(song, clip_id) else {
+        let _ = context.update_tx.send(PlaybackUpdate::Stopped);
+        return PatternRunResult::Stopped;
+    };
+    run_event_window(
+        spec.events,
+        PlaybackWindow {
+            pattern_index: spec.pattern_index,
+            sequence_index: None,
+            clip_id: Some(clip_id),
+            scene_id: None,
+            row_count: spec.row_count,
+            row_duration_micros: row_duration_micros(&song.transport),
+            loop_playback: loop_clip,
+        },
+        context,
+    )
+}
+
+fn run_scene(
+    song: &Song,
+    scene_id: SceneId,
+    loop_scene: bool,
+    context: &mut PlaybackRunContext<'_>,
+) -> PatternRunResult {
+    let Some(spec) = scene_playback_spec(song, scene_id) else {
+        let _ = context.update_tx.send(PlaybackUpdate::Stopped);
+        return PatternRunResult::Stopped;
+    };
+    run_event_window(
+        spec.events,
+        PlaybackWindow {
+            pattern_index: spec.pattern_index,
+            sequence_index: None,
+            clip_id: None,
+            scene_id: Some(scene_id),
+            row_count: spec.row_count,
+            row_duration_micros: row_duration_micros(&song.transport),
+            loop_playback: loop_scene,
+        },
+        context,
+    )
+}
+
+#[derive(Debug)]
+struct PlaybackWindow {
+    pattern_index: usize,
+    sequence_index: Option<usize>,
+    clip_id: Option<ClipId>,
+    scene_id: Option<SceneId>,
+    row_count: usize,
+    row_duration_micros: u64,
+    loop_playback: bool,
+}
+
+fn run_event_window(
+    events: Vec<PlaybackEvent>,
+    window: PlaybackWindow,
+    context: &mut PlaybackRunContext<'_>,
+) -> PatternRunResult {
+    let row_duration_micros = window.row_duration_micros.max(1);
+    let row_duration = Duration::from_micros(row_duration_micros);
+    loop {
+        let loop_start = Instant::now();
+        let mut active_sent_notes = Vec::new();
+
+        for row in 0..=window.row_count {
+            let deadline = loop_start + row_duration.saturating_mul(row as u32);
+            if let Some(command) = wait_until(context.command_rx, deadline) {
+                let _ = send_all_notes_off_logged(context.output, context.midi_logger);
+                let _ = context.update_tx.send(PlaybackUpdate::Stopped);
+                return PatternRunResult::Command(Box::new(command));
+            }
+
+            for event in events.iter().filter(|event| event.position.row == row) {
+                let event_deadline =
+                    loop_start + Duration::from_micros(event.position.offset_micros);
+                if let Some(command) = wait_until(context.command_rx, event_deadline) {
+                    let _ = send_all_notes_off_logged(context.output, context.midi_logger);
+                    let _ = context.update_tx.send(PlaybackUpdate::Stopped);
+                    return PatternRunResult::Command(Box::new(command));
+                }
+                if !mark_event_for_started_playback(&mut active_sent_notes, event) {
+                    continue;
+                }
+                if let Err(error) =
+                    send_playback_event_logged(context.output, context.midi_logger, *event)
+                {
+                    handle_midi_send_failure(context, error);
+                    return PatternRunResult::Stopped;
+                }
+            }
+
+            if row < window.row_count {
+                let _ = context
+                    .update_tx
+                    .send(PlaybackUpdate::Position(PlaybackCursor {
+                        pattern_index: window.pattern_index,
+                        sequence_index: window.sequence_index,
+                        clip_id: window.clip_id,
+                        scene_id: window.scene_id,
+                        position: PlaybackPosition {
+                            row,
+                            offset_micros: row_duration.as_micros().saturating_mul(row as u128)
+                                as u64,
+                        },
+                    }));
+            }
+        }
+
+        if !window.loop_playback {
+            return PatternRunResult::Finished;
+        }
+        let _ = send_all_notes_off_logged(context.output, context.midi_logger);
+    }
+}
+
+#[derive(Debug)]
+struct ClipPlaybackSpec {
+    pattern_index: usize,
+    row_count: usize,
+    events: Vec<PlaybackEvent>,
+}
+
+fn clip_playback_spec(song: &Song, clip_id: ClipId) -> Option<ClipPlaybackSpec> {
+    let clip = song.session.clips.iter().find(|clip| clip.id == clip_id)?;
+    let ClipSource::Pattern {
+        pattern_id,
+        row_start,
+        row_count,
+    } = clip.source;
+    let pattern_index = song
+        .patterns
+        .iter()
+        .position(|pattern| pattern.id == pattern_id)?;
+    let pattern = song.pattern(pattern_index)?;
+    let events = relative_clip_events(song, pattern, row_start, row_count, None);
+    Some(ClipPlaybackSpec {
+        pattern_index,
+        row_count,
+        events,
+    })
+}
+
+#[derive(Debug)]
+struct ScenePlaybackSpec {
+    pattern_index: usize,
+    row_count: usize,
+    events: Vec<PlaybackEvent>,
+}
+
+fn scene_playback_spec(song: &Song, scene_id: SceneId) -> Option<ScenePlaybackSpec> {
+    let scene = song
+        .session
+        .scenes
+        .iter()
+        .find(|scene| scene.id == scene_id)?;
+    let mut events = Vec::new();
+    let mut row_count = 0;
+    let mut first_pattern_index = None;
+
+    for slot in &scene.slots {
+        let Some(clip_id) = slot.clip else {
+            continue;
+        };
+        let Some(clip) = song.session.clips.iter().find(|clip| clip.id == clip_id) else {
+            continue;
+        };
+        let ClipSource::Pattern {
+            pattern_id,
+            row_start,
+            row_count: clip_rows,
+        } = clip.source;
+        let Some(pattern_index) = song
+            .patterns
+            .iter()
+            .position(|pattern| pattern.id == pattern_id)
+        else {
+            continue;
+        };
+        let Some(pattern) = song.pattern(pattern_index) else {
+            continue;
+        };
+
+        first_pattern_index.get_or_insert(pattern_index);
+        row_count = row_count.max(clip_rows);
+        events.extend(relative_clip_events(
+            song,
+            pattern,
+            row_start,
+            clip_rows,
+            Some(slot.track),
+        ));
+    }
+
+    if events.is_empty() {
+        return None;
+    }
+    events.sort_by_key(|event| event.position.offset_micros);
+    Some(ScenePlaybackSpec {
+        pattern_index: first_pattern_index.unwrap_or(0),
+        row_count,
+        events,
+    })
+}
+
+fn relative_clip_events(
+    song: &Song,
+    pattern: &salieri_core::Pattern,
+    row_start: usize,
+    row_count: usize,
+    track_filter: Option<TrackId>,
+) -> Vec<PlaybackEvent> {
+    let row_duration = row_duration_micros(&song.transport);
+    let clip_end = row_start.saturating_add(row_count);
+    let clip_start_offset = row_duration.saturating_mul(row_start as u64);
+    pattern_events(song, pattern)
+        .into_iter()
+        .filter(|event| track_filter.is_none_or(|track| event.track == track))
+        .filter_map(|event| {
+            let relative_row = event.position.row.checked_sub(row_start)?;
+            let is_inside_clip = relative_row < row_count;
+            let is_boundary_note_off = relative_row == row_count
+                && matches!(event.kind, PlaybackEventKind::NoteOff { .. });
+            if event.position.row > clip_end || (!is_inside_clip && !is_boundary_note_off) {
+                return None;
+            }
+
+            Some(PlaybackEvent {
+                position: PlaybackPosition {
+                    row: relative_row,
+                    offset_micros: event
+                        .position
+                        .offset_micros
+                        .saturating_sub(clip_start_offset),
+                },
+                ..event
+            })
+        })
+        .collect()
+}
+
 fn mark_event_for_started_playback(
-    active_notes: &mut Vec<(salieri_core::TrackId, u8)>,
-    event: &salieri_core::PlaybackEvent,
+    active_notes: &mut Vec<(TrackId, u8)>,
+    event: &PlaybackEvent,
 ) -> bool {
     match event.kind {
         salieri_core::PlaybackEventKind::NoteOn { pitch, .. } => {
@@ -607,7 +930,7 @@ fn wait_until(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use salieri_core::NoteEvent;
+    use salieri_core::{NoteEvent, PatternId};
 
     fn collect_position_times(
         runtime: &PlaybackRuntime,
@@ -687,6 +1010,52 @@ mod tests {
         let sent = messages.lock().expect("recorded MIDI messages").clone();
         let updates = update_rx.try_iter().collect();
         (next_command, sent, updates)
+    }
+
+    fn run_clip_with_recording(
+        song: &Song,
+        clip_id: ClipId,
+        loop_clip: bool,
+        command_rx: &Receiver<PlaybackCommand>,
+    ) -> (PatternRunResult, Vec<MidiMessage>, Vec<PlaybackUpdate>) {
+        let messages = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let (update_tx, update_rx) = mpsc::channel();
+        let mut output = PlaybackOutput::recording(messages.clone());
+        let mut midi_logger = MidiLogger::new(None, &update_tx);
+        let mut context = PlaybackRunContext {
+            command_rx,
+            update_tx: &update_tx,
+            output: &mut output,
+            midi_logger: &mut midi_logger,
+        };
+
+        let result = run_clip(song, clip_id, loop_clip, &mut context);
+        let sent = messages.lock().expect("recorded MIDI messages").clone();
+        let updates = update_rx.try_iter().collect();
+        (result, sent, updates)
+    }
+
+    fn run_scene_with_recording(
+        song: &Song,
+        scene_id: SceneId,
+        loop_scene: bool,
+    ) -> (PatternRunResult, Vec<MidiMessage>, Vec<PlaybackUpdate>) {
+        let messages = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let (_command_tx, command_rx) = mpsc::channel();
+        let (update_tx, update_rx) = mpsc::channel();
+        let mut output = PlaybackOutput::recording(messages.clone());
+        let mut midi_logger = MidiLogger::new(None, &update_tx);
+        let mut context = PlaybackRunContext {
+            command_rx: &command_rx,
+            update_tx: &update_tx,
+            output: &mut output,
+            midi_logger: &mut midi_logger,
+        };
+
+        let result = run_scene(song, scene_id, loop_scene, &mut context);
+        let sent = messages.lock().expect("recorded MIDI messages").clone();
+        let updates = update_rx.try_iter().collect();
+        (result, sent, updates)
     }
 
     #[test]
@@ -1004,6 +1373,141 @@ mod tests {
         assert!(updates
             .iter()
             .any(|update| matches!(update, PlaybackUpdate::Stopped)));
+    }
+
+    #[test]
+    fn fake_midi_clip_playback_emits_only_clip_range_with_context() {
+        let mut song = Song::empty();
+        speed_up_transport(&mut song);
+        {
+            let pattern = song.current_pattern_mut().expect("pattern");
+            pattern
+                .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x7f)
+                .expect("outside clip note");
+            pattern
+                .set_note(20, 1, NoteEvent::Note { pitch: 48 }, 0x50)
+                .expect("inside clip note");
+        }
+        let clip_id = song
+            .create_clip(song.patterns[0].id, "Bass Clip", 16, 16)
+            .expect("create clip");
+        let (_command_tx, command_rx) = mpsc::channel();
+
+        let (result, sent, updates) = run_clip_with_recording(&song, clip_id, false, &command_rx);
+
+        assert!(matches!(result, PatternRunResult::Finished));
+        assert!(!sent.contains(&MidiMessage::note_on(10, 60, 0x7f)));
+        assert!(sent.contains(&MidiMessage::note_on(1, 48, 0x50)));
+        assert!(updates.iter().any(|update| matches!(
+            update,
+            PlaybackUpdate::Position(cursor)
+                if cursor.clip_id == Some(clip_id)
+                    && cursor.scene_id.is_none()
+                    && cursor.position.row == 4
+        )));
+    }
+
+    #[test]
+    fn fake_midi_scene_playback_emits_slot_tracks_with_scene_context() {
+        let mut song = Song::empty();
+        speed_up_transport(&mut song);
+        {
+            let pattern = song.current_pattern_mut().expect("pattern");
+            pattern
+                .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x7f)
+                .expect("drums note");
+            pattern
+                .set_note(0, 1, NoteEvent::Note { pitch: 48 }, 0x7f)
+                .expect("filtered bass note");
+        }
+        let second_pattern_id = song.create_pattern(8);
+        let second_pattern = song
+            .patterns
+            .iter()
+            .position(|pattern| pattern.id == second_pattern_id)
+            .expect("second pattern");
+        {
+            let pattern = song.pattern_mut(second_pattern).expect("second pattern");
+            pattern
+                .set_note(0, 0, NoteEvent::Note { pitch: 62 }, 0x7f)
+                .expect("filtered drums note");
+            pattern
+                .set_note(0, 1, NoteEvent::Note { pitch: 50 }, 0x60)
+                .expect("bass note");
+        }
+        let drums_clip = song
+            .create_clip(PatternId(1), "Drums", 0, 8)
+            .expect("drums clip");
+        let bass_clip = song
+            .create_clip(second_pattern_id, "Bass", 0, 8)
+            .expect("bass clip");
+        let scene_id = song.create_scene("Scene").expect("scene");
+        song.set_scene_clip(scene_id, TrackId(1), Some(drums_clip))
+            .expect("drums slot");
+        song.set_scene_clip(scene_id, TrackId(2), Some(bass_clip))
+            .expect("bass slot");
+
+        let (result, sent, updates) = run_scene_with_recording(&song, scene_id, false);
+
+        assert!(matches!(result, PatternRunResult::Finished));
+        assert!(sent.contains(&MidiMessage::note_on(10, 60, 0x7f)));
+        assert!(sent.contains(&MidiMessage::note_on(1, 50, 0x60)));
+        assert!(!sent.contains(&MidiMessage::note_on(1, 48, 0x7f)));
+        assert!(!sent.contains(&MidiMessage::note_on(10, 62, 0x7f)));
+        assert!(updates.iter().any(|update| matches!(
+            update,
+            PlaybackUpdate::Position(cursor)
+                if cursor.scene_id == Some(scene_id) && cursor.clip_id.is_none()
+        )));
+    }
+
+    #[test]
+    fn runtime_start_clip_and_scene_emit_context_positions() {
+        let runtime = PlaybackRuntime::spawn(None);
+        let mut song = Song::empty();
+        speed_up_transport(&mut song);
+        song.current_pattern_mut()
+            .expect("pattern")
+            .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x7f)
+            .expect("set note");
+        let clip_id = song.create_clip(PatternId(1), "Clip", 0, 16).expect("clip");
+        let scene_id = song.create_scene("Scene").expect("scene");
+        song.set_scene_clip(scene_id, TrackId(1), Some(clip_id))
+            .expect("scene slot");
+
+        runtime.start_clip(song.clone(), clip_id, true);
+        let deadline = Instant::now() + Duration::from_millis(250);
+        let mut saw_clip = false;
+        while Instant::now() < deadline {
+            if matches!(
+                runtime.try_recv(),
+                Some(PlaybackUpdate::Position(cursor)) if cursor.clip_id == Some(clip_id)
+            ) {
+                saw_clip = true;
+                break;
+            }
+            thread::sleep(Duration::from_millis(1));
+        }
+        runtime.stop();
+
+        let runtime = PlaybackRuntime::spawn(None);
+        runtime.start_scene(song, scene_id, true);
+        let deadline = Instant::now() + Duration::from_millis(250);
+        let mut saw_scene = false;
+        while Instant::now() < deadline {
+            if matches!(
+                runtime.try_recv(),
+                Some(PlaybackUpdate::Position(cursor)) if cursor.scene_id == Some(scene_id)
+            ) {
+                saw_scene = true;
+                break;
+            }
+            thread::sleep(Duration::from_millis(1));
+        }
+        runtime.stop();
+
+        assert!(saw_clip);
+        assert!(saw_scene);
     }
 
     #[test]
