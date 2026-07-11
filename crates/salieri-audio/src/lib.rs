@@ -3,6 +3,8 @@ use std::{
     thread::{self, JoinHandle},
 };
 
+use salieri_sampler::PreviewBuffer;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AudioConfig {
     pub sample_rate: u32,
@@ -186,6 +188,167 @@ pub enum RealtimeAudioCommand {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AudioExportFormat {
+    WavPcm16,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OfflineRenderSpec {
+    pub sample_rate: u32,
+    pub channels: u16,
+    pub frames: usize,
+}
+
+impl Default for OfflineRenderSpec {
+    fn default() -> Self {
+        Self {
+            sample_rate: AudioConfig::default().sample_rate,
+            channels: AudioConfig::default().channels,
+            frames: 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RenderedAudio {
+    pub sample_rate: u32,
+    pub channels: u16,
+    pub frames: usize,
+    pub data: Vec<f32>,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum AudioExportError {
+    #[error("unsupported sample-rate conversion from {source_sample_rate} Hz to {target_sample_rate} Hz")]
+    UnsupportedSampleRateConversion {
+        source_sample_rate: u32,
+        target_sample_rate: u32,
+    },
+    #[error("unsupported channel conversion from {source_channels} to {target_channels}")]
+    UnsupportedChannelConversion {
+        source_channels: u16,
+        target_channels: u16,
+    },
+    #[error("rendered audio has {actual} samples, expected {expected}")]
+    InvalidBufferLength { expected: usize, actual: usize },
+    #[error("rendered audio is too large for a RIFF/WAV file")]
+    WavTooLarge,
+}
+
+#[must_use]
+pub const fn supported_audio_export_formats() -> &'static [AudioExportFormat] {
+    &[AudioExportFormat::WavPcm16]
+}
+
+pub fn render_sampler_preview(
+    preview: &PreviewBuffer,
+    spec: OfflineRenderSpec,
+) -> Result<RenderedAudio, AudioExportError> {
+    if preview.sample_rate != spec.sample_rate {
+        return Err(AudioExportError::UnsupportedSampleRateConversion {
+            source_sample_rate: preview.sample_rate,
+            target_sample_rate: spec.sample_rate,
+        });
+    }
+    if preview.channels != spec.channels {
+        return Err(AudioExportError::UnsupportedChannelConversion {
+            source_channels: preview.channels,
+            target_channels: spec.channels,
+        });
+    }
+
+    let channels = usize::from(spec.channels);
+    let frames = if spec.frames == 0 {
+        preview.frames
+    } else {
+        spec.frames
+    };
+    let expected = preview.frames.saturating_mul(channels);
+    if preview.data.len() != expected {
+        return Err(AudioExportError::InvalidBufferLength {
+            expected,
+            actual: preview.data.len(),
+        });
+    }
+
+    let mut data = vec![0.0; frames.saturating_mul(channels)];
+    let copy_len = data.len().min(preview.data.len());
+    data[..copy_len].copy_from_slice(&preview.data[..copy_len]);
+
+    Ok(RenderedAudio {
+        sample_rate: spec.sample_rate,
+        channels: spec.channels,
+        frames,
+        data,
+    })
+}
+
+pub fn encode_audio(
+    audio: &RenderedAudio,
+    format: AudioExportFormat,
+) -> Result<Vec<u8>, AudioExportError> {
+    match format {
+        AudioExportFormat::WavPcm16 => encode_wav_pcm16(audio),
+    }
+}
+
+fn encode_wav_pcm16(audio: &RenderedAudio) -> Result<Vec<u8>, AudioExportError> {
+    let channels = usize::from(audio.channels);
+    let expected = audio.frames.saturating_mul(channels);
+    if audio.data.len() != expected {
+        return Err(AudioExportError::InvalidBufferLength {
+            expected,
+            actual: audio.data.len(),
+        });
+    }
+
+    let data_bytes = audio
+        .data
+        .len()
+        .checked_mul(2)
+        .ok_or(AudioExportError::WavTooLarge)?;
+    let riff_size = 36_usize
+        .checked_add(data_bytes)
+        .ok_or(AudioExportError::WavTooLarge)?;
+    let data_bytes = u32::try_from(data_bytes).map_err(|_| AudioExportError::WavTooLarge)?;
+    let riff_size = u32::try_from(riff_size).map_err(|_| AudioExportError::WavTooLarge)?;
+    let byte_rate = audio
+        .sample_rate
+        .checked_mul(u32::from(audio.channels))
+        .and_then(|value| value.checked_mul(2))
+        .ok_or(AudioExportError::WavTooLarge)?;
+    let block_align = audio
+        .channels
+        .checked_mul(2)
+        .ok_or(AudioExportError::WavTooLarge)?;
+
+    let mut bytes = Vec::with_capacity(44 + audio.data.len() * 2);
+    bytes.extend_from_slice(b"RIFF");
+    bytes.extend_from_slice(&riff_size.to_le_bytes());
+    bytes.extend_from_slice(b"WAVE");
+    bytes.extend_from_slice(b"fmt ");
+    bytes.extend_from_slice(&16_u32.to_le_bytes());
+    bytes.extend_from_slice(&1_u16.to_le_bytes());
+    bytes.extend_from_slice(&audio.channels.to_le_bytes());
+    bytes.extend_from_slice(&audio.sample_rate.to_le_bytes());
+    bytes.extend_from_slice(&byte_rate.to_le_bytes());
+    bytes.extend_from_slice(&block_align.to_le_bytes());
+    bytes.extend_from_slice(&16_u16.to_le_bytes());
+    bytes.extend_from_slice(b"data");
+    bytes.extend_from_slice(&data_bytes.to_le_bytes());
+    for sample in &audio.data {
+        let sample = sample.clamp(-1.0, 1.0);
+        let quantized = if sample >= 0.0 {
+            (sample * f32::from(i16::MAX)).round() as i16
+        } else {
+            (sample * 32768.0).round() as i16
+        };
+        bytes.extend_from_slice(&quantized.to_le_bytes());
+    }
+    Ok(bytes)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -235,6 +398,84 @@ mod tests {
                 pitch_ratio: 2.0,
             }
         );
+    }
+
+    #[test]
+    fn supported_export_formats_are_explicit() {
+        assert_eq!(
+            supported_audio_export_formats(),
+            &[AudioExportFormat::WavPcm16]
+        );
+    }
+
+    #[test]
+    fn renders_sampler_preview_deterministically() {
+        let preview = PreviewBuffer {
+            sample_rate: 48_000,
+            channels: 2,
+            frames: 2,
+            data: vec![0.25, -0.25, 0.5, -0.5],
+        };
+        let spec = OfflineRenderSpec {
+            sample_rate: 48_000,
+            channels: 2,
+            frames: 4,
+        };
+
+        let first = render_sampler_preview(&preview, spec).expect("render");
+        let second = render_sampler_preview(&preview, spec).expect("render");
+
+        assert_eq!(first, second);
+        assert_eq!(first.frames, 4);
+        assert_eq!(first.data, vec![0.25, -0.25, 0.5, -0.5, 0.0, 0.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn encodes_wav_pcm16_without_filesystem_side_effects() {
+        let audio = RenderedAudio {
+            sample_rate: 48_000,
+            channels: 1,
+            frames: 3,
+            data: vec![-1.0, 0.0, 1.0],
+        };
+
+        let bytes = encode_audio(&audio, AudioExportFormat::WavPcm16).expect("encode");
+
+        assert_eq!(&bytes[0..4], b"RIFF");
+        assert_eq!(&bytes[8..12], b"WAVE");
+        assert_eq!(&bytes[36..40], b"data");
+        assert_eq!(
+            u32::from_le_bytes([bytes[40], bytes[41], bytes[42], bytes[43]]),
+            6
+        );
+        assert_eq!(i16::from_le_bytes([bytes[44], bytes[45]]), i16::MIN);
+        assert_eq!(i16::from_le_bytes([bytes[46], bytes[47]]), 0);
+        assert_eq!(i16::from_le_bytes([bytes[48], bytes[49]]), i16::MAX);
+    }
+
+    #[test]
+    fn render_export_failures_are_clear() {
+        let preview = PreviewBuffer {
+            sample_rate: 44_100,
+            channels: 2,
+            frames: 1,
+            data: vec![0.0, 0.0],
+        };
+
+        assert!(matches!(
+            render_sampler_preview(
+                &preview,
+                OfflineRenderSpec {
+                    sample_rate: 48_000,
+                    channels: 2,
+                    frames: 1,
+                }
+            ),
+            Err(AudioExportError::UnsupportedSampleRateConversion {
+                source_sample_rate: 44_100,
+                target_sample_rate: 48_000
+            })
+        ));
     }
 
     fn recv_update(runtime: &AudioRuntime) -> Option<AudioUpdate> {

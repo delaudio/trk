@@ -12,6 +12,7 @@ The initial `salieri-audio` crate does not open a real device yet. It defines th
 - `AudioBackend` abstracts start/stop behavior;
 - `NullAudioBackend` makes lifecycle tests deterministic without hardware;
 - `RealtimeAudioCommand` is plain data intended for future lock-free transport to the callback.
+- offline export supports deterministic sampler-preview rendering and WAV PCM16 encoding without writing files directly.
 
 ## Realtime Boundary
 
