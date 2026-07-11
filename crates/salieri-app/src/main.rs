@@ -1087,23 +1087,22 @@ impl App {
     }
 
     fn request_delete_current_track(&mut self) {
+        self.request_delete_track(self.cursor.track);
+    }
+
+    fn request_delete_track(&mut self, track_index: usize) {
         if self.song.tracks.len() <= 1 {
             self.notify_warning("Cannot delete the last track");
             return;
         }
 
-        let track_index = self
-            .cursor
-            .track
-            .min(self.song.tracks.len().saturating_sub(1));
-        let track_name = self
-            .song
-            .tracks
-            .get(track_index)
-            .map_or("Track", |track| track.name.as_str());
+        let Some(track) = self.song.tracks.get(track_index) else {
+            self.notify_warning("Track out of range");
+            return;
+        };
         self.dialog = Some(Dialog::DeleteTrack {
             track_index,
-            message: format!("Delete track {:02} {track_name}?", track_index + 1),
+            message: format!("Delete track {:02} {}?", track_index + 1, track.name),
         });
         self.mode = AppMode::Dialog;
         self.notify_warning("Confirm track delete");
@@ -1409,6 +1408,13 @@ impl App {
                         .map_or(self.cursor.track, |value| value.saturating_sub(1));
                     self.duplicate_track(track_index);
                 }
+                Some("delete") | Some("del") => {
+                    let track_index = parts
+                        .next()
+                        .and_then(|value| value.parse::<usize>().ok())
+                        .map_or(self.cursor.track, |value| value.saturating_sub(1));
+                    self.request_delete_track(track_index);
+                }
                 Some("move") | Some("mv") => {
                     let from = parts
                         .next()
@@ -1449,7 +1455,7 @@ impl App {
                     }
                 }
                 None | Some(_) => {
-                    self.notify_warning("Usage: :track new|duplicate|move|rename|channel")
+                    self.notify_warning("Usage: :track new|duplicate|delete|move|rename|channel")
                 }
             },
             "pattern" => match parts.next() {
@@ -3207,6 +3213,31 @@ mod tests {
     }
 
     #[test]
+    fn command_mode_deletes_numbered_track_after_confirmation() {
+        let mut app = App::default();
+
+        enter_command(&mut app, "track delete 2");
+
+        assert_eq!(app.mode, AppMode::Dialog);
+        assert!(matches!(
+            app.dialog,
+            Some(Dialog::DeleteTrack { track_index: 1, .. })
+        ));
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE));
+
+        assert_eq!(app.mode, AppMode::Normal);
+        assert_eq!(app.song.tracks.len(), 3);
+        assert_eq!(app.song.tracks[1].name, "Lead");
+        assert!(app.dirty);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
+
+        assert_eq!(app.song.tracks.len(), 4);
+        assert_eq!(app.song.tracks[1].name, "Bass");
+    }
+
+    #[test]
     fn delete_in_normal_mode_removes_current_track_and_cells() {
         let mut app = App {
             cursor: Cursor {
@@ -3363,12 +3394,16 @@ mod tests {
     }
 
     fn type_command(app: &mut App, command: &str) {
+        enter_command(app, command);
+        assert_eq!(app.mode, AppMode::Normal);
+    }
+
+    fn enter_command(app: &mut App, command: &str) {
         app.handle_key(KeyEvent::new(KeyCode::Char(':'), KeyModifiers::NONE));
         assert_eq!(app.mode, AppMode::Command);
         for value in command.chars() {
             app.handle_key(KeyEvent::new(KeyCode::Char(value), KeyModifiers::NONE));
         }
         app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
-        assert_eq!(app.mode, AppMode::Normal);
     }
 }
