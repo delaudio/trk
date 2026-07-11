@@ -1113,6 +1113,20 @@ impl App {
         }
     }
 
+    fn move_track(&mut self, from: usize, to: usize) {
+        let before = self.song.clone();
+        self.mutate_song(|song, _| {
+            let _ = song.move_track(from, to);
+        });
+
+        if self.song != before {
+            self.cursor.track = to.min(self.song.tracks.len().saturating_sub(1));
+            self.cursor.field = CellField::Note;
+            self.cursor.digit = 0;
+            self.notify_success("Track moved");
+        }
+    }
+
     fn toggle_current_mute(&mut self) {
         self.mutate_song(|song, cursor| {
             let _ = song.toggle_mute(cursor.track);
@@ -1367,6 +1381,21 @@ impl App {
                         .map_or(self.cursor.track, |value| value.saturating_sub(1));
                     self.duplicate_track(track_index);
                 }
+                Some("move") | Some("mv") => {
+                    let from = parts
+                        .next()
+                        .and_then(|value| value.parse::<usize>().ok())
+                        .map_or(self.cursor.track, |value| value.saturating_sub(1));
+                    let to = parts
+                        .next()
+                        .and_then(|value| value.parse::<usize>().ok())
+                        .map(|value| value.saturating_sub(1));
+                    if let Some(to) = to {
+                        self.move_track(from, to);
+                    } else {
+                        self.notify_warning("Usage: :track move FROM TO");
+                    }
+                }
                 Some("rename") => {
                     let values = parts.collect::<Vec<_>>();
                     if let Some((track_index, name)) =
@@ -1391,7 +1420,9 @@ impl App {
                         _ => {}
                     }
                 }
-                None | Some(_) => self.notify_warning("Usage: :track new|duplicate|rename|channel"),
+                None | Some(_) => {
+                    self.notify_warning("Usage: :track new|duplicate|move|rename|channel")
+                }
             },
             "pattern" => match parts.next() {
                 Some("new") => self.create_pattern(),
@@ -3050,6 +3081,50 @@ mod tests {
 
         assert_eq!(app.song.tracks.len(), 4);
         assert_eq!(app.cursor.track, 3);
+    }
+
+    #[test]
+    fn command_mode_moves_track_and_undo_restores_order() {
+        let mut app = App::default();
+        app.song
+            .current_pattern_mut()
+            .expect("pattern")
+            .set_note(0, 1, NoteEvent::Note { pitch: 48 }, 0x60)
+            .expect("set bass note");
+        app.song
+            .current_pattern_mut()
+            .expect("pattern")
+            .set_note(0, 2, NoteEvent::Note { pitch: 64 }, 0x70)
+            .expect("set lead note");
+
+        type_command(&mut app, "track move 2 3");
+
+        assert_eq!(app.song.tracks[1].name, "Lead");
+        assert_eq!(app.song.tracks[2].name, "Bass");
+        assert_eq!(app.cursor.track, 2);
+        assert_eq!(
+            app.song
+                .current_pattern()
+                .expect("pattern")
+                .cell(0, 1)
+                .expect("lead cell")
+                .note,
+            Some(NoteEvent::Note { pitch: 64 })
+        );
+        assert_eq!(
+            app.song
+                .current_pattern()
+                .expect("pattern")
+                .cell(0, 2)
+                .expect("bass cell")
+                .note,
+            Some(NoteEvent::Note { pitch: 48 })
+        );
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
+
+        assert_eq!(app.song.tracks[1].name, "Bass");
+        assert_eq!(app.song.tracks[2].name, "Lead");
     }
 
     #[test]

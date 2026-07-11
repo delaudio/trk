@@ -302,6 +302,27 @@ impl Song {
         Ok(self.tracks.remove(track_index))
     }
 
+    pub fn move_track(&mut self, from: usize, to: usize) -> Result<(), EditError> {
+        if from >= self.tracks.len() {
+            return Err(EditError::TrackOutOfBounds { track: from });
+        }
+        if to >= self.tracks.len() {
+            return Err(EditError::TrackOutOfBounds { track: to });
+        }
+        if from == to {
+            return Ok(());
+        }
+
+        let track = self.tracks.remove(from);
+        self.tracks.insert(to, track);
+
+        for pattern in &mut self.patterns {
+            pattern.move_track(from, to)?;
+        }
+
+        Ok(())
+    }
+
     pub fn rename_track(
         &mut self,
         track_index: usize,
@@ -555,6 +576,21 @@ impl Pattern {
                 return Err(EditError::TrackOutOfBounds { track });
             }
             row.cells.remove(track);
+        }
+        Ok(())
+    }
+
+    fn move_track(&mut self, from: usize, to: usize) -> Result<(), EditError> {
+        for row in &mut self.rows {
+            if from >= row.cells.len() {
+                return Err(EditError::TrackOutOfBounds { track: from });
+            }
+            if to >= row.cells.len() {
+                return Err(EditError::TrackOutOfBounds { track: to });
+            }
+
+            let cell = row.cells.remove(from);
+            row.cells.insert(to, cell);
         }
         Ok(())
     }
@@ -944,6 +980,48 @@ mod tests {
 
         let error = song.delete_track(0).expect_err("last track remains");
         assert_eq!(error, EditError::CannotDeleteLastTrack);
+    }
+
+    #[test]
+    fn moving_track_reorders_tracks_and_pattern_cells() {
+        let mut song = Song::empty();
+        song.current_pattern_mut()
+            .expect("pattern")
+            .set_note(0, 1, NoteEvent::Note { pitch: 48 }, 0x60)
+            .expect("set bass note");
+        song.current_pattern_mut()
+            .expect("pattern")
+            .set_note(0, 2, NoteEvent::Note { pitch: 64 }, 0x70)
+            .expect("set lead note");
+
+        song.move_track(1, 2).expect("move track");
+
+        assert_eq!(song.tracks[1].name, "Lead");
+        assert_eq!(song.tracks[2].name, "Bass");
+        assert_eq!(
+            song.current_pattern()
+                .expect("pattern")
+                .cell(0, 1)
+                .expect("lead cell")
+                .note,
+            Some(NoteEvent::Note { pitch: 64 })
+        );
+        assert_eq!(
+            song.current_pattern()
+                .expect("pattern")
+                .cell(0, 2)
+                .expect("bass cell")
+                .note,
+            Some(NoteEvent::Note { pitch: 48 })
+        );
+        assert_eq!(
+            song.move_track(99, 0).expect_err("source out of range"),
+            EditError::TrackOutOfBounds { track: 99 }
+        );
+        assert_eq!(
+            song.move_track(0, 99).expect_err("target out of range"),
+            EditError::TrackOutOfBounds { track: 99 }
+        );
     }
 
     #[test]

@@ -554,8 +554,8 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
         Line::from("  Ctrl+T create track   F2 rename track   Del delete track   M mute   S solo"),
         Line::from("  :write [path]   :saveas path   :quit   :q!   :wq   :bpm 140   :lpb 4"),
         Line::from("  Dirty quit asks: [Y]es save, [N]o quit, [C]ancel"),
-        Line::from("  :track new   :track duplicate 2   :track rename Acid Bass"),
-        Line::from("  :track channel 12   :track channel 2 12"),
+        Line::from("  :track new   :track duplicate 2   :track move 2 3"),
+        Line::from("  :track rename Acid Bass   :track channel 12   :track channel 2 12"),
         Line::from("  :play pattern   :play sequence   :stop"),
         Line::from(""),
         Line::from(Span::styled(
