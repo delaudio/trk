@@ -112,7 +112,7 @@ fn run(args: CliArgs) -> Result<()> {
                     loop_pattern: app.loop_pattern,
                     playhead_row: app.playhead_row,
                     midi_status: app.midi_status.as_str(),
-                    sequence_position: app.sequence_position,
+                    sequence_position: app.tui_sequence_position(),
                     quit_confirmation: app.quit_confirmation(),
                     delete_confirmation: app.delete_confirmation_message(),
                     midi_settings,
@@ -429,6 +429,7 @@ struct App {
     loop_pattern: bool,
     playhead_row: Option<usize>,
     sequence_position: Option<usize>,
+    sequence_cursor: usize,
     midi_status: String,
     midi_ports: Vec<MidiOutputPort>,
     midi_port_cursor: usize,
@@ -515,6 +516,7 @@ impl App {
             loop_pattern: true,
             playhead_row: None,
             sequence_position: None,
+            sequence_cursor: 0,
             midi_status,
             midi_ports: Vec::new(),
             midi_port_cursor: 0,
@@ -664,6 +666,38 @@ impl App {
             }
             KeyCode::Char('X') => {
                 self.request_delete_current_pattern();
+                return;
+            }
+            KeyCode::Char('A') => {
+                self.add_sequence_pattern(self.pattern_index);
+                return;
+            }
+            KeyCode::Char(',') => {
+                self.previous_sequence_position();
+                return;
+            }
+            KeyCode::Char('.') => {
+                self.next_sequence_position();
+                return;
+            }
+            KeyCode::Char('Y') => {
+                self.duplicate_selected_sequence_position();
+                return;
+            }
+            KeyCode::Char('R') => {
+                self.remove_selected_sequence_position();
+                return;
+            }
+            KeyCode::Char('T') => {
+                self.set_selected_sequence_to_current_pattern();
+                return;
+            }
+            KeyCode::Char('<') => {
+                self.move_selected_sequence_position_up();
+                return;
+            }
+            KeyCode::Char('>') => {
+                self.move_selected_sequence_position_down();
                 return;
             }
             KeyCode::Char('L') => {
@@ -1324,6 +1358,7 @@ impl App {
                 .pattern_index
                 .min(self.song.patterns.len().saturating_sub(1));
             self.clamp_cursor();
+            self.clamp_sequence_cursor();
             self.row_offset = 0;
             self.notify_success("Pattern deleted");
         }
@@ -1367,18 +1402,51 @@ impl App {
         }
     }
 
+    fn selected_sequence_position(&mut self) -> Option<usize> {
+        if self.song.sequence.is_empty() {
+            self.notify_warning("Sequence is empty");
+            return None;
+        }
+
+        self.clamp_sequence_cursor();
+        Some(self.sequence_cursor)
+    }
+
+    fn previous_sequence_position(&mut self) {
+        self.sequence_cursor = self.sequence_cursor.saturating_sub(1);
+        self.notify_info(format!("Sequence position {:02}", self.sequence_cursor));
+    }
+
+    fn next_sequence_position(&mut self) {
+        if self.song.sequence.is_empty() {
+            self.notify_warning("Sequence is empty");
+            return;
+        }
+
+        self.sequence_cursor = self
+            .sequence_cursor
+            .saturating_add(1)
+            .min(self.song.sequence.len().saturating_sub(1));
+        self.notify_info(format!("Sequence position {:02}", self.sequence_cursor));
+    }
+
     fn add_sequence_pattern(&mut self, pattern_index: usize) {
         let Some(pattern_id) = self.song.pattern(pattern_index).map(|pattern| pattern.id) else {
             self.notify_warning("Pattern out of range");
             return;
         };
+        let before_len = self.song.sequence.len();
         self.mutate_song(|song, _| {
             let _ = song.push_sequence_pattern(pattern_id);
         });
+        if self.song.sequence.len() > before_len {
+            self.sequence_cursor = self.song.sequence.len().saturating_sub(1);
+        }
         self.notify_success(format!("Sequence added pattern {:02}", pattern_index + 1));
     }
 
     fn remove_sequence_position(&mut self, position: usize) {
+        let before_len = self.song.sequence.len();
         let mut next_song = self.song.clone();
         if let Err(error) = next_song.remove_sequence_position(position) {
             self.notify_warning(format!("Sequence remove failed: {error}"));
@@ -1388,10 +1456,15 @@ impl App {
         self.mutate_song(|song, _| {
             *song = next_song;
         });
+        if self.song.sequence.len() < before_len {
+            self.sequence_cursor = position.min(self.song.sequence.len().saturating_sub(1));
+        }
+        self.clamp_sequence_cursor();
         self.notify_success(format!("Sequence removed position {position:02}"));
     }
 
     fn duplicate_sequence_position(&mut self, position: usize) {
+        let before_len = self.song.sequence.len();
         let mut next_song = self.song.clone();
         if let Err(error) = next_song.duplicate_sequence_position(position) {
             self.notify_warning(format!("Sequence duplicate failed: {error}"));
@@ -1401,7 +1474,23 @@ impl App {
         self.mutate_song(|song, _| {
             *song = next_song;
         });
+        if self.song.sequence.len() > before_len {
+            self.sequence_cursor = position.saturating_add(1);
+            self.clamp_sequence_cursor();
+        }
         self.notify_success(format!("Sequence duplicated position {position:02}"));
+    }
+
+    fn duplicate_selected_sequence_position(&mut self) {
+        if let Some(position) = self.selected_sequence_position() {
+            self.duplicate_sequence_position(position);
+        }
+    }
+
+    fn remove_selected_sequence_position(&mut self) {
+        if let Some(position) = self.selected_sequence_position() {
+            self.remove_sequence_position(position);
+        }
     }
 
     fn set_sequence_pattern(&mut self, position: usize, pattern_index: usize) {
@@ -1424,6 +1513,12 @@ impl App {
         ));
     }
 
+    fn set_selected_sequence_to_current_pattern(&mut self) {
+        if let Some(position) = self.selected_sequence_position() {
+            self.set_sequence_pattern(position, self.pattern_index);
+        }
+    }
+
     fn move_sequence_position(&mut self, from: usize, to: usize) {
         let mut next_song = self.song.clone();
         if let Err(error) = next_song.move_sequence_position(from, to) {
@@ -1434,7 +1529,31 @@ impl App {
         self.mutate_song(|song, _| {
             *song = next_song;
         });
+        self.sequence_cursor = to;
         self.notify_success(format!("Sequence moved position {from:02} to {to:02}"));
+    }
+
+    fn move_selected_sequence_position_up(&mut self) {
+        let Some(position) = self.selected_sequence_position() else {
+            return;
+        };
+        if position == 0 {
+            self.notify_warning("Sequence already at first position");
+            return;
+        }
+        self.move_sequence_position(position, position - 1);
+    }
+
+    fn move_selected_sequence_position_down(&mut self) {
+        let Some(position) = self.selected_sequence_position() else {
+            return;
+        };
+        let next_position = position.saturating_add(1);
+        if next_position >= self.song.sequence.len() {
+            self.notify_warning("Sequence already at last position");
+            return;
+        }
+        self.move_sequence_position(position, next_position);
     }
 
     fn execute_command(&mut self) {
@@ -1937,6 +2056,7 @@ impl App {
             }
             self.redo_stack.clear();
             self.refresh_dirty();
+            self.clamp_sequence_cursor();
         }
     }
 
@@ -1946,6 +2066,7 @@ impl App {
             self.redo_stack.push(current);
             self.refresh_dirty();
             self.clamp_cursor();
+            self.clamp_sequence_cursor();
             self.notify_info("Undo");
         } else {
             self.notify_warning("Nothing to undo");
@@ -1958,6 +2079,7 @@ impl App {
             self.undo_stack.push(current);
             self.refresh_dirty();
             self.clamp_cursor();
+            self.clamp_sequence_cursor();
             self.notify_info("Redo");
         } else {
             self.notify_warning("Nothing to redo");
@@ -2007,6 +2129,25 @@ impl App {
             .min(self.song.patterns.len().saturating_sub(1));
         self.cursor
             .clamp(self.current_row_count(), self.song.tracks.len());
+    }
+
+    fn clamp_sequence_cursor(&mut self) {
+        if self.song.sequence.is_empty() {
+            self.sequence_cursor = 0;
+        } else {
+            self.sequence_cursor = self
+                .sequence_cursor
+                .min(self.song.sequence.len().saturating_sub(1));
+        }
+    }
+
+    fn tui_sequence_position(&self) -> Option<usize> {
+        self.sequence_position.or_else(|| {
+            (!self.song.sequence.is_empty()).then_some(
+                self.sequence_cursor
+                    .min(self.song.sequence.len().saturating_sub(1)),
+            )
+        })
     }
 
     fn keep_cursor_visible(&mut self, visible_rows: usize) {
@@ -3374,6 +3515,71 @@ mod tests {
 
         app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
         assert_eq!(app.song.sequence[1], salieri_core::PatternId(2));
+    }
+
+    #[test]
+    fn keyboard_sequence_shortcuts_edit_selected_position() {
+        let mut app = App::default();
+        type_command(&mut app, "pattern new");
+        type_command(&mut app, "pattern new");
+        app.pattern_index = 1;
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('A'), KeyModifiers::SHIFT));
+        assert_eq!(
+            app.song.sequence,
+            vec![salieri_core::PatternId(1), salieri_core::PatternId(2)]
+        );
+        assert_eq!(app.sequence_cursor, 1);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char(','), KeyModifiers::NONE));
+        assert_eq!(app.sequence_cursor, 0);
+        app.handle_key(KeyEvent::new(KeyCode::Char('.'), KeyModifiers::NONE));
+        assert_eq!(app.sequence_cursor, 1);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('Y'), KeyModifiers::SHIFT));
+        assert_eq!(
+            app.song.sequence,
+            vec![
+                salieri_core::PatternId(1),
+                salieri_core::PatternId(2),
+                salieri_core::PatternId(2)
+            ]
+        );
+        assert_eq!(app.sequence_cursor, 2);
+
+        app.pattern_index = 2;
+        app.handle_key(KeyEvent::new(KeyCode::Char('T'), KeyModifiers::SHIFT));
+        assert_eq!(app.song.sequence[2], salieri_core::PatternId(3));
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('<'), KeyModifiers::SHIFT));
+        assert_eq!(app.sequence_cursor, 1);
+        assert_eq!(
+            app.song.sequence,
+            vec![
+                salieri_core::PatternId(1),
+                salieri_core::PatternId(3),
+                salieri_core::PatternId(2)
+            ]
+        );
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('>'), KeyModifiers::SHIFT));
+        assert_eq!(app.sequence_cursor, 2);
+        assert_eq!(
+            app.song.sequence,
+            vec![
+                salieri_core::PatternId(1),
+                salieri_core::PatternId(2),
+                salieri_core::PatternId(3)
+            ]
+        );
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('R'), KeyModifiers::SHIFT));
+        assert_eq!(
+            app.song.sequence,
+            vec![salieri_core::PatternId(1), salieri_core::PatternId(2)]
+        );
+        assert_eq!(app.sequence_cursor, 1);
+        assert!(app.dirty);
     }
 
     #[test]

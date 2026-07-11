@@ -229,7 +229,7 @@ fn render_sequence(
                 .iter()
                 .find(|pattern| pattern.id == *pattern_id)
                 .map_or("Missing Pattern", |pattern| pattern.name.as_str());
-            let marker = if active_sequence_position.unwrap_or(0) == index {
+            let marker = if active_sequence_position == Some(index) {
                 ">"
             } else {
                 " "
@@ -479,7 +479,7 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
     }
 
     let status = Paragraph::new(format!(
-        " {}{} | H Help | Space Play/Stop | Enter Play Row | L Loop | N/P/X Pattern | F1/F2 Oct | r Rename | : Command | i Edit | V Select | Ctrl+S Save | q Quit ",
+        " {}{} | H Help | Space Play/Stop | Enter Play Row | L Loop | N/P/X Pattern | A/Y/R Seq | F1/F2 Oct | r Rename | : Command | i Edit | V Select | Ctrl+S Save | q Quit ",
         state.mode_label,
         if state.selection.is_some() { " SEL" } else { "" }
     ));
@@ -568,6 +568,9 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
         Line::from("  N new pattern   P duplicate pattern   X delete pattern"),
         Line::from("  :pattern new   :pattern duplicate   :pattern delete   :pattern length 128"),
         Line::from("  :pattern rename Intro   :pattern 1   [ previous pattern   ] next pattern"),
+        Line::from("  A add current pattern to sequence   ,/. move sequence cursor"),
+        Line::from("  Y duplicate sequence position   R remove   T set to current pattern"),
+        Line::from("  </> move selected sequence position up/down"),
         Line::from("  :sequence add   :sequence remove 0   :sequence duplicate 0"),
         Line::from("  :sequence set 0 2   :sequence move 1 0"),
         Line::from(""),
