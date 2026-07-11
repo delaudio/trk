@@ -676,6 +676,10 @@ impl App {
                 self.open_midi_settings();
                 return;
             }
+            KeyCode::F(6) => {
+                self.start_pattern_length_command();
+                return;
+            }
             KeyCode::Char('r') => {
                 self.start_track_rename_command();
                 return;
@@ -1461,6 +1465,12 @@ impl App {
         self.clamp_cursor();
         self.keep_cursor_visible(1);
         self.notify_success(format!("Pattern length set to {row_count}"));
+    }
+
+    fn start_pattern_length_command(&mut self) {
+        self.command_buffer = "pattern length ".to_string();
+        self.mode = AppMode::Command;
+        self.notify_info("Set current pattern length");
     }
 
     fn rename_current_pattern(&mut self, name: String) {
@@ -3634,6 +3644,27 @@ mod tests {
 
         app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
         assert_eq!(app.song.current_pattern().expect("pattern").row_count(), 64);
+    }
+
+    #[test]
+    fn f6_prefills_current_pattern_length_command() {
+        let mut app = App::default();
+
+        app.handle_key(KeyEvent::new(KeyCode::F(6), KeyModifiers::NONE));
+
+        assert_eq!(app.mode, AppMode::Command);
+        assert_eq!(app.command_buffer, "pattern length ");
+
+        for value in "32".chars() {
+            app.handle_key(KeyEvent::new(KeyCode::Char(value), KeyModifiers::NONE));
+        }
+        app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+
+        assert_eq!(app.song.current_pattern().expect("pattern").row_count(), 32);
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("Pattern length set to 32")
+        );
     }
 
     #[test]

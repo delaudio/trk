@@ -566,7 +566,9 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
         )),
-        Line::from("  N new pattern   P duplicate pattern   X delete pattern   F3 rename"),
+        Line::from(
+            "  N new pattern   P duplicate pattern   X delete pattern   F3 rename   F6 length",
+        ),
         Line::from("  :pattern new   :pattern duplicate   :pattern delete   :pattern length 128"),
         Line::from("  :pattern rename Intro   :pattern 1   [ previous pattern   ] next pattern"),
         Line::from("  A add current pattern to sequence   ,/. move sequence cursor"),
