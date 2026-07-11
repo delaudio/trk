@@ -5,6 +5,11 @@ use ratatui::{
 };
 use salieri_core::{CellField, Cursor, NoteEvent, Pattern, PatternCell, Song};
 
+const TRACK_PANEL_WIDTH: u16 = 27;
+const ROW_GUTTER_WIDTH: usize = 5;
+const PATTERN_CELL_WIDTH: usize = 9;
+const TRACK_LIST_NAME_WIDTH: usize = 11;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TuiState<'a> {
     pub cursor: Cursor,
@@ -100,7 +105,7 @@ fn render_body(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'
     let chunks = if area.width >= 120 {
         Layout::default()
             .direction(LayoutDirection::Horizontal)
-            .constraints([Constraint::Length(25), Constraint::Min(40)])
+            .constraints([Constraint::Length(TRACK_PANEL_WIDTH), Constraint::Min(40)])
             .split(area)
     } else {
         Layout::default()
@@ -131,12 +136,14 @@ fn render_tracks(frame: &mut Frame<'_>, area: Rect, song: &Song, active_track: u
             let marker = if index == active_track { ">" } else { " " };
             let mute = if track.muted { "M" } else { "-" };
             let solo = if track.solo { "S" } else { "-" };
+            let name = truncate(&track.name, TRACK_LIST_NAME_WIDTH);
             Line::from(format!(
-                "{} {:02} {:<10} CH{:02} {mute}{solo}",
+                "{} {:02} {:<width$} CH{:02} {mute}{solo}",
                 marker,
                 index + 1,
-                track.name,
-                track.midi_channel
+                name,
+                track.midi_channel,
+                width = TRACK_LIST_NAME_WIDTH,
             ))
         })
         .collect::<Vec<_>>();
@@ -217,19 +224,21 @@ fn active_pattern(song: &Song, pattern_index: usize) -> Option<&Pattern> {
 }
 
 fn pattern_header(song: &Song) -> Line<'static> {
-    let mut spans = vec![
-        Span::styled("ROW", Style::default().fg(Color::DarkGray)),
-        Span::raw(" | "),
-    ];
+    let mut spans = vec![Span::styled(
+        format!("{:<ROW_GUTTER_WIDTH$}", "ROW"),
+        Style::default().fg(Color::DarkGray),
+    )];
 
     for track in &song.tracks {
         spans.push(Span::styled(
-            format!("{:^8}", truncate(&track.name, 8)),
+            format!(
+                "{:^PATTERN_CELL_WIDTH$}",
+                truncate(&track.name, PATTERN_CELL_WIDTH)
+            ),
             Style::default()
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
         ));
-        spans.push(Span::raw(" "));
     }
 
     Line::from(spans)
@@ -244,19 +253,19 @@ fn pattern_row(
     selection: Option<SelectionRect>,
 ) -> Line<'static> {
     let is_playhead = playhead_row == Some(row_index);
-    let mut spans = vec![
-        Span::styled(
-            format!("{}{row_index:02}", if is_playhead { ">" } else { " " }),
-            if is_playhead {
-                Style::default()
-                    .fg(Color::LightGreen)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(Color::DarkGray)
-            },
+    let mut spans = vec![Span::styled(
+        format!(
+            "{:<ROW_GUTTER_WIDTH$}",
+            format!("{}{row_index:02}", if is_playhead { ">" } else { " " })
         ),
-        Span::raw(" "),
-    ];
+        if is_playhead {
+            Style::default()
+                .fg(Color::LightGreen)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::DarkGray)
+        },
+    )];
 
     let Some(row) = pattern.rows.get(row_index) else {
         return Line::from(spans);
@@ -316,9 +325,11 @@ fn cell_spans(
     };
 
     vec![
+        Span::raw(" "),
         Span::styled(note, note_style),
         Span::raw(" "),
         Span::styled(velocity, velocity_style),
+        Span::raw("  "),
     ]
 }
 
@@ -338,7 +349,7 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
 }
 
 fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
-    let overlay = centered_rect(72, 22, area);
+    let overlay = centered_rect(92, 24, area);
     let lines = vec![
         Line::from(Span::styled(
             "Global",
