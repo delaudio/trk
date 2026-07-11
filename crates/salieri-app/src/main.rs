@@ -585,7 +585,11 @@ impl App {
                 self.stop_playback();
                 return;
             }
-            KeyCode::Char('i') | KeyCode::Enter => {
+            KeyCode::Enter => {
+                self.start_playback_from_cursor();
+                return;
+            }
+            KeyCode::Char('i') => {
                 self.selection_anchor = None;
                 self.mode = AppMode::Edit;
                 return;
@@ -1380,6 +1384,18 @@ impl App {
         self.sequence_position = None;
         self.playback
             .start_pattern(self.song.clone(), self.pattern_index);
+    }
+
+    fn start_playback_from_cursor(&mut self) {
+        if self.song.pattern(self.pattern_index).is_none() {
+            return;
+        }
+
+        self.is_playing = true;
+        self.playhead_row = Some(self.cursor.row);
+        self.sequence_position = None;
+        self.playback
+            .start_pattern_from(self.song.clone(), self.pattern_index, self.cursor.row);
     }
 
     fn start_sequence_playback(&mut self) {
@@ -2495,6 +2511,23 @@ mod tests {
 
         assert!(!app.is_playing);
         assert_eq!(app.playhead_row, None);
+    }
+
+    #[test]
+    fn enter_starts_playback_from_cursor_row() {
+        let mut app = App {
+            cursor: Cursor {
+                row: 12,
+                ..Cursor::new()
+            },
+            ..App::default()
+        };
+
+        app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+
+        assert!(app.is_playing);
+        assert_eq!(app.playhead_row, Some(12));
+        assert_eq!(app.mode, AppMode::Normal);
     }
 
     #[test]
