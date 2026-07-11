@@ -25,6 +25,8 @@ Terminal input -> App command handling -> Song/App state
 
 The playback runtime owns timing and MIDI emission. The TUI polls playback updates and renders the latest known playhead position.
 
+Detailed timing assumptions and jitter test limits are tracked in [timing.md](timing.md).
+
 ## Persistence
 
 Project files use JSON with a `formatVersion` field and a serialized `Song`. File writes are atomic through a temporary file followed by rename.

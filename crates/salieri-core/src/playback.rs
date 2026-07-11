@@ -132,6 +132,41 @@ mod tests {
     }
 
     #[test]
+    fn row_duration_updates_when_bpm_or_lpb_changes() {
+        let mut transport = Song::empty().transport;
+
+        transport.bpm = 60;
+        transport.lines_per_beat = 4;
+        assert_eq!(row_duration_micros(&transport), 250_000);
+
+        transport.bpm = 120;
+        transport.lines_per_beat = 8;
+        assert_eq!(row_duration_micros(&transport), 62_500);
+
+        transport.bpm = 150;
+        transport.lines_per_beat = 6;
+        assert_eq!(row_duration_micros(&transport), 66_666);
+    }
+
+    #[test]
+    fn pattern_event_offsets_follow_current_transport_settings() {
+        let mut song = Song::empty();
+        song.current_pattern_mut()
+            .expect("pattern")
+            .set_note(8, 0, NoteEvent::Note { pitch: 60 }, 0x7f)
+            .expect("set note");
+
+        let initial_events = pattern_events(&song, song.current_pattern().expect("pattern"));
+        assert_eq!(initial_events[0].position.offset_micros, 1_000_000);
+
+        song.transport.bpm = 240;
+        song.transport.lines_per_beat = 8;
+        let faster_events = pattern_events(&song, song.current_pattern().expect("pattern"));
+
+        assert_eq!(faster_events[0].position.offset_micros, 250_000);
+    }
+
+    #[test]
     fn pattern_events_emit_note_on_and_end_note_off() {
         let mut song = Song::empty();
         let pattern = song.current_pattern_mut().expect("pattern");

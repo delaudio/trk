@@ -49,6 +49,8 @@ cargo clippy --all-targets --all-features -- -D warnings
 
 The GitHub Actions workflow runs the same checks on pushes to `main` and on pull requests.
 
+Timing assumptions and jitter test limits are documented in [docs/timing.md](docs/timing.md).
+
 ## CLI
 
 ```bash

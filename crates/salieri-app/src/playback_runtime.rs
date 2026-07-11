@@ -570,6 +570,24 @@ mod tests {
     use super::*;
     use salieri_core::NoteEvent;
 
+    fn collect_position_times(
+        runtime: &PlaybackRuntime,
+        count: usize,
+        timeout: Duration,
+    ) -> Vec<(usize, Instant)> {
+        let deadline = Instant::now() + timeout;
+        let mut positions = Vec::new();
+        while Instant::now() < deadline && positions.len() < count {
+            while let Some(update) = runtime.try_recv() {
+                if let PlaybackUpdate::Position(position) = update {
+                    positions.push((position.position.row, Instant::now()));
+                }
+            }
+            thread::sleep(Duration::from_millis(1));
+        }
+        positions
+    }
+
     #[test]
     fn runtime_emits_positions_and_stops() {
         let runtime = PlaybackRuntime::spawn(None);
@@ -690,6 +708,64 @@ mod tests {
         runtime.stop();
 
         assert_eq!(first_sequence_index, Some(1));
+    }
+
+    #[test]
+    fn runtime_position_intervals_track_row_duration_with_tolerance() {
+        let runtime = PlaybackRuntime::spawn(None);
+        let mut song = Song::empty();
+        song.transport.bpm = 300;
+        song.transport.lines_per_beat = 4;
+        let expected = Duration::from_micros(row_duration_micros(&song.transport));
+
+        runtime.start_pattern_from(song, 0, 0, true);
+
+        let positions = collect_position_times(&runtime, 6, Duration::from_millis(500));
+        runtime.stop();
+
+        let intervals: Vec<_> = positions
+            .windows(2)
+            .filter_map(|pair| {
+                let (previous_row, previous_time) = pair[0];
+                let (next_row, next_time) = pair[1];
+                (next_row == previous_row + 1).then_some(next_time.duration_since(previous_time))
+            })
+            .take(4)
+            .collect();
+
+        assert!(
+            intervals.len() >= 4,
+            "expected at least four sequential row intervals, got {positions:?}"
+        );
+
+        let tolerance = Duration::from_millis(35);
+        for interval in intervals {
+            let drift = interval.abs_diff(expected);
+            assert!(
+                drift <= tolerance,
+                "row interval {interval:?} drifted more than {tolerance:?} from {expected:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn playback_thread_advances_without_tui_polling() {
+        let runtime = PlaybackRuntime::spawn(None);
+        let mut song = Song::empty();
+        song.transport.bpm = 300;
+        song.transport.lines_per_beat = 4;
+        let row_duration = Duration::from_micros(row_duration_micros(&song.transport));
+
+        runtime.start_pattern_from(song, 0, 0, true);
+        thread::sleep(row_duration.saturating_mul(5) + Duration::from_millis(30));
+
+        let positions = collect_position_times(&runtime, 16, Duration::from_millis(100));
+        runtime.stop();
+
+        assert!(
+            positions.iter().any(|(row, _)| *row >= 4),
+            "playback did not advance while the test withheld TUI polling: {positions:?}"
+        );
     }
 
     #[test]
