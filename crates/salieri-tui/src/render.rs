@@ -17,6 +17,7 @@ pub struct TuiState<'a> {
     pub show_help: bool,
     pub is_playing: bool,
     pub playhead_row: Option<usize>,
+    pub midi_status: &'a str,
 }
 
 pub fn render(frame: &mut Frame<'_>, song: &Song, state: TuiState<'_>) {
@@ -48,7 +49,7 @@ fn render_header(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState
         .playhead_row
         .map_or_else(|| "--".to_string(), |row| format!("{row:02}"));
     let text = format!(
-        " BPM {} | LPB {} | {}{} | Oct {} | Row {:02} | Play {playhead} | Track {:02} | Field {} | {} | {playback} | MIDI Disconnected ",
+        " BPM {} | LPB {} | {}{} | Oct {} | Row {:02} | Play {playhead} | Track {:02} | Field {} | {} | {playback} | {} ",
         song.transport.bpm,
         song.transport.lines_per_beat,
         pattern_name,
@@ -58,6 +59,7 @@ fn render_header(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState
         state.cursor.track + 1,
         state.cursor.field,
         state.mode_label,
+        state.midi_status,
     );
     let header = Paragraph::new(text)
         .block(
@@ -328,6 +330,7 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
         )),
         Line::from("  Ctrl+T create track   Del delete track in normal mode   M mute   S solo"),
         Line::from("  :write   :quit   :wq   :bpm 140   :lpb 4"),
+        Line::from("  :midi connect 0   :midi disconnect   :midi panic"),
         Line::from("  :pattern new   :pattern duplicate   :pattern delete   :pattern 1"),
         Line::from("  :sequence add   :sequence remove 0"),
         Line::from(""),
@@ -402,6 +405,7 @@ mod tests {
                         show_help: false,
                         is_playing: false,
                         playhead_row: None,
+                        midi_status: "MIDI Disconnected",
                     },
                 );
             })
@@ -442,6 +446,7 @@ mod tests {
                         show_help: true,
                         is_playing: false,
                         playhead_row: None,
+                        midi_status: "MIDI Disconnected",
                     },
                 );
             })
@@ -482,6 +487,7 @@ mod tests {
                         show_help: false,
                         is_playing: true,
                         playhead_row: Some(0),
+                        midi_status: "MIDI Connected 0",
                     },
                 );
             })
@@ -497,5 +503,6 @@ mod tests {
 
         assert!(rendered.contains("PLAY"));
         assert!(rendered.contains(">00"));
+        assert!(rendered.contains("MIDI Connected 0"));
     }
 }

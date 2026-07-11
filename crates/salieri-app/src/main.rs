@@ -81,6 +81,7 @@ fn run() -> Result<()> {
                     show_help: app.mode == AppMode::Help,
                     is_playing: app.is_playing,
                     playhead_row: app.playhead_row,
+                    midi_status: app.midi_status.as_str(),
                 },
             );
         })?;
@@ -206,6 +207,7 @@ struct App {
     playback: PlaybackRuntime,
     is_playing: bool,
     playhead_row: Option<usize>,
+    midi_status: String,
     dirty: bool,
     should_quit: bool,
     last_tick: Instant,
@@ -230,6 +232,7 @@ impl Default for App {
             playback: PlaybackRuntime::spawn(),
             is_playing: false,
             playhead_row: None,
+            midi_status: "MIDI Disconnected".to_string(),
             dirty: false,
             should_quit: false,
             last_tick: Instant::now(),
@@ -292,7 +295,7 @@ impl App {
             KeyCode::Char('p') | KeyCode::Char('P')
                 if key.modifiers.contains(KeyModifiers::SHIFT) =>
             {
-                self.stop_playback();
+                self.panic_midi();
                 true
             }
             _ => true,
@@ -645,6 +648,18 @@ impl App {
                     self.set_lpb(value);
                 }
             }
+            "midi" => match parts.next() {
+                Some("connect") => {
+                    if let Some(port_index) =
+                        parts.next().and_then(|value| value.parse::<usize>().ok())
+                    {
+                        self.connect_midi(port_index);
+                    }
+                }
+                Some("disconnect") => self.disconnect_midi(),
+                Some("panic") => self.panic_midi(),
+                None | Some(_) => {}
+            },
             "pattern" => match parts.next() {
                 Some("new") => self.create_pattern(),
                 Some("duplicate") | Some("dup") => self.duplicate_current_pattern(),
@@ -704,6 +719,21 @@ impl App {
         self.playhead_row = None;
     }
 
+    fn connect_midi(&mut self, port_index: usize) {
+        self.midi_status = format!("MIDI Connecting {port_index}");
+        self.playback.connect_midi(port_index);
+    }
+
+    fn disconnect_midi(&mut self) {
+        self.playback.disconnect_midi();
+    }
+
+    fn panic_midi(&mut self) {
+        self.playback.panic_all_notes_off();
+        self.is_playing = false;
+        self.playhead_row = None;
+    }
+
     fn drain_playback_updates(&mut self) {
         while let Some(update) = self.playback.try_recv() {
             match update {
@@ -712,6 +742,17 @@ impl App {
                     self.playhead_row = Some(position.row);
                 }
                 PlaybackUpdate::Stopped => {
+                    self.is_playing = false;
+                    self.playhead_row = None;
+                }
+                PlaybackUpdate::MidiConnected { port_index } => {
+                    self.midi_status = format!("MIDI Connected {port_index}");
+                }
+                PlaybackUpdate::MidiDisconnected => {
+                    self.midi_status = "MIDI Disconnected".to_string();
+                }
+                PlaybackUpdate::MidiError(error) => {
+                    self.midi_status = format!("MIDI Error: {error}");
                     self.is_playing = false;
                     self.playhead_row = None;
                 }
@@ -1112,6 +1153,21 @@ mod tests {
 
         app.handle_key(KeyEvent::new(KeyCode::F(8), KeyModifiers::NONE));
 
+        assert!(!app.is_playing);
+        assert_eq!(app.playhead_row, None);
+    }
+
+    #[test]
+    fn command_mode_requests_midi_connection_and_panic_stops_playback() {
+        let mut app = App::default();
+
+        type_command(&mut app, "midi connect 3");
+        assert_eq!(app.midi_status, "MIDI Connecting 3");
+
+        app.handle_key(KeyEvent::new(KeyCode::Char(' '), KeyModifiers::NONE));
+        assert!(app.is_playing);
+
+        type_command(&mut app, "midi panic");
         assert!(!app.is_playing);
         assert_eq!(app.playhead_row, None);
     }

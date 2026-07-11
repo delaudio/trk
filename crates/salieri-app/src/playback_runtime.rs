@@ -5,17 +5,26 @@ use std::{
 };
 
 use salieri_core::{pattern_events, row_duration_micros, PlaybackPosition, Song};
-use salieri_midi::{send_all_notes_off, send_playback_event, FakeMidiOutput};
+use salieri_midi::{
+    send_all_notes_off, send_playback_event, FakeMidiOutput, MidiError, MidiMessage, MidiOutput,
+    MidirMidiOutput,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlaybackUpdate {
     Position(PlaybackPosition),
     Stopped,
+    MidiConnected { port_index: usize },
+    MidiDisconnected,
+    MidiError(String),
 }
 
 #[derive(Debug)]
 enum PlaybackCommand {
     StartPattern { song: Song, pattern_index: usize },
+    ConnectMidi { port_index: usize },
+    DisconnectMidi,
+    Panic,
     Stop,
     Shutdown,
 }
@@ -50,6 +59,20 @@ impl PlaybackRuntime {
         let _ = self.command_tx.send(PlaybackCommand::Stop);
     }
 
+    pub fn connect_midi(&self, port_index: usize) {
+        let _ = self
+            .command_tx
+            .send(PlaybackCommand::ConnectMidi { port_index });
+    }
+
+    pub fn disconnect_midi(&self) {
+        let _ = self.command_tx.send(PlaybackCommand::DisconnectMidi);
+    }
+
+    pub fn panic_all_notes_off(&self) {
+        let _ = self.command_tx.send(PlaybackCommand::Panic);
+    }
+
     pub fn try_recv(&self) -> Option<PlaybackUpdate> {
         self.update_rx.try_recv().ok()
     }
@@ -73,7 +96,7 @@ impl Drop for PlaybackRuntime {
 }
 
 fn playback_thread(command_rx: Receiver<PlaybackCommand>, update_tx: Sender<PlaybackUpdate>) {
-    let mut output = FakeMidiOutput::new();
+    let mut output = PlaybackOutput::fake();
     let mut next_command = None;
 
     loop {
@@ -95,6 +118,27 @@ fn playback_thread(command_rx: Receiver<PlaybackCommand>, update_tx: Sender<Play
                     break;
                 }
             }
+            PlaybackCommand::ConnectMidi { port_index } => {
+                let _ = send_all_notes_off(&mut output);
+                match MidirMidiOutput::connect(port_index, "salieri-output") {
+                    Ok(midir_output) => {
+                        output = PlaybackOutput::Midir(midir_output);
+                        let _ = update_tx.send(PlaybackUpdate::MidiConnected { port_index });
+                    }
+                    Err(error) => {
+                        let _ = update_tx.send(PlaybackUpdate::MidiError(error.to_string()));
+                    }
+                }
+            }
+            PlaybackCommand::DisconnectMidi => {
+                let _ = send_all_notes_off(&mut output);
+                output = PlaybackOutput::fake();
+                let _ = update_tx.send(PlaybackUpdate::MidiDisconnected);
+            }
+            PlaybackCommand::Panic => {
+                let _ = send_all_notes_off(&mut output);
+                let _ = update_tx.send(PlaybackUpdate::Stopped);
+            }
             PlaybackCommand::Stop => {
                 let _ = send_all_notes_off(&mut output);
                 let _ = update_tx.send(PlaybackUpdate::Stopped);
@@ -107,12 +151,32 @@ fn playback_thread(command_rx: Receiver<PlaybackCommand>, update_tx: Sender<Play
     let _ = update_tx.send(PlaybackUpdate::Stopped);
 }
 
+enum PlaybackOutput {
+    Fake(FakeMidiOutput),
+    Midir(MidirMidiOutput),
+}
+
+impl PlaybackOutput {
+    fn fake() -> Self {
+        Self::Fake(FakeMidiOutput::new())
+    }
+}
+
+impl MidiOutput for PlaybackOutput {
+    fn send(&mut self, message: MidiMessage) -> Result<(), MidiError> {
+        match self {
+            Self::Fake(output) => output.send(message),
+            Self::Midir(output) => output.send(message),
+        }
+    }
+}
+
 fn run_pattern(
     song: Song,
     pattern_index: usize,
     command_rx: &Receiver<PlaybackCommand>,
     update_tx: &Sender<PlaybackUpdate>,
-    output: &mut FakeMidiOutput,
+    output: &mut PlaybackOutput,
 ) -> Option<PlaybackCommand> {
     let Some(pattern) = song.pattern(pattern_index) else {
         let _ = update_tx.send(PlaybackUpdate::Stopped);
@@ -134,7 +198,12 @@ fn run_pattern(
             }
 
             for event in events.iter().filter(|event| event.position.row == row) {
-                let _ = send_playback_event(output, *event);
+                if let Err(error) = send_playback_event(output, *event) {
+                    let _ = update_tx.send(PlaybackUpdate::MidiError(error.to_string()));
+                    let _ = send_all_notes_off(output);
+                    let _ = update_tx.send(PlaybackUpdate::Stopped);
+                    return None;
+                }
             }
 
             if row < row_count {
