@@ -10,6 +10,7 @@ pub struct TuiState<'a> {
     pub cursor: Cursor,
     pub row_offset: usize,
     pub pattern_index: usize,
+    pub selection: Option<SelectionRect>,
     pub mode_label: &'a str,
     pub octave: u8,
     pub dirty: bool,
@@ -19,6 +20,24 @@ pub struct TuiState<'a> {
     pub playhead_row: Option<usize>,
     pub midi_status: &'a str,
     pub sequence_position: Option<usize>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SelectionRect {
+    pub row_start: usize,
+    pub row_end: usize,
+    pub track_start: usize,
+    pub track_end: usize,
+}
+
+impl SelectionRect {
+    #[must_use]
+    pub const fn contains(self, row: usize, track: usize) -> bool {
+        self.row_start <= row
+            && row <= self.row_end
+            && self.track_start <= track
+            && track <= self.track_end
+    }
 }
 
 pub fn render(frame: &mut Frame<'_>, song: &Song, state: TuiState<'_>) {
@@ -177,6 +196,7 @@ fn render_pattern(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiStat
             row_index,
             state.cursor,
             state.playhead_row,
+            state.selection,
         ));
     }
 
@@ -216,6 +236,7 @@ fn pattern_row(
     row_index: usize,
     cursor: Cursor,
     playhead_row: Option<usize>,
+    selection: Option<SelectionRect>,
 ) -> Line<'static> {
     let is_playhead = playhead_row == Some(row_index);
     let mut spans = vec![
@@ -240,14 +261,21 @@ fn pattern_row(
         let cell = row.cells.get(track_index).cloned().unwrap_or_default();
         let is_cursor_row = cursor.row == row_index;
         let is_cursor_cell = is_cursor_row && cursor.track == track_index;
-        spans.extend(cell_spans(&cell, cursor.field, is_cursor_cell));
+        let is_selected =
+            selection.is_some_and(|selection| selection.contains(row_index, track_index));
+        spans.extend(cell_spans(&cell, cursor.field, is_cursor_cell, is_selected));
         spans.push(Span::raw(" "));
     }
 
     Line::from(spans)
 }
 
-fn cell_spans(cell: &PatternCell, focused_field: CellField, focused: bool) -> Vec<Span<'static>> {
+fn cell_spans(
+    cell: &PatternCell,
+    focused_field: CellField,
+    focused: bool,
+    selected: bool,
+) -> Vec<Span<'static>> {
     let note = match cell.note {
         Some(NoteEvent::Note { pitch }) => format_note(pitch),
         Some(NoteEvent::NoteOff) => "OFF".to_string(),
@@ -263,13 +291,21 @@ fn cell_spans(cell: &PatternCell, focused_field: CellField, focused: bool) -> Ve
         .fg(Color::Black)
         .bg(Color::White)
         .add_modifier(Modifier::BOLD);
+    let selected_style = Style::default()
+        .fg(Color::White)
+        .bg(Color::DarkGray)
+        .add_modifier(Modifier::REVERSED);
     let note_style = if focused && focused_field == CellField::Note {
         focused_style
+    } else if selected {
+        selected_style
     } else {
         normal
     };
     let velocity_style = if focused && focused_field == CellField::Velocity {
         focused_style
+    } else if selected {
+        selected_style
     } else {
         normal
     };
@@ -322,6 +358,7 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
                 .add_modifier(Modifier::BOLD),
         )),
         Line::from("  i Edit   Esc Normal   Del/Backspace clear cell   Ctrl+C/X/V cell clipboard"),
+        Line::from("  V select region   Esc cancel selection   Delete clears selection"),
         Line::from("  Insert row   Ctrl+Delete delete row   F1/- octave down"),
         Line::from("  F2/+/= octave up   Velocity field accepts two hex digits"),
         Line::from(""),
@@ -416,6 +453,7 @@ mod tests {
                         cursor: Cursor::new(),
                         row_offset: 0,
                         pattern_index: 0,
+                        selection: None,
                         mode_label: "NORMAL",
                         octave: 4,
                         dirty: false,
@@ -458,6 +496,7 @@ mod tests {
                         cursor: Cursor::new(),
                         row_offset: 0,
                         pattern_index: 0,
+                        selection: None,
                         mode_label: "HELP",
                         octave: 4,
                         dirty: false,
@@ -500,6 +539,12 @@ mod tests {
                         cursor: Cursor::new(),
                         row_offset: 0,
                         pattern_index: 0,
+                        selection: Some(SelectionRect {
+                            row_start: 0,
+                            row_end: 1,
+                            track_start: 0,
+                            track_end: 1,
+                        }),
                         mode_label: "NORMAL",
                         octave: 4,
                         dirty: false,

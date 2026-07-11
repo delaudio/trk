@@ -13,7 +13,7 @@ use persistence::{load_project, save_project};
 use playback_runtime::{PlaybackRuntime, PlaybackUpdate};
 use salieri_core::{CellField, Cursor, Direction, NoteEvent, PatternCell, Song};
 use salieri_midi::list_output_ports;
-use salieri_tui::{render, TuiState};
+use salieri_tui::{render, SelectionRect, TuiState};
 use terminal::TerminalGuard;
 
 const UI_TICK_RATE: Duration = Duration::from_millis(33);
@@ -74,6 +74,7 @@ fn run() -> Result<()> {
                     cursor: app.cursor,
                     row_offset: app.row_offset,
                     pattern_index: app.pattern_index,
+                    selection: app.selection_rect(),
                     mode_label: app.mode.label(),
                     octave: app.octave,
                     dirty: app.dirty,
@@ -203,7 +204,8 @@ struct App {
     octave: u8,
     edit_step: usize,
     command_buffer: String,
-    clipboard: Option<PatternCell>,
+    clipboard: Option<Clipboard>,
+    selection_anchor: Option<SelectionAnchor>,
     undo_stack: Vec<Song>,
     redo_stack: Vec<Song>,
     playback: PlaybackRuntime,
@@ -214,6 +216,23 @@ struct App {
     dirty: bool,
     should_quit: bool,
     last_tick: Instant,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Clipboard {
+    Cell(PatternCell),
+    Region(ClipboardRegion),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ClipboardRegion {
+    cells: Vec<Vec<PatternCell>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct SelectionAnchor {
+    row: usize,
+    track: usize,
 }
 
 impl Default for App {
@@ -231,6 +250,7 @@ impl Default for App {
             edit_step: DEFAULT_EDIT_STEP,
             command_buffer: String::new(),
             clipboard: None,
+            selection_anchor: None,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             playback: PlaybackRuntime::spawn(),
@@ -286,15 +306,15 @@ impl App {
                 true
             }
             KeyCode::Char('c') | KeyCode::Char('C') => {
-                self.copy_current_cell();
+                self.copy_selection_or_current_cell();
                 true
             }
             KeyCode::Char('x') | KeyCode::Char('X') => {
-                self.cut_current_cell();
+                self.cut_selection_or_current_cell();
                 true
             }
             KeyCode::Char('v') | KeyCode::Char('V') => {
-                self.paste_current_cell();
+                self.paste_clipboard();
                 true
             }
             KeyCode::Delete => {
@@ -325,6 +345,10 @@ impl App {
 
     fn handle_normal_key(&mut self, key: KeyEvent) {
         let direction = match key.code {
+            KeyCode::Esc => {
+                self.selection_anchor = None;
+                return;
+            }
             KeyCode::Char('q') => {
                 self.stop_playback();
                 self.should_quit = true;
@@ -339,6 +363,7 @@ impl App {
                 return;
             }
             KeyCode::Char('i') | KeyCode::Enter => {
+                self.selection_anchor = None;
                 self.mode = AppMode::Edit;
                 return;
             }
@@ -349,6 +374,10 @@ impl App {
             }
             KeyCode::Char('?') => {
                 self.mode = AppMode::Help;
+                return;
+            }
+            KeyCode::Char('v') | KeyCode::Char('V') => {
+                self.start_selection();
                 return;
             }
             KeyCode::Up => Some(Direction::Up),
@@ -388,7 +417,11 @@ impl App {
                 return;
             }
             KeyCode::Delete => {
-                self.delete_current_track();
+                if self.selection_anchor.is_some() {
+                    self.clear_selection_region();
+                } else {
+                    self.delete_current_track();
+                }
                 return;
             }
             KeyCode::Char('m') | KeyCode::Char('M') => {
@@ -568,7 +601,8 @@ impl App {
             .song
             .pattern(self.pattern_index)
             .and_then(|pattern| pattern.cell(self.cursor.row, self.cursor.track))
-            .cloned();
+            .cloned()
+            .map(Clipboard::Cell);
     }
 
     fn cut_current_cell(&mut self) {
@@ -576,8 +610,28 @@ impl App {
         self.clear_current_cell();
     }
 
-    fn paste_current_cell(&mut self) {
-        let Some(cell) = self.clipboard.clone() else {
+    fn copy_selection_or_current_cell(&mut self) {
+        if let Some(selection) = self.selection_rect() {
+            self.copy_selection(selection);
+        } else {
+            self.copy_current_cell();
+        }
+    }
+
+    fn cut_selection_or_current_cell(&mut self) {
+        if self.selection_anchor.is_some() {
+            if let Some(selection) = self.selection_rect() {
+                self.copy_selection(selection);
+                self.clear_region(selection);
+                self.selection_anchor = None;
+            }
+        } else {
+            self.cut_current_cell();
+        }
+    }
+
+    fn paste_clipboard(&mut self) {
+        let Some(clipboard) = self.clipboard.clone() else {
             return;
         };
         let pattern_index = self.pattern_index;
@@ -585,7 +639,85 @@ impl App {
             let Some(pattern) = song.pattern_mut(pattern_index) else {
                 return;
             };
-            let _ = pattern.set_cell(cursor.row, cursor.track, cell);
+            match clipboard {
+                Clipboard::Cell(cell) => {
+                    let _ = pattern.set_cell(cursor.row, cursor.track, cell);
+                }
+                Clipboard::Region(region) => {
+                    for (row_offset, row) in region.cells.iter().enumerate() {
+                        for (track_offset, cell) in row.iter().enumerate() {
+                            let _ = pattern.set_cell(
+                                cursor.row.saturating_add(row_offset),
+                                cursor.track.saturating_add(track_offset),
+                                cell.clone(),
+                            );
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    fn start_selection(&mut self) {
+        self.selection_anchor = Some(SelectionAnchor {
+            row: self.cursor.row,
+            track: self.cursor.track,
+        });
+    }
+
+    fn selection_rect(&self) -> Option<SelectionRect> {
+        let anchor = self.selection_anchor?;
+        let row_count = self.current_row_count();
+        let track_count = self.song.tracks.len();
+        if row_count == 0 || track_count == 0 {
+            return None;
+        }
+
+        let anchor_row = anchor.row.min(row_count.saturating_sub(1));
+        let cursor_row = self.cursor.row.min(row_count.saturating_sub(1));
+        let anchor_track = anchor.track.min(track_count.saturating_sub(1));
+        let cursor_track = self.cursor.track.min(track_count.saturating_sub(1));
+
+        Some(SelectionRect {
+            row_start: anchor_row.min(cursor_row),
+            row_end: anchor_row.max(cursor_row),
+            track_start: anchor_track.min(cursor_track),
+            track_end: anchor_track.max(cursor_track),
+        })
+    }
+
+    fn copy_selection(&mut self, selection: SelectionRect) {
+        let Some(pattern) = self.song.pattern(self.pattern_index) else {
+            return;
+        };
+        let cells = (selection.row_start..=selection.row_end)
+            .map(|row| {
+                (selection.track_start..=selection.track_end)
+                    .map(|track| pattern.cell(row, track).cloned().unwrap_or_default())
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        self.clipboard = Some(Clipboard::Region(ClipboardRegion { cells }));
+    }
+
+    fn clear_selection_region(&mut self) {
+        if let Some(selection) = self.selection_rect() {
+            self.clear_region(selection);
+            self.selection_anchor = None;
+        }
+    }
+
+    fn clear_region(&mut self, selection: SelectionRect) {
+        let pattern_index = self.pattern_index;
+        self.mutate_song(|song, _| {
+            let Some(pattern) = song.pattern_mut(pattern_index) else {
+                return;
+            };
+            for row in selection.row_start..=selection.row_end {
+                for track in selection.track_start..=selection.track_end {
+                    let _ = pattern.clear_cell(row, track);
+                }
+            }
         });
     }
 
@@ -1398,6 +1530,93 @@ mod tests {
                 .expect("cell")
                 .note,
             Some(NoteEvent::Note { pitch: 60 })
+        );
+    }
+
+    #[test]
+    fn selection_region_can_be_copied_cut_pasted_and_deleted() {
+        let mut app = App::default();
+        {
+            let pattern = app.song.current_pattern_mut().expect("pattern");
+            pattern
+                .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x7f)
+                .expect("set note");
+            pattern
+                .set_note(0, 1, NoteEvent::Note { pitch: 62 }, 0x7f)
+                .expect("set note");
+            pattern
+                .set_note(1, 0, NoteEvent::Note { pitch: 64 }, 0x7f)
+                .expect("set note");
+            pattern
+                .set_note(1, 1, NoteEvent::Note { pitch: 65 }, 0x7f)
+                .expect("set note");
+        }
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('v'), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+        assert_eq!(
+            app.selection_rect(),
+            Some(SelectionRect {
+                row_start: 0,
+                row_end: 1,
+                track_start: 0,
+                track_end: 1,
+            })
+        );
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL));
+        app.cursor.row = 4;
+        app.cursor.track = 2;
+        app.handle_key(KeyEvent::new(KeyCode::Char('v'), KeyModifiers::CONTROL));
+        assert_eq!(
+            app.song
+                .current_pattern()
+                .expect("pattern")
+                .cell(5, 3)
+                .expect("cell")
+                .note,
+            Some(NoteEvent::Note { pitch: 65 })
+        );
+
+        app.cursor.row = 0;
+        app.cursor.track = 0;
+        app.handle_key(KeyEvent::new(KeyCode::Char('v'), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Char('x'), KeyModifiers::CONTROL));
+        assert_eq!(app.selection_rect(), None);
+        assert_eq!(
+            app.song
+                .current_pattern()
+                .expect("pattern")
+                .cell(1, 1)
+                .expect("cell"),
+            &PatternCell::default()
+        );
+
+        app.cursor.row = 8;
+        app.cursor.track = 0;
+        app.handle_key(KeyEvent::new(KeyCode::Char('v'), KeyModifiers::CONTROL));
+        assert_eq!(
+            app.song
+                .current_pattern()
+                .expect("pattern")
+                .cell(9, 1)
+                .expect("cell")
+                .note,
+            Some(NoteEvent::Note { pitch: 65 })
+        );
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('v'), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Delete, KeyModifiers::NONE));
+        assert_eq!(
+            app.song
+                .current_pattern()
+                .expect("pattern")
+                .cell(8, 0)
+                .expect("cell"),
+            &PatternCell::default()
         );
     }
 
