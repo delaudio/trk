@@ -142,6 +142,22 @@ impl Song {
         Ok(())
     }
 
+    pub fn rename_pattern(
+        &mut self,
+        pattern_index: usize,
+        name: impl Into<String>,
+    ) -> Result<(), EditError> {
+        let name = clean_name(name.into())?;
+        let pattern =
+            self.patterns
+                .get_mut(pattern_index)
+                .ok_or(EditError::PatternOutOfBounds {
+                    pattern: pattern_index,
+                })?;
+        pattern.name = name;
+        Ok(())
+    }
+
     pub fn push_sequence_pattern(&mut self, pattern_id: PatternId) -> Result<(), EditError> {
         if !self.patterns.iter().any(|pattern| pattern.id == pattern_id) {
             return Err(EditError::PatternNotFound { pattern_id });
@@ -233,6 +249,20 @@ impl Song {
         }
 
         Ok(self.tracks.remove(track_index))
+    }
+
+    pub fn rename_track(
+        &mut self,
+        track_index: usize,
+        name: impl Into<String>,
+    ) -> Result<(), EditError> {
+        let name = clean_name(name.into())?;
+        let track = self
+            .tracks
+            .get_mut(track_index)
+            .ok_or(EditError::TrackOutOfBounds { track: track_index })?;
+        track.name = name;
+        Ok(())
     }
 
     pub fn toggle_mute(&mut self, track_index: usize) -> Result<(), EditError> {
@@ -446,6 +476,8 @@ pub enum EditError {
     InvalidPatternLength { row_count: usize },
     #[error("invalid MIDI channel: {midi_channel}")]
     InvalidMidiChannel { midi_channel: u8 },
+    #[error("name cannot be empty")]
+    EmptyName,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -593,6 +625,15 @@ fn default_midi_channel(index: usize) -> u8 {
     match index {
         0 => 10,
         _ => index as u8,
+    }
+}
+
+fn clean_name(name: String) -> Result<String, EditError> {
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        Err(EditError::EmptyName)
+    } else {
+        Ok(name)
     }
 }
 
@@ -769,6 +810,24 @@ mod tests {
     }
 
     #[test]
+    fn tracks_can_be_renamed_with_validation() {
+        let mut song = Song::empty();
+
+        song.rename_track(1, " Acid Bass ").expect("rename track");
+
+        assert_eq!(song.tracks[1].name, "Acid Bass");
+        assert_eq!(
+            song.rename_track(1, "   ").expect_err("empty name"),
+            EditError::EmptyName
+        );
+        assert_eq!(
+            song.rename_track(99, "Missing")
+                .expect_err("track out of range"),
+            EditError::TrackOutOfBounds { track: 99 }
+        );
+    }
+
+    #[test]
     fn creating_pattern_uses_current_track_shape() {
         let mut song = Song::empty();
         song.create_track();
@@ -852,6 +911,24 @@ mod tests {
         assert_eq!(
             song.resize_pattern(0, 0).expect_err("invalid length"),
             EditError::InvalidPatternLength { row_count: 0 }
+        );
+    }
+
+    #[test]
+    fn patterns_can_be_renamed_with_validation() {
+        let mut song = Song::empty();
+
+        song.rename_pattern(0, " Intro ").expect("rename pattern");
+
+        assert_eq!(song.patterns[0].name, "Intro");
+        assert_eq!(
+            song.rename_pattern(0, "").expect_err("empty name"),
+            EditError::EmptyName
+        );
+        assert_eq!(
+            song.rename_pattern(99, "Missing")
+                .expect_err("pattern out of range"),
+            EditError::PatternOutOfBounds { pattern: 99 }
         );
     }
 

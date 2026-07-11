@@ -544,6 +544,12 @@ impl App {
         });
     }
 
+    fn rename_track(&mut self, track_index: usize, name: String) {
+        self.mutate_song(|song, _| {
+            let _ = song.rename_track(track_index, name);
+        });
+    }
+
     fn set_bpm(&mut self, bpm: u16) {
         self.mutate_song(|song, _| {
             song.transport.bpm = bpm;
@@ -603,6 +609,13 @@ impl App {
         });
         self.clamp_cursor();
         self.keep_cursor_visible(1);
+    }
+
+    fn rename_current_pattern(&mut self, name: String) {
+        let pattern_index = self.pattern_index;
+        self.mutate_song(|song, _| {
+            let _ = song.rename_pattern(pattern_index, name);
+        });
     }
 
     fn select_pattern(&mut self, pattern_index: usize) {
@@ -707,6 +720,14 @@ impl App {
             "stop" => self.stop_playback(),
             "track" => match parts.next() {
                 Some("new") => self.create_track(),
+                Some("rename") => {
+                    let values = parts.collect::<Vec<_>>();
+                    if let Some((track_index, name)) =
+                        parse_optional_numbered_name(&values, self.cursor.track)
+                    {
+                        self.rename_track(track_index, name);
+                    }
+                }
                 Some("channel") | Some("ch") => {
                     let first = parts.next().and_then(|value| value.parse::<u8>().ok());
                     let second = parts.next().and_then(|value| value.parse::<u8>().ok());
@@ -735,6 +756,10 @@ impl App {
                     {
                         self.resize_current_pattern(row_count);
                     }
+                }
+                Some("rename") => {
+                    let name = parts.collect::<Vec<_>>().join(" ");
+                    self.rename_current_pattern(name);
                 }
                 Some("next") => self.select_pattern(self.pattern_index.saturating_add(1)),
                 Some("prev") => self.select_pattern(self.pattern_index.saturating_sub(1)),
@@ -999,6 +1024,16 @@ impl AppMode {
             AppMode::Command => "COMMAND",
             AppMode::Help => "HELP",
         }
+    }
+}
+
+fn parse_optional_numbered_name(values: &[&str], default_index: usize) -> Option<(usize, String)> {
+    let first = values.first()?;
+    if let Ok(number) = first.parse::<usize>() {
+        let name = values.get(1..)?.join(" ");
+        Some((number.saturating_sub(1), name))
+    } else {
+        Some((default_index, values.join(" ")))
     }
 }
 
@@ -1359,6 +1394,19 @@ mod tests {
     }
 
     #[test]
+    fn command_mode_renames_current_pattern() {
+        let mut app = App::default();
+
+        type_command(&mut app, "pattern rename Intro Verse");
+
+        assert_eq!(app.song.patterns[0].name, "Intro Verse");
+        assert!(app.dirty);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
+        assert_eq!(app.song.patterns[0].name, "Pattern 01");
+    }
+
+    #[test]
     fn command_mode_resizes_current_pattern_and_clamps_cursor() {
         let mut app = App {
             cursor: Cursor {
@@ -1554,6 +1602,29 @@ mod tests {
 
         app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
         assert_eq!(app.song.tracks[2].midi_channel, 2);
+    }
+
+    #[test]
+    fn command_mode_renames_current_or_named_track() {
+        let mut app = App {
+            cursor: Cursor {
+                track: 1,
+                ..Cursor::new()
+            },
+            ..App::default()
+        };
+
+        type_command(&mut app, "track rename Acid Bass");
+        assert_eq!(app.song.tracks[1].name, "Acid Bass");
+
+        type_command(&mut app, "track rename 3 Main Lead");
+        assert_eq!(app.song.tracks[2].name, "Main Lead");
+
+        type_command(&mut app, "track rename 3    ");
+        assert_eq!(app.song.tracks[2].name, "Main Lead");
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
+        assert_eq!(app.song.tracks[2].name, "Lead");
     }
 
     fn type_command(app: &mut App, command: &str) {
