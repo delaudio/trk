@@ -39,6 +39,7 @@ enum PlaybackCommand {
     },
     StartSequence {
         song: Song,
+        start_sequence_index: usize,
     },
     ConnectMidi {
         port_index: usize,
@@ -83,10 +84,11 @@ impl PlaybackRuntime {
         });
     }
 
-    pub fn start_sequence(&self, song: Song) {
-        let _ = self
-            .command_tx
-            .send(PlaybackCommand::StartSequence { song });
+    pub fn start_sequence(&self, song: Song, start_sequence_index: usize) {
+        let _ = self.command_tx.send(PlaybackCommand::StartSequence {
+            song,
+            start_sequence_index,
+        });
     }
 
     pub fn stop(&self) {
@@ -176,14 +178,17 @@ fn playback_thread(
                     break;
                 }
             }
-            PlaybackCommand::StartSequence { song } => {
+            PlaybackCommand::StartSequence {
+                song,
+                start_sequence_index,
+            } => {
                 let mut context = PlaybackRunContext {
                     command_rx: &command_rx,
                     update_tx: &update_tx,
                     output: &mut output,
                     midi_logger: &mut midi_logger,
                 };
-                next_command = run_sequence(song, &mut context);
+                next_command = run_sequence(song, start_sequence_index, &mut context);
                 if matches!(next_command, Some(PlaybackCommand::Shutdown)) {
                     break;
                 }
@@ -339,8 +344,13 @@ fn run_pattern(
     }
 }
 
-fn run_sequence(song: Song, context: &mut PlaybackRunContext<'_>) -> Option<PlaybackCommand> {
-    for (sequence_index, pattern_id) in song.sequence.iter().enumerate() {
+fn run_sequence(
+    song: Song,
+    start_sequence_index: usize,
+    context: &mut PlaybackRunContext<'_>,
+) -> Option<PlaybackCommand> {
+    for (sequence_index, pattern_id) in song.sequence.iter().enumerate().skip(start_sequence_index)
+    {
         let Some(pattern_index) = song
             .patterns
             .iter()
@@ -617,6 +627,33 @@ mod tests {
         }
 
         assert!(saw_stop);
+    }
+
+    #[test]
+    fn runtime_starts_sequence_from_requested_position() {
+        let runtime = PlaybackRuntime::spawn(None);
+        let mut song = Song::empty();
+        song.transport.bpm = u16::MAX;
+        song.transport.lines_per_beat = u8::MAX;
+        let second_pattern_id = song.create_pattern(64);
+        song.push_sequence_pattern(second_pattern_id)
+            .expect("add second pattern to sequence");
+
+        runtime.start_sequence(song, 1);
+
+        let deadline = Instant::now() + Duration::from_millis(250);
+        let mut first_sequence_index = None;
+        while Instant::now() < deadline {
+            if let Some(PlaybackUpdate::Position(position)) = runtime.try_recv() {
+                first_sequence_index = position.sequence_index;
+                break;
+            }
+            thread::sleep(Duration::from_millis(1));
+        }
+
+        runtime.stop();
+
+        assert_eq!(first_sequence_index, Some(1));
     }
 
     #[test]

@@ -1367,9 +1367,15 @@ impl App {
                 }
             },
             "play" => match parts.next() {
-                Some("sequence") | Some("seq") => self.start_sequence_playback(),
+                Some("sequence") | Some("seq") => {
+                    let start_sequence_index = parts
+                        .next()
+                        .and_then(|value| value.parse::<usize>().ok())
+                        .unwrap_or(0);
+                    self.start_sequence_playback_at(start_sequence_index);
+                }
                 Some("pattern") | Some("pat") | None => self.start_playback(),
-                Some(_) => self.notify_warning("Usage: :play [pattern|sequence]"),
+                Some(_) => self.notify_warning("Usage: :play [pattern|sequence [position]]"),
             },
             "stop" => self.stop_playback(),
             "track" => match parts.next() {
@@ -1568,13 +1574,18 @@ impl App {
         self.notify_info(format!("Playing pattern from row {:02}", self.cursor.row));
     }
 
-    fn start_sequence_playback(&mut self) {
+    fn start_sequence_playback_at(&mut self, start_sequence_index: usize) {
         if self.song.sequence.is_empty() {
             self.notify_warning("Sequence is empty");
             return;
         }
 
-        if let Some(first_pattern_id) = self.song.sequence.first() {
+        if start_sequence_index >= self.song.sequence.len() {
+            self.notify_warning("Sequence position out of range");
+            return;
+        }
+
+        if let Some(first_pattern_id) = self.song.sequence.get(start_sequence_index) {
             if let Some(pattern_index) = self
                 .song
                 .patterns
@@ -1587,9 +1598,10 @@ impl App {
 
         self.is_playing = true;
         self.playhead_row = Some(0);
-        self.sequence_position = Some(0);
-        self.playback.start_sequence(self.song.clone());
-        self.notify_info("Playing sequence");
+        self.sequence_position = Some(start_sequence_index);
+        self.playback
+            .start_sequence(self.song.clone(), start_sequence_index);
+        self.notify_info(format!("Playing sequence from {start_sequence_index}"));
     }
 
     fn stop_playback(&mut self) {
@@ -2858,6 +2870,20 @@ mod tests {
 
         assert!(!app.is_playing);
         assert_eq!(app.sequence_position, None);
+    }
+
+    #[test]
+    fn command_mode_can_start_sequence_from_position() {
+        let mut app = App::default();
+        type_command(&mut app, "pattern new");
+        type_command(&mut app, "sequence add 2");
+
+        type_command(&mut app, "play sequence 1");
+
+        assert!(app.is_playing);
+        assert_eq!(app.pattern_index, 1);
+        assert_eq!(app.playhead_row, Some(0));
+        assert_eq!(app.sequence_position, Some(1));
     }
 
     #[test]

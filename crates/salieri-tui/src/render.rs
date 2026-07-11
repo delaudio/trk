@@ -556,7 +556,7 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
         Line::from("  Dirty quit asks: [Y]es save, [N]o quit, [C]ancel"),
         Line::from("  :track new   :track duplicate 2   :track move 2 3"),
         Line::from("  :track rename Acid Bass   :track channel 12   :track channel 2 12"),
-        Line::from("  :play pattern   :play sequence   :stop"),
+        Line::from("  :play pattern   :play sequence [position]   :stop"),
         Line::from(""),
         Line::from(Span::styled(
             "Patterns And Sequence",
