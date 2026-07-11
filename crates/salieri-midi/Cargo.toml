@@ -6,4 +6,5 @@ license.workspace = true
 
 [dependencies]
 midir.workspace = true
+salieri-core = { path = "../salieri-core" }
 thiserror.workspace = true

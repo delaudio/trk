@@ -1,6 +1,7 @@
 use midir::{MidiOutput as MidirOutput, MidiOutputConnection};
+use salieri_core::PlaybackEvent;
 
-use crate::MidiMessage;
+use crate::{playback_event_to_midi, MidiMessage};
 
 pub trait MidiOutput {
     fn send(&mut self, message: MidiMessage) -> Result<(), MidiError>;
@@ -89,6 +90,20 @@ pub fn list_output_ports() -> Result<Vec<MidiOutputPort>, MidiError> {
         .collect()
 }
 
+pub fn send_playback_event(
+    output: &mut impl MidiOutput,
+    event: PlaybackEvent,
+) -> Result<(), MidiError> {
+    output.send(playback_event_to_midi(event))
+}
+
+pub fn send_all_notes_off(output: &mut impl MidiOutput) -> Result<(), MidiError> {
+    for channel in 1..=16 {
+        output.send(MidiMessage::all_notes_off(channel))?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -111,5 +126,37 @@ mod tests {
                 MidiMessage::note_off(1, 60, 0)
             ]
         );
+    }
+
+    #[test]
+    fn sends_playback_event_through_any_midi_output() {
+        let mut output = FakeMidiOutput::new();
+        let event = PlaybackEvent {
+            position: salieri_core::PlaybackPosition {
+                row: 0,
+                offset_micros: 0,
+            },
+            track: salieri_core::TrackId(1),
+            midi_channel: 10,
+            kind: salieri_core::PlaybackEventKind::NoteOn {
+                pitch: 36,
+                velocity: 100,
+            },
+        };
+
+        send_playback_event(&mut output, event).expect("send event");
+
+        assert_eq!(output.sent(), &[MidiMessage::note_on(10, 36, 100)]);
+    }
+
+    #[test]
+    fn panic_sends_all_notes_off_to_every_channel() {
+        let mut output = FakeMidiOutput::new();
+
+        send_all_notes_off(&mut output).expect("panic");
+
+        assert_eq!(output.sent().len(), 16);
+        assert_eq!(output.sent()[0], MidiMessage::all_notes_off(1));
+        assert_eq!(output.sent()[15], MidiMessage::all_notes_off(16));
     }
 }

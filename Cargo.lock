@@ -602,6 +602,7 @@ name = "salieri-midi"
 version = "0.1.0"
 dependencies = [
  "midir",
+ "salieri-core",
  "thiserror",
 ]
 
