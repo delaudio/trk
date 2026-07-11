@@ -57,6 +57,8 @@ Timing assumptions and jitter test limits are documented in [docs/timing.md](doc
 salieri [OPTIONS] [FILE]
 salieri --list-midi-outputs
 salieri --midi-test-output NAME_OR_INDEX [OPTIONS]
+salieri analyze INPUT [--format json|markdown] [--output PATH]
+salieri compare LEFT RIGHT [--format json|markdown] [--output PATH]
 salieri --help
 salieri --version
 ```
@@ -70,9 +72,15 @@ salieri --midi-log salieri-midi.log
 salieri --list-midi-outputs
 salieri --midi-test-output 0 --midi-test-channel 1 --midi-test-note 60
 salieri --midi-test-output "IAC Driver Bus 1" --midi-test-duration-ms 500
+salieri analyze song.salieri --format markdown --output song-analysis.md
+salieri analyze song.salieri --format json --output song-profile.json
+salieri compare song-a.salieri song-b.salieri --format markdown --output comparison.md
+salieri compare song-a.salieri song-profile.json --format json --output comparison.json
 ```
 
 `--midi-test-output` accepts either a port index or a port name. Configured MIDI output names are normalized, so `IAC Driver`, `IAC Driver Bus 1`, and `IAC Driver (Bus 1)` can match the same CoreMIDI port when available.
+
+`analyze` produces deterministic, local project profiles: track role guesses, note density, rhythm and pitch-class profiles, pitch range, sequence energy, scene energy, and generation guidance. `compare` accepts either `.salieri` projects or JSON profiles produced by `analyze`.
 
 ## macOS IAC Driver Setup
 

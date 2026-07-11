@@ -4,7 +4,7 @@ mod playback_runtime;
 mod terminal;
 
 use std::{
-    fs::OpenOptions,
+    fs::{self, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
     thread,
@@ -16,6 +16,10 @@ use config::{load_config, AppConfig};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use persistence::{load_project, save_project};
 use playback_runtime::{PlaybackRuntime, PlaybackUpdate};
+use salieri_analysis::{
+    analyze_song, compare_profiles, render_comparison_markdown, render_profile_markdown,
+    AnalysisProfile,
+};
 use salieri_core::{
     CellField, ClipId, ClipSource, Cursor, Direction, NoteEvent, PatternCell, SceneId, Song,
     TrackerCommand,
@@ -71,6 +75,14 @@ fn run(args: CliArgs) -> Result<()> {
         }
         CliCommand::ListMidiOutputs => {
             print_midi_outputs()?;
+            return Ok(());
+        }
+        CliCommand::Analyze(analyze_args) => {
+            run_analyze(analyze_args)?;
+            return Ok(());
+        }
+        CliCommand::Compare(compare_args) => {
+            run_compare(compare_args)?;
             return Ok(());
         }
         CliCommand::TransformEuclidean(transform_args) => {
@@ -225,6 +237,26 @@ impl CliArgs {
                         midi_test,
                     }
                 }
+                "analyze" => {
+                    return Self {
+                        command: CliCommand::Analyze(parse_analyze_args(args)),
+                        project_path: None,
+                        config_path,
+                        log_level,
+                        midi_log_path,
+                        midi_test,
+                    }
+                }
+                "compare" => {
+                    return Self {
+                        command: CliCommand::Compare(parse_compare_args(args)),
+                        project_path: None,
+                        config_path,
+                        log_level,
+                        midi_log_path,
+                        midi_test,
+                    }
+                }
                 "--midi-test-output" => {
                     midi_test.output = args.next();
                 }
@@ -336,13 +368,122 @@ enum CliCommand {
     Version,
     ListMidiOutputs,
     MidiTest,
+    Analyze(AnalyzeArgs),
+    Compare(CompareArgs),
     TransformEuclidean(TransformEuclideanArgs),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct AnalyzeArgs {
+    input_path: Option<PathBuf>,
+    output_path: Option<PathBuf>,
+    format: ReportFormat,
+}
+
+impl Default for AnalyzeArgs {
+    fn default() -> Self {
+        Self {
+            input_path: None,
+            output_path: None,
+            format: ReportFormat::Markdown,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CompareArgs {
+    left_path: Option<PathBuf>,
+    right_path: Option<PathBuf>,
+    output_path: Option<PathBuf>,
+    format: ReportFormat,
+}
+
+impl Default for CompareArgs {
+    fn default() -> Self {
+        Self {
+            left_path: None,
+            right_path: None,
+            output_path: None,
+            format: ReportFormat::Markdown,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ReportFormat {
+    Markdown,
+    Json,
 }
 
 fn print_help() {
     println!(
-        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index (default 1)\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Velocity, 0-127 (default 100)\n\n  --help                        Show this help\n  --version                     Show version"
+        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri analyze INPUT [--format json|markdown] [--output PATH]\n  salieri compare LEFT RIGHT [--format json|markdown] [--output PATH]\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nAnalysis options:\n  --format FORMAT               markdown/md or json (default markdown)\n  --output PATH                 Write report to PATH instead of stdout\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index (default 1)\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Velocity, 0-127 (default 100)\n\n  --help                        Show this help\n  --version                     Show version"
     );
+}
+
+fn parse_analyze_args(args: impl IntoIterator<Item = String>) -> AnalyzeArgs {
+    let mut parsed = AnalyzeArgs::default();
+    let mut args = args.into_iter();
+
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--format" => {
+                if let Some(value) = args.next() {
+                    parse_report_format(&value, &mut parsed.format);
+                }
+            }
+            "--output" | "-o" => {
+                parsed.output_path = args.next().map(PathBuf::from);
+            }
+            _ if arg.starts_with("--format=") => {
+                parse_report_format(arg.trim_start_matches("--format="), &mut parsed.format);
+            }
+            _ if arg.starts_with("--output=") => {
+                parsed.output_path = Some(PathBuf::from(arg.trim_start_matches("--output=")));
+            }
+            _ if parsed.input_path.is_none() => parsed.input_path = Some(PathBuf::from(arg)),
+            _ => {}
+        }
+    }
+
+    parsed
+}
+
+fn parse_compare_args(args: impl IntoIterator<Item = String>) -> CompareArgs {
+    let mut parsed = CompareArgs::default();
+    let mut args = args.into_iter();
+
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--format" => {
+                if let Some(value) = args.next() {
+                    parse_report_format(&value, &mut parsed.format);
+                }
+            }
+            "--output" | "-o" => {
+                parsed.output_path = args.next().map(PathBuf::from);
+            }
+            _ if arg.starts_with("--format=") => {
+                parse_report_format(arg.trim_start_matches("--format="), &mut parsed.format);
+            }
+            _ if arg.starts_with("--output=") => {
+                parsed.output_path = Some(PathBuf::from(arg.trim_start_matches("--output=")));
+            }
+            _ if parsed.left_path.is_none() => parsed.left_path = Some(PathBuf::from(arg)),
+            _ if parsed.right_path.is_none() => parsed.right_path = Some(PathBuf::from(arg)),
+            _ => {}
+        }
+    }
+
+    parsed
+}
+
+fn parse_report_format(value: &str, target: &mut ReportFormat) {
+    match value {
+        "json" => *target = ReportFormat::Json,
+        "markdown" | "md" => *target = ReportFormat::Markdown,
+        _ => {}
+    }
 }
 
 fn parse_transform_command(args: impl IntoIterator<Item = String>) -> CliCommand {
@@ -449,6 +590,67 @@ fn parse_u8_value(value: &str, target: &mut u8) {
     if let Ok(parsed) = value.parse::<u8>() {
         *target = parsed.min(127);
     }
+}
+
+fn run_analyze(args: &AnalyzeArgs) -> Result<()> {
+    let input_path = args
+        .input_path
+        .as_deref()
+        .context("missing analyze input path")?;
+    let song = load_project(input_path)?;
+    let profile = analyze_song(&song);
+    let report = match args.format {
+        ReportFormat::Markdown => render_profile_markdown(&profile),
+        ReportFormat::Json => serde_json::to_string_pretty(&profile)
+            .context("failed to serialize analysis profile")?,
+    };
+    write_report(args.output_path.as_deref(), &report)
+}
+
+fn run_compare(args: &CompareArgs) -> Result<()> {
+    let left_path = args
+        .left_path
+        .as_deref()
+        .context("missing compare left path")?;
+    let right_path = args
+        .right_path
+        .as_deref()
+        .context("missing compare right path")?;
+    let left = load_analysis_input(left_path)?;
+    let right = load_analysis_input(right_path)?;
+    let comparison = compare_profiles(&left, &right);
+    let report = match args.format {
+        ReportFormat::Markdown => render_comparison_markdown(&comparison),
+        ReportFormat::Json => serde_json::to_string_pretty(&comparison)
+            .context("failed to serialize profile comparison")?,
+    };
+    write_report(args.output_path.as_deref(), &report)
+}
+
+fn load_analysis_input(path: &Path) -> Result<AnalysisProfile> {
+    match load_project(path) {
+        Ok(song) => Ok(analyze_song(&song)),
+        Err(project_error) => {
+            let contents = fs::read_to_string(path)
+                .with_context(|| format!("failed to read analysis input {}", path.display()))?;
+            serde_json::from_str(&contents).with_context(|| {
+                format!(
+                    "failed to parse {} as project or analysis profile; project error: {project_error:#}",
+                    path.display()
+                )
+            })
+        }
+    }
+}
+
+fn write_report(output_path: Option<&Path>, report: &str) -> Result<()> {
+    if let Some(path) = output_path {
+        fs::write(path, format!("{report}\n"))
+            .with_context(|| format!("failed to write report {}", path.display()))?;
+    } else {
+        println!("{report}");
+    }
+    Ok(())
 }
 
 fn run_transform_euclidean(args: &TransformEuclideanArgs) -> Result<()> {
@@ -3223,6 +3425,107 @@ mod tests {
                 midi_test: MidiTestArgs::default(),
             }
         );
+    }
+
+    #[test]
+    fn cli_parses_analysis_and_compare_options() {
+        assert_eq!(
+            CliArgs::parse([
+                "analyze".to_string(),
+                "song.salieri".to_string(),
+                "--format=json".to_string(),
+                "--output".to_string(),
+                "profile.json".to_string(),
+            ]),
+            CliArgs {
+                command: CliCommand::Analyze(AnalyzeArgs {
+                    input_path: Some(PathBuf::from("song.salieri")),
+                    output_path: Some(PathBuf::from("profile.json")),
+                    format: ReportFormat::Json,
+                }),
+                project_path: None,
+                config_path: None,
+                log_level: None,
+                midi_log_path: None,
+                midi_test: MidiTestArgs::default(),
+            }
+        );
+
+        assert_eq!(
+            CliArgs::parse([
+                "compare".to_string(),
+                "left.salieri".to_string(),
+                "right.profile.json".to_string(),
+                "--format".to_string(),
+                "markdown".to_string(),
+                "-o".to_string(),
+                "compare.md".to_string(),
+            ]),
+            CliArgs {
+                command: CliCommand::Compare(CompareArgs {
+                    left_path: Some(PathBuf::from("left.salieri")),
+                    right_path: Some(PathBuf::from("right.profile.json")),
+                    output_path: Some(PathBuf::from("compare.md")),
+                    format: ReportFormat::Markdown,
+                }),
+                project_path: None,
+                config_path: None,
+                log_level: None,
+                midi_log_path: None,
+                midi_test: MidiTestArgs::default(),
+            }
+        );
+    }
+
+    #[test]
+    fn analysis_and_compare_commands_write_reports() {
+        let base =
+            std::env::temp_dir().join(format!("salieri-analysis-cli-{}", std::process::id()));
+        let left_path = base.with_extension("left.salieri");
+        let right_path = base.with_extension("right.salieri");
+        let profile_path = base.with_extension("profile.json");
+        let compare_path = base.with_extension("compare.md");
+        let mut left = Song::empty();
+        left.current_pattern_mut()
+            .expect("pattern")
+            .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 64)
+            .expect("note");
+        let mut right = left.clone();
+        right
+            .current_pattern_mut()
+            .expect("pattern")
+            .set_note(4, 1, NoteEvent::Note { pitch: 67 }, 100)
+            .expect("note");
+        save_project(&left_path, &left).expect("save left");
+        save_project(&right_path, &right).expect("save right");
+
+        run_analyze(&AnalyzeArgs {
+            input_path: Some(right_path.clone()),
+            output_path: Some(profile_path.clone()),
+            format: ReportFormat::Json,
+        })
+        .expect("analyze");
+        run_compare(&CompareArgs {
+            left_path: Some(left_path.clone()),
+            right_path: Some(profile_path.clone()),
+            output_path: Some(compare_path.clone()),
+            format: ReportFormat::Markdown,
+        })
+        .expect("compare");
+
+        let profile_contents = std::fs::read_to_string(&profile_path).expect("profile");
+        let profile: AnalysisProfile =
+            serde_json::from_str(&profile_contents).expect("profile json");
+        let comparison = std::fs::read_to_string(&compare_path).expect("comparison");
+
+        let _ = std::fs::remove_file(&left_path);
+        let _ = std::fs::remove_file(&right_path);
+        let _ = std::fs::remove_file(&profile_path);
+        let _ = std::fs::remove_file(&compare_path);
+
+        assert_eq!(profile.totals.note_count, 2);
+        assert!(comparison.contains("Comparison"));
+        assert!(comparison.contains("Notes: +1"));
     }
 
     #[test]

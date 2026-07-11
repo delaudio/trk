@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/salieri-ai",
+    "crates/salieri-analysis",
     "crates/salieri-audio",
     "crates/salieri-app",
     "crates/salieri-core",

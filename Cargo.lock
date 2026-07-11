@@ -639,6 +639,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "salieri-analysis"
+version = "0.1.0"
+dependencies = [
+ "salieri-core",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "salieri-app"
 version = "0.1.0"
 dependencies = [
@@ -646,6 +655,7 @@ dependencies = [
  "crossterm",
  "ctrlc",
  "ratatui",
+ "salieri-analysis",
  "salieri-core",
  "salieri-midi",
  "salieri-transform",
