@@ -479,7 +479,7 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
     }
 
     let status = Paragraph::new(format!(
-        " {}{} | H Help | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern | A/Y/R Seq | {{/}} Track | : Command | i Edit | V Select | Ctrl+S Save | q Quit ",
+        " {}{} | H Help | F4 MIDI | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern | A/Y/R Seq | {{/}} Track | : Command | i Edit | V Select | Ctrl+S Save | q Quit ",
         state.mode_label,
         if state.selection.is_some() { " SEL" } else { "" }
     ));
@@ -506,7 +506,7 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
         )),
-        Line::from("  :midi outputs opens MIDI settings and lists available output ports"),
+        Line::from("  F4 or :midi outputs opens MIDI settings and lists output ports"),
         Line::from("  In MIDI settings: arrows select, Enter connects, d disconnects, p panic"),
         Line::from("  CLI fallback: salieri --list-midi-outputs, then :midi connect 0"),
         Line::from("  4. Press Space or run :play pattern to send notes to the connected output"),

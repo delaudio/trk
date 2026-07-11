@@ -668,6 +668,10 @@ impl App {
                 self.increment_octave();
                 return;
             }
+            KeyCode::F(4) => {
+                self.open_midi_settings();
+                return;
+            }
             KeyCode::Char('r') => {
                 self.start_track_rename_command();
                 return;
@@ -2686,6 +2690,18 @@ mod tests {
 
         app.handle_key(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE));
         assert_eq!(app.mode, AppMode::Normal);
+    }
+
+    #[test]
+    fn f4_opens_midi_settings_without_mutating_song() {
+        let mut app = App::default();
+        let song = app.song.clone();
+
+        app.handle_key(KeyEvent::new(KeyCode::F(4), KeyModifiers::NONE));
+
+        assert_eq!(app.mode, AppMode::MidiSettings);
+        assert_eq!(app.song, song);
+        assert!(!app.dirty);
     }
 
     #[test]
