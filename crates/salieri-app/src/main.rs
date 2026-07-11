@@ -1201,9 +1201,16 @@ impl App {
     }
 
     fn set_track_midi_channel(&mut self, track_index: usize, midi_channel: u8) {
+        let mut next_song = self.song.clone();
+        if let Err(error) = next_song.set_track_midi_channel(track_index, midi_channel) {
+            self.notify_warning(format!("Track channel failed: {error}"));
+            return;
+        }
+
         self.mutate_song(|song, _| {
-            let _ = song.set_track_midi_channel(track_index, midi_channel);
+            *song = next_song;
         });
+        self.notify_success(format!("Track channel set to {midi_channel}"));
     }
 
     fn rename_track(&mut self, track_index: usize, name: String) {
@@ -3525,12 +3532,20 @@ mod tests {
         type_command(&mut app, "track channel 12");
         assert_eq!(app.song.tracks[1].midi_channel, 12);
         assert!(app.dirty);
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("Track channel set to 12")
+        );
 
         type_command(&mut app, "track channel 3 15");
         assert_eq!(app.song.tracks[2].midi_channel, 15);
 
         type_command(&mut app, "track channel 3 0");
         assert_eq!(app.song.tracks[2].midi_channel, 15);
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("Track channel failed: invalid MIDI channel: 0")
+        );
 
         app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
         assert_eq!(app.song.tracks[2].midi_channel, 2);
