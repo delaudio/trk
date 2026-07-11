@@ -1,3 +1,4 @@
+mod config;
 mod persistence;
 mod playback_runtime;
 mod terminal;
@@ -8,6 +9,7 @@ use std::{
 };
 
 use anyhow::{Context, Result};
+use config::{load_config, AppConfig};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use persistence::{load_project, save_project};
 use playback_runtime::{PlaybackRuntime, PlaybackUpdate};
@@ -17,29 +19,32 @@ use salieri_tui::{render, SelectionRect, TuiState};
 use terminal::TerminalGuard;
 
 const UI_TICK_RATE: Duration = Duration::from_millis(33);
-const DEFAULT_OCTAVE: u8 = 4;
-const DEFAULT_EDIT_STEP: usize = 1;
 const DEFAULT_NOTE_VELOCITY: u8 = 0x7f;
 const UNDO_LIMIT: usize = 100;
 
 fn main() -> Result<()> {
+    let args = CliArgs::parse(std::env::args().skip(1));
     tracing_subscriber::fmt()
         .with_writer(std::io::stderr)
         .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "salieri=info".into()),
+            args.log_level
+                .as_deref()
+                .map(tracing_subscriber::EnvFilter::new)
+                .unwrap_or_else(|| {
+                    tracing_subscriber::EnvFilter::try_from_default_env()
+                        .unwrap_or_else(|_| "salieri=info".into())
+                }),
         )
         .init();
 
-    let result = run();
+    let result = run(args);
     if let Err(error) = &result {
         tracing::error!(?error, "application exited with an error");
     }
     result
 }
 
-fn run() -> Result<()> {
-    let args = CliArgs::parse(std::env::args().skip(1));
+fn run(args: CliArgs) -> Result<()> {
     match args.command {
         CliCommand::Help => {
             print_help();
@@ -56,11 +61,12 @@ fn run() -> Result<()> {
         CliCommand::Run => {}
     }
 
+    let config = load_config(args.config_path.as_deref())?;
     let project_path = args.project_path;
     let mut app = match &project_path {
-        Some(path) => App::from_file(path)
+        Some(path) => App::from_file(path, config)
             .with_context(|| format!("failed to open project {}", path.display()))?,
-        None => App::default(),
+        None => App::new(config),
     };
     let mut terminal = TerminalGuard::enter()?;
 
@@ -122,31 +128,56 @@ fn run() -> Result<()> {
 struct CliArgs {
     command: CliCommand,
     project_path: Option<PathBuf>,
+    config_path: Option<PathBuf>,
+    log_level: Option<String>,
 }
 
 impl CliArgs {
     fn parse(args: impl IntoIterator<Item = String>) -> Self {
         let mut project_path = None;
+        let mut config_path = None;
+        let mut log_level = None;
+        let mut args = args.into_iter();
 
-        for arg in args {
+        while let Some(arg) = args.next() {
             match arg.as_str() {
                 "-h" | "--help" => {
                     return Self {
                         command: CliCommand::Help,
                         project_path: None,
+                        config_path,
+                        log_level,
                     }
                 }
                 "-V" | "--version" => {
                     return Self {
                         command: CliCommand::Version,
                         project_path: None,
+                        config_path,
+                        log_level,
                     }
                 }
                 "--list-midi-outputs" => {
                     return Self {
                         command: CliCommand::ListMidiOutputs,
                         project_path: None,
+                        config_path,
+                        log_level,
                     }
+                }
+                "--config" => {
+                    if let Some(path) = args.next() {
+                        config_path = Some(PathBuf::from(path));
+                    }
+                }
+                "--log-level" => {
+                    log_level = args.next();
+                }
+                _ if arg.starts_with("--config=") => {
+                    config_path = Some(PathBuf::from(arg.trim_start_matches("--config=")));
+                }
+                _ if arg.starts_with("--log-level=") => {
+                    log_level = Some(arg.trim_start_matches("--log-level=").to_string());
                 }
                 _ if project_path.is_none() => project_path = Some(PathBuf::from(arg)),
                 _ => {}
@@ -156,6 +187,8 @@ impl CliArgs {
         Self {
             command: CliCommand::Run,
             project_path,
+            config_path,
+            log_level,
         }
     }
 }
@@ -170,7 +203,7 @@ enum CliCommand {
 
 fn print_help() {
     println!(
-        "Salieri Tracker\n\nUsage:\n  salieri [FILE]\n  salieri --list-midi-outputs\n  salieri --help\n  salieri --version\n\nOptions:\n  --list-midi-outputs  List available MIDI output ports\n  --help               Show this help\n  --version            Show version"
+        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH        Load config from PATH\n  --log-level LEVEL    Set tracing filter, e.g. debug or salieri=debug\n  --list-midi-outputs  List available MIDI output ports\n  --help               Show this help\n  --version            Show version"
     );
 }
 
@@ -205,6 +238,8 @@ struct App {
     mode: AppMode,
     octave: u8,
     edit_step: usize,
+    vim_navigation: bool,
+    follow_playhead: bool,
     command_buffer: String,
     clipboard: Option<Clipboard>,
     selection_anchor: Option<SelectionAnchor>,
@@ -239,7 +274,18 @@ struct SelectionAnchor {
 
 impl Default for App {
     fn default() -> Self {
+        Self::new(AppConfig::default())
+    }
+}
+
+impl App {
+    fn new(config: AppConfig) -> Self {
         let song = Song::empty();
+        let midi_status = if config.midi.default_output.is_empty() {
+            "MIDI Disconnected".to_string()
+        } else {
+            format!("MIDI Disconnected ({})", config.midi.default_output)
+        };
         Self {
             clean_song: song.clone(),
             song,
@@ -248,8 +294,10 @@ impl Default for App {
             cursor: Cursor::new(),
             row_offset: 0,
             mode: AppMode::Normal,
-            octave: DEFAULT_OCTAVE,
-            edit_step: DEFAULT_EDIT_STEP,
+            octave: config.keyboard.default_octave,
+            edit_step: config.keyboard.edit_step.max(1),
+            vim_navigation: config.keyboard.vim_navigation,
+            follow_playhead: config.ui.follow_playhead,
             command_buffer: String::new(),
             clipboard: None,
             selection_anchor: None,
@@ -259,22 +307,20 @@ impl Default for App {
             is_playing: false,
             playhead_row: None,
             sequence_position: None,
-            midi_status: "MIDI Disconnected".to_string(),
+            midi_status,
             dirty: false,
             should_quit: false,
             last_tick: Instant::now(),
         }
     }
-}
 
-impl App {
-    fn from_file(path: &Path) -> Result<Self> {
+    fn from_file(path: &Path, config: AppConfig) -> Result<Self> {
         let song = load_project(path)?;
         Ok(Self {
             clean_song: song.clone(),
             song,
             project_path: Some(path.to_path_buf()),
-            ..Self::default()
+            ..Self::new(config)
         })
     }
 
@@ -383,13 +429,13 @@ impl App {
                 return;
             }
             KeyCode::Up => Some(Direction::Up),
-            KeyCode::Char('k') => Some(Direction::Up),
+            KeyCode::Char('k') if self.vim_navigation => Some(Direction::Up),
             KeyCode::Down => Some(Direction::Down),
-            KeyCode::Char('j') => Some(Direction::Down),
+            KeyCode::Char('j') if self.vim_navigation => Some(Direction::Down),
             KeyCode::Left => Some(Direction::Left),
-            KeyCode::Char('h') => Some(Direction::Left),
+            KeyCode::Char('h') if self.vim_navigation => Some(Direction::Left),
             KeyCode::Right => Some(Direction::Right),
-            KeyCode::Char('l') => Some(Direction::Right),
+            KeyCode::Char('l') if self.vim_navigation => Some(Direction::Right),
             KeyCode::Tab => {
                 self.next_track();
                 return;
@@ -1296,7 +1342,7 @@ impl App {
     }
 
     fn keep_active_row_visible(&mut self, visible_rows: usize) {
-        let row = if self.is_playing {
+        let row = if self.is_playing && self.follow_playhead {
             self.playhead_row.unwrap_or(self.cursor.row)
         } else {
             self.cursor.row
@@ -1406,7 +1452,9 @@ mod tests {
             CliArgs::parse(["--help".to_string()]),
             CliArgs {
                 command: CliCommand::Help,
-                project_path: None
+                project_path: None,
+                config_path: None,
+                log_level: None,
             }
         );
         assert_eq!(
@@ -1425,9 +1473,80 @@ mod tests {
             CliArgs::parse(["song.salieri".to_string()]),
             CliArgs {
                 command: CliCommand::Run,
-                project_path: Some(PathBuf::from("song.salieri"))
+                project_path: Some(PathBuf::from("song.salieri")),
+                config_path: None,
+                log_level: None,
             }
         );
+    }
+
+    #[test]
+    fn cli_parses_config_and_log_level_options() {
+        assert_eq!(
+            CliArgs::parse([
+                "--config".to_string(),
+                "custom.toml".to_string(),
+                "--log-level=debug".to_string(),
+                "song.salieri".to_string()
+            ]),
+            CliArgs {
+                command: CliCommand::Run,
+                project_path: Some(PathBuf::from("song.salieri")),
+                config_path: Some(PathBuf::from("custom.toml")),
+                log_level: Some("debug".to_string()),
+            }
+        );
+    }
+
+    #[test]
+    fn app_uses_keyboard_config_defaults() {
+        let app = App::new(AppConfig {
+            keyboard: config::KeyboardConfig {
+                default_octave: 5,
+                edit_step: 4,
+                vim_navigation: false,
+            },
+            ..AppConfig::default()
+        });
+
+        assert_eq!(app.octave, 5);
+        assert_eq!(app.edit_step, 4);
+        assert!(!app.vim_navigation);
+    }
+
+    #[test]
+    fn vim_navigation_can_be_disabled_by_config() {
+        let mut app = App::new(AppConfig {
+            keyboard: config::KeyboardConfig {
+                vim_navigation: false,
+                ..config::KeyboardConfig::default()
+            },
+            ..AppConfig::default()
+        });
+        app.cursor.row = 4;
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
+
+        assert_eq!(app.cursor.row, 3);
+    }
+
+    #[test]
+    fn playhead_follow_can_be_disabled_by_config() {
+        let mut app = App::new(AppConfig {
+            ui: config::UiConfig {
+                follow_playhead: false,
+                ..config::UiConfig::default()
+            },
+            ..AppConfig::default()
+        });
+        app.cursor.row = 0;
+        app.is_playing = true;
+        app.playhead_row = Some(20);
+
+        app.keep_active_row_visible(10);
+
+        assert_eq!(app.row_offset, 0);
     }
 
     #[test]
