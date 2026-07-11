@@ -404,7 +404,7 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
 }
 
 fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
-    let overlay = centered_rect(92, 24, area);
+    let overlay = centered_rect(98, 31, area);
     let lines = vec![
         Line::from(Span::styled(
             "Global",
@@ -414,6 +414,19 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
         )),
         Line::from("  ?/H Help   :h/:help Help   q Quit   Space Play/Stop   F8 Stop"),
         Line::from("  Ctrl+S Save   Ctrl+Z Undo   Ctrl+Y Redo"),
+        Line::from(""),
+        Line::from(Span::styled(
+            "MIDI",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::from("  1. In another terminal run: salieri --list-midi-outputs"),
+        Line::from("  2. Pick the output number for your DAW, synth, or virtual MIDI port"),
+        Line::from("  3. In Salieri run: :midi connect 0"),
+        Line::from("  4. Press Space or run :play pattern to send notes to the connected output"),
+        Line::from("  :midi disconnect closes the output   :midi panic sends All Notes Off"),
+        Line::from("  Use :track channel 2 10 to set track 02 to MIDI channel 10"),
         Line::from(""),
         Line::from(Span::styled(
             "Navigation",
@@ -456,8 +469,14 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
         Line::from("  Dirty quit asks: [Y]es save, [N]o quit, [C]ancel"),
         Line::from("  :track new   :track duplicate 2   :track rename Acid Bass"),
         Line::from("  :track channel 12   :track channel 2 12"),
-        Line::from("  :midi connect 0   :midi disconnect   :midi panic"),
         Line::from("  :play pattern   :play sequence   :stop"),
+        Line::from(""),
+        Line::from(Span::styled(
+            "Patterns And Sequence",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )),
         Line::from("  :pattern new   :pattern duplicate   :pattern delete   :pattern length 128"),
         Line::from("  :pattern rename Intro   :pattern 1"),
         Line::from("  :sequence add   :sequence remove 0   :sequence duplicate 0"),
@@ -612,6 +631,9 @@ mod tests {
         assert!(rendered.contains("Help"));
         assert!(rendered.contains("Global"));
         assert!(rendered.contains("Notes"));
+        assert!(rendered.contains("MIDI"));
+        assert!(rendered.contains("salieri --list-midi-outputs"));
+        assert!(rendered.contains(":midi connect 0"));
     }
 
     #[test]
