@@ -1490,6 +1490,7 @@ fn find_midi_output_port<'a>(
     output_name: &str,
 ) -> Option<&'a MidiOutputPort> {
     let needle = output_name.trim().to_lowercase();
+    let normalized_needle = normalize_midi_port_name(output_name);
     if needle.is_empty() {
         return None;
     }
@@ -1502,6 +1503,22 @@ fn find_midi_output_port<'a>(
                 .iter()
                 .find(|port| port.name.to_lowercase().contains(&needle))
         })
+        .or_else(|| {
+            ports.iter().find(|port| {
+                let normalized_name = normalize_midi_port_name(&port.name);
+                normalized_name == normalized_needle
+                    || normalized_name.contains(&normalized_needle)
+                    || normalized_needle.contains(&normalized_name)
+            })
+        })
+}
+
+fn normalize_midi_port_name(value: &str) -> String {
+    value
+        .chars()
+        .filter(|character| character.is_ascii_alphanumeric())
+        .flat_map(char::to_lowercase)
+        .collect()
 }
 
 #[cfg(test)]
@@ -1635,6 +1652,10 @@ mod tests {
         );
         assert_eq!(
             find_midi_output_port(&ports, "iac driver bus 1").map(|port| port.index),
+            Some(1)
+        );
+        assert_eq!(
+            find_midi_output_port(&ports, "IAC Driver (Bus 1)").map(|port| port.index),
             Some(1)
         );
         assert!(find_midi_output_port(&ports, "Missing").is_none());
