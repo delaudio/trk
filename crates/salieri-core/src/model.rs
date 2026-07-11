@@ -428,11 +428,21 @@ impl Pattern {
         note: NoteEvent,
         velocity: u8,
     ) -> Result<(), EditError> {
+        self.set_note_event(row, track, note, Some(velocity))
+    }
+
+    pub fn set_note_event(
+        &mut self,
+        row: usize,
+        track: usize,
+        note: NoteEvent,
+        velocity: Option<u8>,
+    ) -> Result<(), EditError> {
         let cell = self
             .cell_mut(row, track)
             .ok_or(EditError::CellOutOfBounds { row, track })?;
         cell.note = Some(note);
-        cell.velocity = Some(velocity.min(0x7f));
+        cell.velocity = velocity.map(|value| value.min(0x7f));
         Ok(())
     }
 
@@ -744,6 +754,19 @@ mod tests {
 
         pattern.clear_cell(2, 1).expect("clear cell");
         assert_eq!(pattern.cell(2, 1), Some(&PatternCell::default()));
+    }
+
+    #[test]
+    fn note_events_can_be_set_without_velocity() {
+        let mut pattern = Pattern::empty(PatternId(1), "Pattern 01", 64, 4);
+
+        pattern
+            .set_note_event(0, 0, NoteEvent::NoteOff, None)
+            .expect("set note off");
+
+        let cell = pattern.cell(0, 0).expect("cell");
+        assert_eq!(cell.note, Some(NoteEvent::NoteOff));
+        assert_eq!(cell.velocity, None);
     }
 
     #[test]

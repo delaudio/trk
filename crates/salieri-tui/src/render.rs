@@ -331,6 +331,7 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
         )),
         Line::from("  z s x d c v g b h n j m = C C# D D# E F F# G G# A A# B"),
         Line::from("  q 2 w 3 e r 5 t 6 y 7 u = same notes one octave higher"),
+        Line::from("  o = OFF   . = CUT"),
         Line::from(""),
         Line::from(Span::styled(
             "Tracks And Commands",

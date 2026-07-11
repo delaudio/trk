@@ -391,6 +391,8 @@ impl App {
             KeyCode::Delete | KeyCode::Backspace => self.clear_current_cell(),
             KeyCode::F(1) | KeyCode::Char('-') => self.decrement_octave(),
             KeyCode::F(2) | KeyCode::Char('+') | KeyCode::Char('=') => self.increment_octave(),
+            KeyCode::Char('o') | KeyCode::Char('O') => self.insert_note_event(NoteEvent::NoteOff),
+            KeyCode::Char('.') => self.insert_note_event(NoteEvent::NoteCut),
             KeyCode::Char(value) if self.cursor.field == CellField::Velocity => {
                 if let Some(hex) = value.to_digit(16) {
                     self.enter_velocity_digit(hex as u8);
@@ -459,6 +461,17 @@ impl App {
                 NoteEvent::Note { pitch },
                 DEFAULT_NOTE_VELOCITY,
             );
+        });
+        self.advance_after_edit();
+    }
+
+    fn insert_note_event(&mut self, note: NoteEvent) {
+        let pattern_index = self.pattern_index;
+        self.mutate_song(|song, cursor| {
+            let Some(pattern) = song.pattern_mut(pattern_index) else {
+                return;
+            };
+            let _ = pattern.set_note_event(cursor.row, cursor.track, note, None);
         });
         self.advance_after_edit();
     }
@@ -1185,6 +1198,26 @@ mod tests {
         assert_eq!(cell.velocity, Some(DEFAULT_NOTE_VELOCITY));
         assert_eq!(app.cursor.row, 1);
         assert!(app.dirty);
+    }
+
+    #[test]
+    fn edit_mode_inserts_note_off_and_note_cut() {
+        let mut app = App {
+            mode: AppMode::Edit,
+            ..App::default()
+        };
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('o'), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Char('.'), KeyModifiers::NONE));
+
+        let pattern = app.song.current_pattern().expect("pattern");
+        let off = pattern.cell(0, 0).expect("note off cell");
+        let cut = pattern.cell(1, 0).expect("note cut cell");
+        assert_eq!(off.note, Some(NoteEvent::NoteOff));
+        assert_eq!(off.velocity, None);
+        assert_eq!(cut.note, Some(NoteEvent::NoteCut));
+        assert_eq!(cut.velocity, None);
+        assert_eq!(app.cursor.row, 2);
     }
 
     #[test]
