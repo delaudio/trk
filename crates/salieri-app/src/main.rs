@@ -590,6 +590,15 @@ impl App {
         }
     }
 
+    fn resize_current_pattern(&mut self, row_count: usize) {
+        let pattern_index = self.pattern_index;
+        self.mutate_song(|song, _| {
+            let _ = song.resize_pattern(pattern_index, row_count);
+        });
+        self.clamp_cursor();
+        self.keep_cursor_visible(1);
+    }
+
     fn select_pattern(&mut self, pattern_index: usize) {
         if pattern_index < self.song.patterns.len() {
             self.pattern_index = pattern_index;
@@ -673,6 +682,13 @@ impl App {
                 Some("new") => self.create_pattern(),
                 Some("duplicate") | Some("dup") => self.duplicate_current_pattern(),
                 Some("delete") | Some("del") => self.delete_current_pattern(),
+                Some("length") | Some("len") => {
+                    if let Some(row_count) =
+                        parts.next().and_then(|value| value.parse::<usize>().ok())
+                    {
+                        self.resize_current_pattern(row_count);
+                    }
+                }
                 Some("next") => self.select_pattern(self.pattern_index.saturating_add(1)),
                 Some("prev") => self.select_pattern(self.pattern_index.saturating_sub(1)),
                 Some(value) => {
@@ -1269,6 +1285,28 @@ mod tests {
         app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
         assert_eq!(app.song.patterns.len(), 3);
         assert_eq!(app.pattern_index, 1);
+    }
+
+    #[test]
+    fn command_mode_resizes_current_pattern_and_clamps_cursor() {
+        let mut app = App {
+            cursor: Cursor {
+                row: 63,
+                ..Cursor::new()
+            },
+            row_offset: 44,
+            ..App::default()
+        };
+
+        type_command(&mut app, "pattern length 16");
+
+        assert_eq!(app.song.current_pattern().expect("pattern").row_count(), 16);
+        assert_eq!(app.cursor.row, 15);
+        assert_eq!(app.row_offset, 15);
+        assert!(app.dirty);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
+        assert_eq!(app.song.current_pattern().expect("pattern").row_count(), 64);
     }
 
     #[test]

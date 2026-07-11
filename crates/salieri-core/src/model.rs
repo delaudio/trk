@@ -123,6 +123,25 @@ impl Song {
         Ok(removed)
     }
 
+    pub fn resize_pattern(
+        &mut self,
+        pattern_index: usize,
+        row_count: usize,
+    ) -> Result<(), EditError> {
+        if row_count == 0 {
+            return Err(EditError::InvalidPatternLength { row_count });
+        }
+
+        let pattern =
+            self.patterns
+                .get_mut(pattern_index)
+                .ok_or(EditError::PatternOutOfBounds {
+                    pattern: pattern_index,
+                })?;
+        pattern.resize_rows(row_count, self.tracks.len());
+        Ok(())
+    }
+
     pub fn push_sequence_pattern(&mut self, pattern_id: PatternId) -> Result<(), EditError> {
         if !self.patterns.iter().any(|pattern| pattern.id == pattern_id) {
             return Err(EditError::PatternNotFound { pattern_id });
@@ -325,6 +344,11 @@ impl Pattern {
         Ok(())
     }
 
+    pub fn resize_rows(&mut self, row_count: usize, track_count: usize) {
+        self.rows
+            .resize_with(row_count, || PatternRow::empty(track_count));
+    }
+
     fn append_track(&mut self) {
         for row in &mut self.rows {
             row.cells.push(PatternCell::default());
@@ -358,12 +382,22 @@ pub enum EditError {
     CannotDeleteLastPattern,
     #[error("sequence out of bounds: position {position}")]
     SequenceOutOfBounds { position: usize },
+    #[error("invalid pattern length: {row_count}")]
+    InvalidPatternLength { row_count: usize },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PatternRow {
     pub cells: Vec<PatternCell>,
+}
+
+impl PatternRow {
+    fn empty(track_count: usize) -> Self {
+        Self {
+            cells: vec![PatternCell::default(); track_count],
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -704,6 +738,39 @@ mod tests {
         let error = song.delete_pattern(0).expect_err("last pattern remains");
 
         assert_eq!(error, EditError::CannotDeleteLastPattern);
+    }
+
+    #[test]
+    fn resizing_pattern_preserves_existing_rows_and_adds_track_shaped_rows() {
+        let mut song = Song::empty();
+        song.create_track();
+        song.current_pattern_mut()
+            .expect("pattern")
+            .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x7f)
+            .expect("set note");
+
+        song.resize_pattern(0, 80).expect("resize pattern");
+
+        let pattern = song.current_pattern().expect("pattern");
+        assert_eq!(pattern.row_count(), 80);
+        assert_eq!(
+            pattern.cell(0, 0).expect("cell").note,
+            Some(NoteEvent::Note { pitch: 60 })
+        );
+        assert_eq!(pattern.rows[79].cells.len(), song.tracks.len());
+    }
+
+    #[test]
+    fn resizing_pattern_can_truncate_rows() {
+        let mut song = Song::empty();
+
+        song.resize_pattern(0, 16).expect("resize pattern");
+
+        assert_eq!(song.current_pattern().expect("pattern").row_count(), 16);
+        assert_eq!(
+            song.resize_pattern(0, 0).expect_err("invalid length"),
+            EditError::InvalidPatternLength { row_count: 0 }
+        );
     }
 
     #[test]
