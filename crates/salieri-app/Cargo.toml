@@ -1,0 +1,18 @@
+[package]
+name = "salieri-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "salieri"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+crossterm.workspace = true
+ratatui.workspace = true
+salieri-core = { path = "../salieri-core" }
+salieri-tui = { path = "../salieri-tui" }
+tracing.workspace = true
+tracing-subscriber.workspace = true
