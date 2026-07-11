@@ -668,6 +668,10 @@ impl App {
                 self.increment_octave();
                 return;
             }
+            KeyCode::F(3) => {
+                self.start_pattern_rename_command();
+                return;
+            }
             KeyCode::F(4) => {
                 self.open_midi_settings();
                 return;
@@ -1471,6 +1475,12 @@ impl App {
             *song = next_song;
         });
         self.notify_success("Pattern renamed");
+    }
+
+    fn start_pattern_rename_command(&mut self) {
+        self.command_buffer = "pattern rename ".to_string();
+        self.mode = AppMode::Command;
+        self.notify_info("Rename current pattern");
     }
 
     fn select_pattern(&mut self, pattern_index: usize) {
@@ -3563,6 +3573,27 @@ mod tests {
 
         app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
         assert_eq!(app.song.patterns[0].name, "Pattern 01");
+    }
+
+    #[test]
+    fn f3_prefills_current_pattern_rename_command() {
+        let mut app = App::default();
+
+        app.handle_key(KeyEvent::new(KeyCode::F(3), KeyModifiers::NONE));
+
+        assert_eq!(app.mode, AppMode::Command);
+        assert_eq!(app.command_buffer, "pattern rename ");
+
+        for value in "Intro Verse".chars() {
+            app.handle_key(KeyEvent::new(KeyCode::Char(value), KeyModifiers::NONE));
+        }
+        app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+
+        assert_eq!(app.song.patterns[0].name, "Intro Verse");
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("Pattern renamed")
+        );
     }
 
     #[test]
