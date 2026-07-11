@@ -65,11 +65,16 @@ fn render_header(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState
         .map_or("No Pattern", |pattern| pattern.name.as_str());
     let dirty = if state.dirty { " *" } else { "" };
     let playback = if state.is_playing { "PLAY" } else { "STOP" };
+    let selection = if state.selection.is_some() {
+        " | SEL"
+    } else {
+        ""
+    };
     let playhead = state
         .playhead_row
         .map_or_else(|| "--".to_string(), |row| format!("{row:02}"));
     let text = format!(
-        " BPM {} | LPB {} | {}{} | Oct {} | Row {:02} | Play {playhead} | Track {:02} | Field {} | {} | {playback} | {} ",
+        " BPM {} | LPB {} | {}{} | Oct {} | Row {:02} | Play {playhead} | Track {:02} | Field {} | {}{selection} | {playback} | {} ",
         song.transport.bpm,
         song.transport.lines_per_beat,
         pattern_name,
@@ -325,8 +330,9 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
     }
 
     let status = Paragraph::new(format!(
-        " {} | Space Play/Stop | F8 Stop | : Command | i Edit | Ctrl+T Track | M Mute | S Solo | Ctrl+S Save | Ctrl+Z Undo | q Quit ",
-        state.mode_label
+        " {}{} | Space Play/Stop | F8 Stop | : Command | i Edit | V Select | Ctrl+C/X/V | Ctrl+S Save | Ctrl+Z Undo | q Quit ",
+        state.mode_label,
+        if state.selection.is_some() { " SEL" } else { "" }
     ));
     frame.render_widget(status, area);
 }
@@ -441,7 +447,7 @@ mod tests {
     #[test]
     fn renders_default_pattern_without_panic() {
         let song = Song::empty();
-        let backend = TestBackend::new(120, 32);
+        let backend = TestBackend::new(160, 32);
         let mut terminal = Terminal::new(backend).expect("test terminal");
 
         terminal
@@ -527,7 +533,7 @@ mod tests {
     #[test]
     fn renders_playhead_when_playing() {
         let song = Song::empty();
-        let backend = TestBackend::new(120, 32);
+        let backend = TestBackend::new(160, 32);
         let mut terminal = Terminal::new(backend).expect("test terminal");
 
         terminal
@@ -568,6 +574,7 @@ mod tests {
             .collect::<String>();
 
         assert!(rendered.contains("PLAY"));
+        assert!(rendered.contains("SEL"));
         assert!(rendered.contains(">00"));
         assert!(rendered.contains("MIDI Connected 0"));
     }
