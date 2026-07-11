@@ -235,6 +235,29 @@ impl Song {
         id
     }
 
+    pub fn duplicate_track(&mut self, track_index: usize) -> Result<TrackId, EditError> {
+        let source = self
+            .tracks
+            .get(track_index)
+            .cloned()
+            .ok_or(EditError::TrackOutOfBounds { track: track_index })?;
+        let id = self.next_track_id();
+        self.tracks.push(Track {
+            id,
+            name: format!("{} Copy", source.name),
+            midi_channel: source.midi_channel,
+            muted: source.muted,
+            solo: false,
+            armed: false,
+        });
+
+        for pattern in &mut self.patterns {
+            pattern.duplicate_track(track_index)?;
+        }
+
+        Ok(id)
+    }
+
     pub fn delete_track(&mut self, track_index: usize) -> Result<Track, EditError> {
         if self.tracks.len() <= 1 {
             return Err(EditError::CannotDeleteLastTrack);
@@ -443,6 +466,18 @@ impl Pattern {
         for row in &mut self.rows {
             row.cells.push(PatternCell::default());
         }
+    }
+
+    fn duplicate_track(&mut self, track: usize) -> Result<(), EditError> {
+        for row in &mut self.rows {
+            let cell = row
+                .cells
+                .get(track)
+                .cloned()
+                .ok_or(EditError::TrackOutOfBounds { track })?;
+            row.cells.push(cell);
+        }
+        Ok(())
     }
 
     fn remove_track(&mut self, track: usize) -> Result<(), EditError> {
@@ -736,6 +771,38 @@ mod tests {
                 .iter()
                 .all(|row| row.cells.len() == song.tracks.len())
         }));
+    }
+
+    #[test]
+    fn duplicating_track_copies_cells_and_track_settings() {
+        let mut song = Song::empty();
+        song.tracks[1].midi_channel = 12;
+        song.tracks[1].muted = true;
+        song.current_pattern_mut()
+            .expect("pattern")
+            .set_note(0, 1, NoteEvent::Note { pitch: 48 }, 0x64)
+            .expect("set note");
+
+        let id = song.duplicate_track(1).expect("duplicate track");
+
+        assert_eq!(id, TrackId(5));
+        assert_eq!(song.tracks.len(), 5);
+        assert_eq!(song.tracks[4].name, "Bass Copy");
+        assert_eq!(song.tracks[4].midi_channel, 12);
+        assert!(song.tracks[4].muted);
+        assert!(!song.tracks[4].solo);
+        assert_eq!(
+            song.current_pattern()
+                .expect("pattern")
+                .cell(0, 4)
+                .expect("cell")
+                .note,
+            Some(NoteEvent::Note { pitch: 48 })
+        );
+        assert_eq!(
+            song.duplicate_track(99).expect_err("track out of bounds"),
+            EditError::TrackOutOfBounds { track: 99 }
+        );
     }
 
     #[test]

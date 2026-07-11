@@ -526,6 +526,19 @@ impl App {
         }
     }
 
+    fn duplicate_track(&mut self, track_index: usize) {
+        let before_count = self.song.tracks.len();
+        self.mutate_song(|song, _| {
+            let _ = song.duplicate_track(track_index);
+        });
+
+        if self.song.tracks.len() > before_count {
+            self.cursor.track = self.song.tracks.len().saturating_sub(1);
+            self.cursor.field = CellField::Note;
+            self.cursor.digit = 0;
+        }
+    }
+
     fn toggle_current_mute(&mut self) {
         self.mutate_song(|song, cursor| {
             let _ = song.toggle_mute(cursor.track);
@@ -720,6 +733,13 @@ impl App {
             "stop" => self.stop_playback(),
             "track" => match parts.next() {
                 Some("new") => self.create_track(),
+                Some("duplicate") | Some("dup") => {
+                    let track_index = parts
+                        .next()
+                        .and_then(|value| value.parse::<usize>().ok())
+                        .map_or(self.cursor.track, |value| value.saturating_sub(1));
+                    self.duplicate_track(track_index);
+                }
                 Some("rename") => {
                     let values = parts.collect::<Vec<_>>();
                     if let Some((track_index, name)) =
@@ -1524,6 +1544,42 @@ mod tests {
         assert_eq!(app.song.tracks.len(), 4);
         assert_eq!(app.cursor.track, 3);
         assert!(!app.dirty);
+    }
+
+    #[test]
+    fn command_mode_duplicates_track_and_undo_restores_previous_shape() {
+        let mut app = App {
+            cursor: Cursor {
+                track: 1,
+                ..Cursor::new()
+            },
+            ..App::default()
+        };
+        app.song
+            .current_pattern_mut()
+            .expect("pattern")
+            .set_note(0, 1, NoteEvent::Note { pitch: 48 }, 0x64)
+            .expect("set note");
+
+        type_command(&mut app, "track duplicate");
+
+        assert_eq!(app.song.tracks.len(), 5);
+        assert_eq!(app.song.tracks[4].name, "Bass Copy");
+        assert_eq!(app.cursor.track, 4);
+        assert_eq!(
+            app.song
+                .current_pattern()
+                .expect("pattern")
+                .cell(0, 4)
+                .expect("cell")
+                .note,
+            Some(NoteEvent::Note { pitch: 48 })
+        );
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
+
+        assert_eq!(app.song.tracks.len(), 4);
+        assert_eq!(app.cursor.track, 3);
     }
 
     #[test]
