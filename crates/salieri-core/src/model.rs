@@ -844,6 +844,40 @@ pub struct TrackerCommand {
     pub value: u8,
 }
 
+impl TrackerCommand {
+    pub const DELAY_CODE: u8 = b'D';
+    pub const RETRIGGER_CODE: u8 = b'R';
+
+    #[must_use]
+    pub const fn delay(value: u8) -> Self {
+        Self {
+            code: Self::DELAY_CODE,
+            value,
+        }
+    }
+
+    #[must_use]
+    pub const fn retrigger(count: u8) -> Self {
+        Self {
+            code: Self::RETRIGGER_CODE,
+            value: count,
+        }
+    }
+
+    #[must_use]
+    pub fn from_code_char(code: char, value: u8) -> Self {
+        Self {
+            code: code.to_ascii_uppercase() as u8,
+            value,
+        }
+    }
+
+    #[must_use]
+    pub fn display_code(self) -> char {
+        char::from(self.code).to_ascii_uppercase()
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Cursor {
     pub row: usize,

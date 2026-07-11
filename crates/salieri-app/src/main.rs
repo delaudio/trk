@@ -16,7 +16,7 @@ use config::{load_config, AppConfig};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use persistence::{load_project, save_project};
 use playback_runtime::{PlaybackRuntime, PlaybackUpdate};
-use salieri_core::{CellField, Cursor, Direction, NoteEvent, PatternCell, Song};
+use salieri_core::{CellField, Cursor, Direction, NoteEvent, PatternCell, Song, TrackerCommand};
 use salieri_midi::{list_output_ports, MidiMessage, MidiOutput, MidiOutputPort, MidirMidiOutput};
 use salieri_tui::{
     render, MidiPortView, MidiSettingsState, NotificationKind, NotificationView, SelectionRect,
@@ -1781,6 +1781,52 @@ impl App {
         self.move_sequence_position(position, next_position);
     }
 
+    fn handle_fx_command(&mut self, values: &[&str]) {
+        match values {
+            ["clear"] | ["off"] | ["none"] => {
+                self.set_current_fx(None);
+                self.notify_success("Effect cleared");
+            }
+            [packed] if packed.len() >= 2 => {
+                let mut chars = packed.chars();
+                let Some(code) = chars.next() else {
+                    self.notify_warning("Usage: :fx CODE VALUE");
+                    return;
+                };
+                let value = chars.collect::<String>();
+                if let Some(value) = parse_hex_byte(&value) {
+                    self.set_current_fx(Some(TrackerCommand::from_code_char(code, value)));
+                    self.notify_success(format!("Effect {}{value:02X}", code.to_ascii_uppercase()));
+                } else {
+                    self.notify_warning("Usage: :fx CODE VALUE");
+                }
+            }
+            [code, value] => {
+                let Some(code) = code.chars().next() else {
+                    self.notify_warning("Usage: :fx CODE VALUE");
+                    return;
+                };
+                if let Some(value) = parse_hex_byte(value) {
+                    self.set_current_fx(Some(TrackerCommand::from_code_char(code, value)));
+                    self.notify_success(format!("Effect {}{value:02X}", code.to_ascii_uppercase()));
+                } else {
+                    self.notify_warning("Usage: :fx CODE VALUE");
+                }
+            }
+            _ => self.notify_warning("Usage: :fx CODE VALUE or :fx clear"),
+        }
+    }
+
+    fn set_current_fx(&mut self, command: Option<TrackerCommand>) {
+        self.mutate_song(|song, cursor| {
+            if let Some(pattern) = song.current_pattern_mut() {
+                if let Some(cell) = pattern.cell_mut(cursor.row, cursor.track) {
+                    cell.command = command;
+                }
+            }
+        });
+    }
+
     fn execute_command(&mut self) {
         let command = self.command_buffer.trim().to_string();
         self.command_buffer.clear();
@@ -1848,6 +1894,10 @@ impl App {
                 } else {
                     self.notify_warning("Usage: :lpb 4");
                 }
+            }
+            "fx" | "effect" => {
+                let values = parts.collect::<Vec<_>>();
+                self.handle_fx_command(&values);
             }
             "loop" => match parts.next() {
                 Some("on") => {
@@ -2592,6 +2642,10 @@ fn parse_optional_numbered_name(values: &[&str], default_index: usize) -> Option
     } else {
         Some((default_index, values.join(" ")))
     }
+}
+
+fn parse_hex_byte(value: &str) -> Option<u8> {
+    u8::from_str_radix(value.trim_start_matches("0x"), 16).ok()
 }
 
 fn keyboard_note(key: char, octave: u8) -> Option<u8> {
@@ -3469,6 +3523,37 @@ mod tests {
         assert!(app.loop_pattern);
         type_command(&mut app, "loop");
         assert!(!app.loop_pattern);
+    }
+
+    #[test]
+    fn command_mode_sets_and_clears_current_effect_command() {
+        let mut app = App::default();
+
+        type_command(&mut app, "fx D 20");
+
+        assert_eq!(
+            app.song
+                .current_pattern()
+                .expect("pattern")
+                .cell(0, 0)
+                .expect("cell")
+                .command,
+            Some(TrackerCommand::delay(0x20))
+        );
+        assert!(app.dirty);
+
+        type_command(&mut app, "fx clear");
+
+        assert_eq!(
+            app.song
+                .current_pattern()
+                .expect("pattern")
+                .cell(0, 0)
+                .expect("cell")
+                .command,
+            None
+        );
+        assert!(!app.dirty);
     }
 
     #[test]

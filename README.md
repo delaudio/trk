@@ -235,6 +235,9 @@ T               Set sequence position to current pattern
 :q!
 :bpm 140
 :lpb 4
+:fx D 20
+:fx R 04
+:fx clear
 :midi outputs
 :midi connect 0
 :midi disconnect

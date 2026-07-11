@@ -338,11 +338,13 @@ fn run_pattern(
     };
     let pattern = pattern.clone();
     let row_count = pattern.row_count();
-    let row_duration = Duration::from_micros(row_duration_micros(&song.transport).max(1));
+    let row_duration_micros = row_duration_micros(&song.transport).max(1);
+    let row_duration = Duration::from_micros(row_duration_micros);
     let events = pattern_events(song, &pattern);
     let mut pass_start_row = start_row.min(row_count);
     loop {
         let loop_start = Instant::now();
+        let pass_start_offset = row_duration_micros.saturating_mul(pass_start_row as u64);
         let mut active_sent_notes = Vec::new();
 
         for row in pass_start_row..=row_count {
@@ -355,6 +357,18 @@ fn run_pattern(
             }
 
             for event in events.iter().filter(|event| event.position.row == row) {
+                let event_deadline = loop_start
+                    + Duration::from_micros(
+                        event
+                            .position
+                            .offset_micros
+                            .saturating_sub(pass_start_offset),
+                    );
+                if let Some(command) = wait_until(context.command_rx, event_deadline) {
+                    let _ = send_all_notes_off_logged(context.output, context.midi_logger);
+                    let _ = context.update_tx.send(PlaybackUpdate::Stopped);
+                    return PatternRunResult::Command(command);
+                }
                 if !mark_event_for_started_playback(&mut active_sent_notes, event) {
                     continue;
                 }

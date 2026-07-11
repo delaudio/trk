@@ -607,6 +607,9 @@ fn cell_spans(
     let velocity = cell
         .velocity
         .map_or_else(|| "--".to_string(), |value| format!("{value:02X}"));
+    let command = cell
+        .command
+        .map(|command| format!("{}{:02X}", command.display_code(), command.value));
 
     let normal = Style::default().fg(Color::White);
     let focused_style = Style::default()
@@ -653,13 +656,19 @@ fn cell_spans(
         normal
     };
 
-    vec![
+    let mut spans = vec![
         Span::styled(" ", spacer_style),
         Span::styled(note, note_style),
         Span::styled(" ", spacer_style),
         Span::styled(velocity, velocity_style),
-        Span::styled("   ", spacer_style),
-    ]
+    ];
+    if let Some(command) = command {
+        spans.push(Span::styled(" ", spacer_style));
+        spans.push(Span::styled(command, normal));
+    } else {
+        spans.push(Span::styled("   ", spacer_style));
+    }
+    spans
 }
 
 fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
@@ -793,7 +802,7 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
         Line::from("  Dirty quit asks: [Y]es save, [N]o quit, [C]ancel"),
         Line::from("  :track new   :track duplicate 2   :track delete 2   :track move 2 3"),
         Line::from("  :track mute 2   :track solo 2   :track rename Acid Bass"),
-        Line::from("  :track channel 12   :track channel 2 12"),
+        Line::from("  :track channel 12   :fx D 20 delay   :fx R 04 retrigger   :fx clear"),
         Line::from("  :play pattern   :play sequence [position]   :stop"),
         Line::from(""),
         Line::from(Span::styled(
