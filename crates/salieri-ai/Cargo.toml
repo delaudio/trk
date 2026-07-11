@@ -1,0 +1,9 @@
+[package]
+name = "salieri-ai"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+salieri-core = { path = "../salieri-core" }
+thiserror.workspace = true
