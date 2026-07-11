@@ -1149,14 +1149,32 @@ impl App {
     }
 
     fn toggle_current_mute(&mut self) {
-        self.mutate_song(|song, cursor| {
-            let _ = song.toggle_mute(cursor.track);
-        });
+        self.toggle_track_mute(self.cursor.track);
     }
 
     fn toggle_current_solo(&mut self) {
-        self.mutate_song(|song, cursor| {
-            let _ = song.toggle_solo(cursor.track);
+        self.toggle_track_solo(self.cursor.track);
+    }
+
+    fn toggle_track_mute(&mut self, track_index: usize) {
+        if track_index >= self.song.tracks.len() {
+            self.notify_warning("Track out of range");
+            return;
+        }
+
+        self.mutate_song(|song, _| {
+            let _ = song.toggle_mute(track_index);
+        });
+    }
+
+    fn toggle_track_solo(&mut self, track_index: usize) {
+        if track_index >= self.song.tracks.len() {
+            self.notify_warning("Track out of range");
+            return;
+        }
+
+        self.mutate_song(|song, _| {
+            let _ = song.toggle_solo(track_index);
         });
     }
 
@@ -1430,6 +1448,20 @@ impl App {
                         self.notify_warning("Usage: :track move FROM TO");
                     }
                 }
+                Some("mute") => {
+                    let track_index = parts
+                        .next()
+                        .and_then(|value| value.parse::<usize>().ok())
+                        .map_or(self.cursor.track, |value| value.saturating_sub(1));
+                    self.toggle_track_mute(track_index);
+                }
+                Some("solo") => {
+                    let track_index = parts
+                        .next()
+                        .and_then(|value| value.parse::<usize>().ok())
+                        .map_or(self.cursor.track, |value| value.saturating_sub(1));
+                    self.toggle_track_solo(track_index);
+                }
                 Some("rename") => {
                     let values = parts.collect::<Vec<_>>();
                     if let Some((track_index, name)) =
@@ -1454,9 +1486,9 @@ impl App {
                         _ => {}
                     }
                 }
-                None | Some(_) => {
-                    self.notify_warning("Usage: :track new|duplicate|delete|move|rename|channel")
-                }
+                None | Some(_) => self.notify_warning(
+                    "Usage: :track new|duplicate|delete|move|mute|solo|rename|channel",
+                ),
             },
             "pattern" => match parts.next() {
                 Some("new") => self.create_pattern(),
@@ -3321,6 +3353,25 @@ mod tests {
         assert!(app.song.tracks[2].muted);
         assert!(app.song.tracks[2].solo);
         assert!(app.dirty);
+    }
+
+    #[test]
+    fn command_mode_mutes_and_solos_numbered_track() {
+        let mut app = App::default();
+
+        type_command(&mut app, "track mute 2");
+        type_command(&mut app, "track solo 2");
+
+        assert!(app.song.tracks[1].muted);
+        assert!(app.song.tracks[1].solo);
+        assert!(app.dirty);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
+        assert!(app.song.tracks[1].muted);
+        assert!(!app.song.tracks[1].solo);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
+        assert!(!app.song.tracks[1].muted);
     }
 
     #[test]
