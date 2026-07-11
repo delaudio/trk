@@ -704,6 +704,10 @@ impl App {
                 self.toggle_loop();
                 return;
             }
+            KeyCode::Enter if key.modifiers.contains(KeyModifiers::SHIFT) => {
+                self.start_sequence_playback_from_selected_position();
+                return;
+            }
             KeyCode::Enter => {
                 self.start_playback_from_cursor();
                 return;
@@ -1910,6 +1914,12 @@ impl App {
         self.playback
             .start_sequence(self.song.clone(), start_sequence_index);
         self.notify_info(format!("Playing sequence from {start_sequence_index}"));
+    }
+
+    fn start_sequence_playback_from_selected_position(&mut self) {
+        if let Some(position) = self.selected_sequence_position() {
+            self.start_sequence_playback_at(position);
+        }
     }
 
     fn stop_playback(&mut self) {
@@ -3246,6 +3256,25 @@ mod tests {
         assert_eq!(app.pattern_index, 1);
         assert_eq!(app.playhead_row, Some(0));
         assert_eq!(app.sequence_position, Some(1));
+    }
+
+    #[test]
+    fn shift_enter_starts_sequence_from_selected_position() {
+        let mut app = App::default();
+        type_command(&mut app, "pattern new");
+        type_command(&mut app, "sequence add 2");
+        app.sequence_cursor = 1;
+
+        app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::SHIFT));
+
+        assert!(app.is_playing);
+        assert_eq!(app.pattern_index, 1);
+        assert_eq!(app.playhead_row, Some(0));
+        assert_eq!(app.sequence_position, Some(1));
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("Playing sequence from 1")
+        );
     }
 
     #[test]

@@ -479,7 +479,7 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
     }
 
     let status = Paragraph::new(format!(
-        " {}{} | H Help | Space Play/Stop | Enter Play Row | L Loop | N/P/X Pattern | A/Y/R Seq | F1/F2 Oct | r Rename | : Command | i Edit | V Select | Ctrl+S Save | q Quit ",
+        " {}{} | H Help | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern | A/Y/R Seq | F1/F2 Oct | r Rename | : Command | i Edit | V Select | Ctrl+S Save | q Quit ",
         state.mode_label,
         if state.selection.is_some() { " SEL" } else { "" }
     ));
@@ -496,7 +496,7 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
                 .add_modifier(Modifier::BOLD),
         )),
         Line::from("  ?/H Help   :h/:help Help   q Quit   Space Play/Stop   Shift+Space Start"),
-        Line::from("  Enter Play Row   L Loop on/off   F8 Stop"),
+        Line::from("  Enter Play Row   Shift+Enter Play Sequence From Cursor   L Loop   F8 Stop"),
         Line::from("  :play pattern from start   :play sequence arrangement"),
         Line::from("  Ctrl+S Save   Ctrl+Z Undo   Ctrl+Y Redo"),
         Line::from(""),
