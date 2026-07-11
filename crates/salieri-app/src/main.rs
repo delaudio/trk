@@ -622,6 +622,27 @@ impl App {
         });
     }
 
+    fn duplicate_sequence_position(&mut self, position: usize) {
+        self.mutate_song(|song, _| {
+            let _ = song.duplicate_sequence_position(position);
+        });
+    }
+
+    fn set_sequence_pattern(&mut self, position: usize, pattern_index: usize) {
+        let Some(pattern_id) = self.song.pattern(pattern_index).map(|pattern| pattern.id) else {
+            return;
+        };
+        self.mutate_song(|song, _| {
+            let _ = song.set_sequence_pattern(position, pattern_id);
+        });
+    }
+
+    fn move_sequence_position(&mut self, from: usize, to: usize) {
+        self.mutate_song(|song, _| {
+            let _ = song.move_sequence_position(from, to);
+        });
+    }
+
     fn execute_command(&mut self) {
         let command = self.command_buffer.trim().to_string();
         self.command_buffer.clear();
@@ -711,6 +732,30 @@ impl App {
                         parts.next().and_then(|value| value.parse::<usize>().ok())
                     {
                         self.remove_sequence_position(position);
+                    }
+                }
+                Some("duplicate") | Some("dup") => {
+                    if let Some(position) =
+                        parts.next().and_then(|value| value.parse::<usize>().ok())
+                    {
+                        self.duplicate_sequence_position(position);
+                    }
+                }
+                Some("set") => {
+                    let position = parts.next().and_then(|value| value.parse::<usize>().ok());
+                    let pattern_index = parts
+                        .next()
+                        .and_then(|value| value.parse::<usize>().ok())
+                        .map(|value| value.saturating_sub(1));
+                    if let (Some(position), Some(pattern_index)) = (position, pattern_index) {
+                        self.set_sequence_pattern(position, pattern_index);
+                    }
+                }
+                Some("move") | Some("mv") => {
+                    let from = parts.next().and_then(|value| value.parse::<usize>().ok());
+                    let to = parts.next().and_then(|value| value.parse::<usize>().ok());
+                    if let (Some(from), Some(to)) = (from, to) {
+                        self.move_sequence_position(from, to);
                     }
                 }
                 None | Some(_) => {}
@@ -1323,6 +1368,44 @@ mod tests {
         type_command(&mut app, "sequence remove 0");
         assert_eq!(app.song.sequence, vec![salieri_core::PatternId(2)]);
         assert_eq!(app.song.patterns.len(), 2);
+    }
+
+    #[test]
+    fn command_mode_duplicates_sets_and_moves_sequence_positions() {
+        let mut app = App::default();
+
+        type_command(&mut app, "pattern new");
+        type_command(&mut app, "pattern new");
+        type_command(&mut app, "sequence add 2");
+        type_command(&mut app, "sequence add 3");
+
+        type_command(&mut app, "sequence duplicate 1");
+        assert_eq!(
+            app.song.sequence,
+            vec![
+                salieri_core::PatternId(1),
+                salieri_core::PatternId(2),
+                salieri_core::PatternId(2),
+                salieri_core::PatternId(3)
+            ]
+        );
+
+        type_command(&mut app, "sequence set 0 3");
+        assert_eq!(app.song.sequence[0], salieri_core::PatternId(3));
+
+        type_command(&mut app, "sequence move 3 1");
+        assert_eq!(
+            app.song.sequence,
+            vec![
+                salieri_core::PatternId(3),
+                salieri_core::PatternId(3),
+                salieri_core::PatternId(2),
+                salieri_core::PatternId(2)
+            ]
+        );
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
+        assert_eq!(app.song.sequence[1], salieri_core::PatternId(2));
     }
 
     #[test]

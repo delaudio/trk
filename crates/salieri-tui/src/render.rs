@@ -344,7 +344,8 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
         Line::from("  :play pattern   :play sequence   :stop"),
         Line::from("  :pattern new   :pattern duplicate   :pattern delete   :pattern length 128"),
         Line::from("  :pattern 1"),
-        Line::from("  :sequence add   :sequence remove 0"),
+        Line::from("  :sequence add   :sequence remove 0   :sequence duplicate 0"),
+        Line::from("  :sequence set 0 2   :sequence move 1 0"),
         Line::from(""),
         Line::from(format!("Mode: {mode_label}   Close: Esc, q, or ?")),
     ];

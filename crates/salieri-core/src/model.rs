@@ -157,6 +157,49 @@ impl Song {
         Ok(self.sequence.remove(position))
     }
 
+    pub fn duplicate_sequence_position(&mut self, position: usize) -> Result<(), EditError> {
+        let pattern_id = *self
+            .sequence
+            .get(position)
+            .ok_or(EditError::SequenceOutOfBounds { position })?;
+        self.sequence.insert(position.saturating_add(1), pattern_id);
+        Ok(())
+    }
+
+    pub fn set_sequence_pattern(
+        &mut self,
+        position: usize,
+        pattern_id: PatternId,
+    ) -> Result<(), EditError> {
+        if !self.patterns.iter().any(|pattern| pattern.id == pattern_id) {
+            return Err(EditError::PatternNotFound { pattern_id });
+        }
+
+        let sequence_pattern = self
+            .sequence
+            .get_mut(position)
+            .ok_or(EditError::SequenceOutOfBounds { position })?;
+        *sequence_pattern = pattern_id;
+        Ok(())
+    }
+
+    pub fn move_sequence_position(&mut self, from: usize, to: usize) -> Result<(), EditError> {
+        if from >= self.sequence.len() {
+            return Err(EditError::SequenceOutOfBounds { position: from });
+        }
+        if to >= self.sequence.len() {
+            return Err(EditError::SequenceOutOfBounds { position: to });
+        }
+
+        if from == to {
+            return Ok(());
+        }
+
+        let pattern_id = self.sequence.remove(from);
+        self.sequence.insert(to, pattern_id);
+        Ok(())
+    }
+
     pub fn create_track(&mut self) -> TrackId {
         let index = self.tracks.len();
         let id = self.next_track_id();
@@ -784,5 +827,57 @@ mod tests {
         assert_eq!(removed, PatternId(1));
         assert_eq!(song.patterns.len(), 2);
         assert_eq!(song.sequence, vec![id]);
+    }
+
+    #[test]
+    fn sequence_positions_can_be_duplicated_changed_and_moved() {
+        let mut song = Song::empty();
+        let pattern_2 = song.create_pattern(64);
+        let pattern_3 = song.create_pattern(64);
+        song.push_sequence_pattern(pattern_2)
+            .expect("push pattern 2");
+        song.push_sequence_pattern(pattern_3)
+            .expect("push pattern 3");
+
+        song.duplicate_sequence_position(1)
+            .expect("duplicate sequence position");
+        assert_eq!(
+            song.sequence,
+            vec![PatternId(1), pattern_2, pattern_2, pattern_3]
+        );
+
+        song.set_sequence_pattern(0, pattern_3)
+            .expect("change sequence pattern");
+        assert_eq!(song.sequence[0], pattern_3);
+
+        song.move_sequence_position(3, 1)
+            .expect("move sequence position");
+        assert_eq!(
+            song.sequence,
+            vec![pattern_3, pattern_3, pattern_2, pattern_2]
+        );
+    }
+
+    #[test]
+    fn sequence_operations_validate_bounds_and_pattern_identity() {
+        let mut song = Song::empty();
+
+        assert_eq!(
+            song.duplicate_sequence_position(10)
+                .expect_err("position out of bounds"),
+            EditError::SequenceOutOfBounds { position: 10 }
+        );
+        assert_eq!(
+            song.set_sequence_pattern(0, PatternId(99))
+                .expect_err("pattern missing"),
+            EditError::PatternNotFound {
+                pattern_id: PatternId(99)
+            }
+        );
+        assert_eq!(
+            song.move_sequence_position(0, 10)
+                .expect_err("target out of bounds"),
+            EditError::SequenceOutOfBounds { position: 10 }
+        );
     }
 }
