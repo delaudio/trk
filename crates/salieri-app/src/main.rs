@@ -85,6 +85,7 @@ fn run() -> Result<()> {
                     playhead_row: app.playhead_row,
                     midi_status: app.midi_status.as_str(),
                     sequence_position: app.sequence_position,
+                    quit_confirmation: app.mode == AppMode::Dialog,
                 },
             );
         })?;
@@ -287,6 +288,7 @@ impl App {
             AppMode::Edit => self.handle_edit_key(key),
             AppMode::Command => self.handle_command_key(key),
             AppMode::Help => self.handle_help_key(key),
+            AppMode::Dialog => self.handle_dialog_key(key),
         }
     }
 
@@ -351,8 +353,7 @@ impl App {
                 return;
             }
             KeyCode::Char('q') => {
-                self.stop_playback();
-                self.should_quit = true;
+                self.request_quit(false);
                 return;
             }
             KeyCode::Char(' ') => {
@@ -477,6 +478,21 @@ impl App {
     fn handle_help_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('?') => {
+                self.mode = AppMode::Normal;
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_dialog_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Char('y') | KeyCode::Char('Y') => {
+                if self.save().is_ok() {
+                    self.force_quit();
+                }
+            }
+            KeyCode::Char('n') | KeyCode::Char('N') => self.force_quit(),
+            KeyCode::Char('c') | KeyCode::Char('C') | KeyCode::Esc => {
                 self.mode = AppMode::Normal;
             }
             _ => {}
@@ -927,12 +943,28 @@ impl App {
                 self.mode = AppMode::Help;
             }
             "q" | "quit" => {
-                self.stop_playback();
-                self.should_quit = true;
+                self.request_quit(false);
+            }
+            "q!" | "quit!" => {
+                self.force_quit();
             }
             "w" | "write" | "save" => {
-                if let Err(error) = self.save() {
+                let path = parts.collect::<Vec<_>>().join(" ");
+                let result = if path.is_empty() {
+                    self.save()
+                } else {
+                    self.save_as(PathBuf::from(path))
+                };
+                if let Err(error) = result {
                     tracing::error!(?error, "failed to save project");
+                }
+            }
+            "saveas" | "writeas" => {
+                let path = parts.collect::<Vec<_>>().join(" ");
+                if !path.is_empty() {
+                    if let Err(error) = self.save_as(PathBuf::from(path)) {
+                        tracing::error!(?error, "failed to save project");
+                    }
                 }
             }
             "wq" => {
@@ -1073,6 +1105,20 @@ impl App {
             },
             _ => {}
         }
+    }
+
+    fn request_quit(&mut self, force: bool) {
+        if force || !self.dirty {
+            self.force_quit();
+        } else {
+            self.stop_playback();
+            self.mode = AppMode::Dialog;
+        }
+    }
+
+    fn force_quit(&mut self) {
+        self.stop_playback();
+        self.should_quit = true;
     }
 
     fn toggle_playback(&mut self) {
@@ -1226,6 +1272,10 @@ impl App {
             .project_path
             .clone()
             .unwrap_or_else(|| PathBuf::from("untitled.salieri"));
+        self.save_as(path)
+    }
+
+    fn save_as(&mut self, path: PathBuf) -> Result<()> {
         save_project(&path, &self.song)?;
         self.project_path = Some(path);
         self.clean_song = self.song.clone();
@@ -1287,6 +1337,7 @@ enum AppMode {
     Edit,
     Command,
     Help,
+    Dialog,
 }
 
 impl AppMode {
@@ -1296,6 +1347,7 @@ impl AppMode {
             AppMode::Edit => "EDIT",
             AppMode::Command => "COMMAND",
             AppMode::Help => "HELP",
+            AppMode::Dialog => "DIALOG",
         }
     }
 }
@@ -1783,11 +1835,91 @@ mod tests {
     }
 
     #[test]
+    fn command_mode_write_accepts_project_path() {
+        let path = std::env::temp_dir().join(format!(
+            "salieri-command-write-as-{}.salieri",
+            std::process::id()
+        ));
+        let mut app = App {
+            mode: AppMode::Edit,
+            ..App::default()
+        };
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+        type_command(&mut app, &format!("write {}", path.display()));
+
+        let saved = load_project(&path).expect("saved project loads");
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(saved, app.song);
+        assert_eq!(app.project_path, Some(path));
+        assert!(!app.dirty);
+    }
+
+    #[test]
     fn command_mode_quit_marks_app_for_exit() {
         let mut app = App::default();
 
         type_command(&mut app, "quit");
 
+        assert!(app.should_quit);
+    }
+
+    #[test]
+    fn dirty_quit_opens_confirmation_dialog() {
+        let mut app = App::default();
+
+        app.set_bpm(140);
+        app.handle_key(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE));
+
+        assert_eq!(app.mode, AppMode::Dialog);
+        assert!(!app.should_quit);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::NONE));
+
+        assert_eq!(app.mode, AppMode::Normal);
+        assert!(!app.should_quit);
+    }
+
+    #[test]
+    fn dirty_quit_can_discard_changes() {
+        let mut app = App::default();
+
+        app.set_bpm(140);
+        app.handle_key(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE));
+
+        assert!(app.should_quit);
+    }
+
+    #[test]
+    fn dirty_quit_can_save_before_exit() {
+        let path =
+            std::env::temp_dir().join(format!("salieri-quit-save-{}.salieri", std::process::id()));
+        let mut app = App {
+            project_path: Some(path.clone()),
+            ..App::default()
+        };
+
+        app.set_bpm(140);
+        app.handle_key(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE));
+
+        let saved = load_project(&path).expect("saved project loads");
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(saved.transport.bpm, 140);
+        assert!(!app.dirty);
+        assert!(app.should_quit);
+    }
+
+    #[test]
+    fn force_quit_command_bypasses_dirty_confirmation() {
+        let mut app = App::default();
+
+        app.set_bpm(140);
+        type_command(&mut app, "q!");
+
+        assert_ne!(app.mode, AppMode::Dialog);
         assert!(app.should_quit);
     }
 

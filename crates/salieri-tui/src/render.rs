@@ -25,6 +25,7 @@ pub struct TuiState<'a> {
     pub playhead_row: Option<usize>,
     pub midi_status: &'a str,
     pub sequence_position: Option<usize>,
+    pub quit_confirmation: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -62,6 +63,9 @@ pub fn render(frame: &mut Frame<'_>, song: &Song, state: TuiState<'_>) {
 
     if state.show_help {
         render_help_overlay(frame, area, state.mode_label);
+    }
+    if state.quit_confirmation {
+        render_quit_confirmation(frame, area);
     }
 }
 
@@ -448,7 +452,8 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
                 .add_modifier(Modifier::BOLD),
         )),
         Line::from("  Ctrl+T create track   Del delete track in normal mode   M mute   S solo"),
-        Line::from("  :write   :quit   :wq   :bpm 140   :lpb 4"),
+        Line::from("  :write [path]   :saveas path   :quit   :q!   :wq   :bpm 140   :lpb 4"),
+        Line::from("  Dirty quit asks: [Y]es save, [N]o quit, [C]ancel"),
         Line::from("  :track new   :track duplicate 2   :track rename Acid Bass"),
         Line::from("  :track channel 12   :track channel 2 12"),
         Line::from("  :midi connect 0   :midi disconnect   :midi panic"),
@@ -464,6 +469,20 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
     let paragraph = Paragraph::new(lines)
         .block(Block::default().title(" Help ").borders(Borders::ALL))
         .wrap(Wrap { trim: true })
+        .style(Style::default().fg(Color::White));
+    frame.render_widget(Clear, overlay);
+    frame.render_widget(paragraph, overlay);
+}
+
+fn render_quit_confirmation(frame: &mut Frame<'_>, area: Rect) {
+    let overlay = centered_rect(48, 7, area);
+    let lines = vec![
+        Line::from("Unsaved changes. Save before quitting?"),
+        Line::from(""),
+        Line::from("[Y]es   [N]o   [C]ancel"),
+    ];
+    let paragraph = Paragraph::new(lines)
+        .block(Block::default().title(" Quit ").borders(Borders::ALL))
         .style(Style::default().fg(Color::White));
     frame.render_widget(Clear, overlay);
     frame.render_widget(paragraph, overlay);
@@ -532,6 +551,7 @@ mod tests {
                         playhead_row: None,
                         midi_status: "MIDI Disconnected",
                         sequence_position: None,
+                        quit_confirmation: false,
                     },
                 );
             })
@@ -575,6 +595,7 @@ mod tests {
                         playhead_row: None,
                         midi_status: "MIDI Disconnected",
                         sequence_position: None,
+                        quit_confirmation: false,
                     },
                 );
             })
@@ -623,6 +644,7 @@ mod tests {
                         playhead_row: Some(0),
                         midi_status: "MIDI Connected 0",
                         sequence_position: Some(0),
+                        quit_confirmation: false,
                     },
                 );
             })
@@ -640,5 +662,48 @@ mod tests {
         assert!(rendered.contains("SEL"));
         assert!(rendered.contains(">00"));
         assert!(rendered.contains("MIDI Connected 0"));
+    }
+
+    #[test]
+    fn renders_quit_confirmation_overlay() {
+        let song = Song::empty();
+        let backend = TestBackend::new(100, 32);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+
+        terminal
+            .draw(|frame| {
+                render(
+                    frame,
+                    &song,
+                    TuiState {
+                        cursor: Cursor::new(),
+                        row_offset: 0,
+                        pattern_index: 0,
+                        selection: None,
+                        mode_label: "DIALOG",
+                        octave: 4,
+                        dirty: true,
+                        command_line: None,
+                        show_help: false,
+                        is_playing: false,
+                        playhead_row: None,
+                        midi_status: "MIDI Disconnected",
+                        sequence_position: None,
+                        quit_confirmation: true,
+                    },
+                );
+            })
+            .expect("draw");
+
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+
+        assert!(rendered.contains("Unsaved changes"));
+        assert!(rendered.contains("[Y]es"));
     }
 }
