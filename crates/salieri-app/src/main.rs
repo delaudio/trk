@@ -11,7 +11,7 @@ use anyhow::{Context, Result};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use persistence::{load_project, save_project};
 use playback_runtime::{PlaybackRuntime, PlaybackUpdate};
-use salieri_core::{CellField, Cursor, Direction, NoteEvent, Song};
+use salieri_core::{CellField, Cursor, Direction, NoteEvent, PatternCell, Song};
 use salieri_midi::list_output_ports;
 use salieri_tui::{render, TuiState};
 use terminal::TerminalGuard;
@@ -203,6 +203,7 @@ struct App {
     octave: u8,
     edit_step: usize,
     command_buffer: String,
+    clipboard: Option<PatternCell>,
     undo_stack: Vec<Song>,
     redo_stack: Vec<Song>,
     playback: PlaybackRuntime,
@@ -229,6 +230,7 @@ impl Default for App {
             octave: DEFAULT_OCTAVE,
             edit_step: DEFAULT_EDIT_STEP,
             command_buffer: String::new(),
+            clipboard: None,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             playback: PlaybackRuntime::spawn(),
@@ -281,6 +283,18 @@ impl App {
             }
             KeyCode::Char('t') | KeyCode::Char('T') => {
                 self.create_track();
+                true
+            }
+            KeyCode::Char('c') | KeyCode::Char('C') => {
+                self.copy_current_cell();
+                true
+            }
+            KeyCode::Char('x') | KeyCode::Char('X') => {
+                self.cut_current_cell();
+                true
+            }
+            KeyCode::Char('v') | KeyCode::Char('V') => {
+                self.paste_current_cell();
                 true
             }
             KeyCode::Char('z') | KeyCode::Char('Z') => {
@@ -510,6 +524,32 @@ impl App {
                 return;
             };
             let _ = pattern.clear_cell(cursor.row, cursor.track);
+        });
+    }
+
+    fn copy_current_cell(&mut self) {
+        self.clipboard = self
+            .song
+            .pattern(self.pattern_index)
+            .and_then(|pattern| pattern.cell(self.cursor.row, self.cursor.track))
+            .cloned();
+    }
+
+    fn cut_current_cell(&mut self) {
+        self.copy_current_cell();
+        self.clear_current_cell();
+    }
+
+    fn paste_current_cell(&mut self) {
+        let Some(cell) = self.clipboard.clone() else {
+            return;
+        };
+        let pattern_index = self.pattern_index;
+        self.mutate_song(|song, cursor| {
+            let Some(pattern) = song.pattern_mut(pattern_index) else {
+                return;
+            };
+            let _ = pattern.set_cell(cursor.row, cursor.track, cell);
         });
     }
 
@@ -1242,6 +1282,52 @@ mod tests {
         assert_eq!(cell.velocity, Some(0x4f));
         assert_eq!(app.cursor.row, 1);
         assert_eq!(app.cursor.digit, 0);
+    }
+
+    #[test]
+    fn clipboard_copies_cuts_and_pastes_current_cell() {
+        let mut app = App {
+            mode: AppMode::Edit,
+            ..App::default()
+        };
+        app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+        app.cursor.row = 0;
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL));
+        app.cursor.row = 4;
+        app.handle_key(KeyEvent::new(KeyCode::Char('v'), KeyModifiers::CONTROL));
+
+        assert_eq!(
+            app.song
+                .current_pattern()
+                .expect("pattern")
+                .cell(4, 0)
+                .expect("cell")
+                .note,
+            Some(NoteEvent::Note { pitch: 60 })
+        );
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('x'), KeyModifiers::CONTROL));
+        assert_eq!(
+            app.song
+                .current_pattern()
+                .expect("pattern")
+                .cell(4, 0)
+                .expect("cell"),
+            &PatternCell::default()
+        );
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
+        assert_eq!(
+            app.song
+                .current_pattern()
+                .expect("pattern")
+                .cell(4, 0)
+                .expect("cell")
+                .note,
+            Some(NoteEvent::Note { pitch: 60 })
+        );
     }
 
     #[test]

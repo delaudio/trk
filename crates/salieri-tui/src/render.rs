@@ -320,7 +320,8 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
         )),
-        Line::from("  i Edit   Esc Normal   Del/Backspace clear cell   F1/- octave down"),
+        Line::from("  i Edit   Esc Normal   Del/Backspace clear cell   Ctrl+C/X/V cell clipboard"),
+        Line::from("  F1/- octave down"),
         Line::from("  F2/+/= octave up   Velocity field accepts two hex digits"),
         Line::from(""),
         Line::from(Span::styled(

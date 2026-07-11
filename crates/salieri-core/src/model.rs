@@ -467,6 +467,19 @@ impl Pattern {
         Ok(())
     }
 
+    pub fn set_cell(
+        &mut self,
+        row: usize,
+        track: usize,
+        cell: PatternCell,
+    ) -> Result<(), EditError> {
+        let target = self
+            .cell_mut(row, track)
+            .ok_or(EditError::CellOutOfBounds { row, track })?;
+        *target = cell;
+        Ok(())
+    }
+
     pub fn resize_rows(&mut self, row_count: usize, track_count: usize) {
         self.rows
             .resize_with(row_count, || PatternRow::empty(track_count));
@@ -754,6 +767,21 @@ mod tests {
 
         pattern.clear_cell(2, 1).expect("clear cell");
         assert_eq!(pattern.cell(2, 1), Some(&PatternCell::default()));
+    }
+
+    #[test]
+    fn pattern_cells_can_be_replaced_whole() {
+        let mut pattern = Pattern::empty(PatternId(1), "Pattern 01", 64, 4);
+        let cell = PatternCell {
+            note: Some(NoteEvent::Note { pitch: 72 }),
+            velocity: Some(0x40),
+            gate: None,
+            command: None,
+        };
+
+        pattern.set_cell(4, 2, cell.clone()).expect("set cell");
+
+        assert_eq!(pattern.cell(4, 2), Some(&cell));
     }
 
     #[test]
