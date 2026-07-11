@@ -656,6 +656,7 @@ dependencies = [
  "ctrlc",
  "ratatui",
  "salieri-analysis",
+ "salieri-audio",
  "salieri-core",
  "salieri-interop",
  "salieri-midi",
@@ -673,7 +674,9 @@ dependencies = [
 name = "salieri-audio"
 version = "0.1.0"
 dependencies = [
+ "salieri-core",
  "salieri-sampler",
+ "serde",
  "thiserror",
 ]
 

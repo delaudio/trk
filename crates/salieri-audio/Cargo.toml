@@ -5,5 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+salieri-core = { path = "../salieri-core" }
 salieri-sampler = { path = "../salieri-sampler" }
+serde.workspace = true
 thiserror.workspace = true

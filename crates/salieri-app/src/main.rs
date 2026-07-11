@@ -20,6 +20,7 @@ use salieri_analysis::{
     analyze_song, compare_profiles, render_comparison_markdown, render_profile_markdown,
     AnalysisProfile,
 };
+use salieri_audio::render_chain_from_song;
 use salieri_core::{
     CellField, ClipId, ClipSource, Cursor, Direction, NoteEvent, PatternCell, SceneId, Song,
     TrackerCommand,
@@ -95,6 +96,10 @@ fn run(args: CliArgs) -> Result<()> {
         }
         CliCommand::InteropValidateMidi(args) => {
             run_interop_validate_midi(args)?;
+            return Ok(());
+        }
+        CliCommand::RenderChain(args) => {
+            run_render_chain(args)?;
             return Ok(());
         }
         CliCommand::TransformEuclidean(transform_args) => {
@@ -297,6 +302,16 @@ impl CliArgs {
                         midi_test,
                     }
                 }
+                "render-chain" => {
+                    return Self {
+                        command: CliCommand::RenderChain(parse_render_chain_args(args)),
+                        project_path: None,
+                        config_path,
+                        log_level,
+                        midi_log_path,
+                        midi_test,
+                    }
+                }
                 "--midi-test-output" => {
                     midi_test.output = args.next();
                 }
@@ -412,6 +427,7 @@ enum CliCommand {
     Compare(CompareArgs),
     StemScan(StemScanArgs),
     InteropValidateMidi(InteropValidateMidiArgs),
+    RenderChain(RenderChainArgs),
     TransformEuclidean(TransformEuclideanArgs),
     TransformHumanize(TransformHumanizeArgs),
     TransformVariation(TransformVariationArgs),
@@ -453,6 +469,27 @@ struct InteropValidateMidiArgs {
     project_path: Option<PathBuf>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RenderChainArgs {
+    project_path: Option<PathBuf>,
+    output_path: Option<PathBuf>,
+    sample_rate: u32,
+    channels: u16,
+    bit_depth: u16,
+}
+
+impl Default for RenderChainArgs {
+    fn default() -> Self {
+        Self {
+            project_path: None,
+            output_path: None,
+            sample_rate: 48_000,
+            channels: 2,
+            bit_depth: 24,
+        }
+    }
+}
+
 impl Default for CompareArgs {
     fn default() -> Self {
         Self {
@@ -472,7 +509,7 @@ enum ReportFormat {
 
 fn print_help() {
     println!(
-        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri analyze INPUT [--format json|markdown] [--output PATH]\n  salieri compare LEFT RIGHT [--format json|markdown] [--output PATH]\n  salieri stems scan FOLDER OUTPUT_JSON\n  salieri interop validate-midi PROJECT\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri transform humanize INPUT OUTPUT [OPTIONS]\n  salieri transform variation INPUT OUTPUT [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nAnalysis options:\n  --format FORMAT               markdown/md or json (default markdown)\n  --output PATH                 Write report to PATH instead of stdout\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index; omitted means all tracks\n  --seed N                      Deterministic transform seed\n  --dry-run                     Print summary without writing OUTPUT\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Euclidean velocity or humanize velocity amount\n  --delay VALUE                 Humanize max delay command value, 0-255\n  --thin PERCENT                Variation probability for removing notes\n  --fill PERCENT                Variation probability for adding notes\n  --transpose SEMITONES         Variation transpose amount\n  --name NAME                   Variation target pattern name\n\n  --help                        Show this help\n  --version                     Show version"
+        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri analyze INPUT [--format json|markdown] [--output PATH]\n  salieri compare LEFT RIGHT [--format json|markdown] [--output PATH]\n  salieri stems scan FOLDER OUTPUT_JSON\n  salieri interop validate-midi PROJECT\n  salieri render-chain PROJECT OUTPUT_JSON [--sample-rate N] [--channels N] [--bit-depth N]\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri transform humanize INPUT OUTPUT [OPTIONS]\n  salieri transform variation INPUT OUTPUT [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nAnalysis options:\n  --format FORMAT               markdown/md or json (default markdown)\n  --output PATH                 Write report to PATH instead of stdout\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index; omitted means all tracks\n  --seed N                      Deterministic transform seed\n  --dry-run                     Print summary without writing OUTPUT\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Euclidean velocity or humanize velocity amount\n  --delay VALUE                 Humanize max delay command value, 0-255\n  --thin PERCENT                Variation probability for removing notes\n  --fill PERCENT                Variation probability for adding notes\n  --transpose SEMITONES         Variation transpose amount\n  --name NAME                   Variation target pattern name\n\n  --help                        Show this help\n  --version                     Show version"
     );
 }
 
@@ -549,6 +586,49 @@ fn parse_interop_command(args: impl IntoIterator<Item = String>) -> CliCommand {
         }),
         _ => CliCommand::Help,
     }
+}
+
+fn parse_render_chain_args(args: impl IntoIterator<Item = String>) -> RenderChainArgs {
+    let mut parsed = RenderChainArgs::default();
+    let mut args = args.into_iter();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--sample-rate" => {
+                if let Some(value) = args.next().and_then(|value| value.parse().ok()) {
+                    parsed.sample_rate = value;
+                }
+            }
+            "--channels" => {
+                if let Some(value) = args.next().and_then(|value| value.parse().ok()) {
+                    parsed.channels = value;
+                }
+            }
+            "--bit-depth" => {
+                if let Some(value) = args.next().and_then(|value| value.parse().ok()) {
+                    parsed.bit_depth = value;
+                }
+            }
+            _ if arg.starts_with("--sample-rate=") => {
+                if let Ok(value) = arg.trim_start_matches("--sample-rate=").parse() {
+                    parsed.sample_rate = value;
+                }
+            }
+            _ if arg.starts_with("--channels=") => {
+                if let Ok(value) = arg.trim_start_matches("--channels=").parse() {
+                    parsed.channels = value;
+                }
+            }
+            _ if arg.starts_with("--bit-depth=") => {
+                if let Ok(value) = arg.trim_start_matches("--bit-depth=").parse() {
+                    parsed.bit_depth = value;
+                }
+            }
+            _ if parsed.project_path.is_none() => parsed.project_path = Some(PathBuf::from(arg)),
+            _ if parsed.output_path.is_none() => parsed.output_path = Some(PathBuf::from(arg)),
+            _ => {}
+        }
+    }
+    parsed
 }
 
 fn parse_stem_scan_args(args: impl IntoIterator<Item = String>) -> StemScanArgs {
@@ -929,6 +1009,39 @@ fn run_interop_validate_midi(args: &InteropValidateMidiArgs) -> Result<()> {
     for warning in report.warnings {
         println!("warning: {warning}");
     }
+    Ok(())
+}
+
+fn run_render_chain(args: &RenderChainArgs) -> Result<()> {
+    let project_path = args
+        .project_path
+        .as_deref()
+        .context("missing render-chain project path")?;
+    let output_path = args
+        .output_path
+        .as_deref()
+        .context("missing render-chain output path")?;
+    let song = load_project(project_path)?;
+    let plan = render_chain_from_song(
+        &song,
+        Some(&project_path.display().to_string()),
+        args.sample_rate,
+        args.channels,
+        args.bit_depth,
+    );
+    let json =
+        serde_json::to_string_pretty(&plan).context("failed to serialize render-chain plan")?;
+    fs::write(output_path, format!("{json}\n")).with_context(|| {
+        format!(
+            "failed to write render-chain plan {}",
+            output_path.display()
+        )
+    })?;
+    println!(
+        "Wrote render-chain plan with {} track(s) to {}",
+        plan.tracks.len(),
+        output_path.display()
+    );
     Ok(())
 }
 
@@ -4160,6 +4273,30 @@ mod tests {
     }
 
     #[test]
+    fn cli_parses_render_chain_options() {
+        assert_eq!(
+            CliArgs::parse([
+                "render-chain".to_string(),
+                "song.salieri".to_string(),
+                "render-chain.json".to_string(),
+                "--sample-rate=44100".to_string(),
+                "--channels".to_string(),
+                "2".to_string(),
+                "--bit-depth".to_string(),
+                "16".to_string(),
+            ])
+            .command,
+            CliCommand::RenderChain(RenderChainArgs {
+                project_path: Some(PathBuf::from("song.salieri")),
+                output_path: Some(PathBuf::from("render-chain.json")),
+                sample_rate: 44_100,
+                channels: 2,
+                bit_depth: 16,
+            })
+        );
+    }
+
+    #[test]
     fn stem_scan_command_writes_manifest() {
         let root = std::env::temp_dir().join(format!("salieri-stems-cli-{}", std::process::id()));
         let drums = root.join("drums");
@@ -4202,6 +4339,38 @@ mod tests {
         .expect("validate midi");
 
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn render_chain_command_writes_plan() {
+        let base =
+            std::env::temp_dir().join(format!("salieri-render-chain-{}", std::process::id()));
+        let project_path = base.with_extension("salieri");
+        let output_path = base.with_extension("render-chain.json");
+        let mut song = Song::empty();
+        song.tracks[0].stem = Some(salieri_core::StemTrackReference {
+            entry_id: "stem_000_drums".to_string(),
+        });
+        save_project(&project_path, &song).expect("save project");
+
+        run_render_chain(&RenderChainArgs {
+            project_path: Some(project_path.clone()),
+            output_path: Some(output_path.clone()),
+            sample_rate: 44_100,
+            channels: 2,
+            bit_depth: 16,
+        })
+        .expect("render chain");
+
+        let contents = std::fs::read_to_string(&output_path).expect("plan");
+        let value: serde_json::Value = serde_json::from_str(&contents).expect("json");
+
+        let _ = std::fs::remove_file(&project_path);
+        let _ = std::fs::remove_file(&output_path);
+
+        assert_eq!(value["schemaVersion"], 1);
+        assert_eq!(value["format"]["sampleRate"], 44_100);
+        assert_eq!(value["tracks"][0]["sourceType"], "external-stem");
     }
 
     #[test]

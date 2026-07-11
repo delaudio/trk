@@ -14,6 +14,7 @@ crossterm.workspace = true
 ctrlc.workspace = true
 ratatui.workspace = true
 salieri-analysis = { path = "../salieri-analysis" }
+salieri-audio = { path = "../salieri-audio" }
 salieri-core = { path = "../salieri-core" }
 salieri-interop = { path = "../salieri-interop" }
 salieri-midi = { path = "../salieri-midi" }

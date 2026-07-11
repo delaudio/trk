@@ -3,13 +3,182 @@ use std::{
     thread::{self, JoinHandle},
 };
 
+use salieri_core::Song;
 use salieri_sampler::PreviewBuffer;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AudioConfig {
     pub sample_rate: u32,
     pub channels: u16,
     pub buffer_frames: u16,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RenderChainPlan {
+    pub schema_version: u32,
+    pub source: RenderSource,
+    pub format: RenderFormat,
+    pub tracks: Vec<RenderTrackPlan>,
+    pub master: RenderMasterPlan,
+    pub targets: Vec<RenderTarget>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RenderSource {
+    pub project_path: Option<String>,
+    pub title: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RenderFormat {
+    pub sample_rate: u32,
+    pub channels: u16,
+    pub bit_depth: u16,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RenderTrackPlan {
+    pub track_id: u32,
+    pub name: String,
+    pub midi_channel: u8,
+    pub source_type: RenderSourceType,
+    pub instrument: Option<RenderInstrument>,
+    pub effects: Vec<RenderEffect>,
+    pub mix: RenderMixDefaults,
+    pub output_stem_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum RenderSourceType {
+    TrackerMidi,
+    ExternalStem,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RenderInstrument {
+    pub kind: String,
+    pub reference: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RenderEffect {
+    pub kind: String,
+    pub bypassed: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RenderMixDefaults {
+    pub gain_db: f32,
+    pub pan: f32,
+    pub muted: bool,
+    pub solo: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RenderMasterPlan {
+    pub effects: Vec<RenderEffect>,
+    pub mix: RenderMixDefaults,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RenderTarget {
+    pub kind: String,
+    pub path: String,
+}
+
+#[must_use]
+pub fn render_chain_from_song(
+    song: &Song,
+    project_path: Option<&str>,
+    sample_rate: u32,
+    channels: u16,
+    bit_depth: u16,
+) -> RenderChainPlan {
+    let tracks = song
+        .tracks
+        .iter()
+        .map(|track| {
+            let source_type = if track.stem.is_some() {
+                RenderSourceType::ExternalStem
+            } else {
+                RenderSourceType::TrackerMidi
+            };
+            RenderTrackPlan {
+                track_id: track.id.0,
+                name: track.name.clone(),
+                midi_channel: track.midi_channel,
+                source_type,
+                instrument: Some(RenderInstrument {
+                    kind: "external-or-future-engine".to_string(),
+                    reference: track.stem.as_ref().map(|stem| stem.entry_id.clone()),
+                }),
+                effects: Vec::new(),
+                mix: RenderMixDefaults {
+                    gain_db: 0.0,
+                    pan: 0.0,
+                    muted: track.muted,
+                    solo: track.solo,
+                },
+                output_stem_path: Some(format!(
+                    "stems/{:02}-{}.wav",
+                    track.id.0,
+                    slug(&track.name)
+                )),
+            }
+        })
+        .collect::<Vec<_>>();
+
+    RenderChainPlan {
+        schema_version: 1,
+        source: RenderSource {
+            project_path: project_path.map(ToOwned::to_owned),
+            title: song.metadata.title.clone(),
+        },
+        format: RenderFormat {
+            sample_rate,
+            channels,
+            bit_depth,
+        },
+        tracks,
+        master: RenderMasterPlan {
+            effects: Vec::new(),
+            mix: RenderMixDefaults {
+                gain_db: 0.0,
+                pan: 0.0,
+                muted: false,
+                solo: false,
+            },
+        },
+        targets: vec![RenderTarget {
+            kind: "stereo-mix".to_string(),
+            path: "mix/master.wav".to_string(),
+        }],
+    }
+}
+
+fn slug(value: &str) -> String {
+    let slug = value
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() {
+                ch.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>();
+    slug.trim_matches('-').to_string()
 }
 
 impl Default for AudioConfig {
@@ -476,6 +645,32 @@ mod tests {
                 target_sample_rate: 48_000
             })
         ));
+    }
+
+    #[test]
+    fn render_chain_plan_represents_tracker_and_stem_sources() {
+        let mut song = Song::empty();
+        song.tracks[1].stem = Some(salieri_core::StemTrackReference {
+            entry_id: "stem_001_bass".to_string(),
+        });
+        song.tracks[1].muted = true;
+
+        let plan = render_chain_from_song(&song, Some("song.salieri"), 48_000, 2, 24);
+
+        assert_eq!(plan.schema_version, 1);
+        assert_eq!(plan.source.project_path.as_deref(), Some("song.salieri"));
+        assert_eq!(plan.format.sample_rate, 48_000);
+        assert_eq!(plan.tracks[0].source_type, RenderSourceType::TrackerMidi);
+        assert_eq!(plan.tracks[1].source_type, RenderSourceType::ExternalStem);
+        assert_eq!(
+            plan.tracks[1]
+                .instrument
+                .as_ref()
+                .and_then(|instrument| instrument.reference.as_deref()),
+            Some("stem_001_bass")
+        );
+        assert!(plan.tracks[1].mix.muted);
+        assert_eq!(plan.targets[0].kind, "stereo-mix");
     }
 
     fn recv_update(runtime: &AudioRuntime) -> Option<AudioUpdate> {
