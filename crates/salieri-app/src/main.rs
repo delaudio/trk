@@ -25,7 +25,9 @@ use salieri_core::{
     TrackerCommand,
 };
 use salieri_midi::{list_output_ports, MidiMessage, MidiOutput, MidiOutputPort, MidirMidiOutput};
-use salieri_transform::{apply_euclidean, EuclideanRhythm};
+use salieri_transform::{
+    apply_euclidean, apply_humanize, create_variation, EuclideanRhythm, HumanizeSpec, VariationSpec,
+};
 use salieri_tui::{
     render, MidiPortView, MidiSettingsState, NotificationKind, NotificationView, SelectionRect,
     TuiState, TuiView,
@@ -87,6 +89,14 @@ fn run(args: CliArgs) -> Result<()> {
         }
         CliCommand::TransformEuclidean(transform_args) => {
             run_transform_euclidean(transform_args)?;
+            return Ok(());
+        }
+        CliCommand::TransformHumanize(transform_args) => {
+            run_transform_humanize(transform_args)?;
+            return Ok(());
+        }
+        CliCommand::TransformVariation(transform_args) => {
+            run_transform_variation(transform_args)?;
             return Ok(());
         }
         CliCommand::Run | CliCommand::MidiTest => {}
@@ -371,6 +381,8 @@ enum CliCommand {
     Analyze(AnalyzeArgs),
     Compare(CompareArgs),
     TransformEuclidean(TransformEuclideanArgs),
+    TransformHumanize(TransformHumanizeArgs),
+    TransformVariation(TransformVariationArgs),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -417,7 +429,7 @@ enum ReportFormat {
 
 fn print_help() {
     println!(
-        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri analyze INPUT [--format json|markdown] [--output PATH]\n  salieri compare LEFT RIGHT [--format json|markdown] [--output PATH]\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nAnalysis options:\n  --format FORMAT               markdown/md or json (default markdown)\n  --output PATH                 Write report to PATH instead of stdout\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index (default 1)\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Velocity, 0-127 (default 100)\n\n  --help                        Show this help\n  --version                     Show version"
+        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri analyze INPUT [--format json|markdown] [--output PATH]\n  salieri compare LEFT RIGHT [--format json|markdown] [--output PATH]\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri transform humanize INPUT OUTPUT [OPTIONS]\n  salieri transform variation INPUT OUTPUT [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nAnalysis options:\n  --format FORMAT               markdown/md or json (default markdown)\n  --output PATH                 Write report to PATH instead of stdout\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index; omitted means all tracks\n  --seed N                      Deterministic transform seed\n  --dry-run                     Print summary without writing OUTPUT\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Euclidean velocity or humanize velocity amount\n  --delay VALUE                 Humanize max delay command value, 0-255\n  --thin PERCENT                Variation probability for removing notes\n  --fill PERCENT                Variation probability for adding notes\n  --transpose SEMITONES         Variation transpose amount\n  --name NAME                   Variation target pattern name\n\n  --help                        Show this help\n  --version                     Show version"
     );
 }
 
@@ -490,6 +502,10 @@ fn parse_transform_command(args: impl IntoIterator<Item = String>) -> CliCommand
     let mut args = args.into_iter();
     match args.next().as_deref() {
         Some("euclidean") => CliCommand::TransformEuclidean(parse_transform_euclidean_args(args)),
+        Some("humanize") => CliCommand::TransformHumanize(parse_transform_humanize_args(args)),
+        Some("variation") | Some("var") => {
+            CliCommand::TransformVariation(parse_transform_variation_args(args))
+        }
         _ => CliCommand::Help,
     }
 }
@@ -507,6 +523,32 @@ struct TransformEuclideanArgs {
     velocity: u8,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TransformHumanizeArgs {
+    input_path: Option<PathBuf>,
+    output_path: Option<PathBuf>,
+    pattern: usize,
+    track: Option<usize>,
+    seed: u64,
+    velocity_amount: u8,
+    max_delay: u8,
+    dry_run: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TransformVariationArgs {
+    input_path: Option<PathBuf>,
+    output_path: Option<PathBuf>,
+    pattern: usize,
+    track: Option<usize>,
+    seed: u64,
+    thin_percent: u8,
+    fill_percent: u8,
+    transpose: i8,
+    name: Option<String>,
+    dry_run: bool,
+}
+
 impl Default for TransformEuclideanArgs {
     fn default() -> Self {
         Self {
@@ -519,6 +561,38 @@ impl Default for TransformEuclideanArgs {
             rotation: 0,
             pitch: 36,
             velocity: 100,
+        }
+    }
+}
+
+impl Default for TransformHumanizeArgs {
+    fn default() -> Self {
+        Self {
+            input_path: None,
+            output_path: None,
+            pattern: 1,
+            track: None,
+            seed: 1,
+            velocity_amount: 6,
+            max_delay: 24,
+            dry_run: false,
+        }
+    }
+}
+
+impl Default for TransformVariationArgs {
+    fn default() -> Self {
+        Self {
+            input_path: None,
+            output_path: None,
+            pattern: 1,
+            track: None,
+            seed: 1,
+            thin_percent: 10,
+            fill_percent: 5,
+            transpose: 0,
+            name: None,
+            dry_run: false,
         }
     }
 }
@@ -568,6 +642,94 @@ fn parse_transform_euclidean_args(
     parsed
 }
 
+fn parse_transform_humanize_args(args: impl IntoIterator<Item = String>) -> TransformHumanizeArgs {
+    let mut parsed = TransformHumanizeArgs::default();
+    let mut args = args.into_iter();
+
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--pattern" => parse_next_usize(&mut args, &mut parsed.pattern),
+            "--track" => parsed.track = args.next().and_then(parse_one_based),
+            "--seed" => parse_next_u64(&mut args, &mut parsed.seed),
+            "--velocity" => parse_next_u8(&mut args, &mut parsed.velocity_amount),
+            "--delay" => parse_next_u8(&mut args, &mut parsed.max_delay),
+            "--dry-run" => parsed.dry_run = true,
+            _ if arg.starts_with("--pattern=") => {
+                parse_usize_value(arg.trim_start_matches("--pattern="), &mut parsed.pattern);
+            }
+            _ if arg.starts_with("--track=") => {
+                parsed.track = parse_one_based(arg.trim_start_matches("--track=").to_string());
+            }
+            _ if arg.starts_with("--seed=") => {
+                parse_u64_value(arg.trim_start_matches("--seed="), &mut parsed.seed);
+            }
+            _ if arg.starts_with("--velocity=") => {
+                parse_u8_value(
+                    arg.trim_start_matches("--velocity="),
+                    &mut parsed.velocity_amount,
+                );
+            }
+            _ if arg.starts_with("--delay=") => {
+                parse_u8_value(arg.trim_start_matches("--delay="), &mut parsed.max_delay);
+            }
+            _ if parsed.input_path.is_none() => parsed.input_path = Some(PathBuf::from(arg)),
+            _ if parsed.output_path.is_none() => parsed.output_path = Some(PathBuf::from(arg)),
+            _ => {}
+        }
+    }
+
+    parsed
+}
+
+fn parse_transform_variation_args(
+    args: impl IntoIterator<Item = String>,
+) -> TransformVariationArgs {
+    let mut parsed = TransformVariationArgs::default();
+    let mut args = args.into_iter();
+
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--pattern" => parse_next_usize(&mut args, &mut parsed.pattern),
+            "--track" => parsed.track = args.next().and_then(parse_one_based),
+            "--seed" => parse_next_u64(&mut args, &mut parsed.seed),
+            "--thin" => parse_next_u8(&mut args, &mut parsed.thin_percent),
+            "--fill" => parse_next_u8(&mut args, &mut parsed.fill_percent),
+            "--transpose" => parse_next_i8(&mut args, &mut parsed.transpose),
+            "--name" => parsed.name = args.next(),
+            "--dry-run" => parsed.dry_run = true,
+            _ if arg.starts_with("--pattern=") => {
+                parse_usize_value(arg.trim_start_matches("--pattern="), &mut parsed.pattern);
+            }
+            _ if arg.starts_with("--track=") => {
+                parsed.track = parse_one_based(arg.trim_start_matches("--track=").to_string());
+            }
+            _ if arg.starts_with("--seed=") => {
+                parse_u64_value(arg.trim_start_matches("--seed="), &mut parsed.seed);
+            }
+            _ if arg.starts_with("--thin=") => {
+                parse_u8_value(arg.trim_start_matches("--thin="), &mut parsed.thin_percent);
+            }
+            _ if arg.starts_with("--fill=") => {
+                parse_u8_value(arg.trim_start_matches("--fill="), &mut parsed.fill_percent);
+            }
+            _ if arg.starts_with("--transpose=") => {
+                parse_i8_value(
+                    arg.trim_start_matches("--transpose="),
+                    &mut parsed.transpose,
+                );
+            }
+            _ if arg.starts_with("--name=") => {
+                parsed.name = Some(arg.trim_start_matches("--name=").to_string());
+            }
+            _ if parsed.input_path.is_none() => parsed.input_path = Some(PathBuf::from(arg)),
+            _ if parsed.output_path.is_none() => parsed.output_path = Some(PathBuf::from(arg)),
+            _ => {}
+        }
+    }
+
+    parsed
+}
+
 fn parse_next_usize(args: &mut impl Iterator<Item = String>, target: &mut usize) {
     if let Some(value) = args.next() {
         parse_usize_value(&value, target);
@@ -576,6 +738,18 @@ fn parse_next_usize(args: &mut impl Iterator<Item = String>, target: &mut usize)
 
 fn parse_usize_value(value: &str, target: &mut usize) {
     if let Ok(parsed) = value.parse::<usize>() {
+        *target = parsed;
+    }
+}
+
+fn parse_next_u64(args: &mut impl Iterator<Item = String>, target: &mut u64) {
+    if let Some(value) = args.next() {
+        parse_u64_value(&value, target);
+    }
+}
+
+fn parse_u64_value(value: &str, target: &mut u64) {
+    if let Ok(parsed) = value.parse::<u64>() {
         *target = parsed;
     }
 }
@@ -590,6 +764,25 @@ fn parse_u8_value(value: &str, target: &mut u8) {
     if let Ok(parsed) = value.parse::<u8>() {
         *target = parsed.min(127);
     }
+}
+
+fn parse_next_i8(args: &mut impl Iterator<Item = String>, target: &mut i8) {
+    if let Some(value) = args.next() {
+        parse_i8_value(&value, target);
+    }
+}
+
+fn parse_i8_value(value: &str, target: &mut i8) {
+    if let Ok(parsed) = value.parse::<i8>() {
+        *target = parsed;
+    }
+}
+
+fn parse_one_based(value: String) -> Option<usize> {
+    value
+        .parse::<usize>()
+        .ok()
+        .map(|value| value.saturating_sub(1))
 }
 
 fn run_analyze(args: &AnalyzeArgs) -> Result<()> {
@@ -689,6 +882,95 @@ fn run_transform_euclidean(args: &TransformEuclideanArgs) -> Result<()> {
         report.touched_cells.len(),
         output_path.display()
     );
+    Ok(())
+}
+
+fn run_transform_humanize(args: &TransformHumanizeArgs) -> Result<()> {
+    let input_path = args
+        .input_path
+        .as_deref()
+        .context("missing transform input path")?;
+    let output_path = args
+        .output_path
+        .as_deref()
+        .context("missing transform output path")?;
+    if args.pattern == 0 {
+        anyhow::bail!("--pattern is 1-based and must be greater than zero");
+    }
+
+    let mut song = load_project(input_path)?;
+    let report = apply_humanize(
+        &mut song,
+        HumanizeSpec {
+            pattern_index: args.pattern - 1,
+            track: args.track,
+            seed: args.seed,
+            velocity_amount: args.velocity_amount,
+            max_delay: args.max_delay,
+        },
+    )?;
+    if args.dry_run {
+        println!(
+            "Humanize dry-run: would touch {} cells in {}",
+            report.touched_cells.len(),
+            input_path.display()
+        );
+    } else {
+        save_project(output_path, &song)?;
+        println!(
+            "Applied humanize to {} cells and wrote {}",
+            report.touched_cells.len(),
+            output_path.display()
+        );
+    }
+    Ok(())
+}
+
+fn run_transform_variation(args: &TransformVariationArgs) -> Result<()> {
+    let input_path = args
+        .input_path
+        .as_deref()
+        .context("missing transform input path")?;
+    let output_path = args
+        .output_path
+        .as_deref()
+        .context("missing transform output path")?;
+    if args.pattern == 0 {
+        anyhow::bail!("--pattern is 1-based and must be greater than zero");
+    }
+
+    let mut song = load_project(input_path)?;
+    let report = create_variation(
+        &mut song,
+        VariationSpec {
+            source_pattern_index: args.pattern - 1,
+            target_name: args.name.clone(),
+            track: args.track,
+            seed: args.seed,
+            thin_percent: args.thin_percent,
+            fill_percent: args.fill_percent,
+            transpose: args.transpose,
+        },
+    )?;
+    if args.dry_run {
+        println!(
+            "Variation dry-run: would create pattern {} and touch {} cells in {}",
+            report.new_pattern_index + 1,
+            report.touched_cells.len(),
+            input_path.display()
+        );
+    } else {
+        save_project(output_path, &song)?;
+        println!(
+            "Created variation pattern {} with {} touched cells, {} added, {} removed, {} transposed; wrote {}",
+            report.new_pattern_index + 1,
+            report.touched_cells.len(),
+            report.added_notes,
+            report.removed_notes,
+            report.transposed_notes,
+            output_path.display()
+        );
+    }
     Ok(())
 }
 
@@ -2253,6 +2535,67 @@ impl App {
         });
     }
 
+    fn handle_transform_command(&mut self, values: &[&str]) {
+        match values.first().copied() {
+            Some("humanize") | Some("hum") => self.handle_transform_humanize(&values[1..]),
+            Some("variation") | Some("var") => self.handle_transform_variation(&values[1..]),
+            _ => self.notify_warning("Usage: :transform humanize|variation [options]"),
+        }
+    }
+
+    fn handle_transform_humanize(&mut self, values: &[&str]) {
+        let mut spec = HumanizeSpec {
+            pattern_index: self.pattern_index,
+            track: Some(self.cursor.track),
+            seed: 1,
+            velocity_amount: 6,
+            max_delay: 24,
+        };
+        parse_humanize_values(values, &mut spec);
+        let mut result = None;
+        self.mutate_song(|song, _| {
+            result = Some(apply_humanize(song, spec));
+        });
+        match result {
+            Some(Ok(report)) => self.notify_success(format!(
+                "Humanized {} cell(s) with seed {}",
+                report.touched_cells.len(),
+                spec.seed
+            )),
+            Some(Err(error)) => self.notify_error(format!("Humanize failed: {error}")),
+            None => self.notify_error("Humanize failed"),
+        }
+    }
+
+    fn handle_transform_variation(&mut self, values: &[&str]) {
+        let mut spec = VariationSpec {
+            source_pattern_index: self.pattern_index,
+            target_name: None,
+            track: Some(self.cursor.track),
+            seed: 1,
+            thin_percent: 10,
+            fill_percent: 5,
+            transpose: 0,
+        };
+        parse_variation_values(values, &mut spec);
+        let mut result = None;
+        self.mutate_song(|song, _| {
+            result = Some(create_variation(song, spec.clone()));
+        });
+        match result {
+            Some(Ok(report)) => {
+                self.pattern_index = report.new_pattern_index;
+                self.notify_success(format!(
+                    "Created variation pattern {:02} ({} touched)",
+                    report.new_pattern_index + 1,
+                    report.touched_cells.len()
+                ));
+            }
+            Some(Err(error)) => self.notify_error(format!("Variation failed: {error}")),
+            None => self.notify_error("Variation failed"),
+        }
+    }
+
     fn execute_command(&mut self) {
         let command = self.command_buffer.trim().to_string();
         self.command_buffer.clear();
@@ -2324,6 +2667,10 @@ impl App {
             "fx" | "effect" => {
                 let values = parts.collect::<Vec<_>>();
                 self.handle_fx_command(&values);
+            }
+            "transform" | "xform" => {
+                let values = parts.collect::<Vec<_>>();
+                self.handle_transform_command(&values);
             }
             "loop" => match parts.next() {
                 Some("on") => {
@@ -3202,6 +3549,122 @@ fn parse_optional_numbered_name(values: &[&str], default_index: usize) -> Option
     }
 }
 
+fn parse_humanize_values(values: &[&str], spec: &mut HumanizeSpec) {
+    let mut index = 0;
+    while index < values.len() {
+        match values[index] {
+            "pattern" | "pat" => {
+                if let Some(value) = values
+                    .get(index + 1)
+                    .and_then(|value| parse_one_based_str(value))
+                {
+                    spec.pattern_index = value;
+                }
+                index += 2;
+            }
+            "track" | "trk" => {
+                match values.get(index + 1).copied() {
+                    Some("all") => spec.track = None,
+                    Some(value) => spec.track = parse_one_based_str(value),
+                    None => {}
+                }
+                index += 2;
+            }
+            "all" => {
+                spec.track = None;
+                index += 1;
+            }
+            "seed" => {
+                if let Some(value) = values.get(index + 1).and_then(|value| value.parse().ok()) {
+                    spec.seed = value;
+                }
+                index += 2;
+            }
+            "velocity" | "vel" => {
+                if let Some(value) = values.get(index + 1).and_then(|value| value.parse().ok()) {
+                    spec.velocity_amount = value;
+                }
+                index += 2;
+            }
+            "delay" => {
+                if let Some(value) = values.get(index + 1).and_then(|value| value.parse().ok()) {
+                    spec.max_delay = value;
+                }
+                index += 2;
+            }
+            _ => index += 1,
+        }
+    }
+}
+
+fn parse_variation_values(values: &[&str], spec: &mut VariationSpec) {
+    let mut index = 0;
+    while index < values.len() {
+        match values[index] {
+            "pattern" | "pat" => {
+                if let Some(value) = values
+                    .get(index + 1)
+                    .and_then(|value| parse_one_based_str(value))
+                {
+                    spec.source_pattern_index = value;
+                }
+                index += 2;
+            }
+            "track" | "trk" => {
+                match values.get(index + 1).copied() {
+                    Some("all") => spec.track = None,
+                    Some(value) => spec.track = parse_one_based_str(value),
+                    None => {}
+                }
+                index += 2;
+            }
+            "all" => {
+                spec.track = None;
+                index += 1;
+            }
+            "seed" => {
+                if let Some(value) = values.get(index + 1).and_then(|value| value.parse().ok()) {
+                    spec.seed = value;
+                }
+                index += 2;
+            }
+            "thin" => {
+                if let Some(value) = values.get(index + 1).and_then(|value| value.parse().ok()) {
+                    spec.thin_percent = value;
+                }
+                index += 2;
+            }
+            "fill" => {
+                if let Some(value) = values.get(index + 1).and_then(|value| value.parse().ok()) {
+                    spec.fill_percent = value;
+                }
+                index += 2;
+            }
+            "transpose" | "trans" => {
+                if let Some(value) = values.get(index + 1).and_then(|value| value.parse().ok()) {
+                    spec.transpose = value;
+                }
+                index += 2;
+            }
+            "name" => {
+                let name = values.get(index + 1..).unwrap_or_default().join(" ");
+                if !name.trim().is_empty() {
+                    spec.target_name = Some(name);
+                }
+                break;
+            }
+            _ => index += 1,
+        }
+    }
+}
+
+fn parse_one_based_str(value: &str) -> Option<usize> {
+    value
+        .parse::<usize>()
+        .ok()
+        .map(|value| value.saturating_sub(1))
+}
+
 fn parse_hex_byte(value: &str) -> Option<u8> {
     u8::from_str_radix(value.trim_start_matches("0x"), 16).ok()
 }
@@ -3428,6 +3891,69 @@ mod tests {
     }
 
     #[test]
+    fn cli_parses_humanize_and_variation_transform_options() {
+        assert_eq!(
+            CliArgs::parse([
+                "transform".to_string(),
+                "humanize".to_string(),
+                "input.salieri".to_string(),
+                "output.salieri".to_string(),
+                "--pattern=2".to_string(),
+                "--track".to_string(),
+                "3".to_string(),
+                "--seed=42".to_string(),
+                "--velocity".to_string(),
+                "9".to_string(),
+                "--delay=31".to_string(),
+                "--dry-run".to_string(),
+            ])
+            .command,
+            CliCommand::TransformHumanize(TransformHumanizeArgs {
+                input_path: Some(PathBuf::from("input.salieri")),
+                output_path: Some(PathBuf::from("output.salieri")),
+                pattern: 2,
+                track: Some(2),
+                seed: 42,
+                velocity_amount: 9,
+                max_delay: 31,
+                dry_run: true,
+            })
+        );
+
+        assert_eq!(
+            CliArgs::parse([
+                "transform".to_string(),
+                "variation".to_string(),
+                "input.salieri".to_string(),
+                "output.salieri".to_string(),
+                "--pattern".to_string(),
+                "1".to_string(),
+                "--track=2".to_string(),
+                "--seed".to_string(),
+                "77".to_string(),
+                "--thin=25".to_string(),
+                "--fill".to_string(),
+                "10".to_string(),
+                "--transpose=-12".to_string(),
+                "--name=Alt".to_string(),
+            ])
+            .command,
+            CliCommand::TransformVariation(TransformVariationArgs {
+                input_path: Some(PathBuf::from("input.salieri")),
+                output_path: Some(PathBuf::from("output.salieri")),
+                pattern: 1,
+                track: Some(1),
+                seed: 77,
+                thin_percent: 25,
+                fill_percent: 10,
+                transpose: -12,
+                name: Some("Alt".to_string()),
+                dry_run: false,
+            })
+        );
+    }
+
+    #[test]
     fn cli_parses_analysis_and_compare_options() {
         assert_eq!(
             CliArgs::parse([
@@ -3560,6 +4086,61 @@ mod tests {
         let _ = std::fs::remove_file(&output_path);
 
         assert_eq!(active_rows, vec![1, 3, 5, 7]);
+    }
+
+    #[test]
+    fn humanize_and_variation_transform_commands_round_trip_project_files() {
+        let base =
+            std::env::temp_dir().join(format!("salieri-transform-local-{}", std::process::id()));
+        let input_path = base.with_extension("input.salieri");
+        let humanized_path = base.with_extension("humanized.salieri");
+        let variation_path = base.with_extension("variation.salieri");
+        let mut song = Song::empty();
+        song.current_pattern_mut()
+            .expect("pattern")
+            .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 100)
+            .expect("note");
+        song.current_pattern_mut()
+            .expect("pattern")
+            .set_note(4, 0, NoteEvent::Note { pitch: 64 }, 100)
+            .expect("note");
+        save_project(&input_path, &song).expect("save input");
+
+        run_transform_humanize(&TransformHumanizeArgs {
+            input_path: Some(input_path.clone()),
+            output_path: Some(humanized_path.clone()),
+            pattern: 1,
+            track: Some(0),
+            seed: 42,
+            velocity_amount: 8,
+            max_delay: 32,
+            dry_run: false,
+        })
+        .expect("humanize");
+        run_transform_variation(&TransformVariationArgs {
+            input_path: Some(humanized_path.clone()),
+            output_path: Some(variation_path.clone()),
+            pattern: 1,
+            track: Some(0),
+            seed: 7,
+            thin_percent: 0,
+            fill_percent: 10,
+            transpose: 12,
+            name: Some("Variation A".to_string()),
+            dry_run: false,
+        })
+        .expect("variation");
+
+        let humanized = load_project(&humanized_path).expect("load humanized");
+        let variation = load_project(&variation_path).expect("load variation");
+
+        let _ = std::fs::remove_file(&input_path);
+        let _ = std::fs::remove_file(&humanized_path);
+        let _ = std::fs::remove_file(&variation_path);
+
+        assert_ne!(humanized, song);
+        assert_eq!(variation.patterns.len(), 2);
+        assert_eq!(variation.patterns[1].name, "Variation A");
     }
 
     #[test]
@@ -4287,6 +4868,50 @@ mod tests {
             None
         );
         assert!(!app.dirty);
+    }
+
+    #[test]
+    fn command_mode_transforms_are_undoable() {
+        let mut app = App::default();
+        app.song
+            .current_pattern_mut()
+            .expect("pattern")
+            .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 100)
+            .expect("note");
+        app.song
+            .current_pattern_mut()
+            .expect("pattern")
+            .set_note(4, 0, NoteEvent::Note { pitch: 64 }, 100)
+            .expect("note");
+        app.clean_song = app.song.clone();
+        let before = app.song.clone();
+
+        type_command(&mut app, "transform humanize seed 42 velocity 8 delay 32");
+
+        assert!(app.dirty);
+        assert_ne!(app.song, before);
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("Humanized 2 cell(s) with seed 42")
+        );
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
+
+        assert_eq!(app.song, before);
+
+        type_command(
+            &mut app,
+            "transform variation seed 7 thin 0 fill 0 transpose 12 name Variation A",
+        );
+
+        assert_eq!(app.song.patterns.len(), 2);
+        assert_eq!(app.pattern_index, 1);
+        assert_eq!(app.song.patterns[1].name, "Variation A");
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
+
+        assert_eq!(app.song.patterns.len(), 1);
+        assert_eq!(app.pattern_index, 0);
     }
 
     #[test]

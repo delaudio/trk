@@ -76,11 +76,16 @@ salieri analyze song.salieri --format markdown --output song-analysis.md
 salieri analyze song.salieri --format json --output song-profile.json
 salieri compare song-a.salieri song-b.salieri --format markdown --output comparison.md
 salieri compare song-a.salieri song-profile.json --format json --output comparison.json
+salieri transform humanize song.salieri song-human.salieri --pattern 1 --track 1 --seed 42 --velocity 8 --delay 32
+salieri transform humanize song.salieri song-human.salieri --pattern 1 --seed 42 --dry-run
+salieri transform variation song.salieri song-var.salieri --pattern 1 --seed 7 --thin 10 --fill 5 --transpose 12 --name "Lead Variation"
 ```
 
 `--midi-test-output` accepts either a port index or a port name. Configured MIDI output names are normalized, so `IAC Driver`, `IAC Driver Bus 1`, and `IAC Driver (Bus 1)` can match the same CoreMIDI port when available.
 
 `analyze` produces deterministic, local project profiles: track role guesses, note density, rhythm and pitch-class profiles, pitch range, sequence energy, scene energy, and generation guidance. `compare` accepts either `.salieri` projects or JSON profiles produced by `analyze`.
+
+`transform humanize` changes note velocities and writes tracker delay commands (`Dxx`) on note cells. Playback interprets `D` as a sub-row offset, so humanize keeps notes on their original rows while shifting their timing inside those rows. `transform variation` duplicates a source pattern, then applies deterministic thin/fill/transpose operations to the duplicate. Use `--seed` for repeatable output and `--dry-run` to print the summary without writing the output project.
 
 ## macOS IAC Driver Setup
 
@@ -273,6 +278,8 @@ F11 or Esc      Return to pattern view
 :sequence add
 :sequence set 0 2
 :sequence move 1 0
+:transform humanize seed 42 velocity 8 delay 32
+:transform variation seed 7 thin 10 fill 5 transpose 12 name Lead Variation
 :play pattern
 :play sequence 0
 :play clip 1

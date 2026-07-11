@@ -945,6 +945,7 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
         Line::from("  :track mute 2   :track solo 2   :track rename Acid Bass"),
         Line::from("  :track channel 12   :fx D 20 delay   :fx R 04 retrigger   :fx clear"),
         Line::from("  :play pattern   :play sequence [position]   :play clip 1   :play scene 1   :stop"),
+        Line::from("  :transform humanize seed 42   :transform variation seed 7 transpose 12"),
         Line::from(""),
         Line::from(Span::styled(
             "Patterns And Sequence",
