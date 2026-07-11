@@ -8,6 +8,7 @@ members = [
     "crates/salieri-interop",
     "crates/salieri-midi",
     "crates/salieri-sampler",
+    "crates/salieri-stems",
     "crates/salieri-tui",
     "crates/salieri-transform",
 ]

@@ -1,0 +1,10 @@
+[package]
+name = "salieri-stems"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+salieri-core = { path = "../salieri-core" }
+serde.workspace = true
+thiserror.workspace = true

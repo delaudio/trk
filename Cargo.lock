@@ -658,6 +658,7 @@ dependencies = [
  "salieri-analysis",
  "salieri-core",
  "salieri-midi",
+ "salieri-stems",
  "salieri-transform",
  "salieri-tui",
  "serde",
@@ -706,6 +707,15 @@ name = "salieri-sampler"
 version = "0.1.0"
 dependencies = [
  "salieri-core",
+ "thiserror",
+]
+
+[[package]]
+name = "salieri-stems"
+version = "0.1.0"
+dependencies = [
+ "salieri-core",
+ "serde",
  "thiserror",
 ]
 

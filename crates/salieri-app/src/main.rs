@@ -25,6 +25,7 @@ use salieri_core::{
     TrackerCommand,
 };
 use salieri_midi::{list_output_ports, MidiMessage, MidiOutput, MidiOutputPort, MidirMidiOutput};
+use salieri_stems::{scan_stem_manifest, stem_reference_warnings};
 use salieri_transform::{
     apply_euclidean, apply_humanize, create_variation, EuclideanRhythm, HumanizeSpec, VariationSpec,
 };
@@ -85,6 +86,10 @@ fn run(args: CliArgs) -> Result<()> {
         }
         CliCommand::Compare(compare_args) => {
             run_compare(compare_args)?;
+            return Ok(());
+        }
+        CliCommand::StemScan(stem_args) => {
+            run_stem_scan(stem_args)?;
             return Ok(());
         }
         CliCommand::TransformEuclidean(transform_args) => {
@@ -267,6 +272,16 @@ impl CliArgs {
                         midi_test,
                     }
                 }
+                "stems" => {
+                    return Self {
+                        command: parse_stems_command(args),
+                        project_path: None,
+                        config_path,
+                        log_level,
+                        midi_log_path,
+                        midi_test,
+                    }
+                }
                 "--midi-test-output" => {
                     midi_test.output = args.next();
                 }
@@ -380,6 +395,7 @@ enum CliCommand {
     MidiTest,
     Analyze(AnalyzeArgs),
     Compare(CompareArgs),
+    StemScan(StemScanArgs),
     TransformEuclidean(TransformEuclideanArgs),
     TransformHumanize(TransformHumanizeArgs),
     TransformVariation(TransformVariationArgs),
@@ -410,6 +426,12 @@ struct CompareArgs {
     format: ReportFormat,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+struct StemScanArgs {
+    folder_path: Option<PathBuf>,
+    output_path: Option<PathBuf>,
+}
+
 impl Default for CompareArgs {
     fn default() -> Self {
         Self {
@@ -429,7 +451,7 @@ enum ReportFormat {
 
 fn print_help() {
     println!(
-        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri analyze INPUT [--format json|markdown] [--output PATH]\n  salieri compare LEFT RIGHT [--format json|markdown] [--output PATH]\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri transform humanize INPUT OUTPUT [OPTIONS]\n  salieri transform variation INPUT OUTPUT [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nAnalysis options:\n  --format FORMAT               markdown/md or json (default markdown)\n  --output PATH                 Write report to PATH instead of stdout\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index; omitted means all tracks\n  --seed N                      Deterministic transform seed\n  --dry-run                     Print summary without writing OUTPUT\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Euclidean velocity or humanize velocity amount\n  --delay VALUE                 Humanize max delay command value, 0-255\n  --thin PERCENT                Variation probability for removing notes\n  --fill PERCENT                Variation probability for adding notes\n  --transpose SEMITONES         Variation transpose amount\n  --name NAME                   Variation target pattern name\n\n  --help                        Show this help\n  --version                     Show version"
+        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri analyze INPUT [--format json|markdown] [--output PATH]\n  salieri compare LEFT RIGHT [--format json|markdown] [--output PATH]\n  salieri stems scan FOLDER OUTPUT_JSON\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri transform humanize INPUT OUTPUT [OPTIONS]\n  salieri transform variation INPUT OUTPUT [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nAnalysis options:\n  --format FORMAT               markdown/md or json (default markdown)\n  --output PATH                 Write report to PATH instead of stdout\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index; omitted means all tracks\n  --seed N                      Deterministic transform seed\n  --dry-run                     Print summary without writing OUTPUT\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Euclidean velocity or humanize velocity amount\n  --delay VALUE                 Humanize max delay command value, 0-255\n  --thin PERCENT                Variation probability for removing notes\n  --fill PERCENT                Variation probability for adding notes\n  --transpose SEMITONES         Variation transpose amount\n  --name NAME                   Variation target pattern name\n\n  --help                        Show this help\n  --version                     Show version"
     );
 }
 
@@ -487,6 +509,26 @@ fn parse_compare_args(args: impl IntoIterator<Item = String>) -> CompareArgs {
         }
     }
 
+    parsed
+}
+
+fn parse_stems_command(args: impl IntoIterator<Item = String>) -> CliCommand {
+    let mut args = args.into_iter();
+    match args.next().as_deref() {
+        Some("scan") => CliCommand::StemScan(parse_stem_scan_args(args)),
+        _ => CliCommand::Help,
+    }
+}
+
+fn parse_stem_scan_args(args: impl IntoIterator<Item = String>) -> StemScanArgs {
+    let mut parsed = StemScanArgs::default();
+    for arg in args {
+        if parsed.folder_path.is_none() {
+            parsed.folder_path = Some(PathBuf::from(arg));
+        } else if parsed.output_path.is_none() {
+            parsed.output_path = Some(PathBuf::from(arg));
+        }
+    }
     parsed
 }
 
@@ -818,6 +860,28 @@ fn run_compare(args: &CompareArgs) -> Result<()> {
             .context("failed to serialize profile comparison")?,
     };
     write_report(args.output_path.as_deref(), &report)
+}
+
+fn run_stem_scan(args: &StemScanArgs) -> Result<()> {
+    let folder_path = args
+        .folder_path
+        .as_deref()
+        .context("missing stems scan folder path")?;
+    let output_path = args
+        .output_path
+        .as_deref()
+        .context("missing stems scan output path")?;
+    let manifest = scan_stem_manifest(folder_path)?;
+    let report =
+        serde_json::to_string_pretty(&manifest).context("failed to serialize stem manifest")?;
+    fs::write(output_path, format!("{report}\n"))
+        .with_context(|| format!("failed to write stem manifest {}", output_path.display()))?;
+    println!(
+        "Wrote {} stem entries to {}",
+        manifest.entries.len(),
+        output_path.display()
+    );
+    Ok(())
 }
 
 fn load_analysis_input(path: &Path) -> Result<AnalysisProfile> {
@@ -1188,12 +1252,18 @@ impl App {
 
     fn from_file(path: &Path, config: AppConfig) -> Result<Self> {
         let song = load_project(path)?;
-        Ok(Self {
+        let project_dir = path.parent().unwrap_or_else(|| Path::new("."));
+        let stem_warnings = stem_reference_warnings(&song, project_dir);
+        let mut app = Self {
             clean_song: song.clone(),
             song,
             project_path: Some(path.to_path_buf()),
             ..Self::new(config)
-        })
+        };
+        if let Some(warning) = stem_warnings.first() {
+            app.notify_warning(warning.message.clone());
+        }
+        Ok(app)
     }
 
     fn handle_key(&mut self, key: KeyEvent) {
@@ -4004,6 +4074,53 @@ mod tests {
     }
 
     #[test]
+    fn cli_parses_stem_scan_options() {
+        assert_eq!(
+            CliArgs::parse([
+                "stems".to_string(),
+                "scan".to_string(),
+                "audio".to_string(),
+                "stems.json".to_string(),
+            ]),
+            CliArgs {
+                command: CliCommand::StemScan(StemScanArgs {
+                    folder_path: Some(PathBuf::from("audio")),
+                    output_path: Some(PathBuf::from("stems.json")),
+                }),
+                project_path: None,
+                config_path: None,
+                log_level: None,
+                midi_log_path: None,
+                midi_test: MidiTestArgs::default(),
+            }
+        );
+    }
+
+    #[test]
+    fn stem_scan_command_writes_manifest() {
+        let root = std::env::temp_dir().join(format!("salieri-stems-cli-{}", std::process::id()));
+        let drums = root.join("drums");
+        let output_path = root.join("stems.json");
+        std::fs::create_dir_all(&drums).expect("mkdir");
+        std::fs::write(drums.join("kick.wav"), b"RIFF").expect("write wav");
+
+        run_stem_scan(&StemScanArgs {
+            folder_path: Some(root.clone()),
+            output_path: Some(output_path.clone()),
+        })
+        .expect("stem scan");
+
+        let contents = std::fs::read_to_string(&output_path).expect("manifest");
+        let manifest: salieri_stems::StemManifest =
+            serde_json::from_str(&contents).expect("manifest json");
+
+        let _ = std::fs::remove_dir_all(&root);
+
+        assert_eq!(manifest.entries.len(), 1);
+        assert_eq!(manifest.entries[0].source_path, "drums/kick.wav");
+    }
+
+    #[test]
     fn analysis_and_compare_commands_write_reports() {
         let base =
             std::env::temp_dir().join(format!("salieri-analysis-cli-{}", std::process::id()));
@@ -4162,6 +4279,33 @@ mod tests {
         assert_eq!(app.edit_step, 4);
         assert!(!app.vim_navigation);
         assert!(app.show_line_numbers_hex);
+    }
+
+    #[test]
+    fn opening_project_with_missing_stem_manifest_warns_without_failing() {
+        let path = std::env::temp_dir().join(format!(
+            "salieri-missing-stems-{}.salieri",
+            std::process::id()
+        ));
+        let mut song = Song::empty();
+        song.stem_manifest = Some(salieri_core::StemManifestReference {
+            path: "missing/stems.json".to_string(),
+        });
+        save_project(&path, &song).expect("save project");
+
+        let app = App::from_file(&path, AppConfig::default()).expect("load project");
+
+        let _ = std::fs::remove_file(&path);
+
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.kind),
+            Some(NotificationKind::Warning)
+        );
+        assert!(app
+            .notification
+            .as_ref()
+            .map(|n| n.message.contains("Stem manifest missing"))
+            .unwrap_or(false));
     }
 
     #[test]

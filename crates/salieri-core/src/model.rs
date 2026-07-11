@@ -33,6 +33,8 @@ pub struct Song {
     pub sequence: Vec<PatternId>,
     #[serde(default)]
     pub session: Session,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stem_manifest: Option<StemManifestReference>,
 }
 
 impl Song {
@@ -46,6 +48,7 @@ impl Song {
                 muted: false,
                 solo: false,
                 armed: index == 0,
+                stem: None,
             })
             .collect::<Vec<_>>();
 
@@ -71,6 +74,7 @@ impl Song {
             patterns: vec![pattern],
             sequence: vec![PatternId(1)],
             session: Session::default(),
+            stem_manifest: None,
         }
     }
 
@@ -119,6 +123,17 @@ impl Song {
                     track_index,
                     midi_channel: track.midi_channel,
                 });
+            }
+            if let Some(stem) = &track.stem {
+                if stem.entry_id.trim().is_empty() {
+                    return Err(ValidationError::EmptyStemEntryId { track_index });
+                }
+            }
+        }
+
+        if let Some(stem_manifest) = &self.stem_manifest {
+            if stem_manifest.path.trim().is_empty() {
+                return Err(ValidationError::EmptyStemManifestPath);
             }
         }
 
@@ -461,6 +476,7 @@ impl Song {
             muted: false,
             solo: false,
             armed: false,
+            stem: None,
         });
 
         for pattern in &mut self.patterns {
@@ -484,6 +500,7 @@ impl Song {
             muted: source.muted,
             solo: false,
             armed: false,
+            stem: source.stem,
         });
 
         for pattern in &mut self.patterns {
@@ -795,6 +812,10 @@ pub enum ValidationError {
         track_index: usize,
         midi_channel: u8,
     },
+    #[error("stem manifest path cannot be empty")]
+    EmptyStemManifestPath,
+    #[error("track {track_index} stem entry id cannot be empty")]
+    EmptyStemEntryId { track_index: usize },
     #[error("duplicate pattern id: {pattern_id:?}")]
     DuplicatePatternId { pattern_id: PatternId },
     #[error("pattern {pattern_index} name cannot be empty")]
@@ -899,6 +920,20 @@ pub struct Track {
     pub muted: bool,
     pub solo: bool,
     pub armed: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stem: Option<StemTrackReference>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StemManifestReference {
+    pub path: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StemTrackReference {
+    pub entry_id: String,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -2082,7 +2117,32 @@ mod tests {
 
         assert!(song.session.clips.is_empty());
         assert!(song.session.scenes.is_empty());
+        assert!(song.stem_manifest.is_none());
+        assert!(song.tracks[0].stem.is_none());
         song.validate().expect("legacy song validates");
+    }
+
+    #[test]
+    fn stem_references_are_optional_but_not_empty() {
+        let mut song = Song::empty();
+        song.stem_manifest = Some(StemManifestReference {
+            path: "stems.json".to_string(),
+        });
+        song.tracks[0].stem = Some(StemTrackReference {
+            entry_id: "stem_000_kick".to_string(),
+        });
+
+        song.validate()
+            .expect("stem manifest references do not require files at load time");
+
+        song.tracks[0].stem = Some(StemTrackReference {
+            entry_id: " ".to_string(),
+        });
+
+        assert_eq!(
+            song.validate().expect_err("empty stem entry id"),
+            ValidationError::EmptyStemEntryId { track_index: 0 }
+        );
     }
 
     #[test]
