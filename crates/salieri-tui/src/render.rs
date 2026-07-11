@@ -133,18 +133,31 @@ fn render_tracks(frame: &mut Frame<'_>, area: Rect, song: &Song, active_track: u
         .iter()
         .enumerate()
         .map(|(index, track)| {
-            let marker = if index == active_track { ">" } else { " " };
+            let is_active = index == active_track;
+            let marker = if is_active { ">" } else { " " };
             let mute = if track.muted { "M" } else { "-" };
             let solo = if track.solo { "S" } else { "-" };
             let name = truncate(&track.name, TRACK_LIST_NAME_WIDTH);
-            Line::from(format!(
+            let line = format!(
                 "{} {:02} {:<width$} CH{:02} {mute}{solo}",
                 marker,
                 index + 1,
                 name,
                 track.midi_channel,
                 width = TRACK_LIST_NAME_WIDTH,
-            ))
+            );
+
+            if is_active {
+                Line::styled(
+                    line,
+                    Style::default()
+                        .fg(Color::Black)
+                        .bg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                )
+            } else {
+                Line::from(line)
+            }
         })
         .collect::<Vec<_>>();
 
@@ -195,7 +208,7 @@ fn render_pattern(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiStat
     let data_height = inner_height.saturating_sub(1);
     let row_offset = state.row_offset.min(pattern.row_count().saturating_sub(1));
     let mut lines = Vec::with_capacity(data_height.saturating_add(1));
-    lines.push(pattern_header(song));
+    lines.push(pattern_header(song, state.cursor.track));
 
     for row_index in row_offset
         ..pattern
@@ -223,21 +236,29 @@ fn active_pattern(song: &Song, pattern_index: usize) -> Option<&Pattern> {
     song.pattern(pattern_index)
 }
 
-fn pattern_header(song: &Song) -> Line<'static> {
+fn pattern_header(song: &Song, active_track: usize) -> Line<'static> {
     let mut spans = vec![Span::styled(
         format!("{:<ROW_GUTTER_WIDTH$}", "ROW"),
         Style::default().fg(Color::DarkGray),
     )];
 
-    for track in &song.tracks {
+    for (track_index, track) in song.tracks.iter().enumerate() {
+        let is_active = track_index == active_track;
         spans.push(Span::styled(
             format!(
                 "{:^PATTERN_CELL_WIDTH$}",
                 truncate(&track.name, PATTERN_CELL_WIDTH)
             ),
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
+            if is_active {
+                Style::default()
+                    .fg(Color::Black)
+                    .bg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
+            },
         ));
     }
 
@@ -275,9 +296,17 @@ fn pattern_row(
         let cell = row.cells.get(track_index).cloned().unwrap_or_default();
         let is_cursor_row = cursor.row == row_index;
         let is_cursor_cell = is_cursor_row && cursor.track == track_index;
+        let is_active_track = cursor.track == track_index;
         let is_selected =
             selection.is_some_and(|selection| selection.contains(row_index, track_index));
-        spans.extend(cell_spans(&cell, cursor.field, is_cursor_cell, is_selected));
+        spans.extend(cell_spans(
+            &cell,
+            cursor.field,
+            is_cursor_cell,
+            is_selected,
+            is_playhead,
+            is_active_track,
+        ));
         spans.push(Span::raw(" "));
     }
 
@@ -289,6 +318,8 @@ fn cell_spans(
     focused_field: CellField,
     focused: bool,
     selected: bool,
+    playing: bool,
+    active_track: bool,
 ) -> Vec<Span<'static>> {
     let note = match cell.note {
         Some(NoteEvent::Note { pitch }) => format_note(pitch),
@@ -309,10 +340,18 @@ fn cell_spans(
         .fg(Color::White)
         .bg(Color::DarkGray)
         .add_modifier(Modifier::REVERSED);
+    let playing_style = Style::default()
+        .fg(Color::LightGreen)
+        .add_modifier(Modifier::BOLD);
+    let active_track_style = Style::default().fg(Color::White).bg(Color::DarkGray);
     let note_style = if focused && focused_field == CellField::Note {
         focused_style
     } else if selected {
         selected_style
+    } else if playing {
+        playing_style
+    } else if active_track {
+        active_track_style
     } else {
         normal
     };
@@ -320,16 +359,29 @@ fn cell_spans(
         focused_style
     } else if selected {
         selected_style
+    } else if playing {
+        playing_style
+    } else if active_track {
+        active_track_style
+    } else {
+        normal
+    };
+    let spacer_style = if selected {
+        selected_style
+    } else if playing {
+        playing_style
+    } else if active_track {
+        active_track_style
     } else {
         normal
     };
 
     vec![
-        Span::raw(" "),
+        Span::styled(" ", spacer_style),
         Span::styled(note, note_style),
-        Span::raw(" "),
+        Span::styled(" ", spacer_style),
         Span::styled(velocity, velocity_style),
-        Span::raw("  "),
+        Span::styled("  ", spacer_style),
     ]
 }
 

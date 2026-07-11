@@ -66,6 +66,7 @@ fn run() -> Result<()> {
 
     loop {
         app.drain_playback_updates();
+        app.keep_active_row_visible(terminal.visible_pattern_rows());
         terminal.draw(|frame| {
             render(
                 frame,
@@ -100,16 +101,16 @@ fn run() -> Result<()> {
             match event::read()? {
                 Event::Key(key) => {
                     app.handle_key(key);
-                    app.keep_cursor_visible(terminal.visible_pattern_rows());
+                    app.keep_active_row_visible(terminal.visible_pattern_rows());
                 }
-                Event::Resize(_, _) => app.keep_cursor_visible(terminal.visible_pattern_rows()),
+                Event::Resize(_, _) => app.keep_active_row_visible(terminal.visible_pattern_rows()),
                 _ => {}
             }
         }
 
         if app.last_tick.elapsed() >= UI_TICK_RATE {
             app.last_tick = Instant::now();
-            app.keep_cursor_visible(terminal.visible_pattern_rows());
+            app.keep_active_row_visible(terminal.visible_pattern_rows());
         }
     }
 
@@ -1241,11 +1242,24 @@ impl App {
     }
 
     fn keep_cursor_visible(&mut self, visible_rows: usize) {
+        self.keep_row_visible(self.cursor.row, visible_rows);
+    }
+
+    fn keep_active_row_visible(&mut self, visible_rows: usize) {
+        let row = if self.is_playing {
+            self.playhead_row.unwrap_or(self.cursor.row)
+        } else {
+            self.cursor.row
+        };
+        self.keep_row_visible(row, visible_rows);
+    }
+
+    fn keep_row_visible(&mut self, row: usize, visible_rows: usize) {
         let visible_rows = visible_rows.max(1);
-        if self.cursor.row < self.row_offset {
-            self.row_offset = self.cursor.row;
-        } else if self.cursor.row >= self.row_offset.saturating_add(visible_rows) {
-            self.row_offset = self.cursor.row.saturating_sub(visible_rows - 1);
+        if row < self.row_offset {
+            self.row_offset = row;
+        } else if row >= self.row_offset.saturating_add(visible_rows) {
+            self.row_offset = row.saturating_sub(visible_rows - 1);
         }
 
         let max_offset = self.current_row_count().saturating_sub(visible_rows);
@@ -1408,6 +1422,23 @@ mod tests {
         app.keep_cursor_visible(20);
 
         assert_eq!(app.row_offset, 44);
+    }
+
+    #[test]
+    fn scrolls_to_keep_playhead_visible_while_playing() {
+        let mut app = App {
+            cursor: Cursor {
+                row: 0,
+                ..Cursor::new()
+            },
+            is_playing: true,
+            playhead_row: Some(20),
+            ..App::default()
+        };
+
+        app.keep_active_row_visible(10);
+
+        assert_eq!(app.row_offset, 11);
     }
 
     #[test]
