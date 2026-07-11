@@ -608,6 +608,10 @@ impl App {
                 self.stop_playback();
                 return;
             }
+            KeyCode::F(2) => {
+                self.start_track_rename_command();
+                return;
+            }
             KeyCode::Char('L') => {
                 self.toggle_loop();
                 return;
@@ -1085,6 +1089,12 @@ impl App {
         self.mutate_song(|song, _| {
             let _ = song.rename_track(track_index, name);
         });
+    }
+
+    fn start_track_rename_command(&mut self) {
+        self.command_buffer = format!("track rename {} ", self.cursor.track + 1);
+        self.mode = AppMode::Command;
+        self.notify_info("Rename current track");
     }
 
     fn set_bpm(&mut self, bpm: u16) {
@@ -3072,6 +3082,29 @@ mod tests {
 
         app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
         assert_eq!(app.song.tracks[2].name, "Lead");
+    }
+
+    #[test]
+    fn f2_prefills_current_track_rename_command() {
+        let mut app = App {
+            cursor: Cursor {
+                track: 1,
+                ..Cursor::new()
+            },
+            ..App::default()
+        };
+
+        app.handle_key(KeyEvent::new(KeyCode::F(2), KeyModifiers::NONE));
+
+        assert_eq!(app.mode, AppMode::Command);
+        assert_eq!(app.command_buffer, "track rename 2 ");
+
+        for value in "Sub Bass".chars() {
+            app.handle_key(KeyEvent::new(KeyCode::Char(value), KeyModifiers::NONE));
+        }
+        app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+
+        assert_eq!(app.song.tracks[1].name, "Sub Bass");
     }
 
     fn type_command(app: &mut App, command: &str) {

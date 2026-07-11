@@ -475,7 +475,7 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
     }
 
     let status = Paragraph::new(format!(
-        " {}{} | H Help | Space Play/Stop | Enter Play Row | L Loop | F8 Stop | : Command | i Edit | V Select | Ctrl+C/X/V | Ctrl+S Save | Ctrl+Z Undo | q Quit ",
+        " {}{} | H Help | Space Play/Stop | Enter Play Row | L Loop | F8 Stop | F2 Rename | : Command | i Edit | V Select | Ctrl+C/X/V | Ctrl+S Save | q Quit ",
         state.mode_label,
         if state.selection.is_some() { " SEL" } else { "" }
     ));
@@ -547,7 +547,7 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
         )),
-        Line::from("  Ctrl+T create track   Del delete track in normal mode   M mute   S solo"),
+        Line::from("  Ctrl+T create track   F2 rename track   Del delete track   M mute   S solo"),
         Line::from("  :write [path]   :saveas path   :quit   :q!   :wq   :bpm 140   :lpb 4"),
         Line::from("  Dirty quit asks: [Y]es save, [N]o quit, [C]ancel"),
         Line::from("  :track new   :track duplicate 2   :track rename Acid Bass"),
