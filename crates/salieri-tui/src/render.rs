@@ -522,7 +522,7 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
                 .add_modifier(Modifier::BOLD),
         )),
         Line::from("  Arrows or h/j/k/l move   Tab/Shift+Tab track   PageUp/PageDown jump"),
-        Line::from("  Home/End pattern bounds"),
+        Line::from("  Home/End pattern bounds   gg first row   G last row"),
         Line::from(""),
         Line::from(Span::styled(
             "Editing",

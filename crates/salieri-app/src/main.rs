@@ -416,6 +416,7 @@ struct App {
     octave: u8,
     edit_step: usize,
     vim_navigation: bool,
+    pending_goto_start: bool,
     follow_playhead: bool,
     show_line_numbers_hex: bool,
     command_buffer: String,
@@ -494,6 +495,7 @@ impl App {
             octave: config.keyboard.default_octave,
             edit_step: config.keyboard.edit_step.max(1),
             vim_navigation: config.keyboard.vim_navigation,
+            pending_goto_start: false,
             follow_playhead: config.ui.follow_playhead,
             show_line_numbers_hex: config.ui.show_line_numbers_hex,
             command_buffer: String::new(),
@@ -600,6 +602,14 @@ impl App {
     }
 
     fn handle_normal_key(&mut self, key: KeyEvent) {
+        if self.pending_goto_start {
+            self.pending_goto_start = false;
+            if self.vim_navigation && key.code == KeyCode::Char('g') {
+                self.cursor.row = 0;
+                return;
+            }
+        }
+
         let direction = match key.code {
             KeyCode::Esc => {
                 self.selection_anchor = None;
@@ -668,6 +678,14 @@ impl App {
                 return;
             }
             KeyCode::End => {
+                self.cursor.row = self.current_row_count().saturating_sub(1);
+                return;
+            }
+            KeyCode::Char('g') if self.vim_navigation => {
+                self.pending_goto_start = true;
+                return;
+            }
+            KeyCode::Char('G') if self.vim_navigation => {
                 self.cursor.row = self.current_row_count().saturating_sub(1);
                 return;
             }
@@ -2189,6 +2207,20 @@ mod tests {
         app.handle_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
 
         assert_eq!(app.cursor.row, 3);
+    }
+
+    #[test]
+    fn vim_navigation_jumps_to_pattern_bounds() {
+        let mut app = App::default();
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('G'), KeyModifiers::SHIFT));
+        assert_eq!(app.cursor.row, 63);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('g'), KeyModifiers::NONE));
+        assert_eq!(app.cursor.row, 63);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('g'), KeyModifiers::NONE));
+        assert_eq!(app.cursor.row, 0);
     }
 
     #[test]
