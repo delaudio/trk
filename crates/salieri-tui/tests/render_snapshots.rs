@@ -214,6 +214,105 @@ fn snapshots_midi_settings_overlay() {
     );
 }
 
+#[test]
+fn snapshots_small_layout() {
+    assert_snapshot(
+        "responsive-small",
+        render_snapshot(
+            Song::empty(),
+            TuiState {
+                cursor: Cursor::new(),
+                row_offset: 0,
+                pattern_index: 0,
+                selection: None,
+                mode_label: "NORMAL",
+                octave: 4,
+                dirty: false,
+                show_line_numbers_hex: false,
+                command_line: None,
+                notification: None,
+                show_help: false,
+                is_playing: false,
+                loop_pattern: true,
+                playhead_row: None,
+                midi_status: "MIDI Disconnected",
+                sequence_position: None,
+                quit_confirmation: false,
+                delete_confirmation: None,
+                midi_settings: None,
+            },
+            72,
+            24,
+        ),
+    );
+}
+
+#[test]
+fn snapshots_medium_layout() {
+    assert_snapshot(
+        "responsive-medium",
+        render_snapshot(
+            Song::empty(),
+            TuiState {
+                cursor: Cursor::new(),
+                row_offset: 0,
+                pattern_index: 0,
+                selection: None,
+                mode_label: "NORMAL",
+                octave: 4,
+                dirty: false,
+                show_line_numbers_hex: false,
+                command_line: None,
+                notification: None,
+                show_help: false,
+                is_playing: false,
+                loop_pattern: true,
+                playhead_row: None,
+                midi_status: "MIDI Disconnected",
+                sequence_position: None,
+                quit_confirmation: false,
+                delete_confirmation: None,
+                midi_settings: None,
+            },
+            100,
+            28,
+        ),
+    );
+}
+
+#[test]
+fn snapshots_large_layout() {
+    assert_snapshot(
+        "responsive-large",
+        render_snapshot(
+            Song::empty(),
+            TuiState {
+                cursor: Cursor::new(),
+                row_offset: 0,
+                pattern_index: 0,
+                selection: None,
+                mode_label: "NORMAL",
+                octave: 4,
+                dirty: false,
+                show_line_numbers_hex: false,
+                command_line: None,
+                notification: None,
+                show_help: false,
+                is_playing: false,
+                loop_pattern: true,
+                playhead_row: None,
+                midi_status: "MIDI Disconnected",
+                sequence_position: None,
+                quit_confirmation: false,
+                delete_confirmation: None,
+                midi_settings: None,
+            },
+            140,
+            32,
+        ),
+    );
+}
+
 fn render_snapshot(song: Song, state: TuiState<'_>, width: u16, height: u16) -> String {
     let backend = TestBackend::new(width, height);
     let mut terminal = Terminal::new(backend).expect("test terminal");

@@ -9,6 +9,15 @@ const TRACK_PANEL_WIDTH: u16 = 27;
 const ROW_GUTTER_WIDTH: usize = 5;
 const PATTERN_CELL_WIDTH: usize = 10;
 const TRACK_LIST_NAME_WIDTH: usize = 11;
+const MEDIUM_MIN_WIDTH: u16 = 80;
+const LARGE_MIN_WIDTH: u16 = 120;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LayoutKind {
+    Small,
+    Medium,
+    Large,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TuiState<'a> {
@@ -149,29 +158,51 @@ fn render_header(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState
 }
 
 fn render_body(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
-    let chunks = if area.width >= 120 {
-        Layout::default()
-            .direction(LayoutDirection::Horizontal)
-            .constraints([Constraint::Length(TRACK_PANEL_WIDTH), Constraint::Min(40)])
-            .split(area)
-    } else {
-        Layout::default()
-            .direction(LayoutDirection::Horizontal)
-            .constraints([Constraint::Min(40)])
-            .split(area)
-    };
-
-    if area.width >= 120 {
-        let side = Layout::default()
-            .direction(LayoutDirection::Vertical)
-            .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
-            .split(chunks[0]);
-        render_tracks(frame, side[0], song, state.cursor.track);
-        render_sequence(frame, side[1], song, state.sequence_position);
-        render_pattern(frame, chunks[1], song, state);
-    } else {
-        render_pattern(frame, chunks[0], song, state);
+    match layout_kind(area.width) {
+        LayoutKind::Large => {
+            let chunks = Layout::default()
+                .direction(LayoutDirection::Horizontal)
+                .constraints([Constraint::Length(TRACK_PANEL_WIDTH), Constraint::Min(40)])
+                .split(area);
+            let side = Layout::default()
+                .direction(LayoutDirection::Vertical)
+                .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
+                .split(chunks[0]);
+            render_tracks(frame, side[0], song, state.cursor.track);
+            render_sequence(frame, side[1], song, state.sequence_position);
+            render_pattern(frame, chunks[1], song, state);
+        }
+        LayoutKind::Medium => {
+            let chunks = Layout::default()
+                .direction(LayoutDirection::Horizontal)
+                .constraints([Constraint::Min(48), Constraint::Length(TRACK_PANEL_WIDTH)])
+                .split(area);
+            render_pattern(frame, chunks[0], song, state);
+            render_medium_side(frame, chunks[1], song, state);
+        }
+        LayoutKind::Small => {
+            render_pattern(frame, area, song, state);
+        }
     }
+}
+
+fn layout_kind(width: u16) -> LayoutKind {
+    if width >= LARGE_MIN_WIDTH {
+        LayoutKind::Large
+    } else if width >= MEDIUM_MIN_WIDTH {
+        LayoutKind::Medium
+    } else {
+        LayoutKind::Small
+    }
+}
+
+fn render_medium_side(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
+    let side = Layout::default()
+        .direction(LayoutDirection::Vertical)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(area);
+    render_tracks(frame, side[0], song, state.cursor.track);
+    render_sequence(frame, side[1], song, state.sequence_position);
 }
 
 fn render_tracks(frame: &mut Frame<'_>, area: Rect, song: &Song, active_track: usize) {
@@ -722,6 +753,14 @@ mod tests {
     use salieri_core::Song;
 
     #[test]
+    fn classifies_responsive_layout_breakpoints() {
+        assert_eq!(layout_kind(79), LayoutKind::Small);
+        assert_eq!(layout_kind(80), LayoutKind::Medium);
+        assert_eq!(layout_kind(119), LayoutKind::Medium);
+        assert_eq!(layout_kind(120), LayoutKind::Large);
+    }
+
+    #[test]
     fn renders_default_pattern_without_panic() {
         let song = Song::empty();
         let backend = TestBackend::new(160, 32);
@@ -768,6 +807,104 @@ mod tests {
         assert!(rendered.contains("Pattern Editor"));
         assert!(rendered.contains("Drums"));
         assert!(rendered.contains("Bass"));
+    }
+
+    #[test]
+    fn renders_small_layout_as_single_pattern_view() {
+        let song = Song::empty();
+        let backend = TestBackend::new(72, 24);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+
+        terminal
+            .draw(|frame| {
+                render(
+                    frame,
+                    &song,
+                    TuiState {
+                        cursor: Cursor::new(),
+                        row_offset: 0,
+                        pattern_index: 0,
+                        selection: None,
+                        mode_label: "NORMAL",
+                        octave: 4,
+                        dirty: false,
+                        show_line_numbers_hex: false,
+                        command_line: None,
+                        notification: None,
+                        show_help: false,
+                        is_playing: false,
+                        loop_pattern: true,
+                        playhead_row: None,
+                        midi_status: "MIDI Disconnected",
+                        sequence_position: None,
+                        quit_confirmation: false,
+                        delete_confirmation: None,
+                        midi_settings: None,
+                    },
+                );
+            })
+            .expect("draw");
+
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+
+        assert!(rendered.contains("Pattern Editor"));
+        assert!(!rendered.contains("Tracks"));
+        assert!(!rendered.contains("Sequence"));
+    }
+
+    #[test]
+    fn renders_medium_layout_with_compact_side_panel() {
+        let song = Song::empty();
+        let backend = TestBackend::new(100, 28);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+
+        terminal
+            .draw(|frame| {
+                render(
+                    frame,
+                    &song,
+                    TuiState {
+                        cursor: Cursor::new(),
+                        row_offset: 0,
+                        pattern_index: 0,
+                        selection: None,
+                        mode_label: "NORMAL",
+                        octave: 4,
+                        dirty: false,
+                        show_line_numbers_hex: false,
+                        command_line: None,
+                        notification: None,
+                        show_help: false,
+                        is_playing: false,
+                        loop_pattern: true,
+                        playhead_row: None,
+                        midi_status: "MIDI Disconnected",
+                        sequence_position: None,
+                        quit_confirmation: false,
+                        delete_confirmation: None,
+                        midi_settings: None,
+                    },
+                );
+            })
+            .expect("draw");
+
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+
+        assert!(rendered.contains("Pattern Editor"));
+        assert!(rendered.contains("Tracks"));
+        assert!(rendered.contains("Sequence"));
     }
 
     #[test]
