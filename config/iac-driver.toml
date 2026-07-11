@@ -9,3 +9,4 @@ follow_playhead = true
 
 [midi]
 default_output = "IAC Driver"
+log_file = "salieri-midi.log"

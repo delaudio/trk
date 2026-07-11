@@ -1,4 +1,7 @@
 use std::{
+    fs::{File, OpenOptions},
+    io::Write,
+    path::PathBuf,
     sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, TryRecvError},
     thread::{self, JoinHandle},
     time::{Duration, Instant},
@@ -6,8 +9,7 @@ use std::{
 
 use salieri_core::{pattern_events, row_duration_micros, PlaybackPosition, Song};
 use salieri_midi::{
-    send_all_notes_off, send_playback_event, FakeMidiOutput, MidiError, MidiMessage, MidiOutput,
-    MidirMidiOutput,
+    playback_event_to_midi, FakeMidiOutput, MidiError, MidiMessage, MidiOutput, MidirMidiOutput,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,6 +26,7 @@ pub enum PlaybackUpdate {
     MidiConnected { port_index: usize },
     MidiDisconnected,
     MidiError(String),
+    MidiLogError(String),
 }
 
 #[derive(Debug)]
@@ -44,10 +47,10 @@ pub struct PlaybackRuntime {
 }
 
 impl PlaybackRuntime {
-    pub fn spawn() -> Self {
+    pub fn spawn(midi_log_path: Option<PathBuf>) -> Self {
         let (command_tx, command_rx) = mpsc::channel();
         let (update_tx, update_rx) = mpsc::channel();
-        let handle = thread::spawn(move || playback_thread(command_rx, update_tx));
+        let handle = thread::spawn(move || playback_thread(command_rx, update_tx, midi_log_path));
 
         Self {
             command_tx,
@@ -109,8 +112,13 @@ impl Drop for PlaybackRuntime {
     }
 }
 
-fn playback_thread(command_rx: Receiver<PlaybackCommand>, update_tx: Sender<PlaybackUpdate>) {
+fn playback_thread(
+    command_rx: Receiver<PlaybackCommand>,
+    update_tx: Sender<PlaybackUpdate>,
+    midi_log_path: Option<PathBuf>,
+) {
     let mut output = PlaybackOutput::fake();
+    let mut midi_logger = MidiLogger::new(midi_log_path, &update_tx);
     let mut next_command = None;
 
     loop {
@@ -126,56 +134,67 @@ fn playback_thread(command_rx: Receiver<PlaybackCommand>, update_tx: Sender<Play
                 song,
                 pattern_index,
             } => {
-                next_command = run_pattern(
-                    &song,
-                    pattern_index,
-                    None,
-                    true,
-                    &command_rx,
-                    &update_tx,
-                    &mut output,
-                )
-                .into_command();
+                let mut context = PlaybackRunContext {
+                    command_rx: &command_rx,
+                    update_tx: &update_tx,
+                    output: &mut output,
+                    midi_logger: &mut midi_logger,
+                };
+                next_command =
+                    run_pattern(&song, pattern_index, None, true, &mut context).into_command();
                 if matches!(next_command, Some(PlaybackCommand::Shutdown)) {
                     break;
                 }
             }
             PlaybackCommand::StartSequence { song } => {
-                next_command = run_sequence(song, &command_rx, &update_tx, &mut output);
+                let mut context = PlaybackRunContext {
+                    command_rx: &command_rx,
+                    update_tx: &update_tx,
+                    output: &mut output,
+                    midi_logger: &mut midi_logger,
+                };
+                next_command = run_sequence(song, &mut context);
                 if matches!(next_command, Some(PlaybackCommand::Shutdown)) {
                     break;
                 }
             }
             PlaybackCommand::ConnectMidi { port_index } => {
-                let _ = send_all_notes_off(&mut output);
+                midi_logger.log_line(format!("CONNECT_REQUEST port={port_index}"));
+                let _ = send_all_notes_off_logged(&mut output, &mut midi_logger);
                 match MidirMidiOutput::connect(port_index, "salieri-output") {
                     Ok(midir_output) => {
                         output = PlaybackOutput::Midir(midir_output);
+                        midi_logger.log_line(format!("CONNECTED port={port_index}"));
                         let _ = update_tx.send(PlaybackUpdate::MidiConnected { port_index });
                     }
                     Err(error) => {
+                        midi_logger.log_line(format!("CONNECT_ERROR port={port_index} {error}"));
                         let _ = update_tx.send(PlaybackUpdate::MidiError(error.to_string()));
                     }
                 }
             }
             PlaybackCommand::DisconnectMidi => {
-                let _ = send_all_notes_off(&mut output);
+                midi_logger.log_line("DISCONNECT");
+                let _ = send_all_notes_off_logged(&mut output, &mut midi_logger);
                 output = PlaybackOutput::fake();
                 let _ = update_tx.send(PlaybackUpdate::MidiDisconnected);
             }
             PlaybackCommand::Panic => {
-                let _ = send_all_notes_off(&mut output);
+                midi_logger.log_line("PANIC");
+                let _ = send_all_notes_off_logged(&mut output, &mut midi_logger);
                 let _ = update_tx.send(PlaybackUpdate::Stopped);
             }
             PlaybackCommand::Stop => {
-                let _ = send_all_notes_off(&mut output);
+                midi_logger.log_line("STOP");
+                let _ = send_all_notes_off_logged(&mut output, &mut midi_logger);
                 let _ = update_tx.send(PlaybackUpdate::Stopped);
             }
             PlaybackCommand::Shutdown => break,
         }
     }
 
-    let _ = send_all_notes_off(&mut output);
+    midi_logger.log_line("SHUTDOWN");
+    let _ = send_all_notes_off_logged(&mut output, &mut midi_logger);
     let _ = update_tx.send(PlaybackUpdate::Stopped);
 }
 
@@ -215,17 +234,22 @@ impl MidiOutput for PlaybackOutput {
     }
 }
 
+struct PlaybackRunContext<'a> {
+    command_rx: &'a Receiver<PlaybackCommand>,
+    update_tx: &'a Sender<PlaybackUpdate>,
+    output: &'a mut PlaybackOutput,
+    midi_logger: &'a mut MidiLogger,
+}
+
 fn run_pattern(
     song: &Song,
     pattern_index: usize,
     sequence_index: Option<usize>,
     loop_pattern: bool,
-    command_rx: &Receiver<PlaybackCommand>,
-    update_tx: &Sender<PlaybackUpdate>,
-    output: &mut PlaybackOutput,
+    context: &mut PlaybackRunContext<'_>,
 ) -> PatternRunResult {
     let Some(pattern) = song.pattern(pattern_index) else {
-        let _ = update_tx.send(PlaybackUpdate::Stopped);
+        let _ = context.update_tx.send(PlaybackUpdate::Stopped);
         return PatternRunResult::Stopped;
     };
     let pattern = pattern.clone();
@@ -237,30 +261,37 @@ fn run_pattern(
 
         for row in 0..=row_count {
             let deadline = loop_start + row_duration.saturating_mul(row as u32);
-            if let Some(command) = wait_until(command_rx, deadline) {
-                let _ = send_all_notes_off(output);
-                let _ = update_tx.send(PlaybackUpdate::Stopped);
+            if let Some(command) = wait_until(context.command_rx, deadline) {
+                let _ = send_all_notes_off_logged(context.output, context.midi_logger);
+                let _ = context.update_tx.send(PlaybackUpdate::Stopped);
                 return PatternRunResult::Command(command);
             }
 
             for event in events.iter().filter(|event| event.position.row == row) {
-                if let Err(error) = send_playback_event(output, *event) {
-                    let _ = update_tx.send(PlaybackUpdate::MidiError(error.to_string()));
-                    let _ = send_all_notes_off(output);
-                    let _ = update_tx.send(PlaybackUpdate::Stopped);
+                if let Err(error) =
+                    send_playback_event_logged(context.output, context.midi_logger, *event)
+                {
+                    let _ = context
+                        .update_tx
+                        .send(PlaybackUpdate::MidiError(error.to_string()));
+                    let _ = send_all_notes_off_logged(context.output, context.midi_logger);
+                    let _ = context.update_tx.send(PlaybackUpdate::Stopped);
                     return PatternRunResult::Stopped;
                 }
             }
 
             if row < row_count {
-                let _ = update_tx.send(PlaybackUpdate::Position(PlaybackCursor {
-                    pattern_index,
-                    sequence_index,
-                    position: PlaybackPosition {
-                        row,
-                        offset_micros: row_duration.as_micros().saturating_mul(row as u128) as u64,
-                    },
-                }));
+                let _ = context
+                    .update_tx
+                    .send(PlaybackUpdate::Position(PlaybackCursor {
+                        pattern_index,
+                        sequence_index,
+                        position: PlaybackPosition {
+                            row,
+                            offset_micros: row_duration.as_micros().saturating_mul(row as u128)
+                                as u64,
+                        },
+                    }));
             }
         }
 
@@ -270,12 +301,7 @@ fn run_pattern(
     }
 }
 
-fn run_sequence(
-    song: Song,
-    command_rx: &Receiver<PlaybackCommand>,
-    update_tx: &Sender<PlaybackUpdate>,
-    output: &mut PlaybackOutput,
-) -> Option<PlaybackCommand> {
+fn run_sequence(song: Song, context: &mut PlaybackRunContext<'_>) -> Option<PlaybackCommand> {
     for (sequence_index, pattern_id) in song.sequence.iter().enumerate() {
         let Some(pattern_index) = song
             .patterns
@@ -285,24 +311,121 @@ fn run_sequence(
             continue;
         };
 
-        match run_pattern(
-            &song,
-            pattern_index,
-            Some(sequence_index),
-            false,
-            command_rx,
-            update_tx,
-            output,
-        ) {
+        match run_pattern(&song, pattern_index, Some(sequence_index), false, context) {
             PatternRunResult::Finished => {}
             PatternRunResult::Stopped => return None,
             PatternRunResult::Command(command) => return Some(command),
         }
     }
 
-    let _ = send_all_notes_off(output);
-    let _ = update_tx.send(PlaybackUpdate::Stopped);
+    let _ = send_all_notes_off_logged(context.output, context.midi_logger);
+    let _ = context.update_tx.send(PlaybackUpdate::Stopped);
     None
+}
+
+struct MidiLogger {
+    start: Instant,
+    file: Option<File>,
+}
+
+impl MidiLogger {
+    fn new(path: Option<PathBuf>, update_tx: &Sender<PlaybackUpdate>) -> Self {
+        let file = path.and_then(|path| match open_log_file(&path) {
+            Ok(mut file) => {
+                let _ = writeln!(file, "# Salieri MIDI log");
+                Some(file)
+            }
+            Err(error) => {
+                let _ = update_tx.send(PlaybackUpdate::MidiLogError(format!(
+                    "{}: {error}",
+                    path.display()
+                )));
+                None
+            }
+        });
+
+        Self {
+            start: Instant::now(),
+            file,
+        }
+    }
+
+    fn log_line(&mut self, line: impl AsRef<str>) {
+        let Some(file) = &mut self.file else {
+            return;
+        };
+        let elapsed = self.start.elapsed().as_millis();
+        let _ = writeln!(file, "{elapsed:>8}ms {}", line.as_ref());
+        let _ = file.flush();
+    }
+}
+
+fn open_log_file(path: &PathBuf) -> std::io::Result<File> {
+    if let Some(parent) = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
+        std::fs::create_dir_all(parent)?;
+    }
+    OpenOptions::new().create(true).append(true).open(path)
+}
+
+fn send_playback_event_logged(
+    output: &mut PlaybackOutput,
+    midi_logger: &mut MidiLogger,
+    event: salieri_core::PlaybackEvent,
+) -> Result<(), MidiError> {
+    let message = playback_event_to_midi(event);
+    send_midi_message_logged(output, midi_logger, message)
+}
+
+fn send_all_notes_off_logged(
+    output: &mut PlaybackOutput,
+    midi_logger: &mut MidiLogger,
+) -> Result<(), MidiError> {
+    for channel in 1..=16 {
+        send_midi_message_logged(output, midi_logger, MidiMessage::all_notes_off(channel))?;
+    }
+    Ok(())
+}
+
+fn send_midi_message_logged(
+    output: &mut PlaybackOutput,
+    midi_logger: &mut MidiLogger,
+    message: MidiMessage,
+) -> Result<(), MidiError> {
+    midi_logger.log_line(format_midi_message(message));
+    output.send(message)
+}
+
+fn format_midi_message(message: MidiMessage) -> String {
+    let bytes = message.to_bytes();
+    match message {
+        MidiMessage::NoteOn {
+            channel,
+            note,
+            velocity,
+        } => format!(
+            "NOTE_ON ch={channel} note={note} velocity={velocity} bytes={:02X} {:02X} {:02X}",
+            bytes[0], bytes[1], bytes[2]
+        ),
+        MidiMessage::NoteOff {
+            channel,
+            note,
+            velocity,
+        } => format!(
+            "NOTE_OFF ch={channel} note={note} velocity={velocity} bytes={:02X} {:02X} {:02X}",
+            bytes[0], bytes[1], bytes[2]
+        ),
+        MidiMessage::ControlChange {
+            channel,
+            controller,
+            value,
+        } => format!(
+            "CC ch={channel} controller={controller} value={value} bytes={:02X} {:02X} {:02X}",
+            bytes[0], bytes[1], bytes[2]
+        ),
+    }
 }
 
 fn wait_until(
@@ -334,7 +457,7 @@ mod tests {
 
     #[test]
     fn runtime_emits_positions_and_stops() {
-        let runtime = PlaybackRuntime::spawn();
+        let runtime = PlaybackRuntime::spawn(None);
         let mut song = Song::empty();
         song.transport.bpm = u16::MAX;
         song.transport.lines_per_beat = u8::MAX;
@@ -374,5 +497,36 @@ mod tests {
 
         assert!(saw_position);
         assert!(saw_stop);
+    }
+
+    #[test]
+    fn runtime_writes_midi_log_when_enabled() {
+        let path =
+            std::env::temp_dir().join(format!("salieri-midi-log-{}.log", std::process::id()));
+        let runtime = PlaybackRuntime::spawn(Some(path.clone()));
+        let mut song = Song::empty();
+        song.transport.bpm = u16::MAX;
+        song.transport.lines_per_beat = u8::MAX;
+        song.current_pattern_mut()
+            .expect("pattern")
+            .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x7f)
+            .expect("set note");
+
+        runtime.start_pattern(song, 0);
+
+        let deadline = Instant::now() + Duration::from_millis(250);
+        while Instant::now() < deadline {
+            if std::fs::read_to_string(&path).is_ok_and(|contents| contents.contains("NOTE_ON")) {
+                break;
+            }
+            thread::sleep(Duration::from_millis(1));
+        }
+        runtime.stop();
+        drop(runtime);
+
+        let contents = std::fs::read_to_string(&path).expect("midi log");
+        let _ = std::fs::remove_file(&path);
+
+        assert!(contents.contains("NOTE_ON ch=10 note=60 velocity=127"));
     }
 }

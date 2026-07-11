@@ -52,6 +52,7 @@ impl Default for UiConfig {
 #[serde(default)]
 pub struct MidiConfig {
     pub default_output: String,
+    pub log_file: Option<PathBuf>,
 }
 
 pub fn load_config(path: Option<&Path>) -> Result<AppConfig> {
@@ -109,6 +110,7 @@ follow_playhead = false
 
 [midi]
 default_output = "IAC Driver"
+log_file = "salieri-midi.log"
 "#,
         )
         .expect("write config");
@@ -122,5 +124,9 @@ default_output = "IAC Driver"
         assert!(!config.ui.follow_playhead);
         assert!(!config.ui.show_line_numbers_hex);
         assert_eq!(config.midi.default_output, "IAC Driver");
+        assert_eq!(
+            config.midi.log_file,
+            Some(PathBuf::from("salieri-midi.log"))
+        );
     }
 }

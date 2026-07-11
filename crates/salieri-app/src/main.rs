@@ -61,7 +61,10 @@ fn run(args: CliArgs) -> Result<()> {
         CliCommand::Run => {}
     }
 
-    let config = load_config(args.config_path.as_deref())?;
+    let mut config = load_config(args.config_path.as_deref())?;
+    if let Some(midi_log_path) = args.midi_log_path {
+        config.midi.log_file = Some(midi_log_path);
+    }
     let project_path = args.project_path;
     let mut app = match &project_path {
         Some(path) => App::from_file(path, config)
@@ -130,6 +133,7 @@ struct CliArgs {
     project_path: Option<PathBuf>,
     config_path: Option<PathBuf>,
     log_level: Option<String>,
+    midi_log_path: Option<PathBuf>,
 }
 
 impl CliArgs {
@@ -137,6 +141,7 @@ impl CliArgs {
         let mut project_path = None;
         let mut config_path = None;
         let mut log_level = None;
+        let mut midi_log_path = None;
         let mut args = args.into_iter();
 
         while let Some(arg) = args.next() {
@@ -147,6 +152,7 @@ impl CliArgs {
                         project_path: None,
                         config_path,
                         log_level,
+                        midi_log_path,
                     }
                 }
                 "-V" | "--version" => {
@@ -155,6 +161,7 @@ impl CliArgs {
                         project_path: None,
                         config_path,
                         log_level,
+                        midi_log_path,
                     }
                 }
                 "--list-midi-outputs" => {
@@ -163,6 +170,7 @@ impl CliArgs {
                         project_path: None,
                         config_path,
                         log_level,
+                        midi_log_path,
                     }
                 }
                 "--config" => {
@@ -173,11 +181,19 @@ impl CliArgs {
                 "--log-level" => {
                     log_level = args.next();
                 }
+                "--midi-log" => {
+                    if let Some(path) = args.next() {
+                        midi_log_path = Some(PathBuf::from(path));
+                    }
+                }
                 _ if arg.starts_with("--config=") => {
                     config_path = Some(PathBuf::from(arg.trim_start_matches("--config=")));
                 }
                 _ if arg.starts_with("--log-level=") => {
                     log_level = Some(arg.trim_start_matches("--log-level=").to_string());
+                }
+                _ if arg.starts_with("--midi-log=") => {
+                    midi_log_path = Some(PathBuf::from(arg.trim_start_matches("--midi-log=")));
                 }
                 _ if project_path.is_none() => project_path = Some(PathBuf::from(arg)),
                 _ => {}
@@ -189,6 +205,7 @@ impl CliArgs {
             project_path,
             config_path,
             log_level,
+            midi_log_path,
         }
     }
 }
@@ -203,7 +220,7 @@ enum CliCommand {
 
 fn print_help() {
     println!(
-        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH        Load config from PATH\n  --log-level LEVEL    Set tracing filter, e.g. debug or salieri=debug\n  --list-midi-outputs  List available MIDI output ports\n  --help               Show this help\n  --version            Show version"
+        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH        Load config from PATH\n  --log-level LEVEL    Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH      Write sent MIDI messages to PATH\n  --list-midi-outputs  List available MIDI output ports\n  --help               Show this help\n  --version            Show version"
     );
 }
 
@@ -304,7 +321,7 @@ impl App {
             selection_anchor: None,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
-            playback: PlaybackRuntime::spawn(),
+            playback: PlaybackRuntime::spawn(config.midi.log_file.clone()),
             is_playing: false,
             playhead_row: None,
             sequence_position: None,
@@ -1281,6 +1298,9 @@ impl App {
                     self.playhead_row = None;
                     self.sequence_position = None;
                 }
+                PlaybackUpdate::MidiLogError(error) => {
+                    self.midi_status = format!("MIDI Log Error: {error}");
+                }
             }
         }
     }
@@ -1497,6 +1517,7 @@ mod tests {
                 project_path: None,
                 config_path: None,
                 log_level: None,
+                midi_log_path: None,
             }
         );
         assert_eq!(
@@ -1518,6 +1539,7 @@ mod tests {
                 project_path: Some(PathBuf::from("song.salieri")),
                 config_path: None,
                 log_level: None,
+                midi_log_path: None,
             }
         );
     }
@@ -1529,6 +1551,8 @@ mod tests {
                 "--config".to_string(),
                 "custom.toml".to_string(),
                 "--log-level=debug".to_string(),
+                "--midi-log".to_string(),
+                "midi.log".to_string(),
                 "song.salieri".to_string()
             ]),
             CliArgs {
@@ -1536,6 +1560,7 @@ mod tests {
                 project_path: Some(PathBuf::from("song.salieri")),
                 config_path: Some(PathBuf::from("custom.toml")),
                 log_level: Some("debug".to_string()),
+                midi_log_path: Some(PathBuf::from("midi.log")),
             }
         );
     }
