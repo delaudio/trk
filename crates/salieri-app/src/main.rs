@@ -638,7 +638,15 @@ impl App {
                 self.stop_playback();
                 return;
             }
+            KeyCode::F(1) => {
+                self.decrement_octave();
+                return;
+            }
             KeyCode::F(2) => {
+                self.increment_octave();
+                return;
+            }
+            KeyCode::Char('r') => {
                 self.start_track_rename_command();
                 return;
             }
@@ -3687,7 +3695,7 @@ mod tests {
     }
 
     #[test]
-    fn f2_prefills_current_track_rename_command() {
+    fn r_prefills_current_track_rename_command() {
         let mut app = App {
             cursor: Cursor {
                 track: 1,
@@ -3696,7 +3704,7 @@ mod tests {
             ..App::default()
         };
 
-        app.handle_key(KeyEvent::new(KeyCode::F(2), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::NONE));
 
         assert_eq!(app.mode, AppMode::Command);
         assert_eq!(app.command_buffer, "track rename 2 ");
@@ -3707,6 +3715,18 @@ mod tests {
         app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
 
         assert_eq!(app.song.tracks[1].name, "Sub Bass");
+    }
+
+    #[test]
+    fn f1_and_f2_change_octave_in_normal_mode() {
+        let mut app = App::default();
+
+        app.handle_key(KeyEvent::new(KeyCode::F(2), KeyModifiers::NONE));
+        assert_eq!(app.octave, 5);
+        assert_eq!(app.mode, AppMode::Normal);
+
+        app.handle_key(KeyEvent::new(KeyCode::F(1), KeyModifiers::NONE));
+        assert_eq!(app.octave, 4);
     }
 
     fn type_command(app: &mut App, command: &str) {
