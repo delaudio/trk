@@ -7,7 +7,7 @@ use salieri_core::{CellField, Cursor, NoteEvent, Pattern, PatternCell, Song};
 
 const TRACK_PANEL_WIDTH: u16 = 27;
 const ROW_GUTTER_WIDTH: usize = 5;
-const PATTERN_CELL_WIDTH: usize = 9;
+const PATTERN_CELL_WIDTH: usize = 10;
 const TRACK_LIST_NAME_WIDTH: usize = 11;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -307,7 +307,6 @@ fn pattern_row(
             is_playhead,
             is_active_track,
         ));
-        spans.push(Span::raw(" "));
     }
 
     Line::from(spans)
@@ -381,7 +380,7 @@ fn cell_spans(
         Span::styled(note, note_style),
         Span::styled(" ", spacer_style),
         Span::styled(velocity, velocity_style),
-        Span::styled("  ", spacer_style),
+        Span::styled("   ", spacer_style),
     ]
 }
 
