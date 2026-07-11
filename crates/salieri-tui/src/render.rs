@@ -18,6 +18,7 @@ pub struct TuiState<'a> {
     pub is_playing: bool,
     pub playhead_row: Option<usize>,
     pub midi_status: &'a str,
+    pub sequence_position: Option<usize>,
 }
 
 pub fn render(frame: &mut Frame<'_>, song: &Song, state: TuiState<'_>) {
@@ -90,7 +91,7 @@ fn render_body(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'
             .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
             .split(chunks[0]);
         render_tracks(frame, side[0], song, state.cursor.track);
-        render_sequence(frame, side[1], song);
+        render_sequence(frame, side[1], song, state.sequence_position);
         render_pattern(frame, chunks[1], song, state);
     } else {
         render_pattern(frame, chunks[0], song, state);
@@ -121,7 +122,12 @@ fn render_tracks(frame: &mut Frame<'_>, area: Rect, song: &Song, active_track: u
     frame.render_widget(tracks, area);
 }
 
-fn render_sequence(frame: &mut Frame<'_>, area: Rect, song: &Song) {
+fn render_sequence(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    song: &Song,
+    active_sequence_position: Option<usize>,
+) {
     let lines = song
         .sequence
         .iter()
@@ -132,7 +138,11 @@ fn render_sequence(frame: &mut Frame<'_>, area: Rect, song: &Song) {
                 .iter()
                 .find(|pattern| pattern.id == *pattern_id)
                 .map_or("Missing Pattern", |pattern| pattern.name.as_str());
-            let marker = if index == 0 { ">" } else { " " };
+            let marker = if active_sequence_position.unwrap_or(0) == index {
+                ">"
+            } else {
+                " "
+            };
             Line::from(format!("{marker} {index:02} {name}"))
         })
         .collect::<Vec<_>>();
@@ -331,6 +341,7 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
         Line::from("  Ctrl+T create track   Del delete track in normal mode   M mute   S solo"),
         Line::from("  :write   :quit   :wq   :bpm 140   :lpb 4"),
         Line::from("  :midi connect 0   :midi disconnect   :midi panic"),
+        Line::from("  :play pattern   :play sequence   :stop"),
         Line::from("  :pattern new   :pattern duplicate   :pattern delete   :pattern 1"),
         Line::from("  :sequence add   :sequence remove 0"),
         Line::from(""),
@@ -406,6 +417,7 @@ mod tests {
                         is_playing: false,
                         playhead_row: None,
                         midi_status: "MIDI Disconnected",
+                        sequence_position: None,
                     },
                 );
             })
@@ -447,6 +459,7 @@ mod tests {
                         is_playing: false,
                         playhead_row: None,
                         midi_status: "MIDI Disconnected",
+                        sequence_position: None,
                     },
                 );
             })
@@ -488,6 +501,7 @@ mod tests {
                         is_playing: true,
                         playhead_row: Some(0),
                         midi_status: "MIDI Connected 0",
+                        sequence_position: Some(0),
                     },
                 );
             })

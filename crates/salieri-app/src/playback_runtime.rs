@@ -11,8 +11,15 @@ use salieri_midi::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlaybackCursor {
+    pub pattern_index: usize,
+    pub sequence_index: Option<usize>,
+    pub position: PlaybackPosition,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlaybackUpdate {
-    Position(PlaybackPosition),
+    Position(PlaybackCursor),
     Stopped,
     MidiConnected { port_index: usize },
     MidiDisconnected,
@@ -22,6 +29,7 @@ pub enum PlaybackUpdate {
 #[derive(Debug)]
 enum PlaybackCommand {
     StartPattern { song: Song, pattern_index: usize },
+    StartSequence { song: Song },
     ConnectMidi { port_index: usize },
     DisconnectMidi,
     Panic,
@@ -53,6 +61,12 @@ impl PlaybackRuntime {
             song,
             pattern_index,
         });
+    }
+
+    pub fn start_sequence(&self, song: Song) {
+        let _ = self
+            .command_tx
+            .send(PlaybackCommand::StartSequence { song });
     }
 
     pub fn stop(&self) {
@@ -112,8 +126,22 @@ fn playback_thread(command_rx: Receiver<PlaybackCommand>, update_tx: Sender<Play
                 song,
                 pattern_index,
             } => {
-                next_command =
-                    run_pattern(song, pattern_index, &command_rx, &update_tx, &mut output);
+                next_command = run_pattern(
+                    &song,
+                    pattern_index,
+                    None,
+                    true,
+                    &command_rx,
+                    &update_tx,
+                    &mut output,
+                )
+                .into_command();
+                if matches!(next_command, Some(PlaybackCommand::Shutdown)) {
+                    break;
+                }
+            }
+            PlaybackCommand::StartSequence { song } => {
+                next_command = run_sequence(song, &command_rx, &update_tx, &mut output);
                 if matches!(next_command, Some(PlaybackCommand::Shutdown)) {
                     break;
                 }
@@ -151,6 +179,22 @@ fn playback_thread(command_rx: Receiver<PlaybackCommand>, update_tx: Sender<Play
     let _ = update_tx.send(PlaybackUpdate::Stopped);
 }
 
+#[derive(Debug)]
+enum PatternRunResult {
+    Finished,
+    Stopped,
+    Command(PlaybackCommand),
+}
+
+impl PatternRunResult {
+    fn into_command(self) -> Option<PlaybackCommand> {
+        match self {
+            Self::Command(command) => Some(command),
+            Self::Finished | Self::Stopped => None,
+        }
+    }
+}
+
 enum PlaybackOutput {
     Fake(FakeMidiOutput),
     Midir(MidirMidiOutput),
@@ -172,20 +216,22 @@ impl MidiOutput for PlaybackOutput {
 }
 
 fn run_pattern(
-    song: Song,
+    song: &Song,
     pattern_index: usize,
+    sequence_index: Option<usize>,
+    loop_pattern: bool,
     command_rx: &Receiver<PlaybackCommand>,
     update_tx: &Sender<PlaybackUpdate>,
     output: &mut PlaybackOutput,
-) -> Option<PlaybackCommand> {
+) -> PatternRunResult {
     let Some(pattern) = song.pattern(pattern_index) else {
         let _ = update_tx.send(PlaybackUpdate::Stopped);
-        return None;
+        return PatternRunResult::Stopped;
     };
     let pattern = pattern.clone();
     let row_count = pattern.row_count();
     let row_duration = Duration::from_micros(row_duration_micros(&song.transport).max(1));
-    let events = pattern_events(&song, &pattern);
+    let events = pattern_events(song, &pattern);
     loop {
         let loop_start = Instant::now();
 
@@ -194,7 +240,7 @@ fn run_pattern(
             if let Some(command) = wait_until(command_rx, deadline) {
                 let _ = send_all_notes_off(output);
                 let _ = update_tx.send(PlaybackUpdate::Stopped);
-                return Some(command);
+                return PatternRunResult::Command(command);
             }
 
             for event in events.iter().filter(|event| event.position.row == row) {
@@ -202,18 +248,61 @@ fn run_pattern(
                     let _ = update_tx.send(PlaybackUpdate::MidiError(error.to_string()));
                     let _ = send_all_notes_off(output);
                     let _ = update_tx.send(PlaybackUpdate::Stopped);
-                    return None;
+                    return PatternRunResult::Stopped;
                 }
             }
 
             if row < row_count {
-                let _ = update_tx.send(PlaybackUpdate::Position(PlaybackPosition {
-                    row,
-                    offset_micros: row_duration.as_micros().saturating_mul(row as u128) as u64,
+                let _ = update_tx.send(PlaybackUpdate::Position(PlaybackCursor {
+                    pattern_index,
+                    sequence_index,
+                    position: PlaybackPosition {
+                        row,
+                        offset_micros: row_duration.as_micros().saturating_mul(row as u128) as u64,
+                    },
                 }));
             }
         }
+
+        if !loop_pattern {
+            return PatternRunResult::Finished;
+        }
     }
+}
+
+fn run_sequence(
+    song: Song,
+    command_rx: &Receiver<PlaybackCommand>,
+    update_tx: &Sender<PlaybackUpdate>,
+    output: &mut PlaybackOutput,
+) -> Option<PlaybackCommand> {
+    for (sequence_index, pattern_id) in song.sequence.iter().enumerate() {
+        let Some(pattern_index) = song
+            .patterns
+            .iter()
+            .position(|pattern| pattern.id == *pattern_id)
+        else {
+            continue;
+        };
+
+        match run_pattern(
+            &song,
+            pattern_index,
+            Some(sequence_index),
+            false,
+            command_rx,
+            update_tx,
+            output,
+        ) {
+            PatternRunResult::Finished => {}
+            PatternRunResult::Stopped => return None,
+            PatternRunResult::Command(command) => return Some(command),
+        }
+    }
+
+    let _ = send_all_notes_off(output);
+    let _ = update_tx.send(PlaybackUpdate::Stopped);
+    None
 }
 
 fn wait_until(

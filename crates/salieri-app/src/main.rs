@@ -82,6 +82,7 @@ fn run() -> Result<()> {
                     is_playing: app.is_playing,
                     playhead_row: app.playhead_row,
                     midi_status: app.midi_status.as_str(),
+                    sequence_position: app.sequence_position,
                 },
             );
         })?;
@@ -207,6 +208,7 @@ struct App {
     playback: PlaybackRuntime,
     is_playing: bool,
     playhead_row: Option<usize>,
+    sequence_position: Option<usize>,
     midi_status: String,
     dirty: bool,
     should_quit: bool,
@@ -232,6 +234,7 @@ impl Default for App {
             playback: PlaybackRuntime::spawn(),
             is_playing: false,
             playhead_row: None,
+            sequence_position: None,
             midi_status: "MIDI Disconnected".to_string(),
             dirty: false,
             should_quit: false,
@@ -660,6 +663,12 @@ impl App {
                 Some("panic") => self.panic_midi(),
                 None | Some(_) => {}
             },
+            "play" => match parts.next() {
+                Some("sequence") | Some("seq") => self.start_sequence_playback(),
+                Some("pattern") | Some("pat") | None => self.start_playback(),
+                Some(_) => {}
+            },
+            "stop" => self.stop_playback(),
             "pattern" => match parts.next() {
                 Some("new") => self.create_pattern(),
                 Some("duplicate") | Some("dup") => self.duplicate_current_pattern(),
@@ -709,14 +718,38 @@ impl App {
 
         self.is_playing = true;
         self.playhead_row = Some(0);
+        self.sequence_position = None;
         self.playback
             .start_pattern(self.song.clone(), self.pattern_index);
+    }
+
+    fn start_sequence_playback(&mut self) {
+        if self.song.sequence.is_empty() {
+            return;
+        }
+
+        if let Some(first_pattern_id) = self.song.sequence.first() {
+            if let Some(pattern_index) = self
+                .song
+                .patterns
+                .iter()
+                .position(|pattern| pattern.id == *first_pattern_id)
+            {
+                self.pattern_index = pattern_index;
+            }
+        }
+
+        self.is_playing = true;
+        self.playhead_row = Some(0);
+        self.sequence_position = Some(0);
+        self.playback.start_sequence(self.song.clone());
     }
 
     fn stop_playback(&mut self) {
         self.playback.stop();
         self.is_playing = false;
         self.playhead_row = None;
+        self.sequence_position = None;
     }
 
     fn connect_midi(&mut self, port_index: usize) {
@@ -732,6 +765,7 @@ impl App {
         self.playback.panic_all_notes_off();
         self.is_playing = false;
         self.playhead_row = None;
+        self.sequence_position = None;
     }
 
     fn drain_playback_updates(&mut self) {
@@ -739,11 +773,14 @@ impl App {
             match update {
                 PlaybackUpdate::Position(position) => {
                     self.is_playing = true;
-                    self.playhead_row = Some(position.row);
+                    self.pattern_index = position.pattern_index;
+                    self.sequence_position = position.sequence_index;
+                    self.playhead_row = Some(position.position.row);
                 }
                 PlaybackUpdate::Stopped => {
                     self.is_playing = false;
                     self.playhead_row = None;
+                    self.sequence_position = None;
                 }
                 PlaybackUpdate::MidiConnected { port_index } => {
                     self.midi_status = format!("MIDI Connected {port_index}");
@@ -755,6 +792,7 @@ impl App {
                     self.midi_status = format!("MIDI Error: {error}");
                     self.is_playing = false;
                     self.playhead_row = None;
+                    self.sequence_position = None;
                 }
             }
         }
@@ -1170,6 +1208,22 @@ mod tests {
         type_command(&mut app, "midi panic");
         assert!(!app.is_playing);
         assert_eq!(app.playhead_row, None);
+    }
+
+    #[test]
+    fn command_mode_can_start_sequence_playback() {
+        let mut app = App::default();
+
+        type_command(&mut app, "play sequence");
+
+        assert!(app.is_playing);
+        assert_eq!(app.playhead_row, Some(0));
+        assert_eq!(app.sequence_position, Some(0));
+
+        type_command(&mut app, "stop");
+
+        assert!(!app.is_playing);
+        assert_eq!(app.sequence_position, None);
     }
 
     #[test]
