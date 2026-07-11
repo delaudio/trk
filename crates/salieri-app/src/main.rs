@@ -1207,9 +1207,16 @@ impl App {
     }
 
     fn rename_track(&mut self, track_index: usize, name: String) {
+        let mut next_song = self.song.clone();
+        if let Err(error) = next_song.rename_track(track_index, name) {
+            self.notify_warning(format!("Track rename failed: {error}"));
+            return;
+        }
+
         self.mutate_song(|song, _| {
-            let _ = song.rename_track(track_index, name);
+            *song = next_song;
         });
+        self.notify_success("Track renamed");
     }
 
     fn start_track_rename_command(&mut self) {
@@ -1309,9 +1316,16 @@ impl App {
 
     fn rename_current_pattern(&mut self, name: String) {
         let pattern_index = self.pattern_index;
+        let mut next_song = self.song.clone();
+        if let Err(error) = next_song.rename_pattern(pattern_index, name) {
+            self.notify_warning(format!("Pattern rename failed: {error}"));
+            return;
+        }
+
         self.mutate_song(|song, _| {
-            let _ = song.rename_pattern(pattern_index, name);
+            *song = next_song;
         });
+        self.notify_success("Pattern renamed");
     }
 
     fn select_pattern(&mut self, pattern_index: usize) {
@@ -3118,9 +3132,27 @@ mod tests {
 
         assert_eq!(app.song.patterns[0].name, "Intro Verse");
         assert!(app.dirty);
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("Pattern renamed")
+        );
 
         app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
         assert_eq!(app.song.patterns[0].name, "Pattern 01");
+    }
+
+    #[test]
+    fn command_mode_reports_invalid_pattern_rename() {
+        let mut app = App::default();
+
+        type_command(&mut app, "pattern rename     ");
+
+        assert_eq!(app.song.patterns[0].name, "Pattern 01");
+        assert!(!app.dirty);
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("Pattern rename failed: name cannot be empty")
+        );
     }
 
     #[test]
@@ -3516,12 +3548,20 @@ mod tests {
 
         type_command(&mut app, "track rename Acid Bass");
         assert_eq!(app.song.tracks[1].name, "Acid Bass");
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("Track renamed")
+        );
 
         type_command(&mut app, "track rename 3 Main Lead");
         assert_eq!(app.song.tracks[2].name, "Main Lead");
 
         type_command(&mut app, "track rename 3    ");
         assert_eq!(app.song.tracks[2].name, "Main Lead");
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("Track rename failed: name cannot be empty")
+        );
 
         app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
         assert_eq!(app.song.tracks[2].name, "Lead");
