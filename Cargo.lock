@@ -649,6 +649,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "salieri-audio"
+version = "0.1.0"
+dependencies = [
+ "thiserror",
+]
+
+[[package]]
 name = "salieri-core"
 version = "0.1.0"
 dependencies = [

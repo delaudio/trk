@@ -4,7 +4,8 @@ Salieri is split into workspace crates so the musical model stays independent fr
 
 ## Crates
 
-- `salieri-core`: song model, tracks, patterns, rows, cells, sequence operations, transport math, and playback event scheduling. It must not depend on Ratatui, Crossterm, MIDI, terminal state, or filesystem APIs.
+- `salieri-audio`: post-MVP audio thread lifecycle, backend abstraction, and realtime command boundary. It must not depend on Ratatui or project serialization.
+- `salieri-core`: song model, tracks, patterns, rows, cells, sequence operations, transport math, and playback event scheduling. It must not depend on Ratatui, Crossterm, MIDI, terminal state, audio backends, or filesystem APIs.
 - `salieri-midi`: MIDI messages, fake output for tests, `midir` output connections, port listing, panic/all-notes-off, and conversion from core playback events.
 - `salieri-sampler`: post-MVP WAV loading, preview buffer generation, and sample-to-track assignment metadata. It must stay optional for the MIDI-first playback path.
 - `salieri-tui`: Ratatui rendering only. It receives immutable song data and view state from the app layer.
