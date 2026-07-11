@@ -3,6 +3,7 @@ members = [
     "crates/salieri-app",
     "crates/salieri-core",
     "crates/salieri-midi",
+    "crates/salieri-sampler",
     "crates/salieri-tui",
 ]
 resolver = "2"
