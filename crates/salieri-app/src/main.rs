@@ -159,6 +159,10 @@ impl App {
                 }
                 true
             }
+            KeyCode::Char('t') | KeyCode::Char('T') => {
+                self.create_track();
+                true
+            }
             KeyCode::Char('z') | KeyCode::Char('Z') => {
                 if key.modifiers.contains(KeyModifiers::SHIFT) {
                     self.redo();
@@ -207,6 +211,18 @@ impl App {
             }
             KeyCode::PageDown => {
                 self.page_cursor_down();
+                return;
+            }
+            KeyCode::Delete => {
+                self.delete_current_track();
+                return;
+            }
+            KeyCode::Char('m') | KeyCode::Char('M') => {
+                self.toggle_current_mute();
+                return;
+            }
+            KeyCode::Char('s') | KeyCode::Char('S') => {
+                self.toggle_current_solo();
                 return;
             }
             _ => None,
@@ -310,6 +326,44 @@ impl App {
                 return;
             };
             let _ = pattern.clear_cell(cursor.row, cursor.track);
+        });
+    }
+
+    fn create_track(&mut self) {
+        let before_count = self.song.tracks.len();
+        self.mutate_song(|song, _| {
+            song.create_track();
+        });
+
+        if self.song.tracks.len() > before_count {
+            self.cursor.track = self.song.tracks.len().saturating_sub(1);
+            self.cursor.field = CellField::Note;
+            self.cursor.digit = 0;
+        }
+    }
+
+    fn delete_current_track(&mut self) {
+        let track = self.cursor.track;
+        let before_count = self.song.tracks.len();
+        self.mutate_song(|song, _| {
+            let _ = song.delete_track(track);
+        });
+
+        if self.song.tracks.len() < before_count {
+            self.clamp_cursor();
+            self.cursor.digit = 0;
+        }
+    }
+
+    fn toggle_current_mute(&mut self) {
+        self.mutate_song(|song, cursor| {
+            let _ = song.toggle_mute(cursor.track);
+        });
+    }
+
+    fn toggle_current_solo(&mut self) {
+        self.mutate_song(|song, cursor| {
+            let _ = song.toggle_solo(cursor.track);
         });
     }
 
@@ -598,5 +652,83 @@ mod tests {
         let _ = std::fs::remove_file(&path);
         assert_eq!(saved, app.song);
         assert!(!app.dirty);
+    }
+
+    #[test]
+    fn ctrl_t_creates_track_and_undo_restores_previous_shape() {
+        let mut app = App::default();
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('t'), KeyModifiers::CONTROL));
+
+        assert_eq!(app.song.tracks.len(), 5);
+        assert_eq!(app.cursor.track, 4);
+        assert!(app.dirty);
+        assert!(app
+            .song
+            .current_pattern()
+            .expect("pattern")
+            .rows
+            .iter()
+            .all(|row| row.cells.len() == 5));
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
+
+        assert_eq!(app.song.tracks.len(), 4);
+        assert_eq!(app.cursor.track, 3);
+        assert!(!app.dirty);
+    }
+
+    #[test]
+    fn delete_in_normal_mode_removes_current_track_and_cells() {
+        let mut app = App {
+            cursor: Cursor {
+                track: 1,
+                ..Cursor::new()
+            },
+            ..App::default()
+        };
+
+        app.handle_key(KeyEvent::new(KeyCode::Delete, KeyModifiers::NONE));
+
+        assert_eq!(app.song.tracks.len(), 3);
+        assert_eq!(app.song.tracks[1].name, "Lead");
+        assert_eq!(app.cursor.track, 1);
+        assert!(app
+            .song
+            .current_pattern()
+            .expect("pattern")
+            .rows
+            .iter()
+            .all(|row| row.cells.len() == 3));
+    }
+
+    #[test]
+    fn cannot_delete_last_track_from_app() {
+        let mut app = App::default();
+
+        while app.song.tracks.len() > 1 {
+            app.handle_key(KeyEvent::new(KeyCode::Delete, KeyModifiers::NONE));
+        }
+        app.handle_key(KeyEvent::new(KeyCode::Delete, KeyModifiers::NONE));
+
+        assert_eq!(app.song.tracks.len(), 1);
+    }
+
+    #[test]
+    fn mute_and_solo_commands_toggle_current_track() {
+        let mut app = App {
+            cursor: Cursor {
+                track: 2,
+                ..Cursor::new()
+            },
+            ..App::default()
+        };
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('m'), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::NONE));
+
+        assert!(app.song.tracks[2].muted);
+        assert!(app.song.tracks[2].solo);
+        assert!(app.dirty);
     }
 }

@@ -71,6 +71,70 @@ impl Song {
     pub fn current_pattern_mut(&mut self) -> Option<&mut Pattern> {
         self.patterns.first_mut()
     }
+
+    pub fn create_track(&mut self) -> TrackId {
+        let index = self.tracks.len();
+        let id = self.next_track_id();
+        self.tracks.push(Track {
+            id,
+            name: default_track_name(index),
+            midi_channel: default_midi_channel(index),
+            muted: false,
+            solo: false,
+            armed: false,
+        });
+
+        for pattern in &mut self.patterns {
+            pattern.append_track();
+        }
+
+        id
+    }
+
+    pub fn delete_track(&mut self, track_index: usize) -> Result<Track, EditError> {
+        if self.tracks.len() <= 1 {
+            return Err(EditError::CannotDeleteLastTrack);
+        }
+
+        if track_index >= self.tracks.len() {
+            return Err(EditError::TrackOutOfBounds { track: track_index });
+        }
+
+        for pattern in &mut self.patterns {
+            pattern.remove_track(track_index)?;
+        }
+
+        Ok(self.tracks.remove(track_index))
+    }
+
+    pub fn toggle_mute(&mut self, track_index: usize) -> Result<(), EditError> {
+        let track = self
+            .tracks
+            .get_mut(track_index)
+            .ok_or(EditError::TrackOutOfBounds { track: track_index })?;
+        track.muted = !track.muted;
+        Ok(())
+    }
+
+    pub fn toggle_solo(&mut self, track_index: usize) -> Result<(), EditError> {
+        let track = self
+            .tracks
+            .get_mut(track_index)
+            .ok_or(EditError::TrackOutOfBounds { track: track_index })?;
+        track.solo = !track.solo;
+        Ok(())
+    }
+
+    fn next_track_id(&self) -> TrackId {
+        let next = self
+            .tracks
+            .iter()
+            .map(|track| track.id.0)
+            .max()
+            .unwrap_or(0)
+            .saturating_add(1);
+        TrackId(next)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -183,12 +247,32 @@ impl Pattern {
         *cell = PatternCell::default();
         Ok(())
     }
+
+    fn append_track(&mut self) {
+        for row in &mut self.rows {
+            row.cells.push(PatternCell::default());
+        }
+    }
+
+    fn remove_track(&mut self, track: usize) -> Result<(), EditError> {
+        for row in &mut self.rows {
+            if track >= row.cells.len() {
+                return Err(EditError::TrackOutOfBounds { track });
+            }
+            row.cells.remove(track);
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum EditError {
     #[error("cell out of bounds: row {row}, track {track}")]
     CellOutOfBounds { row: usize, track: usize },
+    #[error("track out of bounds: track {track}")]
+    TrackOutOfBounds { track: usize },
+    #[error("cannot delete the last track")]
+    CannotDeleteLastTrack,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -414,5 +498,72 @@ mod tests {
             .expect_err("out of bounds");
 
         assert_eq!(error, EditError::CellOutOfBounds { row: 100, track: 0 });
+    }
+
+    #[test]
+    fn creating_track_updates_every_pattern_row() {
+        let mut song = Song::empty();
+
+        let id = song.create_track();
+
+        assert_eq!(id, TrackId(5));
+        assert_eq!(song.tracks.len(), 5);
+        assert!(song.patterns.iter().all(|pattern| {
+            pattern
+                .rows
+                .iter()
+                .all(|row| row.cells.len() == song.tracks.len())
+        }));
+    }
+
+    #[test]
+    fn deleting_track_updates_every_pattern_row() {
+        let mut song = Song::empty();
+        song.current_pattern_mut()
+            .expect("pattern")
+            .set_note(0, 2, NoteEvent::Note { pitch: 64 }, 0x70)
+            .expect("set note");
+
+        let removed = song.delete_track(1).expect("delete track");
+
+        assert_eq!(removed.name, "Bass");
+        assert_eq!(song.tracks.len(), 3);
+        assert_eq!(
+            song.current_pattern()
+                .expect("pattern")
+                .cell(0, 1)
+                .expect("shifted cell")
+                .note,
+            Some(NoteEvent::Note { pitch: 64 })
+        );
+        assert!(song.patterns.iter().all(|pattern| {
+            pattern
+                .rows
+                .iter()
+                .all(|row| row.cells.len() == song.tracks.len())
+        }));
+    }
+
+    #[test]
+    fn cannot_delete_last_track() {
+        let mut song = Song::empty();
+
+        while song.tracks.len() > 1 {
+            song.delete_track(0).expect("delete track");
+        }
+
+        let error = song.delete_track(0).expect_err("last track remains");
+        assert_eq!(error, EditError::CannotDeleteLastTrack);
+    }
+
+    #[test]
+    fn mute_and_solo_toggle_track_flags() {
+        let mut song = Song::empty();
+
+        song.toggle_mute(0).expect("mute");
+        song.toggle_solo(1).expect("solo");
+
+        assert!(song.tracks[0].muted);
+        assert!(song.tracks[1].solo);
     }
 }

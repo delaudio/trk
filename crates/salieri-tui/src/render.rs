@@ -90,8 +90,10 @@ fn render_tracks(frame: &mut Frame<'_>, area: Rect, song: &Song, active_track: u
         .enumerate()
         .map(|(index, track)| {
             let marker = if index == active_track { ">" } else { " " };
+            let mute = if track.muted { "M" } else { "-" };
+            let solo = if track.solo { "S" } else { "-" };
             Line::from(format!(
-                "{} {:02} {:<10} CH{:02}",
+                "{} {:02} {:<10} CH{:02} {mute}{solo}",
                 marker,
                 index + 1,
                 track.name,
@@ -234,7 +236,7 @@ fn cell_spans(cell: &PatternCell, focused_field: CellField, focused: bool) -> Ve
 
 fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
     let status = Paragraph::new(format!(
-        " {} | i Edit | Esc Normal | z/s/x/d/c/v/g/b/h/n/j/m Notes | Del Clear | Ctrl+S Save | Ctrl+Z Undo | q Quit ",
+        " {} | i Edit | Ctrl+T Track | M Mute | S Solo | Del Clear/Delete Track | Ctrl+S Save | Ctrl+Z Undo | q Quit ",
         state.mode_label
     ));
     frame.render_widget(status, area);
