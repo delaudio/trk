@@ -930,7 +930,7 @@ impl App {
             KeyCode::Enter => self.connect_selected_midi_port(),
             KeyCode::Char('d') | KeyCode::Char('D') => self.disconnect_midi(),
             KeyCode::Char('p') | KeyCode::Char('P') => self.panic_midi(),
-            KeyCode::Char('r') | KeyCode::Char('R') => self.refresh_midi_ports(),
+            KeyCode::F(5) | KeyCode::Char('r') | KeyCode::Char('R') => self.refresh_midi_ports(),
             _ => {}
         }
     }
@@ -2698,6 +2698,21 @@ mod tests {
         let song = app.song.clone();
 
         app.handle_key(KeyEvent::new(KeyCode::F(4), KeyModifiers::NONE));
+
+        assert_eq!(app.mode, AppMode::MidiSettings);
+        assert_eq!(app.song, song);
+        assert!(!app.dirty);
+    }
+
+    #[test]
+    fn f5_refreshes_midi_settings_without_mutating_song() {
+        let mut app = App {
+            mode: AppMode::MidiSettings,
+            ..App::default()
+        };
+        let song = app.song.clone();
+
+        app.handle_key(KeyEvent::new(KeyCode::F(5), KeyModifiers::NONE));
 
         assert_eq!(app.mode, AppMode::MidiSettings);
         assert_eq!(app.song, song);

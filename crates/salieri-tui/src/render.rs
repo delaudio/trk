@@ -507,7 +507,7 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
                 .add_modifier(Modifier::BOLD),
         )),
         Line::from("  F4 or :midi outputs opens MIDI settings and lists output ports"),
-        Line::from("  In MIDI settings: arrows select, Enter connects, d disconnects, p panic"),
+        Line::from("  In MIDI settings: arrows select, Enter connects, F5/r refresh, p panic"),
         Line::from("  CLI fallback: salieri --list-midi-outputs, then :midi connect 0"),
         Line::from("  4. Press Space or run :play pattern to send notes to the connected output"),
         Line::from("  :midi disconnect closes the output   :midi panic sends All Notes Off"),
@@ -634,7 +634,7 @@ fn render_midi_settings_overlay(
     lines.extend([
         Line::from(""),
         Line::from("Enter connect selected   d disconnect   p panic/all notes off"),
-        Line::from("r refresh ports   Esc/q close"),
+        Line::from("F5/r refresh ports   Esc/q close"),
     ]);
 
     let paragraph = Paragraph::new(lines)
