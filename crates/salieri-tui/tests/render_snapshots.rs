@@ -392,6 +392,43 @@ fn snapshots_tracks_view() {
     );
 }
 
+#[test]
+fn snapshots_patterns_view() {
+    let mut song = Song::empty();
+    song.create_pattern(128);
+
+    assert_snapshot(
+        "patterns-view",
+        render_snapshot(
+            song,
+            TuiState {
+                cursor: Cursor::new(),
+                row_offset: 0,
+                pattern_index: 1,
+                active_view: TuiView::Patterns,
+                selection: None,
+                mode_label: "PATTERNS",
+                octave: 4,
+                dirty: false,
+                show_line_numbers_hex: false,
+                command_line: None,
+                notification: None,
+                show_help: false,
+                is_playing: false,
+                loop_pattern: true,
+                playhead_row: None,
+                midi_status: "MIDI Disconnected",
+                sequence_position: None,
+                quit_confirmation: false,
+                delete_confirmation: None,
+                midi_settings: None,
+            },
+            72,
+            24,
+        ),
+    );
+}
+
 fn render_snapshot(song: Song, state: TuiState<'_>, width: u16, height: u16) -> String {
     let backend = TestBackend::new(width, height);
     let mut terminal = Terminal::new(backend).expect("test terminal");

@@ -4,7 +4,7 @@
 ┌ Tracks ──│Global                                                                                          │──────────┐
 │> 01 Drums│?/H Help   :h/:help Help   q Quit   Space Play/Stop   Shift+Space Start                         │          │
 │  02 Bass │Enter Play Row   Shift+Enter Play Sequence From Cursor   L Loop   F8 Stop                       │          │
-│  03 Lead │F7 Sequence View   F9 Track View   Esc returns from focused views                               │          │
+│  03 Lead │F7 Sequence View   F9 Track View   F10 Pattern View   Esc returns from focused views            │          │
 │  04 Pad  │:play pattern from start   :play sequence arrangement                                           │          │
 │          │Ctrl+S Save   Ctrl+Z Undo   Ctrl+Y Redo   Ctrl+Arrows BPM/LPB                                   │          │
 │          │                                                                                                │          │
@@ -33,4 +33,4 @@
 │          └────────────────────────────────────────────────────────────────────────────────────────────────┘          │
 │                         ││ 28   --- --    --- --    --- --    --- --                                                 │
 └─────────────────────────┘└───────────────────────────────────────────────────────────────────────────────────────────┘
- HELP | H Help | F4 MIDI | F7 Sequence | F9 Tracks | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Patt
+ HELP | H Help | F4 MIDI | F7 Sequence | F9 Tracks | F10 Patterns | Space Play/Stop | Enter Row | Shift+Enter Seq | L Lo

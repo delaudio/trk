@@ -48,6 +48,7 @@ pub enum TuiView {
     Pattern,
     Sequence,
     Tracks,
+    Patterns,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -172,6 +173,10 @@ fn render_body(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'
     }
     if state.active_view == TuiView::Tracks {
         render_track_editor(frame, area, song, state.cursor.track);
+        return;
+    }
+    if state.active_view == TuiView::Patterns {
+        render_pattern_manager(frame, area, song, state.pattern_index);
         return;
     }
 
@@ -405,6 +410,54 @@ fn render_track_editor(frame: &mut Frame<'_>, area: Rect, song: &Song, active_tr
         )
         .wrap(Wrap { trim: true });
     frame.render_widget(tracks, area);
+}
+
+fn render_pattern_manager(frame: &mut Frame<'_>, area: Rect, song: &Song, active_pattern: usize) {
+    let mut lines = vec![Line::from(vec![
+        Span::styled("PAT  ", Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            "NAME                       ROWS",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+    ])];
+
+    for (index, pattern) in song.patterns.iter().enumerate() {
+        let marker = if index == active_pattern { ">" } else { " " };
+        let line = format!(
+            "{marker}{:02}  {:<24} {:>4}",
+            index + 1,
+            truncate(&pattern.name, 24),
+            pattern.row_count()
+        );
+        if index == active_pattern {
+            lines.push(Line::styled(
+                line,
+                Style::default()
+                    .fg(Color::Black)
+                    .bg(Color::White)
+                    .add_modifier(Modifier::BOLD),
+            ));
+        } else {
+            lines.push(Line::from(line));
+        }
+    }
+
+    lines.extend([
+        Line::from(""),
+        Line::from("N new   P duplicate   r rename   X/Delete remove   F6 custom length"),
+        Line::from("1/2/3/4/5 length 16/32/64/128/256   Esc pattern editor"),
+    ]);
+
+    let patterns = Paragraph::new(lines)
+        .block(
+            Block::default()
+                .title(" Pattern Manager ")
+                .borders(Borders::ALL),
+        )
+        .wrap(Wrap { trim: true });
+    frame.render_widget(patterns, area);
 }
 
 fn render_pattern(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
@@ -652,9 +705,14 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
             " {} | H Help | Esc Pattern | N New | D Duplicate | r Rename | c Channel | Del Delete | {{/}} Move | M/S Mute/Solo | : Command | Ctrl+S Save | q Quit ",
             state.mode_label
         )
+    } else if state.active_view == TuiView::Patterns {
+        format!(
+            " {} | H Help | Esc Pattern | N New | P Duplicate | r Rename | X/Del Delete | 1-5 Length Presets | F6 Length | : Command | Ctrl+S Save | q Quit ",
+            state.mode_label
+        )
     } else {
         format!(
-            " {}{} | H Help | F4 MIDI | F7 Sequence | F9 Tracks | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern | A/Y/R Seq | {{/}} Track | : Command | i Edit | V Select | Ctrl+S Save | q Quit ",
+            " {}{} | H Help | F4 MIDI | F7 Sequence | F9 Tracks | F10 Patterns | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern | A/Y/R Seq | {{/}} Track | : Command | i Edit | V Select | Ctrl+S Save | q Quit ",
             state.mode_label,
             if state.selection.is_some() { " SEL" } else { "" }
         )
@@ -674,7 +732,7 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
         )),
         Line::from("  ?/H Help   :h/:help Help   q Quit   Space Play/Stop   Shift+Space Start"),
         Line::from("  Enter Play Row   Shift+Enter Play Sequence From Cursor   L Loop   F8 Stop"),
-        Line::from("  F7 Sequence View   F9 Track View   Esc returns from focused views"),
+        Line::from("  F7 Sequence View   F9 Track View   F10 Pattern View   Esc returns from focused views"),
         Line::from("  :play pattern from start   :play sequence arrangement"),
         Line::from("  Ctrl+S Save   Ctrl+Z Undo   Ctrl+Y Redo   Ctrl+Arrows BPM/LPB"),
         Line::from(""),
@@ -747,6 +805,7 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
         Line::from(
             "  N new pattern   P duplicate pattern   X delete pattern   F3 rename   F6 length",
         ),
+        Line::from("  Pattern view: 1/2/3/4/5 set length 16/32/64/128/256"),
         Line::from("  :pattern new   :pattern duplicate   :pattern delete   :pattern length 128"),
         Line::from("  :pattern rename Intro   :pattern 1   [ previous pattern   ] next pattern"),
         Line::from("  A add current pattern to sequence   ,/. move sequence cursor"),

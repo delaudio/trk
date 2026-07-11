@@ -562,6 +562,7 @@ impl App {
             AppMode::MidiSettings => self.handle_midi_settings_key(key),
             AppMode::Sequence => self.handle_sequence_key(key),
             AppMode::Tracks => self.handle_tracks_key(key),
+            AppMode::Patterns => self.handle_patterns_key(key),
         }
     }
 
@@ -688,6 +689,10 @@ impl App {
             }
             KeyCode::F(9) => {
                 self.open_tracks_view();
+                return;
+            }
+            KeyCode::F(10) => {
+                self.open_patterns_view();
                 return;
             }
             KeyCode::F(6) => {
@@ -1023,6 +1028,41 @@ impl App {
             KeyCode::Char('}') => self.move_current_track_right(),
             KeyCode::Char('m') | KeyCode::Char('M') => self.toggle_current_mute(),
             KeyCode::Char('s') | KeyCode::Char('S') => self.toggle_current_solo(),
+            _ => {}
+        }
+    }
+
+    fn handle_patterns_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Esc => self.mode = AppMode::Normal,
+            KeyCode::Char('q') => self.request_quit(false),
+            KeyCode::Char('?') | KeyCode::Char('H') => self.mode = AppMode::Help,
+            KeyCode::Char(':') => {
+                self.command_buffer.clear();
+                self.mode = AppMode::Command;
+            }
+            KeyCode::F(10) => self.mode = AppMode::Normal,
+            KeyCode::Up => self.select_pattern(self.pattern_index.saturating_sub(1)),
+            KeyCode::Char('k') if self.vim_navigation => {
+                self.select_pattern(self.pattern_index.saturating_sub(1));
+            }
+            KeyCode::Down => self.select_pattern(self.pattern_index.saturating_add(1)),
+            KeyCode::Char('j') if self.vim_navigation => {
+                self.select_pattern(self.pattern_index.saturating_add(1));
+            }
+            KeyCode::Home => self.select_pattern(0),
+            KeyCode::End => self.select_pattern(self.song.patterns.len().saturating_sub(1)),
+            KeyCode::Char('N') => self.create_pattern(),
+            KeyCode::Char('P') => self.duplicate_current_pattern(),
+            KeyCode::Char('X') | KeyCode::Delete => self.request_delete_current_pattern(),
+            KeyCode::Char('r') => self.start_pattern_rename_command(),
+            KeyCode::F(6) => self.start_pattern_length_command(),
+            KeyCode::Char('1') => self.resize_current_pattern(16),
+            KeyCode::Char('2') => self.resize_current_pattern(32),
+            KeyCode::Char('3') => self.resize_current_pattern(64),
+            KeyCode::Char('4') => self.resize_current_pattern(128),
+            KeyCode::Char('5') => self.resize_current_pattern(256),
+            KeyCode::Enter => self.mode = AppMode::Normal,
             _ => {}
         }
     }
@@ -2131,6 +2171,12 @@ impl App {
         self.notify_info(format!("Track {:02}", self.cursor.track + 1));
     }
 
+    fn open_patterns_view(&mut self) {
+        self.clamp_pattern_index();
+        self.mode = AppMode::Patterns;
+        self.notify_info(format!("Pattern {:02}", self.pattern_index + 1));
+    }
+
     fn refresh_midi_ports(&mut self) {
         match list_output_ports() {
             Ok(ports) => {
@@ -2327,11 +2373,15 @@ impl App {
     }
 
     fn clamp_cursor(&mut self) {
+        self.clamp_pattern_index();
+        self.cursor
+            .clamp(self.current_row_count(), self.song.tracks.len());
+    }
+
+    fn clamp_pattern_index(&mut self) {
         self.pattern_index = self
             .pattern_index
             .min(self.song.patterns.len().saturating_sub(1));
-        self.cursor
-            .clamp(self.current_row_count(), self.song.tracks.len());
     }
 
     fn clamp_sequence_cursor(&mut self) {
@@ -2357,6 +2407,7 @@ impl App {
         match self.mode {
             AppMode::Sequence => TuiView::Sequence,
             AppMode::Tracks => TuiView::Tracks,
+            AppMode::Patterns => TuiView::Patterns,
             AppMode::Normal
             | AppMode::Edit
             | AppMode::Command
@@ -2496,6 +2547,7 @@ enum AppMode {
     MidiSettings,
     Sequence,
     Tracks,
+    Patterns,
 }
 
 impl AppMode {
@@ -2509,6 +2561,7 @@ impl AppMode {
             AppMode::MidiSettings => "MIDI",
             AppMode::Sequence => "SEQUENCE",
             AppMode::Tracks => "TRACKS",
+            AppMode::Patterns => "PATTERNS",
         }
     }
 }
@@ -3678,6 +3731,60 @@ mod tests {
         assert_eq!(app.song.patterns.len(), 2);
         assert_eq!(app.pattern_index, 1);
         assert!(app.dirty);
+    }
+
+    #[test]
+    fn patterns_view_guides_pattern_management_and_presets() {
+        let mut app = App {
+            cursor: Cursor {
+                row: 63,
+                ..Cursor::new()
+            },
+            ..App::default()
+        };
+
+        app.handle_key(KeyEvent::new(KeyCode::F(10), KeyModifiers::NONE));
+        assert_eq!(app.mode, AppMode::Patterns);
+        assert_eq!(app.tui_active_view(), TuiView::Patterns);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('N'), KeyModifiers::SHIFT));
+        assert_eq!(app.song.patterns.len(), 2);
+        assert_eq!(app.pattern_index, 1);
+
+        app.handle_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
+        assert_eq!(app.pattern_index, 0);
+        app.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+        assert_eq!(app.pattern_index, 1);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('P'), KeyModifiers::SHIFT));
+        assert_eq!(app.song.patterns.len(), 3);
+        assert_eq!(app.pattern_index, 2);
+
+        app.cursor.row = 63;
+        app.handle_key(KeyEvent::new(KeyCode::Char('1'), KeyModifiers::NONE));
+        assert_eq!(app.song.patterns[2].row_count(), 16);
+        assert_eq!(app.cursor.row, 15);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('5'), KeyModifiers::NONE));
+        assert_eq!(app.song.patterns[2].row_count(), 256);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::NONE));
+        assert_eq!(app.mode, AppMode::Command);
+        assert_eq!(app.command_buffer, "pattern rename ");
+        app.command_buffer.push_str("Breakdown");
+        app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        assert_eq!(app.song.patterns[2].name, "Breakdown");
+
+        app.handle_key(KeyEvent::new(KeyCode::F(10), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Delete, KeyModifiers::NONE));
+        assert_eq!(app.mode, AppMode::Dialog);
+        assert!(matches!(
+            app.dialog,
+            Some(Dialog::DeletePattern {
+                pattern_index: 2,
+                ..
+            })
+        ));
     }
 
     #[test]
