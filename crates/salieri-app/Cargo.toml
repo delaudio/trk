@@ -13,6 +13,7 @@ anyhow.workspace = true
 crossterm.workspace = true
 ctrlc.workspace = true
 ratatui.workspace = true
+salieri-ableton = { path = "../salieri-ableton" }
 salieri-analysis = { path = "../salieri-analysis" }
 salieri-ai = { path = "../salieri-ai" }
 salieri-audio = { path = "../salieri-audio" }

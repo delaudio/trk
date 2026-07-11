@@ -631,6 +631,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
+name = "salieri-ableton"
+version = "0.1.0"
+dependencies = [
+ "salieri-core",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "salieri-ai"
 version = "0.1.0"
 dependencies = [
@@ -656,6 +665,7 @@ dependencies = [
  "crossterm",
  "ctrlc",
  "ratatui",
+ "salieri-ableton",
  "salieri-ai",
  "salieri-analysis",
  "salieri-audio",

@@ -76,6 +76,8 @@ salieri analyze song.salieri --format markdown --output song-analysis.md
 salieri analyze song.salieri --format json --output song-profile.json
 salieri compare song-a.salieri song-b.salieri --format markdown --output comparison.md
 salieri compare song-a.salieri song-profile.json --format json --output comparison.json
+salieri ableton push song.salieri ableton-session.json
+salieri ableton pull ableton-session.json pulled.salieri
 salieri stems scan ./audio/stems stems.json
 salieri plugins inventory plugins.json
 salieri plugins inventory plugins.json --root vst3=/Library/Audio/Plug-Ins/VST3 --include-paths
@@ -91,6 +93,8 @@ salieri transform variation song.salieri song-var.salieri --pattern 1 --seed 7 -
 `--midi-test-output` accepts either a port index or a port name. Configured MIDI output names are normalized, so `IAC Driver`, `IAC Driver Bus 1`, and `IAC Driver (Bus 1)` can match the same CoreMIDI port when available.
 
 `analyze` produces deterministic, local project profiles: track role guesses, note density, rhythm and pitch-class profiles, pitch range, sequence energy, scene energy, and generation guidance. `compare` accepts either `.salieri` projects or JSON profiles produced by `analyze`.
+
+`ableton push` writes a local JSON session bridge document from Salieri clips/scenes. `ableton pull` maps that bridge document back into Salieri tracks, scenes, patterns, and clips. Both commands support `--dry-run` and do not require Ableton Live or a Live API connection. See [docs/ableton-bridge.md](docs/ableton-bridge.md).
 
 `stems scan` walks a local folder and writes a stable JSON manifest for supported audio files (`wav`, `aif`, `aiff`, `flac`, `mp3`, `ogg`, `m4a`). Entries include source path, display name, role, group, order, file size, and modified time. Projects may reference a manifest and individual stem entries as optional metadata; missing manifests warn when a project is opened but do not make the project invalid.
 

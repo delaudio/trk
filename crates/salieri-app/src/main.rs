@@ -16,6 +16,7 @@ use config::{load_config, AppConfig};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use persistence::{load_project, save_project};
 use playback_runtime::{PlaybackRuntime, PlaybackUpdate};
+use salieri_ableton::{preview_pull_from_ableton, preview_push_to_ableton, AbletonSessionDocument};
 use salieri_ai::{validate_dossier, validate_palette, OperationalPalette, ResearchDossier};
 use salieri_analysis::{
     analyze_song, compare_profiles, render_comparison_markdown, render_profile_markdown,
@@ -93,6 +94,14 @@ fn run(args: CliArgs) -> Result<()> {
         }
         CliCommand::Compare(compare_args) => {
             run_compare(compare_args)?;
+            return Ok(());
+        }
+        CliCommand::AbletonPush(args) => {
+            run_ableton_push(args)?;
+            return Ok(());
+        }
+        CliCommand::AbletonPull(args) => {
+            run_ableton_pull(args)?;
             return Ok(());
         }
         CliCommand::StemScan(stem_args) => {
@@ -295,6 +304,16 @@ impl CliArgs {
                         midi_test,
                     }
                 }
+                "ableton" => {
+                    return Self {
+                        command: parse_ableton_command(args),
+                        project_path: None,
+                        config_path,
+                        log_level,
+                        midi_log_path,
+                        midi_test,
+                    }
+                }
                 "stems" => {
                     return Self {
                         command: parse_stems_command(args),
@@ -458,6 +477,8 @@ enum CliCommand {
     MidiTest,
     Analyze(AnalyzeArgs),
     Compare(CompareArgs),
+    AbletonPush(AbletonPushArgs),
+    AbletonPull(AbletonPullArgs),
     StemScan(StemScanArgs),
     PluginInventory(PluginInventoryArgs),
     InteropValidateMidi(InteropValidateMidiArgs),
@@ -491,6 +512,20 @@ struct CompareArgs {
     right_path: Option<PathBuf>,
     output_path: Option<PathBuf>,
     format: ReportFormat,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+struct AbletonPushArgs {
+    project_path: Option<PathBuf>,
+    output_path: Option<PathBuf>,
+    dry_run: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+struct AbletonPullArgs {
+    input_path: Option<PathBuf>,
+    output_path: Option<PathBuf>,
+    dry_run: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -563,7 +598,7 @@ enum ReportFormat {
 
 fn print_help() {
     println!(
-        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri analyze INPUT [--format json|markdown] [--output PATH]\n  salieri compare LEFT RIGHT [--format json|markdown] [--output PATH]\n  salieri stems scan FOLDER OUTPUT_JSON\n  salieri plugins inventory OUTPUT_JSON [--include-paths] [--root FORMAT=PATH]\n  salieri interop validate-midi PROJECT\n  salieri render-chain PROJECT OUTPUT_JSON [--sample-rate N] [--channels N] [--bit-depth N]\n  salieri guidance dossier FILE\n  salieri guidance palette FILE\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri transform humanize INPUT OUTPUT [OPTIONS]\n  salieri transform variation INPUT OUTPUT [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nAnalysis options:\n  --format FORMAT               markdown/md or json (default markdown)\n  --output PATH                 Write report to PATH instead of stdout\n\nPlugin inventory options:\n  --include-paths               Include full plugin paths in output; default output is prompt-safe\n  --root FORMAT=PATH            Scan an extra or replacement root, e.g. vst3=/Library/Audio/Plug-Ins/VST3\n\nGuidance options:\n  guidance dossier FILE         Validate and summarize a local research dossier JSON file\n  guidance palette FILE         Validate and summarize a local operational palette JSON file\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index; omitted means all tracks\n  --seed N                      Deterministic transform seed\n  --dry-run                     Print summary without writing OUTPUT\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Euclidean velocity or humanize velocity amount\n  --delay VALUE                 Humanize max delay command value, 0-255\n  --thin PERCENT                Variation probability for removing notes\n  --fill PERCENT                Variation probability for adding notes\n  --transpose SEMITONES         Variation transpose amount\n  --name NAME                   Variation target pattern name\n\n  --help                        Show this help\n  --version                     Show version"
+        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri analyze INPUT [--format json|markdown] [--output PATH]\n  salieri compare LEFT RIGHT [--format json|markdown] [--output PATH]\n  salieri ableton push PROJECT OUTPUT_JSON [--dry-run]\n  salieri ableton pull INPUT_JSON OUTPUT [--dry-run]\n  salieri stems scan FOLDER OUTPUT_JSON\n  salieri plugins inventory OUTPUT_JSON [--include-paths] [--root FORMAT=PATH]\n  salieri interop validate-midi PROJECT\n  salieri render-chain PROJECT OUTPUT_JSON [--sample-rate N] [--channels N] [--bit-depth N]\n  salieri guidance dossier FILE\n  salieri guidance palette FILE\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri transform humanize INPUT OUTPUT [OPTIONS]\n  salieri transform variation INPUT OUTPUT [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nAnalysis options:\n  --format FORMAT               markdown/md or json (default markdown)\n  --output PATH                 Write report to PATH instead of stdout\n\nAbleton bridge options:\n  --dry-run                     Print bridge summary without writing output\n\nPlugin inventory options:\n  --include-paths               Include full plugin paths in output; default output is prompt-safe\n  --root FORMAT=PATH            Scan an extra or replacement root, e.g. vst3=/Library/Audio/Plug-Ins/VST3\n\nGuidance options:\n  guidance dossier FILE         Validate and summarize a local research dossier JSON file\n  guidance palette FILE         Validate and summarize a local operational palette JSON file\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index; omitted means all tracks\n  --seed N                      Deterministic transform seed\n  --dry-run                     Print summary without writing OUTPUT\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Euclidean velocity or humanize velocity amount\n  --delay VALUE                 Humanize max delay command value, 0-255\n  --thin PERCENT                Variation probability for removing notes\n  --fill PERCENT                Variation probability for adding notes\n  --transpose SEMITONES         Variation transpose amount\n  --name NAME                   Variation target pattern name\n\n  --help                        Show this help\n  --version                     Show version"
     );
 }
 
@@ -621,6 +656,41 @@ fn parse_compare_args(args: impl IntoIterator<Item = String>) -> CompareArgs {
         }
     }
 
+    parsed
+}
+
+fn parse_ableton_command(args: impl IntoIterator<Item = String>) -> CliCommand {
+    let mut args = args.into_iter();
+    match args.next().as_deref() {
+        Some("push") => CliCommand::AbletonPush(parse_ableton_push_args(args)),
+        Some("pull") => CliCommand::AbletonPull(parse_ableton_pull_args(args)),
+        _ => CliCommand::Help,
+    }
+}
+
+fn parse_ableton_push_args(args: impl IntoIterator<Item = String>) -> AbletonPushArgs {
+    let mut parsed = AbletonPushArgs::default();
+    for arg in args {
+        match arg.as_str() {
+            "--dry-run" => parsed.dry_run = true,
+            _ if parsed.project_path.is_none() => parsed.project_path = Some(PathBuf::from(arg)),
+            _ if parsed.output_path.is_none() => parsed.output_path = Some(PathBuf::from(arg)),
+            _ => {}
+        }
+    }
+    parsed
+}
+
+fn parse_ableton_pull_args(args: impl IntoIterator<Item = String>) -> AbletonPullArgs {
+    let mut parsed = AbletonPullArgs::default();
+    for arg in args {
+        match arg.as_str() {
+            "--dry-run" => parsed.dry_run = true,
+            _ if parsed.input_path.is_none() => parsed.input_path = Some(PathBuf::from(arg)),
+            _ if parsed.output_path.is_none() => parsed.output_path = Some(PathBuf::from(arg)),
+            _ => {}
+        }
+    }
     parsed
 }
 
@@ -1093,6 +1163,72 @@ fn run_compare(args: &CompareArgs) -> Result<()> {
             .context("failed to serialize profile comparison")?,
     };
     write_report(args.output_path.as_deref(), &report)
+}
+
+fn run_ableton_push(args: &AbletonPushArgs) -> Result<()> {
+    let project_path = args
+        .project_path
+        .as_deref()
+        .context("missing Ableton push project path")?;
+    let song = load_project(project_path)?;
+    let preview = preview_push_to_ableton(&song);
+    print_ableton_summary("Ableton push", &preview.summary);
+    if args.dry_run {
+        return Ok(());
+    }
+    let output_path = args
+        .output_path
+        .as_deref()
+        .context("missing Ableton push output path")?;
+    let json = serde_json::to_string_pretty(&preview.document)
+        .context("failed to serialize Ableton bridge document")?;
+    fs::write(output_path, format!("{json}\n")).with_context(|| {
+        format!(
+            "failed to write Ableton bridge document {}",
+            output_path.display()
+        )
+    })?;
+    Ok(())
+}
+
+fn run_ableton_pull(args: &AbletonPullArgs) -> Result<()> {
+    let input_path = args
+        .input_path
+        .as_deref()
+        .context("missing Ableton pull input path")?;
+    let contents = fs::read_to_string(input_path).with_context(|| {
+        format!(
+            "failed to read Ableton bridge document {}",
+            input_path.display()
+        )
+    })?;
+    let document: AbletonSessionDocument = serde_json::from_str(&contents).with_context(|| {
+        format!(
+            "failed to parse Ableton bridge document {}",
+            input_path.display()
+        )
+    })?;
+    let preview = preview_pull_from_ableton(&document)?;
+    print_ableton_summary("Ableton pull", &preview.summary);
+    if args.dry_run {
+        return Ok(());
+    }
+    let output_path = args
+        .output_path
+        .as_deref()
+        .context("missing Ableton pull output path")?;
+    save_project(output_path, &preview.song)?;
+    Ok(())
+}
+
+fn print_ableton_summary(label: &str, summary: &salieri_ableton::AbletonBridgeSummary) {
+    println!(
+        "{label}: tracks={} scenes={} clips={} notes={}",
+        summary.track_count, summary.scene_count, summary.clip_count, summary.note_count
+    );
+    for warning in &summary.warnings {
+        println!("warning: {warning}");
+    }
 }
 
 fn run_stem_scan(args: &StemScanArgs) -> Result<()> {
@@ -4421,6 +4557,39 @@ mod tests {
     }
 
     #[test]
+    fn cli_parses_ableton_bridge_options() {
+        assert_eq!(
+            CliArgs::parse([
+                "ableton".to_string(),
+                "push".to_string(),
+                "song.salieri".to_string(),
+                "session.json".to_string(),
+                "--dry-run".to_string(),
+            ])
+            .command,
+            CliCommand::AbletonPush(AbletonPushArgs {
+                project_path: Some(PathBuf::from("song.salieri")),
+                output_path: Some(PathBuf::from("session.json")),
+                dry_run: true,
+            })
+        );
+        assert_eq!(
+            CliArgs::parse([
+                "ableton".to_string(),
+                "pull".to_string(),
+                "session.json".to_string(),
+                "song.salieri".to_string(),
+            ])
+            .command,
+            CliCommand::AbletonPull(AbletonPullArgs {
+                input_path: Some(PathBuf::from("session.json")),
+                output_path: Some(PathBuf::from("song.salieri")),
+                dry_run: false,
+            })
+        );
+    }
+
+    #[test]
     fn cli_parses_stem_scan_options() {
         assert_eq!(
             CliArgs::parse([
@@ -4744,6 +4913,55 @@ mod tests {
         assert_eq!(profile.totals.note_count, 2);
         assert!(comparison.contains("Comparison"));
         assert!(comparison.contains("Notes: +1"));
+    }
+
+    #[test]
+    fn ableton_bridge_commands_push_and_pull_local_documents() {
+        let base = std::env::temp_dir().join(format!("salieri-ableton-cli-{}", std::process::id()));
+        let project_path = base.with_extension("salieri");
+        let bridge_path = base.with_extension("ableton.json");
+        let pulled_path = base.with_extension("pulled.salieri");
+        let mut song = Song::empty();
+        song.rename_track(0, "Bass").expect("track");
+        song.current_pattern_mut()
+            .expect("pattern")
+            .set_note(0, 0, NoteEvent::Note { pitch: 48 }, 100)
+            .expect("note");
+        let clip = song
+            .create_clip(song.patterns[0].id, "Bass Clip", 0, 16)
+            .expect("clip");
+        let scene = song.create_scene("Intro").expect("scene");
+        song.set_scene_clip(scene, song.tracks[0].id, Some(clip))
+            .expect("slot");
+        save_project(&project_path, &song).expect("save project");
+
+        run_ableton_push(&AbletonPushArgs {
+            project_path: Some(project_path.clone()),
+            output_path: Some(bridge_path.clone()),
+            dry_run: false,
+        })
+        .expect("push");
+        run_ableton_pull(&AbletonPullArgs {
+            input_path: Some(bridge_path.clone()),
+            output_path: Some(pulled_path.clone()),
+            dry_run: false,
+        })
+        .expect("pull");
+
+        let bridge: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&bridge_path).expect("bridge"))
+                .expect("bridge json");
+        let pulled = load_project(&pulled_path).expect("pulled");
+
+        let _ = std::fs::remove_file(&project_path);
+        let _ = std::fs::remove_file(&bridge_path);
+        let _ = std::fs::remove_file(&pulled_path);
+
+        assert_eq!(bridge["schemaVersion"], 1);
+        assert_eq!(bridge["clips"][0]["notes"][0]["pitch"], 48);
+        assert_eq!(pulled.tracks[0].name, "Bass");
+        assert_eq!(pulled.session.clips.len(), 1);
+        assert_eq!(pulled.session.scenes.len(), 1);
     }
 
     #[test]
