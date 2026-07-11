@@ -1293,11 +1293,18 @@ impl App {
 
     fn resize_current_pattern(&mut self, row_count: usize) {
         let pattern_index = self.pattern_index;
+        let mut next_song = self.song.clone();
+        if let Err(error) = next_song.resize_pattern(pattern_index, row_count) {
+            self.notify_warning(format!("Pattern length failed: {error}"));
+            return;
+        }
+
         self.mutate_song(|song, _| {
-            let _ = song.resize_pattern(pattern_index, row_count);
+            *song = next_song;
         });
         self.clamp_cursor();
         self.keep_cursor_visible(1);
+        self.notify_success(format!("Pattern length set to {row_count}"));
     }
 
     fn rename_current_pattern(&mut self, name: String) {
@@ -3133,9 +3140,27 @@ mod tests {
         assert_eq!(app.cursor.row, 15);
         assert_eq!(app.row_offset, 15);
         assert!(app.dirty);
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("Pattern length set to 16")
+        );
 
         app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
         assert_eq!(app.song.current_pattern().expect("pattern").row_count(), 64);
+    }
+
+    #[test]
+    fn command_mode_reports_invalid_pattern_length() {
+        let mut app = App::default();
+
+        type_command(&mut app, "pattern length 0");
+
+        assert_eq!(app.song.current_pattern().expect("pattern").row_count(), 64);
+        assert!(!app.dirty);
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("Pattern length failed: invalid pattern length: 0")
+        );
     }
 
     #[test]
