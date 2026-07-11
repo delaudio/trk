@@ -15,6 +15,21 @@ pub struct Sample {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub struct WaveformBucket {
+    pub min: f32,
+    pub max: f32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct WaveformOverview {
+    pub sample_rate: u32,
+    pub channels: u16,
+    pub frames: usize,
+    pub duration_seconds: f32,
+    pub buckets: Vec<WaveformBucket>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PreviewSettings {
     pub pitch_semitones: f32,
     pub volume: f32,
@@ -108,6 +123,83 @@ impl Sample {
             frames: output_frames,
             data,
         }
+    }
+
+    #[must_use]
+    pub fn waveform_overview(&self, bucket_count: usize) -> WaveformOverview {
+        let duration_seconds = if self.sample_rate == 0 {
+            0.0
+        } else {
+            self.frames as f32 / self.sample_rate as f32
+        };
+
+        let channels = usize::from(self.channels);
+        let available_frames = if channels == 0 {
+            0
+        } else {
+            self.frames.min(self.data.len() / channels)
+        };
+
+        if bucket_count == 0 || channels == 0 || available_frames == 0 {
+            return WaveformOverview {
+                sample_rate: self.sample_rate,
+                channels: self.channels,
+                frames: self.frames,
+                duration_seconds,
+                buckets: Vec::new(),
+            };
+        }
+
+        let mono_frames: Vec<f32> = (0..available_frames)
+            .map(|frame| self.display_sample_at(frame, channels))
+            .collect();
+        let buckets = (0..bucket_count)
+            .map(|bucket| {
+                let start = bucket.saturating_mul(available_frames) / bucket_count;
+                let mut end = (bucket + 1).saturating_mul(available_frames) / bucket_count;
+                if end <= start {
+                    end = start + 1;
+                }
+                end = end.min(available_frames);
+
+                let mut min = f32::INFINITY;
+                let mut max = f32::NEG_INFINITY;
+                for value in &mono_frames[start..end] {
+                    min = min.min(*value);
+                    max = max.max(*value);
+                }
+
+                WaveformBucket {
+                    min: sanitize_display_sample(min),
+                    max: sanitize_display_sample(max),
+                }
+            })
+            .collect();
+
+        WaveformOverview {
+            sample_rate: self.sample_rate,
+            channels: self.channels,
+            frames: self.frames,
+            duration_seconds,
+            buckets,
+        }
+    }
+
+    fn display_sample_at(&self, frame: usize, channels: usize) -> f32 {
+        let offset = frame.saturating_mul(channels);
+        let sum: f32 = self.data[offset..offset + channels]
+            .iter()
+            .map(|value| sanitize_display_sample(*value))
+            .sum();
+        sanitize_display_sample(sum / channels as f32)
+    }
+}
+
+fn sanitize_display_sample(value: f32) -> f32 {
+    if value.is_finite() {
+        value.clamp(-1.0, 1.0)
+    } else {
+        0.0
     }
 }
 
@@ -306,6 +398,118 @@ mod tests {
         assert_eq!(preview.channels, 1);
         assert_eq!(preview.frames, 2);
         assert_eq!(preview.data, vec![0.125, 0.375]);
+    }
+
+    #[test]
+    fn waveform_overview_buckets_mono_samples() {
+        let sample = Sample {
+            name: "tone".to_string(),
+            sample_rate: 4,
+            channels: 1,
+            frames: 4,
+            data: vec![-1.0, -0.25, 0.5, 1.0],
+        };
+
+        let overview = sample.waveform_overview(2);
+
+        assert_eq!(overview.sample_rate, 4);
+        assert_eq!(overview.channels, 1);
+        assert_eq!(overview.frames, 4);
+        assert_eq!(overview.duration_seconds, 1.0);
+        assert_eq!(
+            overview.buckets,
+            vec![
+                WaveformBucket {
+                    min: -1.0,
+                    max: -0.25,
+                },
+                WaveformBucket { min: 0.5, max: 1.0 },
+            ]
+        );
+    }
+
+    #[test]
+    fn waveform_overview_downmixes_stereo_for_display() {
+        let sample = Sample {
+            name: "stereo".to_string(),
+            sample_rate: 48_000,
+            channels: 2,
+            frames: 3,
+            data: vec![-1.0, 1.0, 0.25, 0.75, -0.75, -0.25],
+        };
+
+        let overview = sample.waveform_overview(3);
+
+        assert_eq!(
+            overview.buckets,
+            vec![
+                WaveformBucket { min: 0.0, max: 0.0 },
+                WaveformBucket { min: 0.5, max: 0.5 },
+                WaveformBucket {
+                    min: -0.5,
+                    max: -0.5,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn waveform_overview_reuses_frames_when_bucket_count_exceeds_source() {
+        let sample = Sample {
+            name: "short".to_string(),
+            sample_rate: 44_100,
+            channels: 1,
+            frames: 2,
+            data: vec![-0.5, 0.75],
+        };
+
+        let overview = sample.waveform_overview(4);
+
+        assert_eq!(
+            overview.buckets,
+            vec![
+                WaveformBucket {
+                    min: -0.5,
+                    max: -0.5,
+                },
+                WaveformBucket {
+                    min: -0.5,
+                    max: -0.5,
+                },
+                WaveformBucket {
+                    min: 0.75,
+                    max: 0.75,
+                },
+                WaveformBucket {
+                    min: 0.75,
+                    max: 0.75,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn waveform_overview_sanitizes_non_finite_and_out_of_range_samples() {
+        let sample = Sample {
+            name: "float".to_string(),
+            sample_rate: 44_100,
+            channels: 1,
+            frames: 4,
+            data: vec![f32::NAN, f32::INFINITY, -2.0, 2.0],
+        };
+
+        let overview = sample.waveform_overview(2);
+
+        assert_eq!(
+            overview.buckets,
+            vec![
+                WaveformBucket { min: 0.0, max: 0.0 },
+                WaveformBucket {
+                    min: -1.0,
+                    max: 1.0
+                },
+            ]
+        );
     }
 
     #[test]
