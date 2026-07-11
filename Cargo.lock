@@ -640,6 +640,7 @@ dependencies = [
  "ratatui",
  "salieri-core",
  "salieri-midi",
+ "salieri-transform",
  "salieri-tui",
  "serde",
  "serde_json",
@@ -674,6 +675,14 @@ dependencies = [
 
 [[package]]
 name = "salieri-sampler"
+version = "0.1.0"
+dependencies = [
+ "salieri-core",
+ "thiserror",
+]
+
+[[package]]
+name = "salieri-transform"
 version = "0.1.0"
 dependencies = [
  "salieri-core",

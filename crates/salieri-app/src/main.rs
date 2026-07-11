@@ -18,6 +18,7 @@ use persistence::{load_project, save_project};
 use playback_runtime::{PlaybackRuntime, PlaybackUpdate};
 use salieri_core::{CellField, Cursor, Direction, NoteEvent, PatternCell, Song, TrackerCommand};
 use salieri_midi::{list_output_ports, MidiMessage, MidiOutput, MidiOutputPort, MidirMidiOutput};
+use salieri_transform::{apply_euclidean, EuclideanRhythm};
 use salieri_tui::{
     render, MidiPortView, MidiSettingsState, NotificationKind, NotificationView, SelectionRect,
     TuiState, TuiView,
@@ -56,7 +57,7 @@ fn main() -> Result<()> {
 }
 
 fn run(args: CliArgs) -> Result<()> {
-    match args.command {
+    match &args.command {
         CliCommand::Help => {
             print_help();
             return Ok(());
@@ -67,6 +68,10 @@ fn run(args: CliArgs) -> Result<()> {
         }
         CliCommand::ListMidiOutputs => {
             print_midi_outputs()?;
+            return Ok(());
+        }
+        CliCommand::TransformEuclidean(transform_args) => {
+            run_transform_euclidean(transform_args)?;
             return Ok(());
         }
         CliCommand::Run | CliCommand::MidiTest => {}
@@ -207,6 +212,16 @@ impl CliArgs {
                         midi_test,
                     }
                 }
+                "transform" => {
+                    return Self {
+                        command: parse_transform_command(args),
+                        project_path: None,
+                        config_path,
+                        log_level,
+                        midi_log_path,
+                        midi_test,
+                    }
+                }
                 "--midi-test-output" => {
                     midi_test.output = args.next();
                 }
@@ -311,19 +326,165 @@ impl Default for MidiTestArgs {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum CliCommand {
     Run,
     Help,
     Version,
     ListMidiOutputs,
     MidiTest,
+    TransformEuclidean(TransformEuclideanArgs),
 }
 
 fn print_help() {
     println!(
-        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n  --help                        Show this help\n  --version                     Show version"
+        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index (default 1)\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Velocity, 0-127 (default 100)\n\n  --help                        Show this help\n  --version                     Show version"
     );
+}
+
+fn parse_transform_command(args: impl IntoIterator<Item = String>) -> CliCommand {
+    let mut args = args.into_iter();
+    match args.next().as_deref() {
+        Some("euclidean") => CliCommand::TransformEuclidean(parse_transform_euclidean_args(args)),
+        _ => CliCommand::Help,
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TransformEuclideanArgs {
+    input_path: Option<PathBuf>,
+    output_path: Option<PathBuf>,
+    pattern: usize,
+    track: usize,
+    steps: usize,
+    pulses: usize,
+    rotation: usize,
+    pitch: u8,
+    velocity: u8,
+}
+
+impl Default for TransformEuclideanArgs {
+    fn default() -> Self {
+        Self {
+            input_path: None,
+            output_path: None,
+            pattern: 1,
+            track: 1,
+            steps: 16,
+            pulses: 4,
+            rotation: 0,
+            pitch: 36,
+            velocity: 100,
+        }
+    }
+}
+
+fn parse_transform_euclidean_args(
+    args: impl IntoIterator<Item = String>,
+) -> TransformEuclideanArgs {
+    let mut parsed = TransformEuclideanArgs::default();
+    let mut args = args.into_iter();
+
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--pattern" => parse_next_usize(&mut args, &mut parsed.pattern),
+            "--track" => parse_next_usize(&mut args, &mut parsed.track),
+            "--steps" => parse_next_usize(&mut args, &mut parsed.steps),
+            "--pulses" => parse_next_usize(&mut args, &mut parsed.pulses),
+            "--rotation" => parse_next_usize(&mut args, &mut parsed.rotation),
+            "--pitch" => parse_next_u8(&mut args, &mut parsed.pitch),
+            "--velocity" => parse_next_u8(&mut args, &mut parsed.velocity),
+            _ if arg.starts_with("--pattern=") => {
+                parse_usize_value(arg.trim_start_matches("--pattern="), &mut parsed.pattern);
+            }
+            _ if arg.starts_with("--track=") => {
+                parse_usize_value(arg.trim_start_matches("--track="), &mut parsed.track);
+            }
+            _ if arg.starts_with("--steps=") => {
+                parse_usize_value(arg.trim_start_matches("--steps="), &mut parsed.steps);
+            }
+            _ if arg.starts_with("--pulses=") => {
+                parse_usize_value(arg.trim_start_matches("--pulses="), &mut parsed.pulses);
+            }
+            _ if arg.starts_with("--rotation=") => {
+                parse_usize_value(arg.trim_start_matches("--rotation="), &mut parsed.rotation);
+            }
+            _ if arg.starts_with("--pitch=") => {
+                parse_u8_value(arg.trim_start_matches("--pitch="), &mut parsed.pitch);
+            }
+            _ if arg.starts_with("--velocity=") => {
+                parse_u8_value(arg.trim_start_matches("--velocity="), &mut parsed.velocity);
+            }
+            _ if parsed.input_path.is_none() => parsed.input_path = Some(PathBuf::from(arg)),
+            _ if parsed.output_path.is_none() => parsed.output_path = Some(PathBuf::from(arg)),
+            _ => {}
+        }
+    }
+
+    parsed
+}
+
+fn parse_next_usize(args: &mut impl Iterator<Item = String>, target: &mut usize) {
+    if let Some(value) = args.next() {
+        parse_usize_value(&value, target);
+    }
+}
+
+fn parse_usize_value(value: &str, target: &mut usize) {
+    if let Ok(parsed) = value.parse::<usize>() {
+        *target = parsed;
+    }
+}
+
+fn parse_next_u8(args: &mut impl Iterator<Item = String>, target: &mut u8) {
+    if let Some(value) = args.next() {
+        parse_u8_value(&value, target);
+    }
+}
+
+fn parse_u8_value(value: &str, target: &mut u8) {
+    if let Ok(parsed) = value.parse::<u8>() {
+        *target = parsed.min(127);
+    }
+}
+
+fn run_transform_euclidean(args: &TransformEuclideanArgs) -> Result<()> {
+    let input_path = args
+        .input_path
+        .as_deref()
+        .context("missing transform input path")?;
+    let output_path = args
+        .output_path
+        .as_deref()
+        .context("missing transform output path")?;
+    if args.pattern == 0 {
+        anyhow::bail!("--pattern is 1-based and must be greater than zero");
+    }
+    if args.track == 0 {
+        anyhow::bail!("--track is 1-based and must be greater than zero");
+    }
+
+    let mut song = load_project(input_path)?;
+    let report = apply_euclidean(
+        &mut song,
+        args.pattern - 1,
+        EuclideanRhythm {
+            steps: args.steps,
+            pulses: args.pulses,
+            rotation: args.rotation,
+            track: args.track - 1,
+            pitch: args.pitch,
+            velocity: args.velocity,
+        },
+    )?;
+    save_project(output_path, &song)?;
+
+    println!(
+        "Applied Euclidean transform to {} cells and wrote {}",
+        report.touched_cells.len(),
+        output_path.display()
+    );
+    Ok(())
 }
 
 fn print_midi_outputs() -> Result<()> {
@@ -2827,6 +2988,80 @@ mod tests {
                 },
             }
         );
+    }
+
+    #[test]
+    fn cli_parses_euclidean_transform_options() {
+        assert_eq!(
+            CliArgs::parse([
+                "transform".to_string(),
+                "euclidean".to_string(),
+                "input.salieri".to_string(),
+                "output.salieri".to_string(),
+                "--pattern=2".to_string(),
+                "--track".to_string(),
+                "3".to_string(),
+                "--steps".to_string(),
+                "12".to_string(),
+                "--pulses=5".to_string(),
+                "--rotation=1".to_string(),
+                "--pitch".to_string(),
+                "40".to_string(),
+                "--velocity=96".to_string(),
+            ]),
+            CliArgs {
+                command: CliCommand::TransformEuclidean(TransformEuclideanArgs {
+                    input_path: Some(PathBuf::from("input.salieri")),
+                    output_path: Some(PathBuf::from("output.salieri")),
+                    pattern: 2,
+                    track: 3,
+                    steps: 12,
+                    pulses: 5,
+                    rotation: 1,
+                    pitch: 40,
+                    velocity: 96,
+                }),
+                project_path: None,
+                config_path: None,
+                log_level: None,
+                midi_log_path: None,
+                midi_test: MidiTestArgs::default(),
+            }
+        );
+    }
+
+    #[test]
+    fn euclidean_transform_command_round_trips_project_files() {
+        let base =
+            std::env::temp_dir().join(format!("salieri-transform-cli-{}", std::process::id()));
+        let input_path = base.with_extension("input.salieri");
+        let output_path = base.with_extension("output.salieri");
+        let song = Song::empty();
+        save_project(&input_path, &song).expect("save input");
+
+        run_transform_euclidean(&TransformEuclideanArgs {
+            input_path: Some(input_path.clone()),
+            output_path: Some(output_path.clone()),
+            pattern: 1,
+            track: 1,
+            steps: 4,
+            pulses: 2,
+            rotation: 0,
+            pitch: 36,
+            velocity: 100,
+        })
+        .expect("transform");
+
+        let transformed = load_project(&output_path).expect("load output");
+        let pattern = transformed.current_pattern().expect("pattern");
+        let active_rows = (0..8)
+            .filter(|row| pattern.cell(*row, 0).expect("cell").note.is_some())
+            .collect::<Vec<_>>();
+
+        let _ = std::fs::remove_file(&input_path);
+        let _ = std::fs::remove_file(&output_path);
+
+        assert_eq!(active_rows, vec![1, 3, 5, 7]);
     }
 
     #[test]

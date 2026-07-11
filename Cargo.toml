@@ -6,6 +6,7 @@ members = [
     "crates/salieri-midi",
     "crates/salieri-sampler",
     "crates/salieri-tui",
+    "crates/salieri-transform",
 ]
 resolver = "2"
 
