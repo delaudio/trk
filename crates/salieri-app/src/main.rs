@@ -4,7 +4,10 @@ mod playback_runtime;
 mod terminal;
 
 use std::{
+    fs::OpenOptions,
+    io::Write,
     path::{Path, PathBuf},
+    thread,
     time::{Duration, Instant},
 };
 
@@ -14,7 +17,7 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use persistence::{load_project, save_project};
 use playback_runtime::{PlaybackRuntime, PlaybackUpdate};
 use salieri_core::{CellField, Cursor, Direction, NoteEvent, PatternCell, Song};
-use salieri_midi::{list_output_ports, MidiOutputPort};
+use salieri_midi::{list_output_ports, MidiMessage, MidiOutput, MidiOutputPort, MidirMidiOutput};
 use salieri_tui::{render, SelectionRect, TuiState};
 use terminal::TerminalGuard;
 
@@ -58,13 +61,18 @@ fn run(args: CliArgs) -> Result<()> {
             print_midi_outputs()?;
             return Ok(());
         }
-        CliCommand::Run => {}
+        CliCommand::Run | CliCommand::MidiTest => {}
     }
 
     let mut config = load_config(args.config_path.as_deref())?;
     if let Some(midi_log_path) = args.midi_log_path {
         config.midi.log_file = Some(midi_log_path);
     }
+    if args.command == CliCommand::MidiTest {
+        run_midi_test(&config, &args.midi_test)?;
+        return Ok(());
+    }
+
     let project_path = args.project_path;
     let mut app = match &project_path {
         Some(path) => App::from_file(path, config)
@@ -134,6 +142,7 @@ struct CliArgs {
     config_path: Option<PathBuf>,
     log_level: Option<String>,
     midi_log_path: Option<PathBuf>,
+    midi_test: MidiTestArgs,
 }
 
 impl CliArgs {
@@ -142,6 +151,7 @@ impl CliArgs {
         let mut config_path = None;
         let mut log_level = None;
         let mut midi_log_path = None;
+        let mut midi_test = MidiTestArgs::default();
         let mut args = args.into_iter();
 
         while let Some(arg) = args.next() {
@@ -153,6 +163,7 @@ impl CliArgs {
                         config_path,
                         log_level,
                         midi_log_path,
+                        midi_test,
                     }
                 }
                 "-V" | "--version" => {
@@ -162,6 +173,7 @@ impl CliArgs {
                         config_path,
                         log_level,
                         midi_log_path,
+                        midi_test,
                     }
                 }
                 "--list-midi-outputs" => {
@@ -171,6 +183,25 @@ impl CliArgs {
                         config_path,
                         log_level,
                         midi_log_path,
+                        midi_test,
+                    }
+                }
+                "--midi-test-output" => {
+                    midi_test.output = args.next();
+                }
+                "--midi-test-channel" => {
+                    if let Some(value) = args.next().and_then(|value| value.parse::<u8>().ok()) {
+                        midi_test.channel = value;
+                    }
+                }
+                "--midi-test-note" => {
+                    if let Some(value) = args.next().and_then(|value| value.parse::<u8>().ok()) {
+                        midi_test.note = value;
+                    }
+                }
+                "--midi-test-duration-ms" => {
+                    if let Some(value) = args.next().and_then(|value| value.parse::<u64>().ok()) {
+                        midi_test.duration_ms = value;
                     }
                 }
                 "--config" => {
@@ -195,17 +226,66 @@ impl CliArgs {
                 _ if arg.starts_with("--midi-log=") => {
                     midi_log_path = Some(PathBuf::from(arg.trim_start_matches("--midi-log=")));
                 }
+                _ if arg.starts_with("--midi-test-output=") => {
+                    midi_test.output =
+                        Some(arg.trim_start_matches("--midi-test-output=").to_string());
+                }
+                _ if arg.starts_with("--midi-test-channel=") => {
+                    if let Ok(value) = arg.trim_start_matches("--midi-test-channel=").parse::<u8>()
+                    {
+                        midi_test.channel = value;
+                    }
+                }
+                _ if arg.starts_with("--midi-test-note=") => {
+                    if let Ok(value) = arg.trim_start_matches("--midi-test-note=").parse::<u8>() {
+                        midi_test.note = value;
+                    }
+                }
+                _ if arg.starts_with("--midi-test-duration-ms=") => {
+                    if let Ok(value) = arg
+                        .trim_start_matches("--midi-test-duration-ms=")
+                        .parse::<u64>()
+                    {
+                        midi_test.duration_ms = value;
+                    }
+                }
                 _ if project_path.is_none() => project_path = Some(PathBuf::from(arg)),
                 _ => {}
             }
         }
 
+        let command = if midi_test.output.is_some() {
+            CliCommand::MidiTest
+        } else {
+            CliCommand::Run
+        };
+
         Self {
-            command: CliCommand::Run,
+            command,
             project_path,
             config_path,
             log_level,
             midi_log_path,
+            midi_test,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct MidiTestArgs {
+    output: Option<String>,
+    channel: u8,
+    note: u8,
+    duration_ms: u64,
+}
+
+impl Default for MidiTestArgs {
+    fn default() -> Self {
+        Self {
+            output: None,
+            channel: 1,
+            note: 60,
+            duration_ms: 1000,
         }
     }
 }
@@ -216,11 +296,12 @@ enum CliCommand {
     Help,
     Version,
     ListMidiOutputs,
+    MidiTest,
 }
 
 fn print_help() {
     println!(
-        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH        Load config from PATH\n  --log-level LEVEL    Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH      Write sent MIDI messages to PATH\n  --list-midi-outputs  List available MIDI output ports\n  --help               Show this help\n  --version            Show version"
+        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n  --help                        Show this help\n  --version                     Show version"
     );
 }
 
@@ -241,6 +322,72 @@ fn print_midi_outputs() -> Result<()> {
         println!("{}: {}", port.index, port.name);
     }
 
+    Ok(())
+}
+
+fn run_midi_test(config: &AppConfig, args: &MidiTestArgs) -> Result<()> {
+    let ports = list_output_ports().context("failed to list MIDI output ports")?;
+    let output = args
+        .output
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or(config.midi.default_output.as_str());
+    let Some(port) = resolve_midi_output_port(&ports, output) else {
+        anyhow::bail!("MIDI output not found: {output}");
+    };
+
+    let channel = args.channel.clamp(1, 16);
+    let note = args.note.min(127);
+    let duration = Duration::from_millis(args.duration_ms.max(1));
+    let mut output = MidirMidiOutput::connect(port.index, "salieri-midi-test")
+        .with_context(|| format!("failed to connect MIDI output {}", port.name))?;
+
+    println!(
+        "Sending MIDI test note: port {} ({}) channel {} note {} duration {}ms",
+        port.index,
+        port.name,
+        channel,
+        note,
+        duration.as_millis()
+    );
+
+    send_logged_midi_message(
+        &mut output,
+        MidiMessage::note_on(channel, note, DEFAULT_NOTE_VELOCITY),
+        config.midi.log_file.as_deref(),
+    )?;
+    thread::sleep(duration);
+    send_logged_midi_message(
+        &mut output,
+        MidiMessage::note_off(channel, note, 0),
+        config.midi.log_file.as_deref(),
+    )?;
+    thread::sleep(Duration::from_millis(20));
+
+    println!("MIDI test complete");
+    Ok(())
+}
+
+fn send_logged_midi_message(
+    output: &mut impl MidiOutput,
+    message: MidiMessage,
+    log_file: Option<&Path>,
+) -> Result<()> {
+    output.send(message)?;
+    if let Some(log_file) = log_file {
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(log_file)
+            .with_context(|| format!("failed to open MIDI log {}", log_file.display()))?;
+        let bytes = message.to_bytes();
+        writeln!(
+            file,
+            "TEST {:?} bytes={:02X} {:02X} {:02X}",
+            message, bytes[0], bytes[1], bytes[2]
+        )
+        .with_context(|| format!("failed to write MIDI log {}", log_file.display()))?;
+    }
     Ok(())
 }
 
@@ -1248,7 +1395,7 @@ impl App {
 
         match list_output_ports() {
             Ok(ports) => {
-                if let Some(port) = find_midi_output_port(&ports, output_name) {
+                if let Some(port) = resolve_midi_output_port(&ports, output_name) {
                     self.midi_status = format!("MIDI Connecting {} ({})", port.index, port.name);
                     self.playback.connect_midi(port.index);
                 } else {
@@ -1513,6 +1660,18 @@ fn find_midi_output_port<'a>(
         })
 }
 
+fn resolve_midi_output_port<'a>(
+    ports: &'a [MidiOutputPort],
+    output_name_or_index: &str,
+) -> Option<&'a MidiOutputPort> {
+    let value = output_name_or_index.trim();
+    value
+        .parse::<usize>()
+        .ok()
+        .and_then(|index| ports.iter().find(|port| port.index == index))
+        .or_else(|| find_midi_output_port(ports, value))
+}
+
 fn normalize_midi_port_name(value: &str) -> String {
     value
         .chars()
@@ -1535,6 +1694,7 @@ mod tests {
                 config_path: None,
                 log_level: None,
                 midi_log_path: None,
+                midi_test: MidiTestArgs::default(),
             }
         );
         assert_eq!(
@@ -1557,6 +1717,7 @@ mod tests {
                 config_path: None,
                 log_level: None,
                 midi_log_path: None,
+                midi_test: MidiTestArgs::default(),
             }
         );
     }
@@ -1578,6 +1739,35 @@ mod tests {
                 config_path: Some(PathBuf::from("custom.toml")),
                 log_level: Some("debug".to_string()),
                 midi_log_path: Some(PathBuf::from("midi.log")),
+                midi_test: MidiTestArgs::default(),
+            }
+        );
+    }
+
+    #[test]
+    fn cli_parses_midi_test_options() {
+        assert_eq!(
+            CliArgs::parse([
+                "--midi-test-output=0".to_string(),
+                "--midi-test-channel".to_string(),
+                "2".to_string(),
+                "--midi-test-note".to_string(),
+                "64".to_string(),
+                "--midi-test-duration-ms".to_string(),
+                "1500".to_string(),
+            ]),
+            CliArgs {
+                command: CliCommand::MidiTest,
+                project_path: None,
+                config_path: None,
+                log_level: None,
+                midi_log_path: None,
+                midi_test: MidiTestArgs {
+                    output: Some("0".to_string()),
+                    channel: 2,
+                    note: 64,
+                    duration_ms: 1500,
+                },
             }
         );
     }
@@ -1657,6 +1847,10 @@ mod tests {
         assert_eq!(
             find_midi_output_port(&ports, "IAC Driver (Bus 1)").map(|port| port.index),
             Some(1)
+        );
+        assert_eq!(
+            resolve_midi_output_port(&ports, "1").map(|port| port.name.as_str()),
+            Some("IAC Driver Bus 1")
         );
         assert!(find_midi_output_port(&ports, "Missing").is_none());
     }
