@@ -1,4 +1,5 @@
 mod persistence;
+mod playback_runtime;
 mod terminal;
 
 use std::{
@@ -9,6 +10,7 @@ use std::{
 use anyhow::{Context, Result};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use persistence::{load_project, save_project};
+use playback_runtime::{PlaybackRuntime, PlaybackUpdate};
 use salieri_core::{CellField, Cursor, Direction, NoteEvent, Song};
 use salieri_midi::list_output_ports;
 use salieri_tui::{render, TuiState};
@@ -63,6 +65,7 @@ fn run() -> Result<()> {
     let mut terminal = TerminalGuard::enter()?;
 
     loop {
+        app.drain_playback_updates();
         terminal.draw(|frame| {
             render(
                 frame,
@@ -76,6 +79,8 @@ fn run() -> Result<()> {
                     dirty: app.dirty,
                     command_line: app.command_line(),
                     show_help: app.mode == AppMode::Help,
+                    is_playing: app.is_playing,
+                    playhead_row: app.playhead_row,
                 },
             );
         })?;
@@ -198,6 +203,9 @@ struct App {
     command_buffer: String,
     undo_stack: Vec<Song>,
     redo_stack: Vec<Song>,
+    playback: PlaybackRuntime,
+    is_playing: bool,
+    playhead_row: Option<usize>,
     dirty: bool,
     should_quit: bool,
     last_tick: Instant,
@@ -219,6 +227,9 @@ impl Default for App {
             command_buffer: String::new(),
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
+            playback: PlaybackRuntime::spawn(),
+            is_playing: false,
+            playhead_row: None,
             dirty: false,
             should_quit: false,
             last_tick: Instant::now(),
@@ -278,6 +289,12 @@ impl App {
                 self.redo();
                 true
             }
+            KeyCode::Char('p') | KeyCode::Char('P')
+                if key.modifiers.contains(KeyModifiers::SHIFT) =>
+            {
+                self.stop_playback();
+                true
+            }
             _ => true,
         }
     }
@@ -285,7 +302,16 @@ impl App {
     fn handle_normal_key(&mut self, key: KeyEvent) {
         let direction = match key.code {
             KeyCode::Char('q') => {
+                self.stop_playback();
                 self.should_quit = true;
+                return;
+            }
+            KeyCode::Char(' ') => {
+                self.toggle_playback();
+                return;
+            }
+            KeyCode::F(8) => {
+                self.stop_playback();
                 return;
             }
             KeyCode::Char('i') | KeyCode::Enter => {
@@ -592,7 +618,10 @@ impl App {
         };
 
         match name {
-            "q" | "quit" => self.should_quit = true,
+            "q" | "quit" => {
+                self.stop_playback();
+                self.should_quit = true;
+            }
             "w" | "write" | "save" => {
                 if let Err(error) = self.save() {
                     tracing::error!(?error, "failed to save project");
@@ -603,6 +632,7 @@ impl App {
                     tracing::error!(?error, "failed to save project");
                     return;
                 }
+                self.stop_playback();
                 self.should_quit = true;
             }
             "bpm" => {
@@ -646,6 +676,46 @@ impl App {
                 None | Some(_) => {}
             },
             _ => {}
+        }
+    }
+
+    fn toggle_playback(&mut self) {
+        if self.is_playing {
+            self.stop_playback();
+        } else {
+            self.start_playback();
+        }
+    }
+
+    fn start_playback(&mut self) {
+        if self.song.pattern(self.pattern_index).is_none() {
+            return;
+        }
+
+        self.is_playing = true;
+        self.playhead_row = Some(0);
+        self.playback
+            .start_pattern(self.song.clone(), self.pattern_index);
+    }
+
+    fn stop_playback(&mut self) {
+        self.playback.stop();
+        self.is_playing = false;
+        self.playhead_row = None;
+    }
+
+    fn drain_playback_updates(&mut self) {
+        while let Some(update) = self.playback.try_recv() {
+            match update {
+                PlaybackUpdate::Position(position) => {
+                    self.is_playing = true;
+                    self.playhead_row = Some(position.row);
+                }
+                PlaybackUpdate::Stopped => {
+                    self.is_playing = false;
+                    self.playhead_row = None;
+                }
+            }
         }
     }
 
@@ -1029,6 +1099,21 @@ mod tests {
         type_command(&mut app, "quit");
 
         assert!(app.should_quit);
+    }
+
+    #[test]
+    fn space_toggles_playback_and_f8_stops() {
+        let mut app = App::default();
+
+        app.handle_key(KeyEvent::new(KeyCode::Char(' '), KeyModifiers::NONE));
+
+        assert!(app.is_playing);
+        assert_eq!(app.playhead_row, Some(0));
+
+        app.handle_key(KeyEvent::new(KeyCode::F(8), KeyModifiers::NONE));
+
+        assert!(!app.is_playing);
+        assert_eq!(app.playhead_row, None);
     }
 
     #[test]

@@ -15,6 +15,8 @@ pub struct TuiState<'a> {
     pub dirty: bool,
     pub command_line: Option<&'a str>,
     pub show_help: bool,
+    pub is_playing: bool,
+    pub playhead_row: Option<usize>,
 }
 
 pub fn render(frame: &mut Frame<'_>, song: &Song, state: TuiState<'_>) {
@@ -41,8 +43,12 @@ fn render_header(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState
     let pattern_name = active_pattern(song, state.pattern_index)
         .map_or("No Pattern", |pattern| pattern.name.as_str());
     let dirty = if state.dirty { " *" } else { "" };
+    let playback = if state.is_playing { "PLAY" } else { "STOP" };
+    let playhead = state
+        .playhead_row
+        .map_or_else(|| "--".to_string(), |row| format!("{row:02}"));
     let text = format!(
-        " BPM {} | LPB {} | {}{} | Oct {} | Row {:02} | Track {:02} | Field {} | {} | MIDI Disconnected ",
+        " BPM {} | LPB {} | {}{} | Oct {} | Row {:02} | Play {playhead} | Track {:02} | Field {} | {} | {playback} | MIDI Disconnected ",
         song.transport.bpm,
         song.transport.lines_per_beat,
         pattern_name,
@@ -51,7 +57,7 @@ fn render_header(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState
         state.cursor.row,
         state.cursor.track + 1,
         state.cursor.field,
-        state.mode_label
+        state.mode_label,
     );
     let header = Paragraph::new(text)
         .block(
@@ -153,7 +159,13 @@ fn render_pattern(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiStat
             .row_count()
             .min(row_offset.saturating_add(data_height))
     {
-        lines.push(pattern_row(song, pattern, row_index, state.cursor));
+        lines.push(pattern_row(
+            song,
+            pattern,
+            row_index,
+            state.cursor,
+            state.playhead_row,
+        ));
     }
 
     let block = Block::default()
@@ -186,13 +198,26 @@ fn pattern_header(song: &Song) -> Line<'static> {
     Line::from(spans)
 }
 
-fn pattern_row(song: &Song, pattern: &Pattern, row_index: usize, cursor: Cursor) -> Line<'static> {
+fn pattern_row(
+    song: &Song,
+    pattern: &Pattern,
+    row_index: usize,
+    cursor: Cursor,
+    playhead_row: Option<usize>,
+) -> Line<'static> {
+    let is_playhead = playhead_row == Some(row_index);
     let mut spans = vec![
         Span::styled(
-            format!("{row_index:02}"),
-            Style::default().fg(Color::DarkGray),
+            format!("{}{row_index:02}", if is_playhead { ">" } else { " " }),
+            if is_playhead {
+                Style::default()
+                    .fg(Color::LightGreen)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::DarkGray)
+            },
         ),
-        Span::raw("  "),
+        Span::raw(" "),
     ];
 
     let Some(row) = pattern.rows.get(row_index) else {
@@ -252,7 +277,7 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
     }
 
     let status = Paragraph::new(format!(
-        " {} | : Command | i Edit | Ctrl+T Track | M Mute | S Solo | Ctrl+S Save | Ctrl+Z Undo | q Quit ",
+        " {} | Space Play/Stop | F8 Stop | : Command | i Edit | Ctrl+T Track | M Mute | S Solo | Ctrl+S Save | Ctrl+Z Undo | q Quit ",
         state.mode_label
     ));
     frame.render_widget(status, area);
@@ -267,7 +292,7 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
         )),
-        Line::from("  ? Help   q Quit   : Command   Ctrl+S Save   Ctrl+Z Undo   Ctrl+Y Redo"),
+        Line::from("  ? Help   q Quit   Space Play/Stop   F8 Stop   Ctrl+S Save   Ctrl+Z Undo"),
         Line::from(""),
         Line::from(Span::styled(
             "Navigation",
@@ -375,6 +400,8 @@ mod tests {
                         dirty: false,
                         command_line: None,
                         show_help: false,
+                        is_playing: false,
+                        playhead_row: None,
                     },
                 );
             })
@@ -413,6 +440,8 @@ mod tests {
                         dirty: false,
                         command_line: None,
                         show_help: true,
+                        is_playing: false,
+                        playhead_row: None,
                     },
                 );
             })
@@ -429,5 +458,44 @@ mod tests {
         assert!(rendered.contains("Help"));
         assert!(rendered.contains("Global"));
         assert!(rendered.contains("Notes"));
+    }
+
+    #[test]
+    fn renders_playhead_when_playing() {
+        let song = Song::empty();
+        let backend = TestBackend::new(120, 32);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+
+        terminal
+            .draw(|frame| {
+                render(
+                    frame,
+                    &song,
+                    TuiState {
+                        cursor: Cursor::new(),
+                        row_offset: 0,
+                        pattern_index: 0,
+                        mode_label: "NORMAL",
+                        octave: 4,
+                        dirty: false,
+                        command_line: None,
+                        show_help: false,
+                        is_playing: true,
+                        playhead_row: Some(0),
+                    },
+                );
+            })
+            .expect("draw");
+
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+
+        assert!(rendered.contains("PLAY"));
+        assert!(rendered.contains(">00"));
     }
 }
