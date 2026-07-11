@@ -204,7 +204,11 @@ fn playback_thread(
                     }
                     Err(error) => {
                         midi_logger.log_line(format!("CONNECT_ERROR port={port_index} {error}"));
-                        let _ = update_tx.send(PlaybackUpdate::MidiError(error.to_string()));
+                        output = PlaybackOutput::fake();
+                        let _ = update_tx.send(PlaybackUpdate::MidiDisconnected);
+                        let _ = update_tx.send(PlaybackUpdate::MidiError(format!(
+                            "MIDI output connect failed: {error}"
+                        )));
                     }
                 }
             }
@@ -252,11 +256,18 @@ impl PatternRunResult {
 enum PlaybackOutput {
     Fake(FakeMidiOutput),
     Midir(MidirMidiOutput),
+    #[cfg(test)]
+    Failing(FailingMidiOutput),
 }
 
 impl PlaybackOutput {
     fn fake() -> Self {
         Self::Fake(FakeMidiOutput::new())
+    }
+
+    #[cfg(test)]
+    fn failing() -> Self {
+        Self::Failing(FailingMidiOutput)
     }
 }
 
@@ -265,7 +276,19 @@ impl MidiOutput for PlaybackOutput {
         match self {
             Self::Fake(output) => output.send(message),
             Self::Midir(output) => output.send(message),
+            #[cfg(test)]
+            Self::Failing(output) => output.send(message),
         }
+    }
+}
+
+#[cfg(test)]
+struct FailingMidiOutput;
+
+#[cfg(test)]
+impl MidiOutput for FailingMidiOutput {
+    fn send(&mut self, _message: MidiMessage) -> Result<(), MidiError> {
+        Err(MidiError::Send("simulated disconnected MIDI port".into()))
     }
 }
 
@@ -313,11 +336,7 @@ fn run_pattern(
                 if let Err(error) =
                     send_playback_event_logged(context.output, context.midi_logger, *event)
                 {
-                    let _ = context
-                        .update_tx
-                        .send(PlaybackUpdate::MidiError(error.to_string()));
-                    let _ = send_all_notes_off_logged(context.output, context.midi_logger);
-                    let _ = context.update_tx.send(PlaybackUpdate::Stopped);
+                    handle_midi_send_failure(context, error);
                     return PatternRunResult::Stopped;
                 }
             }
@@ -400,6 +419,23 @@ fn mark_event_for_started_playback(
             was_active
         }
     }
+}
+
+fn handle_midi_send_failure(context: &mut PlaybackRunContext<'_>, error: MidiError) {
+    context
+        .midi_logger
+        .log_line(format!("SEND_ERROR stopping playback: {error}"));
+    if let Err(recovery_error) = send_all_notes_off_logged(context.output, context.midi_logger) {
+        context.midi_logger.log_line(format!(
+            "ALL_NOTES_OFF_ERROR during MIDI recovery: {recovery_error}"
+        ));
+    }
+    *context.output = PlaybackOutput::fake();
+    let _ = context.update_tx.send(PlaybackUpdate::MidiDisconnected);
+    let _ = context.update_tx.send(PlaybackUpdate::Stopped);
+    let _ = context.update_tx.send(PlaybackUpdate::MidiError(format!(
+        "MIDI output disconnected during playback: {error}"
+    )));
 }
 
 struct MidiLogger {
@@ -685,5 +721,57 @@ mod tests {
         let _ = std::fs::remove_file(&path);
 
         assert!(contents.contains("NOTE_ON ch=10 note=60 velocity=127"));
+    }
+
+    #[test]
+    fn runtime_disconnects_and_stops_when_midi_send_fails() {
+        let path = std::env::temp_dir().join(format!(
+            "salieri-midi-failure-log-{}.log",
+            std::process::id()
+        ));
+        let mut song = Song::empty();
+        song.transport.bpm = u16::MAX;
+        song.transport.lines_per_beat = u8::MAX;
+        song.current_pattern_mut()
+            .expect("pattern")
+            .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x7f)
+            .expect("set note");
+
+        let (_command_tx, command_rx) = mpsc::channel();
+        let (update_tx, update_rx) = mpsc::channel();
+        let mut output = PlaybackOutput::failing();
+        let mut midi_logger = MidiLogger::new(Some(path.clone()), &update_tx);
+        let mut context = PlaybackRunContext {
+            command_rx: &command_rx,
+            update_tx: &update_tx,
+            output: &mut output,
+            midi_logger: &mut midi_logger,
+        };
+
+        let result = run_pattern(&song, 0, 0, None, true, &mut context);
+
+        assert!(matches!(result, PatternRunResult::Stopped));
+        assert!(matches!(output, PlaybackOutput::Fake(_)));
+
+        let updates: Vec<_> = update_rx.try_iter().collect();
+        assert!(updates
+            .iter()
+            .any(|update| matches!(update, PlaybackUpdate::MidiDisconnected)));
+        assert!(updates
+            .iter()
+            .any(|update| matches!(update, PlaybackUpdate::Stopped)));
+        assert!(updates.iter().any(|update| matches!(
+            update,
+            PlaybackUpdate::MidiError(message)
+                if message.contains("MIDI output disconnected during playback")
+        )));
+
+        let contents = std::fs::read_to_string(&path).expect("midi log");
+        let _ = std::fs::remove_file(&path);
+
+        assert!(contents.contains("NOTE_ON"));
+        assert!(contents.contains("SEND_ERROR stopping playback"));
+        assert!(contents.contains("CC ch=1 controller=123 value=0"));
+        assert!(contents.contains("ALL_NOTES_OFF_ERROR during MIDI recovery"));
     }
 }

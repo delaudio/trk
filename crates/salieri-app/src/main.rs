@@ -2236,10 +2236,12 @@ impl App {
                     self.playback.connect_midi(port.index);
                 } else {
                     self.midi_status = format!("MIDI Output Not Found ({output_name})");
+                    self.notify_error(format!("MIDI output not found: {output_name}"));
                 }
             }
             Err(error) => {
                 self.midi_status = format!("MIDI Error: {error}");
+                self.notify_error(format!("MIDI output list failed: {error}"));
             }
         }
     }
