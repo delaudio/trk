@@ -4,6 +4,7 @@ members = [
     "crates/salieri-audio",
     "crates/salieri-app",
     "crates/salieri-core",
+    "crates/salieri-interop",
     "crates/salieri-midi",
     "crates/salieri-sampler",
     "crates/salieri-tui",

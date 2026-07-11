@@ -673,6 +673,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "salieri-interop"
+version = "0.1.0"
+dependencies = [
+ "salieri-core",
+ "thiserror",
+]
+
+[[package]]
 name = "salieri-midi"
 version = "0.1.0"
 dependencies = [
