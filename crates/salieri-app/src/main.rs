@@ -16,6 +16,7 @@ use config::{load_config, AppConfig};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use persistence::{load_project, save_project};
 use playback_runtime::{PlaybackRuntime, PlaybackUpdate};
+use salieri_ai::{validate_dossier, validate_palette, OperationalPalette, ResearchDossier};
 use salieri_analysis::{
     analyze_song, compare_profiles, render_comparison_markdown, render_profile_markdown,
     AnalysisProfile,
@@ -100,6 +101,10 @@ fn run(args: CliArgs) -> Result<()> {
         }
         CliCommand::RenderChain(args) => {
             run_render_chain(args)?;
+            return Ok(());
+        }
+        CliCommand::Guidance(args) => {
+            run_guidance(args)?;
             return Ok(());
         }
         CliCommand::TransformEuclidean(transform_args) => {
@@ -312,6 +317,16 @@ impl CliArgs {
                         midi_test,
                     }
                 }
+                "guidance" => {
+                    return Self {
+                        command: parse_guidance_command(args),
+                        project_path: None,
+                        config_path,
+                        log_level,
+                        midi_log_path,
+                        midi_test,
+                    }
+                }
                 "--midi-test-output" => {
                     midi_test.output = args.next();
                 }
@@ -428,6 +443,7 @@ enum CliCommand {
     StemScan(StemScanArgs),
     InteropValidateMidi(InteropValidateMidiArgs),
     RenderChain(RenderChainArgs),
+    Guidance(GuidanceArgs),
     TransformEuclidean(TransformEuclideanArgs),
     TransformHumanize(TransformHumanizeArgs),
     TransformVariation(TransformVariationArgs),
@@ -490,6 +506,18 @@ impl Default for RenderChainArgs {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+struct GuidanceArgs {
+    kind: Option<GuidanceArtifactKind>,
+    path: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GuidanceArtifactKind {
+    Dossier,
+    Palette,
+}
+
 impl Default for CompareArgs {
     fn default() -> Self {
         Self {
@@ -509,7 +537,7 @@ enum ReportFormat {
 
 fn print_help() {
     println!(
-        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri analyze INPUT [--format json|markdown] [--output PATH]\n  salieri compare LEFT RIGHT [--format json|markdown] [--output PATH]\n  salieri stems scan FOLDER OUTPUT_JSON\n  salieri interop validate-midi PROJECT\n  salieri render-chain PROJECT OUTPUT_JSON [--sample-rate N] [--channels N] [--bit-depth N]\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri transform humanize INPUT OUTPUT [OPTIONS]\n  salieri transform variation INPUT OUTPUT [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nAnalysis options:\n  --format FORMAT               markdown/md or json (default markdown)\n  --output PATH                 Write report to PATH instead of stdout\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index; omitted means all tracks\n  --seed N                      Deterministic transform seed\n  --dry-run                     Print summary without writing OUTPUT\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Euclidean velocity or humanize velocity amount\n  --delay VALUE                 Humanize max delay command value, 0-255\n  --thin PERCENT                Variation probability for removing notes\n  --fill PERCENT                Variation probability for adding notes\n  --transpose SEMITONES         Variation transpose amount\n  --name NAME                   Variation target pattern name\n\n  --help                        Show this help\n  --version                     Show version"
+        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri analyze INPUT [--format json|markdown] [--output PATH]\n  salieri compare LEFT RIGHT [--format json|markdown] [--output PATH]\n  salieri stems scan FOLDER OUTPUT_JSON\n  salieri interop validate-midi PROJECT\n  salieri render-chain PROJECT OUTPUT_JSON [--sample-rate N] [--channels N] [--bit-depth N]\n  salieri guidance dossier FILE\n  salieri guidance palette FILE\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri transform humanize INPUT OUTPUT [OPTIONS]\n  salieri transform variation INPUT OUTPUT [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nAnalysis options:\n  --format FORMAT               markdown/md or json (default markdown)\n  --output PATH                 Write report to PATH instead of stdout\n\nGuidance options:\n  guidance dossier FILE         Validate and summarize a local research dossier JSON file\n  guidance palette FILE         Validate and summarize a local operational palette JSON file\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index; omitted means all tracks\n  --seed N                      Deterministic transform seed\n  --dry-run                     Print summary without writing OUTPUT\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Euclidean velocity or humanize velocity amount\n  --delay VALUE                 Humanize max delay command value, 0-255\n  --thin PERCENT                Variation probability for removing notes\n  --fill PERCENT                Variation probability for adding notes\n  --transpose SEMITONES         Variation transpose amount\n  --name NAME                   Variation target pattern name\n\n  --help                        Show this help\n  --version                     Show version"
     );
 }
 
@@ -586,6 +614,24 @@ fn parse_interop_command(args: impl IntoIterator<Item = String>) -> CliCommand {
         }),
         _ => CliCommand::Help,
     }
+}
+
+fn parse_guidance_command(args: impl IntoIterator<Item = String>) -> CliCommand {
+    let mut args = args.into_iter();
+    let first = args.next();
+    let kind_arg = match first.as_deref() {
+        Some("summarize") | Some("validate") => args.next(),
+        _ => first,
+    };
+    let kind = match kind_arg.as_deref() {
+        Some("dossier") => Some(GuidanceArtifactKind::Dossier),
+        Some("palette") => Some(GuidanceArtifactKind::Palette),
+        _ => None,
+    };
+    CliCommand::Guidance(GuidanceArgs {
+        kind,
+        path: args.next().map(PathBuf::from),
+    })
 }
 
 fn parse_render_chain_args(args: impl IntoIterator<Item = String>) -> RenderChainArgs {
@@ -1043,6 +1089,44 @@ fn run_render_chain(args: &RenderChainArgs) -> Result<()> {
         output_path.display()
     );
     Ok(())
+}
+
+fn run_guidance(args: &GuidanceArgs) -> Result<()> {
+    let kind = args.kind.context("missing guidance artifact kind")?;
+    let path = args.path.as_deref().context("missing guidance file path")?;
+    let contents = fs::read_to_string(path)
+        .with_context(|| format!("failed to read guidance file {}", path.display()))?;
+    match kind {
+        GuidanceArtifactKind::Dossier => {
+            let dossier: ResearchDossier = serde_json::from_str(&contents)
+                .with_context(|| format!("failed to parse dossier JSON {}", path.display()))?;
+            let summary = validate_dossier(&dossier)?;
+            print_guidance_summary(
+                "Dossier",
+                &summary.title,
+                summary.bullet_count,
+                &summary.prompt_safe_summary,
+            );
+        }
+        GuidanceArtifactKind::Palette => {
+            let palette: OperationalPalette = serde_json::from_str(&contents)
+                .with_context(|| format!("failed to parse palette JSON {}", path.display()))?;
+            let summary = validate_palette(&palette)?;
+            print_guidance_summary(
+                "Palette",
+                &summary.title,
+                summary.bullet_count,
+                &summary.prompt_safe_summary,
+            );
+        }
+    }
+    Ok(())
+}
+
+fn print_guidance_summary(kind: &str, title: &str, bullet_count: usize, prompt_safe_summary: &str) {
+    println!("{kind}: {title}");
+    println!("Items: {bullet_count}");
+    println!("{prompt_safe_summary}");
 }
 
 fn load_analysis_input(path: &Path) -> Result<AnalysisProfile> {
@@ -4297,6 +4381,35 @@ mod tests {
     }
 
     #[test]
+    fn cli_parses_guidance_options() {
+        assert_eq!(
+            CliArgs::parse([
+                "guidance".to_string(),
+                "dossier".to_string(),
+                "research.json".to_string(),
+            ])
+            .command,
+            CliCommand::Guidance(GuidanceArgs {
+                kind: Some(GuidanceArtifactKind::Dossier),
+                path: Some(PathBuf::from("research.json")),
+            })
+        );
+        assert_eq!(
+            CliArgs::parse([
+                "guidance".to_string(),
+                "summarize".to_string(),
+                "palette".to_string(),
+                "palette.json".to_string(),
+            ])
+            .command,
+            CliCommand::Guidance(GuidanceArgs {
+                kind: Some(GuidanceArtifactKind::Palette),
+                path: Some(PathBuf::from("palette.json")),
+            })
+        );
+    }
+
+    #[test]
     fn stem_scan_command_writes_manifest() {
         let root = std::env::temp_dir().join(format!("salieri-stems-cli-{}", std::process::id()));
         let drums = root.join("drums");
@@ -4371,6 +4484,50 @@ mod tests {
         assert_eq!(value["schemaVersion"], 1);
         assert_eq!(value["format"]["sampleRate"], 44_100);
         assert_eq!(value["tracks"][0]["sourceType"], "external-stem");
+    }
+
+    #[test]
+    fn guidance_command_validates_local_json_artifacts() {
+        let base = std::env::temp_dir().join(format!("salieri-guidance-{}", std::process::id()));
+        std::fs::create_dir_all(&base).expect("mkdir");
+        let dossier_path = base.join("dossier.json");
+        let palette_path = base.join("palette.json");
+        std::fs::write(
+            &dossier_path,
+            r#"{
+  "schemaVersion": 1,
+  "title": "Local profile",
+  "keywords": ["tracker", "clip"],
+  "observations": ["dense hats"],
+  "guardrails": ["no network"]
+}"#,
+        )
+        .expect("write dossier");
+        std::fs::write(
+            &palette_path,
+            r#"{
+  "schemaVersion": 1,
+  "title": "Live set",
+  "trackRoles": [{"role": "drums", "description": "anchor scenes"}],
+  "soundSources": ["external MIDI"],
+  "arrangementFunctions": ["breakdown"],
+  "guardrails": ["deterministic"]
+}"#,
+        )
+        .expect("write palette");
+
+        run_guidance(&GuidanceArgs {
+            kind: Some(GuidanceArtifactKind::Dossier),
+            path: Some(dossier_path),
+        })
+        .expect("dossier");
+        run_guidance(&GuidanceArgs {
+            kind: Some(GuidanceArtifactKind::Palette),
+            path: Some(palette_path),
+        })
+        .expect("palette");
+
+        let _ = std::fs::remove_dir_all(&base);
     }
 
     #[test]

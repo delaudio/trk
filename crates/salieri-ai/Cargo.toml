@@ -6,4 +6,5 @@ version.workspace = true
 
 [dependencies]
 salieri-core = { path = "../salieri-core" }
+serde.workspace = true
 thiserror.workspace = true

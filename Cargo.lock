@@ -635,6 +635,7 @@ name = "salieri-ai"
 version = "0.1.0"
 dependencies = [
  "salieri-core",
+ "serde",
  "thiserror",
 ]
 
@@ -655,6 +656,7 @@ dependencies = [
  "crossterm",
  "ctrlc",
  "ratatui",
+ "salieri-ai",
  "salieri-analysis",
  "salieri-audio",
  "salieri-core",
