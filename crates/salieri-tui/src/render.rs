@@ -498,7 +498,7 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
         Line::from("  ?/H Help   :h/:help Help   q Quit   Space Play/Stop   Shift+Space Start"),
         Line::from("  Enter Play Row   Shift+Enter Play Sequence From Cursor   L Loop   F8 Stop"),
         Line::from("  :play pattern from start   :play sequence arrangement"),
-        Line::from("  Ctrl+S Save   Ctrl+Z Undo   Ctrl+Y Redo"),
+        Line::from("  Ctrl+S Save   Ctrl+Z Undo   Ctrl+Y Redo   Ctrl+Arrows BPM/LPB"),
         Line::from(""),
         Line::from(Span::styled(
             "MIDI",

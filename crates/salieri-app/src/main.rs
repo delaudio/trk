@@ -28,6 +28,10 @@ const UI_TICK_RATE: Duration = Duration::from_millis(33);
 const NOTIFICATION_TTL: Duration = Duration::from_secs(4);
 const DEFAULT_NOTE_VELOCITY: u8 = 0x7f;
 const UNDO_LIMIT: usize = 100;
+const MIN_BPM: u16 = 1;
+const MAX_BPM: u16 = 999;
+const MIN_LPB: u8 = 1;
+const MAX_LPB: u8 = 32;
 
 fn main() -> Result<()> {
     let args = CliArgs::parse(std::env::args().skip(1));
@@ -570,6 +574,22 @@ impl App {
             }
             KeyCode::Char('t') | KeyCode::Char('T') => {
                 self.create_track();
+                true
+            }
+            KeyCode::Up => {
+                self.adjust_bpm(1);
+                true
+            }
+            KeyCode::Down => {
+                self.adjust_bpm(-1);
+                true
+            }
+            KeyCode::Right => {
+                self.adjust_lpb(1);
+                true
+            }
+            KeyCode::Left => {
+                self.adjust_lpb(-1);
                 true
             }
             KeyCode::Char('c') | KeyCode::Char('C') => {
@@ -1327,10 +1347,24 @@ impl App {
         });
     }
 
+    fn adjust_bpm(&mut self, delta: i16) {
+        let bpm = (i32::from(self.song.transport.bpm) + i32::from(delta))
+            .clamp(i32::from(MIN_BPM), i32::from(MAX_BPM)) as u16;
+        self.set_bpm(bpm);
+        self.notify_info(format!("BPM {bpm}"));
+    }
+
     fn set_lpb(&mut self, lpb: u8) {
         self.mutate_song(|song, _| {
             song.transport.lines_per_beat = lpb;
         });
+    }
+
+    fn adjust_lpb(&mut self, delta: i8) {
+        let lpb = (i16::from(self.song.transport.lines_per_beat) + i16::from(delta))
+            .clamp(i16::from(MIN_LPB), i16::from(MAX_LPB)) as u8;
+        self.set_lpb(lpb);
+        self.notify_info(format!("LPB {lpb}"));
     }
 
     fn create_pattern(&mut self) {
@@ -3037,6 +3071,43 @@ mod tests {
         app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
         assert_eq!(app.song.transport.bpm, 120);
         assert!(!app.dirty);
+    }
+
+    #[test]
+    fn control_arrows_adjust_bpm_and_lpb() {
+        let mut app = App::default();
+
+        app.handle_key(KeyEvent::new(KeyCode::Up, KeyModifiers::CONTROL));
+        assert_eq!(app.song.transport.bpm, 121);
+        assert!(app.dirty);
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("BPM 121")
+        );
+
+        app.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::CONTROL));
+        assert_eq!(app.song.transport.bpm, 120);
+        assert!(!app.dirty);
+
+        app.handle_key(KeyEvent::new(KeyCode::Right, KeyModifiers::CONTROL));
+        assert_eq!(app.song.transport.lines_per_beat, 5);
+        assert!(app.dirty);
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("LPB 5")
+        );
+
+        app.handle_key(KeyEvent::new(KeyCode::Left, KeyModifiers::CONTROL));
+        assert_eq!(app.song.transport.lines_per_beat, 4);
+        assert!(!app.dirty);
+
+        app.song.transport.bpm = MIN_BPM;
+        app.song.transport.lines_per_beat = MAX_LPB;
+        app.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::CONTROL));
+        app.handle_key(KeyEvent::new(KeyCode::Right, KeyModifiers::CONTROL));
+
+        assert_eq!(app.song.transport.bpm, MIN_BPM);
+        assert_eq!(app.song.transport.lines_per_beat, MAX_LPB);
     }
 
     #[test]
