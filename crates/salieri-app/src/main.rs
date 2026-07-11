@@ -372,7 +372,7 @@ impl App {
                 self.mode = AppMode::Command;
                 return;
             }
-            KeyCode::Char('?') => {
+            KeyCode::Char('?') | KeyCode::Char('H') => {
                 self.mode = AppMode::Help;
                 return;
             }
@@ -922,6 +922,9 @@ impl App {
         };
 
         match name {
+            "h" | "help" => {
+                self.mode = AppMode::Help;
+            }
             "q" | "quit" => {
                 self.stop_playback();
                 self.should_quit = true;
@@ -1955,6 +1958,15 @@ mod tests {
         app.handle_key(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE));
         assert_eq!(app.mode, AppMode::Normal);
         assert!(!app.should_quit);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('H'), KeyModifiers::SHIFT));
+        assert_eq!(app.mode, AppMode::Help);
+        app.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+
+        app.handle_key(KeyEvent::new(KeyCode::Char(':'), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        assert_eq!(app.mode, AppMode::Help);
     }
 
     #[test]
