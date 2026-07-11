@@ -14,6 +14,8 @@ Salieri is split into workspace crates so the musical model stays independent fr
 - `salieri-tui`: Ratatui rendering only. It receives immutable song data and view state from the app layer.
 - `salieri-app`: CLI parsing, config loading, persistence, terminal lifecycle, input handling, undo/redo, playback runtime, MIDI connection state, and coordination between crates.
 
+Plugin hosting is explicitly deferred by [ADR 0001](adr/0001-plugin-hosting.md). No VST, AU, or CLAP SDK types should be introduced until a later ADR chooses a host strategy.
+
 ## Runtime Shape
 
 The TUI render loop and sequencer are separate concerns:
