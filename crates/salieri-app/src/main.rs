@@ -56,6 +56,7 @@ fn run() -> Result<()> {
                     octave: app.octave,
                     dirty: app.dirty,
                     command_line: app.command_line(),
+                    show_help: app.mode == AppMode::Help,
                 },
             );
         })?;
@@ -148,6 +149,7 @@ impl App {
             AppMode::Normal => self.handle_normal_key(key),
             AppMode::Edit => self.handle_edit_key(key),
             AppMode::Command => self.handle_command_key(key),
+            AppMode::Help => self.handle_help_key(key),
         }
     }
 
@@ -196,6 +198,10 @@ impl App {
             KeyCode::Char(':') => {
                 self.command_buffer.clear();
                 self.mode = AppMode::Command;
+                return;
+            }
+            KeyCode::Char('?') => {
+                self.mode = AppMode::Help;
                 return;
             }
             KeyCode::Up => Some(Direction::Up),
@@ -265,6 +271,15 @@ impl App {
                 if let Some(note) = keyboard_note(value, self.octave) {
                     self.insert_note(note);
                 }
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_help_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('?') => {
+                self.mode = AppMode::Normal;
             }
             _ => {}
         }
@@ -541,6 +556,7 @@ enum AppMode {
     Normal,
     Edit,
     Command,
+    Help,
 }
 
 impl AppMode {
@@ -549,6 +565,7 @@ impl AppMode {
             AppMode::Normal => "NORMAL",
             AppMode::Edit => "EDIT",
             AppMode::Command => "COMMAND",
+            AppMode::Help => "HELP",
         }
     }
 }
@@ -807,6 +824,26 @@ mod tests {
         assert_eq!(saved, app.song);
         assert!(!app.dirty);
         assert!(app.should_quit);
+    }
+
+    #[test]
+    fn help_mode_opens_and_closes_without_mutating_state() {
+        let mut app = App::default();
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('?'), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+
+        assert_eq!(app.mode, AppMode::Help);
+        assert_eq!(app.cursor.row, 0);
+        assert!(!app.dirty);
+
+        app.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+        assert_eq!(app.mode, AppMode::Normal);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('?'), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE));
+        assert_eq!(app.mode, AppMode::Normal);
+        assert!(!app.should_quit);
     }
 
     #[test]

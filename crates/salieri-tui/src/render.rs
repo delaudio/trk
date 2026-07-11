@@ -1,7 +1,7 @@
 use ratatui::{
     layout::{Constraint, Direction as LayoutDirection, Layout, Rect},
     prelude::{Color, Frame, Line, Modifier, Span, Style},
-    widgets::{Block, Borders, Paragraph},
+    widgets::{Block, Borders, Clear, Paragraph, Wrap},
 };
 use salieri_core::{CellField, Cursor, NoteEvent, Pattern, PatternCell, Song};
 
@@ -13,6 +13,7 @@ pub struct TuiState<'a> {
     pub octave: u8,
     pub dirty: bool,
     pub command_line: Option<&'a str>,
+    pub show_help: bool,
 }
 
 pub fn render(frame: &mut Frame<'_>, song: &Song, state: TuiState<'_>) {
@@ -29,6 +30,10 @@ pub fn render(frame: &mut Frame<'_>, song: &Song, state: TuiState<'_>) {
     render_header(frame, vertical[0], song, state);
     render_body(frame, vertical[1], song, state);
     render_status(frame, vertical[2], state);
+
+    if state.show_help {
+        render_help_overlay(frame, area, state.mode_label);
+    }
 }
 
 fn render_header(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
@@ -249,6 +254,76 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
     frame.render_widget(status, area);
 }
 
+fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
+    let overlay = centered_rect(72, 22, area);
+    let lines = vec![
+        Line::from(Span::styled(
+            "Global",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::from("  ? Help   q Quit   : Command   Ctrl+S Save   Ctrl+Z Undo   Ctrl+Y Redo"),
+        Line::from(""),
+        Line::from(Span::styled(
+            "Navigation",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::from("  Arrows or h/j/k/l move   PageUp/PageDown jump   Home/End pattern bounds"),
+        Line::from(""),
+        Line::from(Span::styled(
+            "Editing",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::from("  i Edit   Esc Normal   Del/Backspace clear cell   F1/- octave down"),
+        Line::from("  F2/+/= octave up   Velocity field accepts two hex digits"),
+        Line::from(""),
+        Line::from(Span::styled(
+            "Notes",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::from("  z s x d c v g b h n j m = C C# D D# E F F# G G# A A# B"),
+        Line::from("  q 2 w 3 e r 5 t 6 y 7 u = same notes one octave higher"),
+        Line::from(""),
+        Line::from(Span::styled(
+            "Tracks And Commands",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::from("  Ctrl+T create track   Del delete track in normal mode   M mute   S solo"),
+        Line::from("  :write   :quit   :wq   :bpm 140   :lpb 4"),
+        Line::from(""),
+        Line::from(format!("Mode: {mode_label}   Close: Esc, q, or ?")),
+    ];
+
+    let paragraph = Paragraph::new(lines)
+        .block(Block::default().title(" Help ").borders(Borders::ALL))
+        .wrap(Wrap { trim: true })
+        .style(Style::default().fg(Color::White));
+    frame.render_widget(Clear, overlay);
+    frame.render_widget(paragraph, overlay);
+}
+
+fn centered_rect(width: u16, height: u16, area: Rect) -> Rect {
+    let width = width.min(area.width);
+    let height = height.min(area.height);
+    let x = area.x + area.width.saturating_sub(width) / 2;
+    let y = area.y + area.height.saturating_sub(height) / 2;
+    Rect {
+        x,
+        y,
+        width,
+        height,
+    }
+}
+
 fn truncate(value: &str, max_chars: usize) -> String {
     let mut chars = value.chars();
     let truncated = chars.by_ref().take(max_chars).collect::<String>();
@@ -292,6 +367,7 @@ mod tests {
                         octave: 4,
                         dirty: false,
                         command_line: None,
+                        show_help: false,
                     },
                 );
             })
@@ -308,5 +384,42 @@ mod tests {
         assert!(rendered.contains("Pattern Editor"));
         assert!(rendered.contains("Drums"));
         assert!(rendered.contains("Bass"));
+    }
+
+    #[test]
+    fn renders_help_overlay_when_requested() {
+        let song = Song::empty();
+        let backend = TestBackend::new(100, 32);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+
+        terminal
+            .draw(|frame| {
+                render(
+                    frame,
+                    &song,
+                    TuiState {
+                        cursor: Cursor::new(),
+                        row_offset: 0,
+                        mode_label: "HELP",
+                        octave: 4,
+                        dirty: false,
+                        command_line: None,
+                        show_help: true,
+                    },
+                );
+            })
+            .expect("draw");
+
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+
+        assert!(rendered.contains("Help"));
+        assert!(rendered.contains("Global"));
+        assert!(rendered.contains("Notes"));
     }
 }
