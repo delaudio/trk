@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{collections::HashSet, fmt};
 
 use serde::{Deserialize, Serialize};
 
@@ -66,6 +66,118 @@ impl Song {
     #[must_use]
     pub fn current_pattern(&self) -> Option<&Pattern> {
         self.patterns.first()
+    }
+
+    pub fn validate(&self) -> Result<(), ValidationError> {
+        if self.metadata.title.trim().is_empty() {
+            return Err(ValidationError::EmptySongTitle);
+        }
+        if self.transport.bpm == 0 {
+            return Err(ValidationError::InvalidBpm {
+                bpm: self.transport.bpm,
+            });
+        }
+        if self.transport.lines_per_beat == 0 {
+            return Err(ValidationError::InvalidLinesPerBeat {
+                lines_per_beat: self.transport.lines_per_beat,
+            });
+        }
+        if !self.transport.swing.is_finite() {
+            return Err(ValidationError::InvalidSwing);
+        }
+        if self.tracks.is_empty() {
+            return Err(ValidationError::NoTracks);
+        }
+        if self.patterns.is_empty() {
+            return Err(ValidationError::NoPatterns);
+        }
+        if self.sequence.is_empty() {
+            return Err(ValidationError::EmptySequence);
+        }
+
+        let mut track_ids = HashSet::new();
+        for (track_index, track) in self.tracks.iter().enumerate() {
+            if !track_ids.insert(track.id) {
+                return Err(ValidationError::DuplicateTrackId { track_id: track.id });
+            }
+            if track.name.trim().is_empty() {
+                return Err(ValidationError::EmptyTrackName { track_index });
+            }
+            if !(1..=16).contains(&track.midi_channel) {
+                return Err(ValidationError::InvalidTrackMidiChannel {
+                    track_index,
+                    midi_channel: track.midi_channel,
+                });
+            }
+        }
+
+        let mut pattern_ids = HashSet::new();
+        for (pattern_index, pattern) in self.patterns.iter().enumerate() {
+            if !pattern_ids.insert(pattern.id) {
+                return Err(ValidationError::DuplicatePatternId {
+                    pattern_id: pattern.id,
+                });
+            }
+            if pattern.name.trim().is_empty() {
+                return Err(ValidationError::EmptyPatternName { pattern_index });
+            }
+            if pattern.rows.is_empty() {
+                return Err(ValidationError::EmptyPattern { pattern_index });
+            }
+            for (row_index, row) in pattern.rows.iter().enumerate() {
+                if row.cells.len() != self.tracks.len() {
+                    return Err(ValidationError::PatternRowCellCountMismatch {
+                        pattern_index,
+                        row_index,
+                        expected: self.tracks.len(),
+                        actual: row.cells.len(),
+                    });
+                }
+                for (track_index, cell) in row.cells.iter().enumerate() {
+                    if let Some(NoteEvent::Note { pitch }) = cell.note {
+                        if pitch > 127 {
+                            return Err(ValidationError::InvalidNotePitch {
+                                pattern_index,
+                                row_index,
+                                track_index,
+                                pitch,
+                            });
+                        }
+                    }
+                    if let Some(velocity) = cell.velocity {
+                        if velocity > 0x7f {
+                            return Err(ValidationError::InvalidVelocity {
+                                pattern_index,
+                                row_index,
+                                track_index,
+                                velocity,
+                            });
+                        }
+                    }
+                    if let Some(gate) = cell.gate {
+                        if gate > 0x7f {
+                            return Err(ValidationError::InvalidGate {
+                                pattern_index,
+                                row_index,
+                                track_index,
+                                gate,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        for (position, pattern_id) in self.sequence.iter().enumerate() {
+            if !pattern_ids.contains(pattern_id) {
+                return Err(ValidationError::SequencePatternNotFound {
+                    position,
+                    pattern_id: *pattern_id,
+                });
+            }
+        }
+
+        Ok(())
     }
 
     pub fn current_pattern_mut(&mut self) -> Option<&mut Pattern> {
@@ -393,6 +505,72 @@ impl Song {
             .saturating_add(1);
         PatternId(next)
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum ValidationError {
+    #[error("song title cannot be empty")]
+    EmptySongTitle,
+    #[error("invalid BPM: {bpm}")]
+    InvalidBpm { bpm: u16 },
+    #[error("invalid lines per beat: {lines_per_beat}")]
+    InvalidLinesPerBeat { lines_per_beat: u8 },
+    #[error("invalid swing value")]
+    InvalidSwing,
+    #[error("song must contain at least one track")]
+    NoTracks,
+    #[error("song must contain at least one pattern")]
+    NoPatterns,
+    #[error("sequence must contain at least one pattern reference")]
+    EmptySequence,
+    #[error("duplicate track id: {track_id:?}")]
+    DuplicateTrackId { track_id: TrackId },
+    #[error("track {track_index} name cannot be empty")]
+    EmptyTrackName { track_index: usize },
+    #[error("track {track_index} has invalid MIDI channel {midi_channel}")]
+    InvalidTrackMidiChannel {
+        track_index: usize,
+        midi_channel: u8,
+    },
+    #[error("duplicate pattern id: {pattern_id:?}")]
+    DuplicatePatternId { pattern_id: PatternId },
+    #[error("pattern {pattern_index} name cannot be empty")]
+    EmptyPatternName { pattern_index: usize },
+    #[error("pattern {pattern_index} must contain at least one row")]
+    EmptyPattern { pattern_index: usize },
+    #[error("pattern {pattern_index} row {row_index} has {actual} cells, expected {expected}")]
+    PatternRowCellCountMismatch {
+        pattern_index: usize,
+        row_index: usize,
+        expected: usize,
+        actual: usize,
+    },
+    #[error("pattern {pattern_index} row {row_index} track {track_index} has invalid note pitch {pitch}")]
+    InvalidNotePitch {
+        pattern_index: usize,
+        row_index: usize,
+        track_index: usize,
+        pitch: u8,
+    },
+    #[error("pattern {pattern_index} row {row_index} track {track_index} has invalid velocity {velocity}")]
+    InvalidVelocity {
+        pattern_index: usize,
+        row_index: usize,
+        track_index: usize,
+        velocity: u8,
+    },
+    #[error("pattern {pattern_index} row {row_index} track {track_index} has invalid gate {gate}")]
+    InvalidGate {
+        pattern_index: usize,
+        row_index: usize,
+        track_index: usize,
+        gate: u8,
+    },
+    #[error("sequence position {position} references missing pattern {pattern_id:?}")]
+    SequencePatternNotFound {
+        position: usize,
+        pattern_id: PatternId,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1281,6 +1459,57 @@ mod tests {
             song.move_sequence_position(0, 10)
                 .expect_err("target out of bounds"),
             EditError::SequenceOutOfBounds { position: 10 }
+        );
+    }
+
+    #[test]
+    fn default_song_validates() {
+        Song::empty().validate().expect("default song is valid");
+    }
+
+    #[test]
+    fn validation_rejects_missing_sequence_pattern() {
+        let mut song = Song::empty();
+        song.sequence[0] = PatternId(99);
+
+        assert_eq!(
+            song.validate().expect_err("missing sequence pattern"),
+            ValidationError::SequencePatternNotFound {
+                position: 0,
+                pattern_id: PatternId(99),
+            }
+        );
+    }
+
+    #[test]
+    fn validation_rejects_row_cell_count_mismatch() {
+        let mut song = Song::empty();
+        song.patterns[0].rows[0].cells.pop();
+
+        assert_eq!(
+            song.validate().expect_err("cell count mismatch"),
+            ValidationError::PatternRowCellCountMismatch {
+                pattern_index: 0,
+                row_index: 0,
+                expected: 4,
+                actual: 3,
+            }
+        );
+    }
+
+    #[test]
+    fn validation_rejects_invalid_cell_values() {
+        let mut song = Song::empty();
+        song.patterns[0].rows[0].cells[0].velocity = Some(0x80);
+
+        assert_eq!(
+            song.validate().expect_err("invalid velocity"),
+            ValidationError::InvalidVelocity {
+                pattern_index: 0,
+                row_index: 0,
+                track_index: 0,
+                velocity: 0x80,
+            }
         );
     }
 }

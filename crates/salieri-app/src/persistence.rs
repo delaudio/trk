@@ -32,19 +32,12 @@ pub fn load_project(path: &Path) -> Result<Song> {
         .with_context(|| format!("failed to read project {}", path.display()))?;
     let project: ProjectFile = serde_json::from_str(&contents)
         .with_context(|| format!("failed to parse project {}", path.display()))?;
-
-    if project.format_version != CURRENT_FORMAT_VERSION {
-        bail!(
-            "unsupported project format version {} in {}",
-            project.format_version,
-            path.display()
-        );
-    }
-
-    Ok(project.song)
+    migrate_project(project, path)
 }
 
 pub fn save_project(path: &Path, song: &Song) -> Result<()> {
+    song.validate()
+        .with_context(|| format!("project validation failed before saving {}", path.display()))?;
     let project = ProjectFile::new(song.clone());
     let contents = serde_json::to_vec_pretty(&project).context("failed to serialize project")?;
     let temp_path = temp_path_for(path);
@@ -69,6 +62,21 @@ pub fn save_project(path: &Path, song: &Song) -> Result<()> {
     })?;
 
     Ok(())
+}
+
+fn migrate_project(project: ProjectFile, path: &Path) -> Result<Song> {
+    match project.format_version {
+        CURRENT_FORMAT_VERSION => {
+            project.song.validate().with_context(|| {
+                format!("project validation failed while loading {}", path.display())
+            })?;
+            Ok(project.song)
+        }
+        version => bail!(
+            "unsupported project format version {version} in {}; current version is {CURRENT_FORMAT_VERSION}",
+            path.display()
+        ),
+    }
 }
 
 fn temp_path_for(path: &Path) -> PathBuf {
@@ -107,10 +115,7 @@ mod tests {
 
     #[test]
     fn rejects_unknown_format_versions() {
-        let path = std::env::temp_dir().join(format!(
-            "salieri-project-version-{}.salieri",
-            std::process::id()
-        ));
+        let path = test_project_path("version");
         let project = ProjectFile {
             format_version: 999,
             song: Song::empty(),
@@ -124,6 +129,49 @@ mod tests {
     }
 
     #[test]
+    fn rejects_malformed_project_json() {
+        let path = test_project_path("malformed");
+        fs::write(&path, "{ not-json").expect("write");
+
+        let error = load_project(&path).expect_err("parse error");
+        let _ = fs::remove_file(&path);
+
+        assert!(error.to_string().contains("failed to parse project"));
+    }
+
+    #[test]
+    fn rejects_invalid_project_structure_on_load() {
+        let path = test_project_path("invalid-structure");
+        let mut song = Song::empty();
+        song.sequence[0] = salieri_core::PatternId(99);
+        let project = ProjectFile::new(song);
+        fs::write(&path, serde_json::to_string(&project).expect("serialize")).expect("write");
+
+        let error = load_project(&path).expect_err("validation error");
+        let _ = fs::remove_file(&path);
+
+        assert!(error
+            .to_string()
+            .contains("project validation failed while loading"));
+        assert!(format!("{error:#}").contains("references missing pattern"));
+    }
+
+    #[test]
+    fn rejects_invalid_project_structure_before_save() {
+        let path = test_project_path("invalid-save");
+        let mut song = Song::empty();
+        song.tracks.clear();
+
+        let error = save_project(&path, &song).expect_err("validation error");
+        let _ = fs::remove_file(&path);
+
+        assert!(error
+            .to_string()
+            .contains("project validation failed before saving"));
+        assert!(format!("{error:#}").contains("at least one track"));
+    }
+
+    #[test]
     fn loads_default_fixture() {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/default.salieri");
         let song = load_project(&path).expect("load fixture");
@@ -132,5 +180,12 @@ mod tests {
         assert_eq!(song.tracks.len(), 4);
         assert_eq!(song.patterns.len(), 1);
         assert_eq!(song.sequence, vec![salieri_core::PatternId(1)]);
+    }
+
+    fn test_project_path(label: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "salieri-project-{label}-{}.salieri",
+            std::process::id()
+        ))
     }
 }
