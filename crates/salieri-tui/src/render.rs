@@ -9,6 +9,7 @@ use salieri_core::{CellField, Cursor, NoteEvent, Pattern, PatternCell, Song};
 pub struct TuiState<'a> {
     pub cursor: Cursor,
     pub row_offset: usize,
+    pub pattern_index: usize,
     pub mode_label: &'a str,
     pub octave: u8,
     pub dirty: bool,
@@ -37,8 +38,7 @@ pub fn render(frame: &mut Frame<'_>, song: &Song, state: TuiState<'_>) {
 }
 
 fn render_header(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
-    let pattern_name = song
-        .current_pattern()
+    let pattern_name = active_pattern(song, state.pattern_index)
         .map_or("No Pattern", |pattern| pattern.name.as_str());
     let dirty = if state.dirty { " *" } else { "" };
     let text = format!(
@@ -135,7 +135,7 @@ fn render_sequence(frame: &mut Frame<'_>, area: Rect, song: &Song) {
 }
 
 fn render_pattern(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
-    let Some(pattern) = song.current_pattern() else {
+    let Some(pattern) = active_pattern(song, state.pattern_index) else {
         let empty = Paragraph::new("No pattern")
             .block(Block::default().title(" Pattern ").borders(Borders::ALL));
         frame.render_widget(empty, area);
@@ -161,6 +161,10 @@ fn render_pattern(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiStat
         .borders(Borders::ALL);
     let paragraph = Paragraph::new(lines).block(block);
     frame.render_widget(paragraph, area);
+}
+
+fn active_pattern(song: &Song, pattern_index: usize) -> Option<&Pattern> {
+    song.pattern(pattern_index)
 }
 
 fn pattern_header(song: &Song) -> Line<'static> {
@@ -299,6 +303,8 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
         )),
         Line::from("  Ctrl+T create track   Del delete track in normal mode   M mute   S solo"),
         Line::from("  :write   :quit   :wq   :bpm 140   :lpb 4"),
+        Line::from("  :pattern new   :pattern duplicate   :pattern delete   :pattern 1"),
+        Line::from("  :sequence add   :sequence remove 0"),
         Line::from(""),
         Line::from(format!("Mode: {mode_label}   Close: Esc, q, or ?")),
     ];
@@ -363,6 +369,7 @@ mod tests {
                     TuiState {
                         cursor: Cursor::new(),
                         row_offset: 0,
+                        pattern_index: 0,
                         mode_label: "NORMAL",
                         octave: 4,
                         dirty: false,
@@ -400,6 +407,7 @@ mod tests {
                     TuiState {
                         cursor: Cursor::new(),
                         row_offset: 0,
+                        pattern_index: 0,
                         mode_label: "HELP",
                         octave: 4,
                         dirty: false,

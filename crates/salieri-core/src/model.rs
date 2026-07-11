@@ -72,6 +72,72 @@ impl Song {
         self.patterns.first_mut()
     }
 
+    #[must_use]
+    pub fn pattern(&self, index: usize) -> Option<&Pattern> {
+        self.patterns.get(index)
+    }
+
+    pub fn pattern_mut(&mut self, index: usize) -> Option<&mut Pattern> {
+        self.patterns.get_mut(index)
+    }
+
+    pub fn create_pattern(&mut self, row_count: usize) -> PatternId {
+        let id = self.next_pattern_id();
+        let name = format!("Pattern {:02}", id.0);
+        self.patterns
+            .push(Pattern::empty(id, name, row_count, self.tracks.len()));
+        id
+    }
+
+    pub fn duplicate_pattern(&mut self, pattern_index: usize) -> Result<PatternId, EditError> {
+        let mut pattern =
+            self.patterns
+                .get(pattern_index)
+                .cloned()
+                .ok_or(EditError::PatternOutOfBounds {
+                    pattern: pattern_index,
+                })?;
+        let id = self.next_pattern_id();
+        pattern.id = id;
+        pattern.name = format!("Pattern {:02}", id.0);
+        self.patterns.push(pattern);
+        Ok(id)
+    }
+
+    pub fn delete_pattern(&mut self, pattern_index: usize) -> Result<Pattern, EditError> {
+        if self.patterns.len() <= 1 {
+            return Err(EditError::CannotDeleteLastPattern);
+        }
+
+        if pattern_index >= self.patterns.len() {
+            return Err(EditError::PatternOutOfBounds {
+                pattern: pattern_index,
+            });
+        }
+
+        let removed = self.patterns.remove(pattern_index);
+        self.sequence.retain(|id| *id != removed.id);
+        if self.sequence.is_empty() {
+            self.sequence.push(self.patterns[0].id);
+        }
+        Ok(removed)
+    }
+
+    pub fn push_sequence_pattern(&mut self, pattern_id: PatternId) -> Result<(), EditError> {
+        if !self.patterns.iter().any(|pattern| pattern.id == pattern_id) {
+            return Err(EditError::PatternNotFound { pattern_id });
+        }
+        self.sequence.push(pattern_id);
+        Ok(())
+    }
+
+    pub fn remove_sequence_position(&mut self, position: usize) -> Result<PatternId, EditError> {
+        if position >= self.sequence.len() {
+            return Err(EditError::SequenceOutOfBounds { position });
+        }
+        Ok(self.sequence.remove(position))
+    }
+
     pub fn create_track(&mut self) -> TrackId {
         let index = self.tracks.len();
         let id = self.next_track_id();
@@ -134,6 +200,17 @@ impl Song {
             .unwrap_or(0)
             .saturating_add(1);
         TrackId(next)
+    }
+
+    fn next_pattern_id(&self) -> PatternId {
+        let next = self
+            .patterns
+            .iter()
+            .map(|pattern| pattern.id.0)
+            .max()
+            .unwrap_or(0)
+            .saturating_add(1);
+        PatternId(next)
     }
 }
 
@@ -273,6 +350,14 @@ pub enum EditError {
     TrackOutOfBounds { track: usize },
     #[error("cannot delete the last track")]
     CannotDeleteLastTrack,
+    #[error("pattern out of bounds: pattern {pattern}")]
+    PatternOutOfBounds { pattern: usize },
+    #[error("pattern not found: pattern id {pattern_id:?}")]
+    PatternNotFound { pattern_id: PatternId },
+    #[error("cannot delete the last pattern")]
+    CannotDeleteLastPattern,
+    #[error("sequence out of bounds: position {position}")]
+    SequenceOutOfBounds { position: usize },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -565,5 +650,72 @@ mod tests {
 
         assert!(song.tracks[0].muted);
         assert!(song.tracks[1].solo);
+    }
+
+    #[test]
+    fn creating_pattern_uses_current_track_shape() {
+        let mut song = Song::empty();
+        song.create_track();
+
+        let id = song.create_pattern(32);
+
+        assert_eq!(id, PatternId(2));
+        assert_eq!(song.patterns.len(), 2);
+        assert_eq!(song.patterns[1].rows.len(), 32);
+        assert_eq!(song.patterns[1].rows[0].cells.len(), song.tracks.len());
+    }
+
+    #[test]
+    fn duplicating_pattern_copies_cells_with_new_identity() {
+        let mut song = Song::empty();
+        song.current_pattern_mut()
+            .expect("pattern")
+            .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x7f)
+            .expect("set note");
+
+        let id = song.duplicate_pattern(0).expect("duplicate pattern");
+
+        assert_eq!(id, PatternId(2));
+        assert_eq!(song.patterns[1].id, PatternId(2));
+        assert_eq!(song.patterns[1].name, "Pattern 02");
+        assert_eq!(
+            song.patterns[1].cell(0, 0).expect("cell").note,
+            Some(NoteEvent::Note { pitch: 60 })
+        );
+    }
+
+    #[test]
+    fn deleting_pattern_removes_sequence_references() {
+        let mut song = Song::empty();
+        let id = song.create_pattern(64);
+        song.push_sequence_pattern(id).expect("push sequence");
+
+        let removed = song.delete_pattern(1).expect("delete pattern");
+
+        assert_eq!(removed.id, id);
+        assert_eq!(song.patterns.len(), 1);
+        assert_eq!(song.sequence, vec![PatternId(1)]);
+    }
+
+    #[test]
+    fn cannot_delete_last_pattern() {
+        let mut song = Song::empty();
+
+        let error = song.delete_pattern(0).expect_err("last pattern remains");
+
+        assert_eq!(error, EditError::CannotDeleteLastPattern);
+    }
+
+    #[test]
+    fn sequence_positions_can_be_added_and_removed_without_deleting_patterns() {
+        let mut song = Song::empty();
+        let id = song.create_pattern(64);
+
+        song.push_sequence_pattern(id).expect("push sequence");
+        let removed = song.remove_sequence_position(0).expect("remove sequence");
+
+        assert_eq!(removed, PatternId(1));
+        assert_eq!(song.patterns.len(), 2);
+        assert_eq!(song.sequence, vec![id]);
     }
 }

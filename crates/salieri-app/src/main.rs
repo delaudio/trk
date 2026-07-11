@@ -70,6 +70,7 @@ fn run() -> Result<()> {
                 TuiState {
                     cursor: app.cursor,
                     row_offset: app.row_offset,
+                    pattern_index: app.pattern_index,
                     mode_label: app.mode.label(),
                     octave: app.octave,
                     dirty: app.dirty,
@@ -188,6 +189,7 @@ struct App {
     song: Song,
     clean_song: Song,
     project_path: Option<PathBuf>,
+    pattern_index: usize,
     cursor: Cursor,
     row_offset: usize,
     mode: AppMode,
@@ -208,6 +210,7 @@ impl Default for App {
             clean_song: song.clone(),
             song,
             project_path: None,
+            pattern_index: 0,
             cursor: Cursor::new(),
             row_offset: 0,
             mode: AppMode::Normal,
@@ -413,8 +416,9 @@ impl App {
     }
 
     fn insert_note(&mut self, pitch: u8) {
+        let pattern_index = self.pattern_index;
         self.mutate_song(|song, cursor| {
-            let Some(pattern) = song.current_pattern_mut() else {
+            let Some(pattern) = song.pattern_mut(pattern_index) else {
                 return;
             };
             let _ = pattern.set_note(
@@ -429,8 +433,9 @@ impl App {
 
     fn enter_velocity_digit(&mut self, digit: u8) {
         let current_digit = self.cursor.digit.min(1);
+        let pattern_index = self.pattern_index;
         self.mutate_song(|song, cursor| {
-            let Some(pattern) = song.current_pattern_mut() else {
+            let Some(pattern) = song.pattern_mut(pattern_index) else {
                 return;
             };
             let current_velocity = pattern
@@ -454,8 +459,9 @@ impl App {
     }
 
     fn clear_current_cell(&mut self) {
+        let pattern_index = self.pattern_index;
         self.mutate_song(|song, cursor| {
-            let Some(pattern) = song.current_pattern_mut() else {
+            let Some(pattern) = song.pattern_mut(pattern_index) else {
                 return;
             };
             let _ = pattern.clear_cell(cursor.row, cursor.track);
@@ -512,6 +518,69 @@ impl App {
         });
     }
 
+    fn create_pattern(&mut self) {
+        let before_count = self.song.patterns.len();
+        self.mutate_song(|song, _| {
+            song.create_pattern(64);
+        });
+        if self.song.patterns.len() > before_count {
+            self.pattern_index = self.song.patterns.len().saturating_sub(1);
+            self.cursor.row = 0;
+            self.row_offset = 0;
+        }
+    }
+
+    fn duplicate_current_pattern(&mut self) {
+        let pattern_index = self.pattern_index;
+        let before_count = self.song.patterns.len();
+        self.mutate_song(|song, _| {
+            let _ = song.duplicate_pattern(pattern_index);
+        });
+        if self.song.patterns.len() > before_count {
+            self.pattern_index = self.song.patterns.len().saturating_sub(1);
+            self.cursor.row = 0;
+            self.row_offset = 0;
+        }
+    }
+
+    fn delete_current_pattern(&mut self) {
+        let pattern_index = self.pattern_index;
+        let before_count = self.song.patterns.len();
+        self.mutate_song(|song, _| {
+            let _ = song.delete_pattern(pattern_index);
+        });
+        if self.song.patterns.len() < before_count {
+            self.pattern_index = self
+                .pattern_index
+                .min(self.song.patterns.len().saturating_sub(1));
+            self.clamp_cursor();
+            self.row_offset = 0;
+        }
+    }
+
+    fn select_pattern(&mut self, pattern_index: usize) {
+        if pattern_index < self.song.patterns.len() {
+            self.pattern_index = pattern_index;
+            self.clamp_cursor();
+            self.row_offset = 0;
+        }
+    }
+
+    fn add_sequence_pattern(&mut self, pattern_index: usize) {
+        let Some(pattern_id) = self.song.pattern(pattern_index).map(|pattern| pattern.id) else {
+            return;
+        };
+        self.mutate_song(|song, _| {
+            let _ = song.push_sequence_pattern(pattern_id);
+        });
+    }
+
+    fn remove_sequence_position(&mut self, position: usize) {
+        self.mutate_song(|song, _| {
+            let _ = song.remove_sequence_position(position);
+        });
+    }
+
     fn execute_command(&mut self) {
         let command = self.command_buffer.trim().to_string();
         self.command_buffer.clear();
@@ -546,6 +615,36 @@ impl App {
                     self.set_lpb(value);
                 }
             }
+            "pattern" => match parts.next() {
+                Some("new") => self.create_pattern(),
+                Some("duplicate") | Some("dup") => self.duplicate_current_pattern(),
+                Some("delete") | Some("del") => self.delete_current_pattern(),
+                Some("next") => self.select_pattern(self.pattern_index.saturating_add(1)),
+                Some("prev") => self.select_pattern(self.pattern_index.saturating_sub(1)),
+                Some(value) => {
+                    if let Ok(pattern_number) = value.parse::<usize>() {
+                        self.select_pattern(pattern_number.saturating_sub(1));
+                    }
+                }
+                None => {}
+            },
+            "sequence" | "seq" => match parts.next() {
+                Some("add") => {
+                    let pattern_index = parts
+                        .next()
+                        .and_then(|value| value.parse::<usize>().ok())
+                        .map_or(self.pattern_index, |value| value.saturating_sub(1));
+                    self.add_sequence_pattern(pattern_index);
+                }
+                Some("remove") | Some("rm") => {
+                    if let Some(position) =
+                        parts.next().and_then(|value| value.parse::<usize>().ok())
+                    {
+                        self.remove_sequence_position(position);
+                    }
+                }
+                None | Some(_) => {}
+            },
             _ => {}
         }
     }
@@ -614,6 +713,9 @@ impl App {
     }
 
     fn clamp_cursor(&mut self) {
+        self.pattern_index = self
+            .pattern_index
+            .min(self.song.patterns.len().saturating_sub(1));
         self.cursor
             .clamp(self.current_row_count(), self.song.tracks.len());
     }
@@ -632,7 +734,7 @@ impl App {
 
     fn current_row_count(&self) -> usize {
         self.song
-            .current_pattern()
+            .pattern(self.pattern_index)
             .map_or(0, |pattern| pattern.row_count())
     }
 
@@ -948,6 +1050,46 @@ mod tests {
         assert_eq!(saved, app.song);
         assert!(!app.dirty);
         assert!(app.should_quit);
+    }
+
+    #[test]
+    fn command_mode_creates_duplicates_selects_and_deletes_patterns() {
+        let mut app = App::default();
+
+        type_command(&mut app, "pattern new");
+        assert_eq!(app.song.patterns.len(), 2);
+        assert_eq!(app.pattern_index, 1);
+
+        type_command(&mut app, "pattern 1");
+        assert_eq!(app.pattern_index, 0);
+
+        type_command(&mut app, "pattern duplicate");
+        assert_eq!(app.song.patterns.len(), 3);
+        assert_eq!(app.pattern_index, 2);
+
+        type_command(&mut app, "pattern delete");
+        assert_eq!(app.song.patterns.len(), 2);
+        assert_eq!(app.pattern_index, 1);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
+        assert_eq!(app.song.patterns.len(), 3);
+        assert_eq!(app.pattern_index, 1);
+    }
+
+    #[test]
+    fn command_mode_adds_and_removes_sequence_positions() {
+        let mut app = App::default();
+
+        type_command(&mut app, "pattern new");
+        type_command(&mut app, "sequence add");
+        assert_eq!(
+            app.song.sequence,
+            vec![salieri_core::PatternId(1), salieri_core::PatternId(2)]
+        );
+
+        type_command(&mut app, "sequence remove 0");
+        assert_eq!(app.song.sequence, vec![salieri_core::PatternId(2)]);
+        assert_eq!(app.song.patterns.len(), 2);
     }
 
     #[test]
