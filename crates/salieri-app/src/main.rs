@@ -297,6 +297,10 @@ impl App {
                 self.paste_current_cell();
                 true
             }
+            KeyCode::Delete => {
+                self.delete_current_row();
+                true
+            }
             KeyCode::Char('z') | KeyCode::Char('Z') => {
                 if key.modifiers.contains(KeyModifiers::SHIFT) {
                     self.redo();
@@ -379,6 +383,10 @@ impl App {
                 self.page_cursor_down();
                 return;
             }
+            KeyCode::Insert => {
+                self.insert_current_row();
+                return;
+            }
             KeyCode::Delete => {
                 self.delete_current_track();
                 return;
@@ -412,6 +420,7 @@ impl App {
             KeyCode::End => self.cursor.row = self.current_row_count().saturating_sub(1),
             KeyCode::PageUp => self.page_cursor_up(),
             KeyCode::PageDown => self.page_cursor_down(),
+            KeyCode::Insert => self.insert_current_row(),
             KeyCode::Delete | KeyCode::Backspace => self.clear_current_cell(),
             KeyCode::F(1) | KeyCode::Char('-') => self.decrement_octave(),
             KeyCode::F(2) | KeyCode::Char('+') | KeyCode::Char('=') => self.increment_octave(),
@@ -578,6 +587,21 @@ impl App {
             };
             let _ = pattern.set_cell(cursor.row, cursor.track, cell);
         });
+    }
+
+    fn insert_current_row(&mut self) {
+        let pattern_index = self.pattern_index;
+        self.mutate_song(|song, cursor| {
+            let _ = song.insert_pattern_row(pattern_index, cursor.row);
+        });
+    }
+
+    fn delete_current_row(&mut self) {
+        let pattern_index = self.pattern_index;
+        self.mutate_song(|song, cursor| {
+            let _ = song.delete_pattern_row(pattern_index, cursor.row);
+        });
+        self.clamp_cursor();
     }
 
     fn create_track(&mut self) {
@@ -1375,6 +1399,32 @@ mod tests {
                 .note,
             Some(NoteEvent::Note { pitch: 60 })
         );
+    }
+
+    #[test]
+    fn insert_and_ctrl_delete_edit_pattern_rows() {
+        let mut app = App {
+            mode: AppMode::Edit,
+            ..App::default()
+        };
+        app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::NONE));
+        app.cursor.row = 0;
+
+        app.handle_key(KeyEvent::new(KeyCode::Insert, KeyModifiers::NONE));
+
+        let pattern = app.song.current_pattern().expect("pattern");
+        assert_eq!(pattern.row_count(), 65);
+        assert_eq!(pattern.cell(0, 0), Some(&PatternCell::default()));
+        assert_eq!(
+            pattern.cell(1, 0).expect("cell").note,
+            Some(NoteEvent::Note { pitch: 60 })
+        );
+
+        app.handle_key(KeyEvent::new(KeyCode::Delete, KeyModifiers::CONTROL));
+        assert_eq!(app.song.current_pattern().expect("pattern").row_count(), 64);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
+        assert_eq!(app.song.current_pattern().expect("pattern").row_count(), 65);
     }
 
     #[test]

@@ -158,6 +158,34 @@ impl Song {
         Ok(())
     }
 
+    pub fn insert_pattern_row(
+        &mut self,
+        pattern_index: usize,
+        row: usize,
+    ) -> Result<(), EditError> {
+        let pattern =
+            self.patterns
+                .get_mut(pattern_index)
+                .ok_or(EditError::PatternOutOfBounds {
+                    pattern: pattern_index,
+                })?;
+        pattern.insert_row(row, self.tracks.len())
+    }
+
+    pub fn delete_pattern_row(
+        &mut self,
+        pattern_index: usize,
+        row: usize,
+    ) -> Result<PatternRow, EditError> {
+        let pattern =
+            self.patterns
+                .get_mut(pattern_index)
+                .ok_or(EditError::PatternOutOfBounds {
+                    pattern: pattern_index,
+                })?;
+        pattern.delete_row(row)
+    }
+
     pub fn push_sequence_pattern(&mut self, pattern_id: PatternId) -> Result<(), EditError> {
         if !self.patterns.iter().any(|pattern| pattern.id == pattern_id) {
             return Err(EditError::PatternNotFound { pattern_id });
@@ -485,6 +513,24 @@ impl Pattern {
             .resize_with(row_count, || PatternRow::empty(track_count));
     }
 
+    pub fn insert_row(&mut self, row: usize, track_count: usize) -> Result<(), EditError> {
+        if row > self.rows.len() {
+            return Err(EditError::RowOutOfBounds { row });
+        }
+        self.rows.insert(row, PatternRow::empty(track_count));
+        Ok(())
+    }
+
+    pub fn delete_row(&mut self, row: usize) -> Result<PatternRow, EditError> {
+        if self.rows.len() <= 1 {
+            return Err(EditError::CannotDeleteLastPatternRow);
+        }
+        if row >= self.rows.len() {
+            return Err(EditError::RowOutOfBounds { row });
+        }
+        Ok(self.rows.remove(row))
+    }
+
     fn append_track(&mut self) {
         for row in &mut self.rows {
             row.cells.push(PatternCell::default());
@@ -518,6 +564,8 @@ impl Pattern {
 pub enum EditError {
     #[error("cell out of bounds: row {row}, track {track}")]
     CellOutOfBounds { row: usize, track: usize },
+    #[error("row out of bounds: row {row}")]
+    RowOutOfBounds { row: usize },
     #[error("track out of bounds: track {track}")]
     TrackOutOfBounds { track: usize },
     #[error("cannot delete the last track")]
@@ -532,6 +580,8 @@ pub enum EditError {
     SequenceOutOfBounds { position: usize },
     #[error("invalid pattern length: {row_count}")]
     InvalidPatternLength { row_count: usize },
+    #[error("cannot delete the last pattern row")]
+    CannotDeleteLastPatternRow,
     #[error("invalid MIDI channel: {midi_channel}")]
     InvalidMidiChannel { midi_channel: u8 },
     #[error("name cannot be empty")]
@@ -1029,6 +1079,47 @@ mod tests {
         assert_eq!(
             song.resize_pattern(0, 0).expect_err("invalid length"),
             EditError::InvalidPatternLength { row_count: 0 }
+        );
+    }
+
+    #[test]
+    fn pattern_rows_can_be_inserted_and_deleted() {
+        let mut song = Song::empty();
+        song.current_pattern_mut()
+            .expect("pattern")
+            .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x7f)
+            .expect("set note");
+
+        song.insert_pattern_row(0, 0).expect("insert row");
+
+        let pattern = song.current_pattern().expect("pattern");
+        assert_eq!(pattern.row_count(), DEFAULT_PATTERN_LEN + 1);
+        assert_eq!(pattern.rows[0].cells.len(), song.tracks.len());
+        assert_eq!(pattern.cell(0, 0), Some(&PatternCell::default()));
+        assert_eq!(
+            pattern.cell(1, 0).expect("cell").note,
+            Some(NoteEvent::Note { pitch: 60 })
+        );
+
+        let removed = song.delete_pattern_row(0, 0).expect("delete row");
+        assert_eq!(removed.cells.len(), song.tracks.len());
+        assert_eq!(
+            song.current_pattern().expect("pattern").row_count(),
+            DEFAULT_PATTERN_LEN
+        );
+    }
+
+    #[test]
+    fn deleting_rows_validates_bounds_and_keeps_one_row() {
+        let mut pattern = Pattern::empty(PatternId(1), "Pattern 01", 1, 4);
+
+        assert_eq!(
+            pattern.delete_row(0).expect_err("last row remains"),
+            EditError::CannotDeleteLastPatternRow
+        );
+        assert_eq!(
+            pattern.insert_row(2, 4).expect_err("row out of range"),
+            EditError::RowOutOfBounds { row: 2 }
         );
     }
 
