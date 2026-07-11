@@ -22,6 +22,7 @@ pub struct TuiState<'a> {
     pub command_line: Option<&'a str>,
     pub show_help: bool,
     pub is_playing: bool,
+    pub loop_pattern: bool,
     pub playhead_row: Option<usize>,
     pub midi_status: &'a str,
     pub sequence_position: Option<usize>,
@@ -91,6 +92,11 @@ fn render_header(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState
         .map_or("No Pattern", |pattern| pattern.name.as_str());
     let dirty = if state.dirty { " *" } else { "" };
     let playback = if state.is_playing { "PLAY" } else { "STOP" };
+    let loop_state = if state.loop_pattern {
+        "Loop ON"
+    } else {
+        "Loop OFF"
+    };
     let selection = if state.selection.is_some() {
         " | SEL"
     } else {
@@ -100,7 +106,7 @@ fn render_header(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState
         .playhead_row
         .map_or_else(|| "--".to_string(), |row| format!("{row:02}"));
     let text = format!(
-        " BPM {} | LPB {} | {}{} | Oct {} | Row {:02} | Play {playhead} | Track {:02} | Field {} | {}{selection} | {playback} | {} ",
+        " BPM {} | LPB {} | {}{} | Oct {} | Row {:02} | Play {playhead} | {loop_state} | Track {:02} | Field {} | {}{selection} | {playback} | {} ",
         song.transport.bpm,
         song.transport.lines_per_beat,
         pattern_name,
@@ -413,7 +419,7 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
     }
 
     let status = Paragraph::new(format!(
-        " {}{} | H Help | Space Play/Stop | Enter Play Row | F8 Stop | : Command | i Edit | V Select | Ctrl+C/X/V | Ctrl+S Save | Ctrl+Z Undo | q Quit ",
+        " {}{} | H Help | Space Play/Stop | Enter Play Row | L Loop | F8 Stop | : Command | i Edit | V Select | Ctrl+C/X/V | Ctrl+S Save | Ctrl+Z Undo | q Quit ",
         state.mode_label,
         if state.selection.is_some() { " SEL" } else { "" }
     ));
@@ -430,7 +436,9 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
                 .add_modifier(Modifier::BOLD),
         )),
         Line::from("  ?/H Help   :h/:help Help   q Quit   Space Play/Stop   Enter Play Row"),
-        Line::from("  F8 Stop   :play pattern from start   :play sequence arrangement"),
+        Line::from(
+            "  L Loop on/off   F8 Stop   :play pattern from start   :play sequence arrangement",
+        ),
         Line::from("  Ctrl+S Save   Ctrl+Z Undo   Ctrl+Y Redo"),
         Line::from(""),
         Line::from(Span::styled(
@@ -649,6 +657,7 @@ mod tests {
                         command_line: None,
                         show_help: false,
                         is_playing: false,
+                        loop_pattern: true,
                         playhead_row: None,
                         midi_status: "MIDI Disconnected",
                         sequence_position: None,
@@ -694,6 +703,7 @@ mod tests {
                         command_line: None,
                         show_help: true,
                         is_playing: false,
+                        loop_pattern: true,
                         playhead_row: None,
                         midi_status: "MIDI Disconnected",
                         sequence_position: None,
@@ -747,6 +757,7 @@ mod tests {
                         command_line: None,
                         show_help: false,
                         is_playing: true,
+                        loop_pattern: true,
                         playhead_row: Some(0),
                         midi_status: "MIDI Connected 0",
                         sequence_position: Some(0),
@@ -793,6 +804,7 @@ mod tests {
                         command_line: None,
                         show_help: false,
                         is_playing: false,
+                        loop_pattern: true,
                         playhead_row: None,
                         midi_status: "MIDI Disconnected",
                         sequence_position: None,
@@ -847,6 +859,7 @@ mod tests {
                         command_line: None,
                         show_help: false,
                         is_playing: false,
+                        loop_pattern: true,
                         playhead_row: None,
                         midi_status: "MIDI Disconnected",
                         sequence_position: None,

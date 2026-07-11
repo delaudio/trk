@@ -101,6 +101,7 @@ fn run(args: CliArgs) -> Result<()> {
                     command_line: app.command_line(),
                     show_help: app.mode == AppMode::Help,
                     is_playing: app.is_playing,
+                    loop_pattern: app.loop_pattern,
                     playhead_row: app.playhead_row,
                     midi_status: app.midi_status.as_str(),
                     sequence_position: app.sequence_position,
@@ -414,6 +415,7 @@ struct App {
     redo_stack: Vec<Song>,
     playback: PlaybackRuntime,
     is_playing: bool,
+    loop_pattern: bool,
     playhead_row: Option<usize>,
     sequence_position: Option<usize>,
     midi_status: String,
@@ -475,6 +477,7 @@ impl App {
             redo_stack: Vec::new(),
             playback: PlaybackRuntime::spawn(config.midi.log_file.clone()),
             is_playing: false,
+            loop_pattern: true,
             playhead_row: None,
             sequence_position: None,
             midi_status,
@@ -583,6 +586,10 @@ impl App {
             }
             KeyCode::F(8) => {
                 self.stop_playback();
+                return;
+            }
+            KeyCode::Char('L') => {
+                self.toggle_loop();
                 return;
             }
             KeyCode::Enter => {
@@ -1229,6 +1236,12 @@ impl App {
                     self.set_lpb(value);
                 }
             }
+            "loop" => match parts.next() {
+                Some("on") => self.loop_pattern = true,
+                Some("off") => self.loop_pattern = false,
+                Some("toggle") | None => self.toggle_loop(),
+                Some(_) => {}
+            },
             "midi" => match parts.next() {
                 Some("outputs") | Some("settings") | Some("ports") => self.open_midi_settings(),
                 Some("connect") => {
@@ -1374,6 +1387,10 @@ impl App {
         }
     }
 
+    fn toggle_loop(&mut self) {
+        self.loop_pattern = !self.loop_pattern;
+    }
+
     fn start_playback(&mut self) {
         if self.song.pattern(self.pattern_index).is_none() {
             return;
@@ -1382,8 +1399,12 @@ impl App {
         self.is_playing = true;
         self.playhead_row = Some(0);
         self.sequence_position = None;
-        self.playback
-            .start_pattern(self.song.clone(), self.pattern_index);
+        self.playback.start_pattern_from(
+            self.song.clone(),
+            self.pattern_index,
+            0,
+            self.loop_pattern,
+        );
     }
 
     fn start_playback_from_cursor(&mut self) {
@@ -1394,8 +1415,12 @@ impl App {
         self.is_playing = true;
         self.playhead_row = Some(self.cursor.row);
         self.sequence_position = None;
-        self.playback
-            .start_pattern_from(self.song.clone(), self.pattern_index, self.cursor.row);
+        self.playback.start_pattern_from(
+            self.song.clone(),
+            self.pattern_index,
+            self.cursor.row,
+            self.loop_pattern,
+        );
     }
 
     fn start_sequence_playback(&mut self) {
@@ -2387,6 +2412,19 @@ mod tests {
     }
 
     #[test]
+    fn command_mode_sets_pattern_loop() {
+        let mut app = App::default();
+
+        assert!(app.loop_pattern);
+        type_command(&mut app, "loop off");
+        assert!(!app.loop_pattern);
+        type_command(&mut app, "loop on");
+        assert!(app.loop_pattern);
+        type_command(&mut app, "loop");
+        assert!(!app.loop_pattern);
+    }
+
+    #[test]
     fn command_mode_write_saves_project() {
         let path = std::env::temp_dir().join(format!(
             "salieri-command-write-{}.salieri",
@@ -2511,6 +2549,18 @@ mod tests {
 
         assert!(!app.is_playing);
         assert_eq!(app.playhead_row, None);
+    }
+
+    #[test]
+    fn uppercase_l_toggles_pattern_loop_without_breaking_vim_right() {
+        let mut app = App::default();
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('L'), KeyModifiers::SHIFT));
+        assert!(!app.loop_pattern);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::NONE));
+        assert_eq!(app.cursor.field, CellField::Velocity);
+        assert!(!app.loop_pattern);
     }
 
     #[test]

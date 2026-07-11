@@ -35,6 +35,7 @@ enum PlaybackCommand {
         song: Song,
         pattern_index: usize,
         start_row: usize,
+        loop_pattern: bool,
     },
     StartSequence {
         song: Song,
@@ -67,15 +68,18 @@ impl PlaybackRuntime {
         }
     }
 
-    pub fn start_pattern(&self, song: Song, pattern_index: usize) {
-        self.start_pattern_from(song, pattern_index, 0);
-    }
-
-    pub fn start_pattern_from(&self, song: Song, pattern_index: usize, start_row: usize) {
+    pub fn start_pattern_from(
+        &self,
+        song: Song,
+        pattern_index: usize,
+        start_row: usize,
+        loop_pattern: bool,
+    ) {
         let _ = self.command_tx.send(PlaybackCommand::StartPattern {
             song,
             pattern_index,
             start_row,
+            loop_pattern,
         });
     }
 
@@ -147,6 +151,7 @@ fn playback_thread(
                 song,
                 pattern_index,
                 start_row,
+                loop_pattern,
             } => {
                 let mut context = PlaybackRunContext {
                     command_rx: &command_rx,
@@ -154,9 +159,19 @@ fn playback_thread(
                     output: &mut output,
                     midi_logger: &mut midi_logger,
                 };
-                next_command =
-                    run_pattern(&song, pattern_index, start_row, None, true, &mut context)
-                        .into_command();
+                let result = run_pattern(
+                    &song,
+                    pattern_index,
+                    start_row,
+                    None,
+                    loop_pattern,
+                    &mut context,
+                );
+                if matches!(result, PatternRunResult::Finished) {
+                    let _ = send_all_notes_off_logged(&mut output, &mut midi_logger);
+                    let _ = update_tx.send(PlaybackUpdate::Stopped);
+                }
+                next_command = result.into_command();
                 if matches!(next_command, Some(PlaybackCommand::Shutdown)) {
                     break;
                 }
@@ -520,7 +535,7 @@ mod tests {
             .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x7f)
             .expect("set note");
 
-        runtime.start_pattern(song, 0);
+        runtime.start_pattern_from(song, 0, 0, true);
 
         let deadline = Instant::now() + Duration::from_millis(250);
         let mut saw_position = false;
@@ -560,7 +575,7 @@ mod tests {
         song.transport.bpm = u16::MAX;
         song.transport.lines_per_beat = u8::MAX;
 
-        runtime.start_pattern_from(song, 0, 4);
+        runtime.start_pattern_from(song, 0, 4, true);
 
         let deadline = Instant::now() + Duration::from_millis(250);
         let mut first_position = None;
@@ -578,6 +593,33 @@ mod tests {
     }
 
     #[test]
+    fn runtime_stops_when_pattern_loop_is_disabled() {
+        let runtime = PlaybackRuntime::spawn(None);
+        let mut song = Song::empty();
+        song.transport.bpm = u16::MAX;
+        song.transport.lines_per_beat = u8::MAX;
+
+        runtime.start_pattern_from(song, 0, 0, false);
+
+        let deadline = Instant::now() + Duration::from_millis(250);
+        let mut saw_stop = false;
+        while Instant::now() < deadline {
+            while let Some(update) = runtime.try_recv() {
+                if matches!(update, PlaybackUpdate::Stopped) {
+                    saw_stop = true;
+                    break;
+                }
+            }
+            if saw_stop {
+                break;
+            }
+            thread::sleep(Duration::from_millis(1));
+        }
+
+        assert!(saw_stop);
+    }
+
+    #[test]
     fn runtime_writes_midi_log_when_enabled() {
         let path =
             std::env::temp_dir().join(format!("salieri-midi-log-{}.log", std::process::id()));
@@ -590,7 +632,7 @@ mod tests {
             .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x7f)
             .expect("set note");
 
-        runtime.start_pattern(song, 0);
+        runtime.start_pattern_from(song, 0, 0, true);
 
         let deadline = Instant::now() + Duration::from_millis(250);
         while Instant::now() < deadline {
