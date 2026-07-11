@@ -676,6 +676,10 @@ impl App {
                 self.start_track_rename_command();
                 return;
             }
+            KeyCode::Char('c') => {
+                self.start_track_channel_command();
+                return;
+            }
             KeyCode::Char('D') => {
                 self.duplicate_track(self.cursor.track);
                 return;
@@ -1343,6 +1347,12 @@ impl App {
         self.command_buffer = format!("track rename {} ", self.cursor.track + 1);
         self.mode = AppMode::Command;
         self.notify_info("Rename current track");
+    }
+
+    fn start_track_channel_command(&mut self) {
+        self.command_buffer = format!("track channel {} ", self.cursor.track + 1);
+        self.mode = AppMode::Command;
+        self.notify_info("Set current track MIDI channel");
     }
 
     fn set_bpm(&mut self, bpm: u16) {
@@ -4208,6 +4218,33 @@ mod tests {
         app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
 
         assert_eq!(app.song.tracks[1].name, "Sub Bass");
+    }
+
+    #[test]
+    fn c_prefills_current_track_channel_command() {
+        let mut app = App {
+            cursor: Cursor {
+                track: 2,
+                ..Cursor::new()
+            },
+            ..App::default()
+        };
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::NONE));
+
+        assert_eq!(app.mode, AppMode::Command);
+        assert_eq!(app.command_buffer, "track channel 3 ");
+
+        for value in "12".chars() {
+            app.handle_key(KeyEvent::new(KeyCode::Char(value), KeyModifiers::NONE));
+        }
+        app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+
+        assert_eq!(app.song.tracks[2].midi_channel, 12);
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("Track channel set to 12")
+        );
     }
 
     #[test]

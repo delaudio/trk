@@ -551,7 +551,7 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
                 .add_modifier(Modifier::BOLD),
         )),
         Line::from("  Ctrl+T create track   D duplicate track   {/} move track left/right"),
-        Line::from("  r rename track"),
+        Line::from("  r rename track   c channel"),
         Line::from("  Del delete track   M mute   S solo"),
         Line::from("  :write [path]   :saveas path   :quit   :q!   :wq   :bpm 140   :lpb 4"),
         Line::from("  Dirty quit asks: [Y]es save, [N]o quit, [C]ancel"),
