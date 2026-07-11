@@ -18,10 +18,14 @@ use persistence::{load_project, save_project};
 use playback_runtime::{PlaybackRuntime, PlaybackUpdate};
 use salieri_core::{CellField, Cursor, Direction, NoteEvent, PatternCell, Song};
 use salieri_midi::{list_output_ports, MidiMessage, MidiOutput, MidiOutputPort, MidirMidiOutput};
-use salieri_tui::{render, MidiPortView, MidiSettingsState, SelectionRect, TuiState};
+use salieri_tui::{
+    render, MidiPortView, MidiSettingsState, NotificationKind, NotificationView, SelectionRect,
+    TuiState,
+};
 use terminal::TerminalGuard;
 
 const UI_TICK_RATE: Duration = Duration::from_millis(33);
+const NOTIFICATION_TTL: Duration = Duration::from_secs(4);
 const DEFAULT_NOTE_VELOCITY: u8 = 0x7f;
 const UNDO_LIMIT: usize = 100;
 
@@ -83,10 +87,12 @@ fn run(args: CliArgs) -> Result<()> {
 
     loop {
         app.drain_playback_updates();
+        app.expire_notification();
         app.keep_active_row_visible(terminal.visible_pattern_rows());
         terminal.draw(|frame| {
             let midi_ports = app.tui_midi_ports();
             let midi_settings = app.tui_midi_settings(&midi_ports);
+            let notification = app.tui_notification();
             render(
                 frame,
                 &app.song,
@@ -100,6 +106,7 @@ fn run(args: CliArgs) -> Result<()> {
                     dirty: app.dirty,
                     show_line_numbers_hex: app.show_line_numbers_hex,
                     command_line: app.command_line(),
+                    notification,
                     show_help: app.mode == AppMode::Help,
                     is_playing: app.is_playing,
                     loop_pattern: app.loop_pattern,
@@ -425,7 +432,15 @@ struct App {
     midi_port_cursor: usize,
     dirty: bool,
     should_quit: bool,
+    notification: Option<Notification>,
     last_tick: Instant,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Notification {
+    kind: NotificationKind,
+    message: String,
+    expires_at: Instant,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -488,6 +503,7 @@ impl App {
             midi_port_cursor: 0,
             dirty: false,
             should_quit: false,
+            notification: None,
             last_tick: Instant::now(),
         };
         app.connect_default_midi_output(&default_midi_output);
@@ -528,6 +544,7 @@ impl App {
             KeyCode::Char('s') | KeyCode::Char('S') => {
                 if let Err(error) = self.save() {
                     tracing::error!(?error, "failed to save project");
+                    self.notify_error(format!("Save failed: {error}"));
                 }
                 true
             }
@@ -1211,6 +1228,7 @@ impl App {
                 };
                 if let Err(error) = result {
                     tracing::error!(?error, "failed to save project");
+                    self.notify_error(format!("Save failed: {error}"));
                 }
             }
             "saveas" | "writeas" => {
@@ -1218,12 +1236,16 @@ impl App {
                 if !path.is_empty() {
                     if let Err(error) = self.save_as(PathBuf::from(path)) {
                         tracing::error!(?error, "failed to save project");
+                        self.notify_error(format!("Save failed: {error}"));
                     }
+                } else {
+                    self.notify_warning("Usage: :saveas PATH");
                 }
             }
             "wq" => {
                 if let Err(error) = self.save() {
                     tracing::error!(?error, "failed to save project");
+                    self.notify_error(format!("Save failed: {error}"));
                     return;
                 }
                 self.stop_playback();
@@ -1232,18 +1254,30 @@ impl App {
             "bpm" => {
                 if let Some(value) = parts.next().and_then(|value| value.parse::<u16>().ok()) {
                     self.set_bpm(value);
+                    self.notify_success(format!("BPM set to {value}"));
+                } else {
+                    self.notify_warning("Usage: :bpm 140");
                 }
             }
             "lpb" => {
                 if let Some(value) = parts.next().and_then(|value| value.parse::<u8>().ok()) {
                     self.set_lpb(value);
+                    self.notify_success(format!("LPB set to {value}"));
+                } else {
+                    self.notify_warning("Usage: :lpb 4");
                 }
             }
             "loop" => match parts.next() {
-                Some("on") => self.loop_pattern = true,
-                Some("off") => self.loop_pattern = false,
+                Some("on") => {
+                    self.loop_pattern = true;
+                    self.notify_info("Pattern loop ON");
+                }
+                Some("off") => {
+                    self.loop_pattern = false;
+                    self.notify_info("Pattern loop OFF");
+                }
                 Some("toggle") | None => self.toggle_loop(),
-                Some(_) => {}
+                Some(_) => self.notify_warning("Usage: :loop [on|off|toggle]"),
             },
             "midi" => match parts.next() {
                 Some("outputs") | Some("settings") | Some("ports") => self.open_midi_settings(),
@@ -1252,16 +1286,20 @@ impl App {
                         parts.next().and_then(|value| value.parse::<usize>().ok())
                     {
                         self.connect_midi(port_index);
+                    } else {
+                        self.notify_warning("Usage: :midi connect PORT_INDEX");
                     }
                 }
                 Some("disconnect") => self.disconnect_midi(),
                 Some("panic") => self.panic_midi(),
-                None | Some(_) => {}
+                None | Some(_) => {
+                    self.notify_warning("Usage: :midi outputs|connect|disconnect|panic")
+                }
             },
             "play" => match parts.next() {
                 Some("sequence") | Some("seq") => self.start_sequence_playback(),
                 Some("pattern") | Some("pat") | None => self.start_playback(),
-                Some(_) => {}
+                Some(_) => self.notify_warning("Usage: :play [pattern|sequence]"),
             },
             "stop" => self.stop_playback(),
             "track" => match parts.next() {
@@ -1297,7 +1335,7 @@ impl App {
                         _ => {}
                     }
                 }
-                None | Some(_) => {}
+                None | Some(_) => self.notify_warning("Usage: :track new|duplicate|rename|channel"),
             },
             "pattern" => match parts.next() {
                 Some("new") => self.create_pattern(),
@@ -1362,9 +1400,11 @@ impl App {
                         self.move_sequence_position(from, to);
                     }
                 }
-                None | Some(_) => {}
+                None | Some(_) => {
+                    self.notify_warning("Usage: :sequence add|remove|duplicate|set|move")
+                }
             },
-            _ => {}
+            _ => self.notify_warning(format!("Unknown command: {name}")),
         }
     }
 
@@ -1374,6 +1414,7 @@ impl App {
         } else {
             self.stop_playback();
             self.mode = AppMode::Dialog;
+            self.notify_warning("Unsaved changes");
         }
     }
 
@@ -1392,10 +1433,13 @@ impl App {
 
     fn toggle_loop(&mut self) {
         self.loop_pattern = !self.loop_pattern;
+        let state = if self.loop_pattern { "ON" } else { "OFF" };
+        self.notify_info(format!("Pattern loop {state}"));
     }
 
     fn start_playback(&mut self) {
         if self.song.pattern(self.pattern_index).is_none() {
+            self.notify_warning("No pattern to play");
             return;
         }
 
@@ -1408,10 +1452,12 @@ impl App {
             0,
             self.loop_pattern,
         );
+        self.notify_info("Playing pattern from start");
     }
 
     fn start_playback_from_cursor(&mut self) {
         if self.song.pattern(self.pattern_index).is_none() {
+            self.notify_warning("No pattern to play");
             return;
         }
 
@@ -1424,10 +1470,12 @@ impl App {
             self.cursor.row,
             self.loop_pattern,
         );
+        self.notify_info(format!("Playing pattern from row {:02}", self.cursor.row));
     }
 
     fn start_sequence_playback(&mut self) {
         if self.song.sequence.is_empty() {
+            self.notify_warning("Sequence is empty");
             return;
         }
 
@@ -1446,6 +1494,7 @@ impl App {
         self.playhead_row = Some(0);
         self.sequence_position = Some(0);
         self.playback.start_sequence(self.song.clone());
+        self.notify_info("Playing sequence");
     }
 
     fn stop_playback(&mut self) {
@@ -1453,11 +1502,13 @@ impl App {
         self.is_playing = false;
         self.playhead_row = None;
         self.sequence_position = None;
+        self.notify_info("Playback stopped");
     }
 
     fn connect_midi(&mut self, port_index: usize) {
         self.midi_status = format!("MIDI Connecting {port_index}");
         self.playback.connect_midi(port_index);
+        self.notify_info(format!("Connecting MIDI output {port_index}"));
     }
 
     fn open_midi_settings(&mut self) {
@@ -1474,12 +1525,16 @@ impl App {
                     .min(self.midi_ports.len().saturating_sub(1));
                 if self.midi_ports.is_empty() {
                     self.midi_status = "MIDI No Outputs".to_string();
+                    self.notify_warning("No MIDI output ports found");
+                } else {
+                    self.notify_info(format!("Found {} MIDI output(s)", self.midi_ports.len()));
                 }
             }
             Err(error) => {
                 self.midi_ports.clear();
                 self.midi_port_cursor = 0;
                 self.midi_status = format!("MIDI Error: {error}");
+                self.notify_error(format!("MIDI output list failed: {error}"));
             }
         }
     }
@@ -1527,6 +1582,7 @@ impl App {
 
     fn disconnect_midi(&mut self) {
         self.playback.disconnect_midi();
+        self.notify_info("Disconnecting MIDI output");
     }
 
     fn panic_midi(&mut self) {
@@ -1534,6 +1590,7 @@ impl App {
         self.is_playing = false;
         self.playhead_row = None;
         self.sequence_position = None;
+        self.notify_warning("MIDI panic sent");
     }
 
     fn drain_playback_updates(&mut self) {
@@ -1549,21 +1606,26 @@ impl App {
                     self.is_playing = false;
                     self.playhead_row = None;
                     self.sequence_position = None;
+                    self.notify_info("Playback stopped");
                 }
                 PlaybackUpdate::MidiConnected { port_index } => {
                     self.midi_status = format!("MIDI Connected {port_index}");
+                    self.notify_success(format!("MIDI output connected: {port_index}"));
                 }
                 PlaybackUpdate::MidiDisconnected => {
                     self.midi_status = "MIDI Disconnected".to_string();
+                    self.notify_info("MIDI output disconnected");
                 }
                 PlaybackUpdate::MidiError(error) => {
                     self.midi_status = format!("MIDI Error: {error}");
                     self.is_playing = false;
                     self.playhead_row = None;
                     self.sequence_position = None;
+                    self.notify_error(format!("MIDI error: {error}"));
                 }
                 PlaybackUpdate::MidiLogError(error) => {
                     self.midi_status = format!("MIDI Log Error: {error}");
+                    self.notify_error(format!("MIDI log error: {error}"));
                 }
             }
         }
@@ -1588,6 +1650,9 @@ impl App {
             self.redo_stack.push(current);
             self.refresh_dirty();
             self.clamp_cursor();
+            self.notify_info("Undo");
+        } else {
+            self.notify_warning("Nothing to undo");
         }
     }
 
@@ -1597,6 +1662,9 @@ impl App {
             self.undo_stack.push(current);
             self.refresh_dirty();
             self.clamp_cursor();
+            self.notify_info("Redo");
+        } else {
+            self.notify_warning("Nothing to redo");
         }
     }
 
@@ -1633,6 +1701,7 @@ impl App {
         self.project_path = Some(path);
         self.clean_song = self.song.clone();
         self.refresh_dirty();
+        self.notify_success("Project saved");
         Ok(())
     }
 
@@ -1681,6 +1750,49 @@ impl App {
         } else {
             None
         }
+    }
+
+    fn notify(&mut self, kind: NotificationKind, message: impl Into<String>) {
+        self.notification = Some(Notification {
+            kind,
+            message: message.into(),
+            expires_at: Instant::now() + NOTIFICATION_TTL,
+        });
+    }
+
+    fn notify_info(&mut self, message: impl Into<String>) {
+        self.notify(NotificationKind::Info, message);
+    }
+
+    fn notify_success(&mut self, message: impl Into<String>) {
+        self.notify(NotificationKind::Success, message);
+    }
+
+    fn notify_warning(&mut self, message: impl Into<String>) {
+        self.notify(NotificationKind::Warning, message);
+    }
+
+    fn notify_error(&mut self, message: impl Into<String>) {
+        self.notify(NotificationKind::Error, message);
+    }
+
+    fn expire_notification(&mut self) {
+        if self
+            .notification
+            .as_ref()
+            .is_some_and(|notification| Instant::now() >= notification.expires_at)
+        {
+            self.notification = None;
+        }
+    }
+
+    fn tui_notification(&self) -> Option<NotificationView<'_>> {
+        self.notification
+            .as_ref()
+            .map(|notification| NotificationView {
+                kind: notification.kind,
+                message: notification.message.as_str(),
+            })
     }
 
     fn tui_midi_ports(&self) -> Vec<MidiPortView<'_>> {
@@ -2399,6 +2511,10 @@ mod tests {
         let _ = std::fs::remove_file(&path);
         assert_eq!(saved, app.song);
         assert!(!app.dirty);
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("Project saved")
+        );
     }
 
     #[test]
@@ -2426,10 +2542,25 @@ mod tests {
         assert!(app.loop_pattern);
         type_command(&mut app, "loop off");
         assert!(!app.loop_pattern);
+        assert_eq!(
+            app.notification.as_ref().map(|n| n.message.as_str()),
+            Some("Pattern loop OFF")
+        );
         type_command(&mut app, "loop on");
         assert!(app.loop_pattern);
         type_command(&mut app, "loop");
         assert!(!app.loop_pattern);
+    }
+
+    #[test]
+    fn command_mode_reports_unknown_commands() {
+        let mut app = App::default();
+
+        type_command(&mut app, "doesnotexist");
+
+        let notification = app.notification.as_ref().expect("notification");
+        assert_eq!(notification.kind, NotificationKind::Warning);
+        assert_eq!(notification.message, "Unknown command: doesnotexist");
     }
 
     #[test]

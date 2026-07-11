@@ -21,6 +21,7 @@ pub struct TuiState<'a> {
     pub dirty: bool,
     pub show_line_numbers_hex: bool,
     pub command_line: Option<&'a str>,
+    pub notification: Option<NotificationView<'a>>,
     pub show_help: bool,
     pub is_playing: bool,
     pub loop_pattern: bool,
@@ -29,6 +30,20 @@ pub struct TuiState<'a> {
     pub sequence_position: Option<usize>,
     pub quit_confirmation: bool,
     pub midi_settings: Option<MidiSettingsState<'a>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NotificationView<'a> {
+    pub kind: NotificationKind,
+    pub message: &'a str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NotificationKind {
+    Info,
+    Success,
+    Warning,
+    Error,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -433,6 +448,32 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
         return;
     }
 
+    if let Some(notification) = state.notification {
+        let label = match notification.kind {
+            NotificationKind::Info => "INFO",
+            NotificationKind::Success => "OK",
+            NotificationKind::Warning => "WARN",
+            NotificationKind::Error => "ERR",
+        };
+        let style = match notification.kind {
+            NotificationKind::Info => Style::default().fg(Color::Cyan),
+            NotificationKind::Success => Style::default().fg(Color::LightGreen),
+            NotificationKind::Warning => Style::default().fg(Color::Yellow),
+            NotificationKind::Error => Style::default()
+                .fg(Color::LightRed)
+                .add_modifier(Modifier::BOLD),
+        };
+        let status = Paragraph::new(Line::from(vec![
+            Span::styled(format!(" {label} "), style.add_modifier(Modifier::BOLD)),
+            Span::styled(
+                notification.message.to_string(),
+                Style::default().fg(Color::White),
+            ),
+        ]));
+        frame.render_widget(status, area);
+        return;
+    }
+
     let status = Paragraph::new(format!(
         " {}{} | H Help | Space Play/Stop | Enter Play Row | L Loop | F8 Stop | : Command | i Edit | V Select | Ctrl+C/X/V | Ctrl+S Save | Ctrl+Z Undo | q Quit ",
         state.mode_label,
@@ -671,6 +712,7 @@ mod tests {
                         dirty: false,
                         show_line_numbers_hex: false,
                         command_line: None,
+                        notification: None,
                         show_help: false,
                         is_playing: false,
                         loop_pattern: true,
@@ -718,6 +760,7 @@ mod tests {
                         dirty: false,
                         show_line_numbers_hex: false,
                         command_line: None,
+                        notification: None,
                         show_help: true,
                         is_playing: false,
                         loop_pattern: true,
@@ -773,6 +816,7 @@ mod tests {
                         dirty: false,
                         show_line_numbers_hex: false,
                         command_line: None,
+                        notification: None,
                         show_help: false,
                         is_playing: true,
                         loop_pattern: true,
@@ -821,6 +865,7 @@ mod tests {
                         dirty: false,
                         show_line_numbers_hex: true,
                         command_line: None,
+                        notification: None,
                         show_help: false,
                         is_playing: false,
                         loop_pattern: true,
@@ -846,6 +891,56 @@ mod tests {
     }
 
     #[test]
+    fn renders_status_notification() {
+        let song = Song::empty();
+        let backend = TestBackend::new(100, 32);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+
+        terminal
+            .draw(|frame| {
+                render(
+                    frame,
+                    &song,
+                    TuiState {
+                        cursor: Cursor::new(),
+                        row_offset: 0,
+                        pattern_index: 0,
+                        selection: None,
+                        mode_label: "NORMAL",
+                        octave: 4,
+                        dirty: false,
+                        show_line_numbers_hex: false,
+                        command_line: None,
+                        notification: Some(NotificationView {
+                            kind: NotificationKind::Success,
+                            message: "Project saved",
+                        }),
+                        show_help: false,
+                        is_playing: false,
+                        loop_pattern: true,
+                        playhead_row: None,
+                        midi_status: "MIDI Disconnected",
+                        sequence_position: None,
+                        quit_confirmation: false,
+                        midi_settings: None,
+                    },
+                );
+            })
+            .expect("draw");
+
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+
+        assert!(rendered.contains("OK"));
+        assert!(rendered.contains("Project saved"));
+    }
+
+    #[test]
     fn renders_quit_confirmation_overlay() {
         let song = Song::empty();
         let backend = TestBackend::new(100, 32);
@@ -866,6 +961,7 @@ mod tests {
                         dirty: true,
                         show_line_numbers_hex: false,
                         command_line: None,
+                        notification: None,
                         show_help: false,
                         is_playing: false,
                         loop_pattern: true,
@@ -922,6 +1018,7 @@ mod tests {
                         dirty: false,
                         show_line_numbers_hex: false,
                         command_line: None,
+                        notification: None,
                         show_help: false,
                         is_playing: false,
                         loop_pattern: true,

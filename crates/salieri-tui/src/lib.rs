@@ -1,3 +1,6 @@
 pub mod render;
 
-pub use render::{render, MidiPortView, MidiSettingsState, SelectionRect, TuiState};
+pub use render::{
+    render, MidiPortView, MidiSettingsState, NotificationKind, NotificationView, SelectionRect,
+    TuiState,
+};
