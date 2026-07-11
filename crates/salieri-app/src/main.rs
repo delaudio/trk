@@ -561,6 +561,7 @@ impl App {
             AppMode::Dialog => self.handle_dialog_key(key),
             AppMode::MidiSettings => self.handle_midi_settings_key(key),
             AppMode::Sequence => self.handle_sequence_key(key),
+            AppMode::Tracks => self.handle_tracks_key(key),
         }
     }
 
@@ -683,6 +684,10 @@ impl App {
             }
             KeyCode::F(7) => {
                 self.open_sequence_view();
+                return;
+            }
+            KeyCode::F(9) => {
+                self.open_tracks_view();
                 return;
             }
             KeyCode::F(6) => {
@@ -988,6 +993,36 @@ impl App {
             KeyCode::Char('<') => self.move_selected_sequence_position_up(),
             KeyCode::Char('>') => self.move_selected_sequence_position_down(),
             KeyCode::Enter => self.start_sequence_playback_from_selected_position(),
+            _ => {}
+        }
+    }
+
+    fn handle_tracks_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Esc => self.mode = AppMode::Normal,
+            KeyCode::Char('q') => self.request_quit(false),
+            KeyCode::Char('?') | KeyCode::Char('H') => self.mode = AppMode::Help,
+            KeyCode::Char(':') => {
+                self.command_buffer.clear();
+                self.mode = AppMode::Command;
+            }
+            KeyCode::F(4) => self.open_midi_settings(),
+            KeyCode::F(9) => self.mode = AppMode::Normal,
+            KeyCode::Up => self.previous_track(),
+            KeyCode::Char('k') if self.vim_navigation => self.previous_track(),
+            KeyCode::Down => self.next_track(),
+            KeyCode::Char('j') if self.vim_navigation => self.next_track(),
+            KeyCode::Home => self.cursor.track = 0,
+            KeyCode::End => self.cursor.track = self.song.tracks.len().saturating_sub(1),
+            KeyCode::Char('N') => self.create_track(),
+            KeyCode::Char('D') => self.duplicate_track(self.cursor.track),
+            KeyCode::Char('r') => self.start_track_rename_command(),
+            KeyCode::Char('c') => self.start_track_channel_command(),
+            KeyCode::Delete => self.request_delete_current_track(),
+            KeyCode::Char('{') => self.move_current_track_left(),
+            KeyCode::Char('}') => self.move_current_track_right(),
+            KeyCode::Char('m') | KeyCode::Char('M') => self.toggle_current_mute(),
+            KeyCode::Char('s') | KeyCode::Char('S') => self.toggle_current_solo(),
             _ => {}
         }
     }
@@ -2087,6 +2122,15 @@ impl App {
         self.notify_info(format!("Sequence position {:02}", self.sequence_cursor));
     }
 
+    fn open_tracks_view(&mut self) {
+        self.cursor.track = self
+            .cursor
+            .track
+            .min(self.song.tracks.len().saturating_sub(1));
+        self.mode = AppMode::Tracks;
+        self.notify_info(format!("Track {:02}", self.cursor.track + 1));
+    }
+
     fn refresh_midi_ports(&mut self) {
         match list_output_ports() {
             Ok(ports) => {
@@ -2310,10 +2354,15 @@ impl App {
     }
 
     fn tui_active_view(&self) -> TuiView {
-        if self.mode == AppMode::Sequence {
-            TuiView::Sequence
-        } else {
-            TuiView::Pattern
+        match self.mode {
+            AppMode::Sequence => TuiView::Sequence,
+            AppMode::Tracks => TuiView::Tracks,
+            AppMode::Normal
+            | AppMode::Edit
+            | AppMode::Command
+            | AppMode::Help
+            | AppMode::Dialog
+            | AppMode::MidiSettings => TuiView::Pattern,
         }
     }
 
@@ -2446,6 +2495,7 @@ enum AppMode {
     Dialog,
     MidiSettings,
     Sequence,
+    Tracks,
 }
 
 impl AppMode {
@@ -2458,6 +2508,7 @@ impl AppMode {
             AppMode::Dialog => "DIALOG",
             AppMode::MidiSettings => "MIDI",
             AppMode::Sequence => "SEQUENCE",
+            AppMode::Tracks => "TRACKS",
         }
     }
 }
@@ -4252,6 +4303,58 @@ mod tests {
         assert_eq!(app.mode, AppMode::Normal);
         assert_eq!(app.song.tracks.len(), 4);
         assert_eq!(app.song.tracks[1].name, "Bass");
+    }
+
+    #[test]
+    fn tracks_view_guides_track_management() {
+        let mut app = App::default();
+
+        app.handle_key(KeyEvent::new(KeyCode::F(9), KeyModifiers::NONE));
+        assert_eq!(app.mode, AppMode::Tracks);
+        assert_eq!(app.tui_active_view(), TuiView::Tracks);
+
+        app.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+        assert_eq!(app.cursor.track, 1);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('D'), KeyModifiers::SHIFT));
+        assert_eq!(app.song.tracks.len(), 5);
+        assert_eq!(app.cursor.track, 4);
+        assert_eq!(app.song.tracks[4].name, "Bass Copy");
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('{'), KeyModifiers::SHIFT));
+        assert_eq!(app.cursor.track, 3);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('m'), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::NONE));
+        assert!(app.song.tracks[3].muted);
+        assert!(app.song.tracks[3].solo);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::NONE));
+        assert_eq!(app.mode, AppMode::Command);
+        assert_eq!(app.command_buffer, "track channel 4 ");
+        app.command_buffer.push('9');
+        app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        assert_eq!(app.song.tracks[3].midi_channel, 9);
+
+        app.handle_key(KeyEvent::new(KeyCode::F(9), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::NONE));
+        assert_eq!(app.mode, AppMode::Command);
+        assert_eq!(app.command_buffer, "track rename 4 ");
+        app.command_buffer.push_str("Aux Bass");
+        app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        assert_eq!(app.song.tracks[3].name, "Aux Bass");
+
+        app.handle_key(KeyEvent::new(KeyCode::F(9), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Delete, KeyModifiers::NONE));
+        assert_eq!(app.mode, AppMode::Dialog);
+        assert!(matches!(
+            app.dialog,
+            Some(Dialog::DeleteTrack { track_index: 3, .. })
+        ));
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE));
+        assert_eq!(app.song.tracks.len(), 5);
+        assert_eq!(app.mode, AppMode::Normal);
     }
 
     #[test]

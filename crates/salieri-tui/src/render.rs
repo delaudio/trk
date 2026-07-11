@@ -47,6 +47,7 @@ pub struct TuiState<'a> {
 pub enum TuiView {
     Pattern,
     Sequence,
+    Tracks,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -167,6 +168,10 @@ fn render_header(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState
 fn render_body(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
     if state.active_view == TuiView::Sequence {
         render_sequence_editor(frame, area, song, state.sequence_position);
+        return;
+    }
+    if state.active_view == TuiView::Tracks {
+        render_track_editor(frame, area, song, state.cursor.track);
         return;
     }
 
@@ -349,6 +354,57 @@ fn render_sequence_editor(
         )
         .wrap(Wrap { trim: true });
     frame.render_widget(sequence, area);
+}
+
+fn render_track_editor(frame: &mut Frame<'_>, area: Rect, song: &Song, active_track: usize) {
+    let mut lines = vec![Line::from(vec![
+        Span::styled("TRK  ", Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            "NAME          CH  M  S  ARM",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+    ])];
+
+    for (index, track) in song.tracks.iter().enumerate() {
+        let marker = if index == active_track { ">" } else { " " };
+        let muted = if track.muted { "Y" } else { "-" };
+        let solo = if track.solo { "Y" } else { "-" };
+        let armed = if track.armed { "Y" } else { "-" };
+        let line = format!(
+            "{marker}{:02}  {:<12} CH{:02} {muted:^3}{solo:^3}{armed:^3}",
+            index + 1,
+            truncate(&track.name, 12),
+            track.midi_channel
+        );
+        if index == active_track {
+            lines.push(Line::styled(
+                line,
+                Style::default()
+                    .fg(Color::Black)
+                    .bg(Color::White)
+                    .add_modifier(Modifier::BOLD),
+            ));
+        } else {
+            lines.push(Line::from(line));
+        }
+    }
+
+    lines.extend([
+        Line::from(""),
+        Line::from("N new   D duplicate   r rename   c channel   Delete remove"),
+        Line::from("{/} reorder   M mute   S solo   Esc pattern view"),
+    ]);
+
+    let tracks = Paragraph::new(lines)
+        .block(
+            Block::default()
+                .title(" Track Editor ")
+                .borders(Borders::ALL),
+        )
+        .wrap(Wrap { trim: true });
+    frame.render_widget(tracks, area);
 }
 
 fn render_pattern(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
@@ -591,9 +647,14 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
             " {} | H Help | Esc Pattern | A Add | R Remove | Y Duplicate | T Set Pattern | </> Move | Enter Play | : Command | Ctrl+S Save | q Quit ",
             state.mode_label
         )
+    } else if state.active_view == TuiView::Tracks {
+        format!(
+            " {} | H Help | Esc Pattern | N New | D Duplicate | r Rename | c Channel | Del Delete | {{/}} Move | M/S Mute/Solo | : Command | Ctrl+S Save | q Quit ",
+            state.mode_label
+        )
     } else {
         format!(
-            " {}{} | H Help | F4 MIDI | F7 Sequence | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern | A/Y/R Seq | {{/}} Track | : Command | i Edit | V Select | Ctrl+S Save | q Quit ",
+            " {}{} | H Help | F4 MIDI | F7 Sequence | F9 Tracks | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern | A/Y/R Seq | {{/}} Track | : Command | i Edit | V Select | Ctrl+S Save | q Quit ",
             state.mode_label,
             if state.selection.is_some() { " SEL" } else { "" }
         )
@@ -613,7 +674,7 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
         )),
         Line::from("  ?/H Help   :h/:help Help   q Quit   Space Play/Stop   Shift+Space Start"),
         Line::from("  Enter Play Row   Shift+Enter Play Sequence From Cursor   L Loop   F8 Stop"),
-        Line::from("  F7 Sequence View   Esc returns from focused views"),
+        Line::from("  F7 Sequence View   F9 Track View   Esc returns from focused views"),
         Line::from("  :play pattern from start   :play sequence arrangement"),
         Line::from("  Ctrl+S Save   Ctrl+Z Undo   Ctrl+Y Redo   Ctrl+Arrows BPM/LPB"),
         Line::from(""),
@@ -942,7 +1003,7 @@ mod tests {
             .collect::<String>();
 
         assert!(rendered.contains("Pattern Editor"));
-        assert!(!rendered.contains("Tracks"));
+        assert!(!rendered.contains("Track Editor"));
         assert!(!rendered.contains("Sequence Editor"));
     }
 
