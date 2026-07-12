@@ -1077,9 +1077,13 @@ fn waveform_lines(
     }
 
     let mut grid = vec![vec![' '; width]; waveform_height];
-    for x in 0..width {
+    for (x, bucket) in (0..width).map(|x| {
         let bucket_index = x.saturating_mul(overview.buckets.len()) / width;
-        let bucket = overview.buckets[bucket_index.min(overview.buckets.len() - 1)];
+        (
+            x,
+            overview.buckets[bucket_index.min(overview.buckets.len() - 1)],
+        )
+    }) {
         let min = sanitize_waveform_value(bucket.min);
         let max = sanitize_waveform_value(bucket.max);
         let top = waveform_row(max, waveform_height);
@@ -1094,8 +1098,8 @@ fn waveform_lines(
         } else {
             glyphs.filled()
         };
-        for row in top..=bottom {
-            grid[row][x] = glyph;
+        for row in grid.iter_mut().take(bottom + 1).skip(top) {
+            row[x] = glyph;
         }
     }
 

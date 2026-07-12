@@ -134,11 +134,11 @@ impl Sample {
         };
 
         let channels = usize::from(self.channels);
-        let available_frames = if channels == 0 {
-            0
-        } else {
-            self.frames.min(self.data.len() / channels)
-        };
+        let available_frames = self
+            .data
+            .len()
+            .checked_div(channels)
+            .map_or(0, |data_frames| self.frames.min(data_frames));
 
         if bucket_count == 0 || channels == 0 || available_frames == 0 {
             return WaveformOverview {
