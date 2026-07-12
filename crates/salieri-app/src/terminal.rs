@@ -54,6 +54,15 @@ impl TerminalGuard {
     pub fn interrupted(&self) -> bool {
         self.interrupted.load(Ordering::SeqCst)
     }
+
+    pub fn suspend<T>(&mut self, action: impl FnOnce() -> T) -> Result<T> {
+        restore_terminal()?;
+        let output = action();
+        enable_raw_mode()?;
+        execute!(io::stdout(), EnterAlternateScreen, EnableMouseCapture, Hide)?;
+        self.terminal.clear()?;
+        Ok(output)
+    }
 }
 
 impl Drop for TerminalGuard {

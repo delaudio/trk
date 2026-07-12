@@ -12,6 +12,7 @@ pub struct AppConfig {
     pub keyboard: KeyboardConfig,
     pub ui: UiConfig,
     pub midi: MidiConfig,
+    pub sample_browser: SampleBrowserConfig,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -53,6 +54,13 @@ impl Default for UiConfig {
 pub struct MidiConfig {
     pub default_output: String,
     pub log_file: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize)]
+#[serde(default)]
+pub struct SampleBrowserConfig {
+    pub chooser_command: Option<String>,
+    pub start_dir: Option<PathBuf>,
 }
 
 pub fn load_config(path: Option<&Path>) -> Result<AppConfig> {
@@ -111,6 +119,10 @@ follow_playhead = false
 [midi]
 default_output = "IAC Driver"
 log_file = "salieri-midi.log"
+
+[sample_browser]
+chooser_command = 'YAZI_CONFIG_HOME="$HOME/.config/yazi-readonly" yazi --chooser-file "$SALIERI_CHOOSER_FILE" "$SALIERI_SAMPLE_START_DIR"'
+start_dir = "~/Samples"
 "#,
         )
         .expect("write config");
@@ -127,6 +139,17 @@ log_file = "salieri-midi.log"
         assert_eq!(
             config.midi.log_file,
             Some(PathBuf::from("salieri-midi.log"))
+        );
+        assert_eq!(
+            config.sample_browser.chooser_command,
+            Some(
+                r#"YAZI_CONFIG_HOME="$HOME/.config/yazi-readonly" yazi --chooser-file "$SALIERI_CHOOSER_FILE" "$SALIERI_SAMPLE_START_DIR""#
+                    .to_string()
+            )
+        );
+        assert_eq!(
+            config.sample_browser.start_dir,
+            Some(PathBuf::from("~/Samples"))
         );
     }
 }

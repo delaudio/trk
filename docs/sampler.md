@@ -21,6 +21,8 @@ salieri sample inspect path/to/sample.wav --format json --width 32
 
 Inside the tracker, `:sample view PATH` loads a WAV reference into the sampler view and renders its metadata and waveform preview. `F11` opens the sampler view even when no sample is loaded.
 
+External sample browsing is optional. See [sample-browser.md](sample-browser.md) for the Yazi/chooser-file workflow and audition helper.
+
 Current limitations:
 
 - no realtime audio output;

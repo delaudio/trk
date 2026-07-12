@@ -1,0 +1,55 @@
+#!/bin/sh
+set -eu
+
+pidfile="${TMPDIR:-/tmp}/salieri-yazi-audition.pid"
+
+stop_previous() {
+  if [ -f "$pidfile" ]; then
+    old_pid="$(cat "$pidfile" 2>/dev/null || true)"
+    if [ -n "$old_pid" ]; then
+      kill "$old_pid" 2>/dev/null || true
+    fi
+    rm -f "$pidfile"
+  fi
+}
+
+if [ "${1:-}" = "--stop" ]; then
+  stop_previous
+  exit 0
+fi
+
+if [ $# -lt 1 ]; then
+  echo "usage: yazi-audition FILE | --stop" >&2
+  exit 2
+fi
+
+file="$1"
+if [ ! -f "$file" ]; then
+  echo "not a file: $file" >&2
+  exit 1
+fi
+
+stop_previous
+lower="$(printf %s "$file" | tr '[:upper:]' '[:lower:]')"
+case "$lower" in
+  *.flac|*.ogg|*.opus)
+    if command -v ffplay >/dev/null 2>&1; then
+      ffplay -nodisp -autoexit -loglevel error "$file" >/dev/null 2>&1 &
+    else
+      echo "ffplay is required for this format" >&2
+      exit 1
+    fi
+    ;;
+  *)
+    if command -v afplay >/dev/null 2>&1; then
+      afplay "$file" >/dev/null 2>&1 &
+    elif command -v ffplay >/dev/null 2>&1; then
+      ffplay -nodisp -autoexit -loglevel error "$file" >/dev/null 2>&1 &
+    else
+      echo "afplay or ffplay is required" >&2
+      exit 1
+    fi
+    ;;
+esac
+
+echo "$!" > "$pidfile"

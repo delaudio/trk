@@ -7,12 +7,13 @@ use std::{
     fs::OpenOptions,
     io::Write,
     path::{Path, PathBuf},
+    process::Command as ProcessCommand,
     thread,
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use anyhow::{Context, Result};
-use config::{load_config, AppConfig};
+use config::{load_config, AppConfig, SampleBrowserConfig};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use persistence::{load_project, save_project};
 use playback_runtime::{PlaybackRuntime, PlaybackUpdate};
@@ -151,6 +152,14 @@ fn run(args: CliArgs) -> Result<()> {
             match event::read()? {
                 Event::Key(key) => {
                     app.handle_key(key);
+                    if let Some((sample_browser, request)) = app.take_sample_browser_request() {
+                        let result = terminal
+                            .suspend(|| run_external_sample_browser(&sample_browser, &request));
+                        match result {
+                            Ok(browser_result) => app.finish_sample_browser(browser_result),
+                            Err(error) => app.finish_sample_browser(Err(error)),
+                        }
+                    }
                     app.keep_active_row_visible(terminal.visible_pattern_rows());
                 }
                 Event::Resize(_, _) => app.keep_active_row_visible(terminal.visible_pattern_rows()),
@@ -658,6 +667,63 @@ fn compact_waveform_text(buckets: &[WaveformBucket]) -> String {
         .collect()
 }
 
+fn run_external_sample_browser(
+    config: &SampleBrowserConfig,
+    request: &SampleBrowserRequest,
+) -> Result<Option<PathBuf>> {
+    let command_template = config
+        .chooser_command
+        .as_deref()
+        .filter(|command| !command.trim().is_empty())
+        .context("sample browser chooser_command is not configured")?;
+    let chooser_file = temporary_chooser_file();
+    let start_dir = request
+        .start_dir
+        .as_deref()
+        .or(config.start_dir.as_deref())
+        .unwrap_or_else(|| Path::new("."));
+    let command = command_template
+        .replace("{chooser_file}", &shell_quote(&chooser_file))
+        .replace("{start_dir}", &shell_quote(start_dir));
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+    let status = ProcessCommand::new(shell)
+        .arg("-lc")
+        .arg(command)
+        .env("SALIERI_CHOOSER_FILE", &chooser_file)
+        .env("SALIERI_SAMPLE_START_DIR", start_dir)
+        .status()
+        .context("failed to launch sample browser")?;
+
+    if !status.success() {
+        let _ = std::fs::remove_file(&chooser_file);
+        anyhow::bail!("sample browser exited with {status}");
+    }
+
+    let selected = std::fs::read_to_string(&chooser_file).unwrap_or_default();
+    let _ = std::fs::remove_file(&chooser_file);
+    let selected = selected.trim();
+    if selected.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(PathBuf::from(selected)))
+    }
+}
+
+fn temporary_chooser_file() -> PathBuf {
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |duration| duration.as_nanos());
+    std::env::temp_dir().join(format!(
+        "salieri-sample-chooser-{}-{timestamp}.txt",
+        std::process::id()
+    ))
+}
+
+fn shell_quote(path: &Path) -> String {
+    let value = path.to_string_lossy();
+    format!("'{}'", value.replace('\'', "'\\''"))
+}
+
 fn print_midi_outputs() -> Result<()> {
     let ports = match list_output_ports() {
         Ok(ports) => ports,
@@ -774,6 +840,8 @@ struct App {
     midi_ports: Vec<MidiOutputPort>,
     midi_port_cursor: usize,
     sample_view: Option<AppSampleView>,
+    sample_browser: SampleBrowserConfig,
+    pending_sample_browser: Option<SampleBrowserRequest>,
     dirty: bool,
     should_quit: bool,
     dialog: Option<Dialog>,
@@ -806,6 +874,11 @@ struct AppSampleView {
     source_path: PathBuf,
     sample: Sample,
     overview: WaveformOverview,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SampleBrowserRequest {
+    start_dir: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -869,6 +942,8 @@ impl App {
             midi_ports: Vec::new(),
             midi_port_cursor: 0,
             sample_view: None,
+            sample_browser: config.sample_browser.clone(),
+            pending_sample_browser: None,
             dirty: false,
             should_quit: false,
             dialog: None,
@@ -2455,8 +2530,16 @@ impl App {
                         self.load_sampler_view(PathBuf::from(path));
                     }
                 }
+                Some("browse") | Some("browser") | Some("choose") => {
+                    let path = parts.collect::<Vec<_>>().join(" ");
+                    self.request_sample_browser(if path.is_empty() {
+                        None
+                    } else {
+                        Some(PathBuf::from(path))
+                    });
+                }
                 None => self.open_sampler_view(),
-                Some(_) => self.notify_warning("Usage: :sample view PATH"),
+                Some(_) => self.notify_warning("Usage: :sample view PATH or :sample browse [DIR]"),
             },
             _ => self.notify_warning(format!("Unknown command: {name}")),
         }
@@ -2636,6 +2719,45 @@ impl App {
             Err(error) => {
                 self.mode = AppMode::Sampler;
                 self.notify_error(format!("Sample load failed: {error}"));
+            }
+        }
+    }
+
+    fn request_sample_browser(&mut self, start_dir: Option<PathBuf>) {
+        if self
+            .sample_browser
+            .chooser_command
+            .as_deref()
+            .is_none_or(str::is_empty)
+        {
+            self.mode = AppMode::Sampler;
+            self.notify_warning("Sample browser not configured");
+            return;
+        }
+
+        self.pending_sample_browser = Some(SampleBrowserRequest { start_dir });
+        self.mode = AppMode::Sampler;
+        self.notify_info("Opening sample browser");
+    }
+
+    fn take_sample_browser_request(
+        &mut self,
+    ) -> Option<(SampleBrowserConfig, SampleBrowserRequest)> {
+        self.pending_sample_browser
+            .take()
+            .map(|request| (self.sample_browser.clone(), request))
+    }
+
+    fn finish_sample_browser(&mut self, result: Result<Option<PathBuf>>) {
+        match result {
+            Ok(Some(path)) => self.load_sampler_view(path),
+            Ok(None) => {
+                self.mode = AppMode::Sampler;
+                self.notify_info("Sample browser closed");
+            }
+            Err(error) => {
+                self.mode = AppMode::Sampler;
+                self.notify_error(format!("Sample browser failed: {error}"));
             }
         }
     }
@@ -4566,6 +4688,57 @@ mod tests {
         assert_eq!(sampler.overview.sample_rate, 44_100);
         assert_eq!(sampler.overview.channels, 1);
         assert_eq!(sampler.overview.frames, 4);
+    }
+
+    #[test]
+    fn sample_browser_command_queues_external_request_when_configured() {
+        let mut app = App::new(AppConfig {
+            sample_browser: SampleBrowserConfig {
+                chooser_command: Some("true".to_string()),
+                start_dir: Some(PathBuf::from("Samples")),
+            },
+            ..AppConfig::default()
+        });
+
+        enter_command(&mut app, "sample browse Drums");
+
+        assert_eq!(app.mode, AppMode::Sampler);
+        let (config, request) = app.take_sample_browser_request().expect("browser request");
+        assert_eq!(config.chooser_command, Some("true".to_string()));
+        assert_eq!(request.start_dir, Some(PathBuf::from("Drums")));
+    }
+
+    #[test]
+    fn sample_browser_command_warns_without_configuration() {
+        let mut app = App::default();
+
+        enter_command(&mut app, "sample browse");
+
+        assert_eq!(app.mode, AppMode::Sampler);
+        assert!(app.take_sample_browser_request().is_none());
+        assert_eq!(
+            app.notification
+                .as_ref()
+                .map(|value| value.message.as_str()),
+            Some("Sample browser not configured")
+        );
+    }
+
+    #[test]
+    fn external_sample_browser_reads_selected_path_from_chooser_file() {
+        let selected = run_external_sample_browser(
+            &SampleBrowserConfig {
+                chooser_command: Some(
+                    "printf '%s\n' \"$SALIERI_SAMPLE_START_DIR/pick.wav\" > \"$SALIERI_CHOOSER_FILE\""
+                        .to_string(),
+                ),
+                start_dir: Some(PathBuf::from("Samples")),
+            },
+            &SampleBrowserRequest { start_dir: None },
+        )
+        .expect("run browser");
+
+        assert_eq!(selected, Some(PathBuf::from("Samples/pick.wav")));
     }
 
     #[test]
