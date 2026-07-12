@@ -21,8 +21,8 @@ use salieri_midi::{list_output_ports, MidiMessage, MidiOutput, MidiOutputPort, M
 use salieri_sampler::{Sample, WaveformBucket, WaveformOverview};
 use salieri_transform::{apply_euclidean, EuclideanRhythm};
 use salieri_tui::{
-    render, MidiPortView, MidiSettingsState, NotificationKind, NotificationView, SelectionRect,
-    TuiState, TuiView,
+    render, MidiPortView, MidiSettingsState, NotificationKind, NotificationView, SamplerViewState,
+    SelectionRect, TuiState, TuiView,
 };
 use terminal::TerminalGuard;
 
@@ -134,6 +134,7 @@ fn run(args: CliArgs) -> Result<()> {
                     quit_confirmation: app.quit_confirmation(),
                     delete_confirmation: app.delete_confirmation_message(),
                     midi_settings,
+                    sampler_view: app.tui_sampler_view(),
                 },
             );
         })?;
@@ -772,6 +773,7 @@ struct App {
     midi_status: String,
     midi_ports: Vec<MidiOutputPort>,
     midi_port_cursor: usize,
+    sample_view: Option<AppSampleView>,
     dirty: bool,
     should_quit: bool,
     dialog: Option<Dialog>,
@@ -797,6 +799,13 @@ struct Notification {
     kind: NotificationKind,
     message: String,
     expires_at: Instant,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct AppSampleView {
+    source_path: PathBuf,
+    sample: Sample,
+    overview: WaveformOverview,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -859,6 +868,7 @@ impl App {
             midi_status,
             midi_ports: Vec::new(),
             midi_port_cursor: 0,
+            sample_view: None,
             dirty: false,
             should_quit: false,
             dialog: None,
@@ -894,6 +904,7 @@ impl App {
             AppMode::Sequence => self.handle_sequence_key(key),
             AppMode::Tracks => self.handle_tracks_key(key),
             AppMode::Patterns => self.handle_patterns_key(key),
+            AppMode::Sampler => self.handle_sampler_key(key),
         }
     }
 
@@ -1030,6 +1041,10 @@ impl App {
             }
             KeyCode::F(10) => {
                 self.open_patterns_view();
+                return;
+            }
+            KeyCode::F(11) => {
+                self.open_sampler_view();
                 return;
             }
             KeyCode::F(6) => {
@@ -1400,6 +1415,26 @@ impl App {
             KeyCode::Char('4') => self.resize_current_pattern(128),
             KeyCode::Char('5') => self.resize_current_pattern(256),
             KeyCode::Enter => self.mode = AppMode::Normal,
+            _ => {}
+        }
+    }
+
+    fn handle_sampler_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Esc => self.mode = AppMode::Normal,
+            KeyCode::Char('q') => self.request_quit(false),
+            KeyCode::Char('?') | KeyCode::Char('H') => self.mode = AppMode::Help,
+            KeyCode::Char(':') => {
+                self.command_buffer.clear();
+                self.mode = AppMode::Command;
+            }
+            KeyCode::F(4) => self.open_midi_settings(),
+            KeyCode::F(7) => self.open_sequence_view(),
+            KeyCode::F(9) => self.open_tracks_view(),
+            KeyCode::F(10) => self.open_patterns_view(),
+            KeyCode::F(11) => self.mode = AppMode::Normal,
+            KeyCode::F(8) => self.stop_playback(),
+            KeyCode::Char(' ') => self.toggle_playback(),
             _ => {}
         }
     }
@@ -2411,6 +2446,18 @@ impl App {
                     self.notify_warning("Usage: :sequence add|remove|duplicate|set|move")
                 }
             },
+            "sample" | "sampler" => match parts.next() {
+                Some("view") | Some("inspect") | Some("load") => {
+                    let path = parts.collect::<Vec<_>>().join(" ");
+                    if path.is_empty() {
+                        self.open_sampler_view();
+                    } else {
+                        self.load_sampler_view(PathBuf::from(path));
+                    }
+                }
+                None => self.open_sampler_view(),
+                Some(_) => self.notify_warning("Usage: :sample view PATH"),
+            },
             _ => self.notify_warning(format!("Unknown command: {name}")),
         }
     }
@@ -2562,6 +2609,35 @@ impl App {
         self.clamp_pattern_index();
         self.mode = AppMode::Patterns;
         self.notify_info(format!("Pattern {:02}", self.pattern_index + 1));
+    }
+
+    fn open_sampler_view(&mut self) {
+        self.mode = AppMode::Sampler;
+        if let Some(sample) = &self.sample_view {
+            self.notify_info(format!("Sample {}", sample.sample.name));
+        } else {
+            self.notify_info("Sampler view");
+        }
+    }
+
+    fn load_sampler_view(&mut self, path: PathBuf) {
+        match Sample::load_wav(&path) {
+            Ok(sample) => {
+                let overview = sample.waveform_overview(96);
+                let name = sample.name.clone();
+                self.sample_view = Some(AppSampleView {
+                    source_path: path,
+                    sample,
+                    overview,
+                });
+                self.mode = AppMode::Sampler;
+                self.notify_success(format!("Sample loaded: {name}"));
+            }
+            Err(error) => {
+                self.mode = AppMode::Sampler;
+                self.notify_error(format!("Sample load failed: {error}"));
+            }
+        }
     }
 
     fn refresh_midi_ports(&mut self) {
@@ -2807,6 +2883,7 @@ impl App {
             AppMode::Sequence => TuiView::Sequence,
             AppMode::Tracks => TuiView::Tracks,
             AppMode::Patterns => TuiView::Patterns,
+            AppMode::Sampler => TuiView::Sampler,
             AppMode::Normal
             | AppMode::Edit
             | AppMode::Command
@@ -2934,6 +3011,14 @@ impl App {
             status: self.midi_status.as_str(),
         })
     }
+
+    fn tui_sampler_view(&self) -> Option<SamplerViewState<'_>> {
+        self.sample_view.as_ref().map(|sample| SamplerViewState {
+            name: sample.sample.name.as_str(),
+            source_path: sample.source_path.to_str().unwrap_or("<non-utf8 path>"),
+            overview: &sample.overview,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2947,6 +3032,7 @@ enum AppMode {
     Sequence,
     Tracks,
     Patterns,
+    Sampler,
 }
 
 impl AppMode {
@@ -2961,6 +3047,7 @@ impl AppMode {
             AppMode::Sequence => "SEQUENCE",
             AppMode::Tracks => "TRACKS",
             AppMode::Patterns => "PATTERNS",
+            AppMode::Sampler => "SAMPLER",
         }
     }
 }
@@ -4451,6 +4538,34 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn sampler_view_opens_without_sample_and_loads_wav_from_command() {
+        let mut app = App::default();
+
+        app.handle_key(KeyEvent::new(KeyCode::F(11), KeyModifiers::NONE));
+        assert_eq!(app.mode, AppMode::Sampler);
+        assert_eq!(app.tui_active_view(), TuiView::Sampler);
+        assert!(app.tui_sampler_view().is_none());
+
+        let path =
+            std::env::temp_dir().join(format!("salieri-sampler-view-{}.wav", std::process::id()));
+        std::fs::write(
+            &path,
+            wav_pcm16_bytes(44_100, 1, &[0, i16::MAX, i16::MIN, 16_384]),
+        )
+        .expect("write wav");
+
+        enter_command(&mut app, &format!("sample view {}", path.display()));
+        let _ = std::fs::remove_file(&path);
+
+        assert_eq!(app.mode, AppMode::Sampler);
+        let sampler = app.tui_sampler_view().expect("sampler view");
+        assert_eq!(sampler.name, path.file_name().unwrap().to_string_lossy());
+        assert_eq!(sampler.overview.sample_rate, 44_100);
+        assert_eq!(sampler.overview.channels, 1);
+        assert_eq!(sampler.overview.frames, 4);
     }
 
     #[test]

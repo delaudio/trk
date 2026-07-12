@@ -20,7 +20,7 @@ enum LayoutKind {
     Large,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TuiState<'a> {
     pub cursor: Cursor,
     pub row_offset: usize,
@@ -42,6 +42,7 @@ pub struct TuiState<'a> {
     pub quit_confirmation: bool,
     pub delete_confirmation: Option<&'a str>,
     pub midi_settings: Option<MidiSettingsState<'a>>,
+    pub sampler_view: Option<SamplerViewState<'a>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -50,6 +51,14 @@ pub enum TuiView {
     Sequence,
     Tracks,
     Patterns,
+    Sampler,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SamplerViewState<'a> {
+    pub name: &'a str,
+    pub source_path: &'a str,
+    pub overview: &'a WaveformOverview,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -227,6 +236,10 @@ fn render_body(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'
     }
     if state.active_view == TuiView::Patterns {
         render_pattern_manager(frame, area, song, state.pattern_index);
+        return;
+    }
+    if state.active_view == TuiView::Sampler {
+        render_sampler_view(frame, area, state.sampler_view);
         return;
     }
 
@@ -510,6 +523,39 @@ fn render_pattern_manager(frame: &mut Frame<'_>, area: Rect, song: &Song, active
     frame.render_widget(patterns, area);
 }
 
+fn render_sampler_view(frame: &mut Frame<'_>, area: Rect, sampler: Option<SamplerViewState<'_>>) {
+    let Some(sampler) = sampler else {
+        let empty = Paragraph::new("No sample loaded")
+            .block(Block::default().title(" Sampler ").borders(Borders::ALL));
+        frame.render_widget(empty, area);
+        return;
+    };
+
+    let sections = Layout::default()
+        .direction(LayoutDirection::Vertical)
+        .constraints([Constraint::Length(8), Constraint::Min(5)])
+        .split(area);
+
+    let overview = sampler.overview;
+    let lines = vec![
+        Line::from(format!("Name: {}", truncate(sampler.name, 48))),
+        Line::from(format!("Path: {}", truncate(sampler.source_path, 72))),
+        Line::from(format!("Sample rate: {} Hz", overview.sample_rate)),
+        Line::from(format!("Channels: {}", overview.channels)),
+        Line::from(format!("Frames: {}", overview.frames)),
+        Line::from(format!("Duration: {:.3} s", overview.duration_seconds)),
+    ];
+    let metadata = Paragraph::new(lines)
+        .block(
+            Block::default()
+                .title(" Sample Metadata ")
+                .borders(Borders::ALL),
+        )
+        .wrap(Wrap { trim: true });
+    frame.render_widget(metadata, sections[0]);
+    render_waveform_overview(frame, sections[1], overview);
+}
+
 fn render_pattern(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
     let Some(pattern) = active_pattern(song, state.pattern_index) else {
         let empty = Paragraph::new("No pattern")
@@ -769,9 +815,14 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
             " {} | H Help | Esc Pattern | N New | P Duplicate | r Rename | X/Del Delete | 1-5 Length Presets | F6 Length | : Command | Ctrl+S Save | Ctrl+Shift+S Save As | q Quit ",
             state.mode_label
         )
+    } else if state.active_view == TuiView::Sampler {
+        format!(
+            " {} | H Help | Esc Pattern | F7 Sequence | F9 Tracks | F10 Patterns | : Command | Ctrl+S Save | Ctrl+Shift+S Save As | q Quit ",
+            state.mode_label
+        )
     } else {
         format!(
-            " {}{} | H Help | F4 MIDI | F7 Sequence | F9 Tracks | F10 Patterns | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern | A/Y/R Seq | {{/}} Track | : Command | i Edit | V Select | Ctrl+S Save | Ctrl+Shift+S Save As | q Quit ",
+            " {}{} | H Help | F4 MIDI | F7 Sequence | F9 Tracks | F10 Patterns | F11 Sampler | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern | A/Y/R Seq | {{/}} Track | : Command | i Edit | V Select | Ctrl+S Save | Ctrl+Shift+S Save As | q Quit ",
             state.mode_label,
             if state.selection.is_some() { " SEL" } else { "" }
         )
@@ -792,6 +843,7 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
         Line::from("  ?/H Help   :h/:help Help   q Quit   Space Play/Stop   Shift+Space Start"),
         Line::from("  Enter Play Row   Shift+Enter Play Sequence From Cursor   L Loop   F8 Stop"),
         Line::from("  F7 Sequence View   F9 Track View   F10 Pattern View   Esc returns from focused views"),
+        Line::from("  F11 Sampler View   :sample view PATH loads a WAV reference for waveform inspection"),
         Line::from("  :play pattern from start   :play sequence arrangement"),
         Line::from("  Ctrl+S Save   Ctrl+Shift+S Save As   Ctrl+Z Undo   Ctrl+Y Redo   Ctrl+Arrows BPM/LPB"),
         Line::from(""),
@@ -1181,6 +1233,7 @@ mod tests {
                         quit_confirmation: false,
                         delete_confirmation: None,
                         midi_settings: None,
+                        sampler_view: None,
                     },
                 );
             })
@@ -1231,6 +1284,7 @@ mod tests {
                         quit_confirmation: false,
                         delete_confirmation: None,
                         midi_settings: None,
+                        sampler_view: None,
                     },
                 );
             })
@@ -1281,6 +1335,7 @@ mod tests {
                         quit_confirmation: false,
                         delete_confirmation: None,
                         midi_settings: None,
+                        sampler_view: None,
                     },
                 );
             })
@@ -1331,6 +1386,7 @@ mod tests {
                         quit_confirmation: false,
                         delete_confirmation: None,
                         midi_settings: None,
+                        sampler_view: None,
                     },
                 );
             })
@@ -1389,6 +1445,7 @@ mod tests {
                         quit_confirmation: false,
                         delete_confirmation: None,
                         midi_settings: None,
+                        sampler_view: None,
                     },
                 );
             })
@@ -1440,6 +1497,7 @@ mod tests {
                         quit_confirmation: false,
                         delete_confirmation: None,
                         midi_settings: None,
+                        sampler_view: None,
                     },
                 );
             })
@@ -1491,6 +1549,7 @@ mod tests {
                         quit_confirmation: false,
                         delete_confirmation: None,
                         midi_settings: None,
+                        sampler_view: None,
                     },
                 );
             })
@@ -1540,6 +1599,7 @@ mod tests {
                         quit_confirmation: true,
                         delete_confirmation: None,
                         midi_settings: None,
+                        sampler_view: None,
                     },
                 );
             })
@@ -1589,6 +1649,7 @@ mod tests {
                         quit_confirmation: false,
                         delete_confirmation: Some("Delete track 02 Bass?"),
                         midi_settings: None,
+                        sampler_view: None,
                     },
                 );
             })
@@ -1652,6 +1713,7 @@ mod tests {
                             selected_port: 1,
                             status: "MIDI Disconnected",
                         }),
+                        sampler_view: None,
                     },
                 );
             })

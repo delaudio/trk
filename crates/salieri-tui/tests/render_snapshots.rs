@@ -4,8 +4,8 @@ use ratatui::{backend::TestBackend, Terminal};
 use salieri_core::{Cursor, NoteEvent, Song};
 use salieri_sampler::{WaveformBucket, WaveformOverview};
 use salieri_tui::{
-    render, render_waveform_overview, MidiPortView, MidiSettingsState, SelectionRect, TuiState,
-    TuiView,
+    render, render_waveform_overview, MidiPortView, MidiSettingsState, SamplerViewState,
+    SelectionRect, TuiState, TuiView,
 };
 
 #[test]
@@ -35,6 +35,7 @@ fn snapshots_empty_pattern_editor() {
                 quit_confirmation: false,
                 delete_confirmation: None,
                 midi_settings: None,
+                sampler_view: None,
             },
             100,
             28,
@@ -89,6 +90,7 @@ fn snapshots_populated_pattern_editor() {
                 quit_confirmation: false,
                 delete_confirmation: None,
                 midi_settings: None,
+                sampler_view: None,
             },
             100,
             28,
@@ -133,6 +135,7 @@ fn snapshots_cursor_and_selection_state() {
                 quit_confirmation: false,
                 delete_confirmation: None,
                 midi_settings: None,
+                sampler_view: None,
             },
             100,
             28,
@@ -167,6 +170,7 @@ fn snapshots_help_overlay() {
                 quit_confirmation: false,
                 delete_confirmation: None,
                 midi_settings: None,
+                sampler_view: None,
             },
             120,
             36,
@@ -216,6 +220,7 @@ fn snapshots_midi_settings_overlay() {
                     selected_port: 1,
                     status: "MIDI Disconnected",
                 }),
+                sampler_view: None,
             },
             100,
             28,
@@ -250,6 +255,7 @@ fn snapshots_small_layout() {
                 quit_confirmation: false,
                 delete_confirmation: None,
                 midi_settings: None,
+                sampler_view: None,
             },
             72,
             24,
@@ -284,6 +290,7 @@ fn snapshots_medium_layout() {
                 quit_confirmation: false,
                 delete_confirmation: None,
                 midi_settings: None,
+                sampler_view: None,
             },
             100,
             28,
@@ -318,6 +325,7 @@ fn snapshots_large_layout() {
                 quit_confirmation: false,
                 delete_confirmation: None,
                 midi_settings: None,
+                sampler_view: None,
             },
             140,
             32,
@@ -352,6 +360,7 @@ fn snapshots_sequence_view() {
                 quit_confirmation: false,
                 delete_confirmation: None,
                 midi_settings: None,
+                sampler_view: None,
             },
             72,
             24,
@@ -389,6 +398,7 @@ fn snapshots_tracks_view() {
                 quit_confirmation: false,
                 delete_confirmation: None,
                 midi_settings: None,
+                sampler_view: None,
             },
             72,
             24,
@@ -426,9 +436,68 @@ fn snapshots_patterns_view() {
                 quit_confirmation: false,
                 delete_confirmation: None,
                 midi_settings: None,
+                sampler_view: None,
             },
             72,
             24,
+        ),
+    );
+}
+
+#[test]
+fn snapshots_sampler_view() {
+    let overview = waveform_overview(vec![
+        WaveformBucket {
+            min: -0.2,
+            max: 0.8,
+        },
+        WaveformBucket {
+            min: -0.4,
+            max: 0.6,
+        },
+        WaveformBucket {
+            min: -0.8,
+            max: 0.3,
+        },
+        WaveformBucket {
+            min: -0.5,
+            max: 0.9,
+        },
+    ]);
+
+    assert_snapshot(
+        "sampler-view",
+        render_snapshot(
+            Song::empty(),
+            TuiState {
+                cursor: Cursor::new(),
+                row_offset: 0,
+                pattern_index: 0,
+                active_view: TuiView::Sampler,
+                selection: None,
+                mode_label: "SAMPLER",
+                octave: 4,
+                dirty: false,
+                show_line_numbers_hex: false,
+                command_line: None,
+                notification: None,
+                show_help: false,
+                is_playing: false,
+                loop_pattern: true,
+                playhead_row: None,
+                midi_status: "MIDI Disconnected",
+                sequence_position: None,
+                quit_confirmation: false,
+                delete_confirmation: None,
+                midi_settings: None,
+                sampler_view: Some(SamplerViewState {
+                    name: "break.wav",
+                    source_path: "/samples/drums/break.wav",
+                    overview: &overview,
+                }),
+            },
+            100,
+            28,
         ),
     );
 }
