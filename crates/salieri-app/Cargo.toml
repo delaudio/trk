@@ -15,6 +15,7 @@ ctrlc.workspace = true
 ratatui.workspace = true
 salieri-core = { path = "../salieri-core" }
 salieri-midi = { path = "../salieri-midi" }
+salieri-sampler = { path = "../salieri-sampler" }
 salieri-transform = { path = "../salieri-transform" }
 salieri-tui = { path = "../salieri-tui" }
 serde.workspace = true

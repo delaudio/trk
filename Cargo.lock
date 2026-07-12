@@ -648,6 +648,7 @@ dependencies = [
  "ratatui",
  "salieri-core",
  "salieri-midi",
+ "salieri-sampler",
  "salieri-transform",
  "salieri-tui",
  "serde",

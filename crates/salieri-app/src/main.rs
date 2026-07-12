@@ -18,6 +18,7 @@ use persistence::{load_project, save_project};
 use playback_runtime::{PlaybackRuntime, PlaybackUpdate};
 use salieri_core::{CellField, Cursor, Direction, NoteEvent, PatternCell, Song, TrackerCommand};
 use salieri_midi::{list_output_ports, MidiMessage, MidiOutput, MidiOutputPort, MidirMidiOutput};
+use salieri_sampler::{Sample, WaveformBucket, WaveformOverview};
 use salieri_transform::{apply_euclidean, EuclideanRhythm};
 use salieri_tui::{
     render, MidiPortView, MidiSettingsState, NotificationKind, NotificationView, SelectionRect,
@@ -72,6 +73,10 @@ fn run(args: CliArgs) -> Result<()> {
         }
         CliCommand::TransformEuclidean(transform_args) => {
             run_transform_euclidean(transform_args)?;
+            return Ok(());
+        }
+        CliCommand::SampleInspect(sample_args) => {
+            run_sample_inspect(sample_args)?;
             return Ok(());
         }
         CliCommand::Run | CliCommand::MidiTest => {}
@@ -222,6 +227,16 @@ impl CliArgs {
                         midi_test,
                     }
                 }
+                "sample" => {
+                    return Self {
+                        command: parse_sample_command(args),
+                        project_path: None,
+                        config_path,
+                        log_level,
+                        midi_log_path,
+                        midi_test,
+                    }
+                }
                 "--midi-test-output" => {
                     midi_test.output = args.next();
                 }
@@ -334,11 +349,12 @@ enum CliCommand {
     ListMidiOutputs,
     MidiTest,
     TransformEuclidean(TransformEuclideanArgs),
+    SampleInspect(SampleInspectArgs),
 }
 
 fn print_help() {
     println!(
-        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index (default 1)\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Velocity, 0-127 (default 100)\n\n  --help                        Show this help\n  --version                     Show version"
+        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri sample inspect FILE [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index (default 1)\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Velocity, 0-127 (default 100)\n\nSample inspect options:\n  --format text|json            Output format (default text)\n  --buckets N, --width N        Waveform bucket count (default 64)\n\n  --help                        Show this help\n  --version                     Show version"
     );
 }
 
@@ -346,6 +362,14 @@ fn parse_transform_command(args: impl IntoIterator<Item = String>) -> CliCommand
     let mut args = args.into_iter();
     match args.next().as_deref() {
         Some("euclidean") => CliCommand::TransformEuclidean(parse_transform_euclidean_args(args)),
+        _ => CliCommand::Help,
+    }
+}
+
+fn parse_sample_command(args: impl IntoIterator<Item = String>) -> CliCommand {
+    let mut args = args.into_iter();
+    match args.next().as_deref() {
+        Some("inspect") => CliCommand::SampleInspect(parse_sample_inspect_args(args)),
         _ => CliCommand::Help,
     }
 }
@@ -361,6 +385,35 @@ struct TransformEuclideanArgs {
     rotation: usize,
     pitch: u8,
     velocity: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SampleInspectFormat {
+    Text,
+    Json,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SampleInspectArgs {
+    path: Option<PathBuf>,
+    format: SampleInspectFormat,
+    buckets: usize,
+}
+
+impl Default for SampleInspectArgs {
+    fn default() -> Self {
+        Self {
+            path: None,
+            format: SampleInspectFormat::Text,
+            buckets: 64,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct SampleInspection {
+    sample: Sample,
+    overview: WaveformOverview,
 }
 
 impl Default for TransformEuclideanArgs {
@@ -424,6 +477,44 @@ fn parse_transform_euclidean_args(
     parsed
 }
 
+fn parse_sample_inspect_args(args: impl IntoIterator<Item = String>) -> SampleInspectArgs {
+    let mut parsed = SampleInspectArgs::default();
+    let mut args = args.into_iter();
+
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--format" => {
+                if let Some(value) = args.next() {
+                    parse_sample_format(&value, &mut parsed.format);
+                }
+            }
+            "--buckets" | "--width" => parse_next_usize(&mut args, &mut parsed.buckets),
+            _ if arg.starts_with("--format=") => {
+                parse_sample_format(arg.trim_start_matches("--format="), &mut parsed.format);
+            }
+            _ if arg.starts_with("--buckets=") => {
+                parse_usize_value(arg.trim_start_matches("--buckets="), &mut parsed.buckets);
+            }
+            _ if arg.starts_with("--width=") => {
+                parse_usize_value(arg.trim_start_matches("--width="), &mut parsed.buckets);
+            }
+            _ if parsed.path.is_none() => parsed.path = Some(PathBuf::from(arg)),
+            _ => {}
+        }
+    }
+
+    parsed.buckets = parsed.buckets.max(1);
+    parsed
+}
+
+fn parse_sample_format(value: &str, target: &mut SampleInspectFormat) {
+    match value {
+        "text" => *target = SampleInspectFormat::Text,
+        "json" => *target = SampleInspectFormat::Json,
+        _ => {}
+    }
+}
+
 fn parse_next_usize(args: &mut impl Iterator<Item = String>, target: &mut usize) {
     if let Some(value) = args.next() {
         parse_usize_value(&value, target);
@@ -485,6 +576,85 @@ fn run_transform_euclidean(args: &TransformEuclideanArgs) -> Result<()> {
         output_path.display()
     );
     Ok(())
+}
+
+fn run_sample_inspect(args: &SampleInspectArgs) -> Result<()> {
+    let inspection = inspect_sample(args)?;
+    match args.format {
+        SampleInspectFormat::Text => print!("{}", format_sample_inspection_text(&inspection)),
+        SampleInspectFormat::Json => println!("{}", format_sample_inspection_json(&inspection)?),
+    }
+    Ok(())
+}
+
+fn inspect_sample(args: &SampleInspectArgs) -> Result<SampleInspection> {
+    let path = args
+        .path
+        .as_deref()
+        .context("missing sample path: usage is salieri sample inspect FILE")?;
+    let sample = Sample::load_wav(path)
+        .with_context(|| format!("failed to load sample {}", path.display()))?;
+    let overview = sample.waveform_overview(args.buckets.max(1));
+
+    Ok(SampleInspection { sample, overview })
+}
+
+fn format_sample_inspection_text(inspection: &SampleInspection) -> String {
+    let sample = &inspection.sample;
+    let overview = &inspection.overview;
+    let waveform = compact_waveform_text(&overview.buckets);
+
+    format!(
+        "sample: {}\nsample_rate: {}\nchannels: {}\nframes: {}\nduration_seconds: {:.6}\nwaveform_buckets: {}\nwaveform: {}\n",
+        sample.name,
+        overview.sample_rate,
+        overview.channels,
+        overview.frames,
+        overview.duration_seconds,
+        overview.buckets.len(),
+        waveform
+    )
+}
+
+fn format_sample_inspection_json(inspection: &SampleInspection) -> Result<String> {
+    let overview = &inspection.overview;
+    let buckets = overview
+        .buckets
+        .iter()
+        .map(|bucket| serde_json::json!({ "min": bucket.min, "max": bucket.max }))
+        .collect::<Vec<_>>();
+    let output = serde_json::json!({
+        "schema_version": 1,
+        "sample": {
+            "name": inspection.sample.name,
+            "sample_rate": overview.sample_rate,
+            "channels": overview.channels,
+            "frames": overview.frames,
+            "duration_seconds": overview.duration_seconds,
+        },
+        "waveform": {
+            "bucket_count": overview.buckets.len(),
+            "buckets": buckets,
+        }
+    });
+
+    serde_json::to_string_pretty(&output).context("failed to encode sample inspection JSON")
+}
+
+fn compact_waveform_text(buckets: &[WaveformBucket]) -> String {
+    const GLYPHS: [char; 9] = [' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+    if buckets.is_empty() {
+        return "<empty>".to_string();
+    }
+
+    buckets
+        .iter()
+        .map(|bucket| {
+            let amplitude = bucket.min.abs().max(bucket.max.abs()).clamp(0.0, 1.0);
+            let index = (amplitude * (GLYPHS.len() - 1) as f32).round() as usize;
+            GLYPHS[index]
+        })
+        .collect()
 }
 
 fn print_midi_outputs() -> Result<()> {
@@ -3031,6 +3201,86 @@ mod tests {
     }
 
     #[test]
+    fn cli_parses_sample_inspect_options() {
+        assert_eq!(
+            CliArgs::parse([
+                "sample".to_string(),
+                "inspect".to_string(),
+                "kick.wav".to_string(),
+                "--format=json".to_string(),
+                "--width".to_string(),
+                "8".to_string(),
+            ]),
+            CliArgs {
+                command: CliCommand::SampleInspect(SampleInspectArgs {
+                    path: Some(PathBuf::from("kick.wav")),
+                    format: SampleInspectFormat::Json,
+                    buckets: 8,
+                }),
+                project_path: None,
+                config_path: None,
+                log_level: None,
+                midi_log_path: None,
+                midi_test: MidiTestArgs::default(),
+            }
+        );
+    }
+
+    #[test]
+    fn sample_inspect_loads_tiny_wav_and_formats_outputs() {
+        let path =
+            std::env::temp_dir().join(format!("salieri-sample-inspect-{}.wav", std::process::id()));
+        std::fs::write(
+            &path,
+            wav_pcm16_bytes(44_100, 1, &[0, i16::MAX, i16::MIN, 16_384]),
+        )
+        .expect("write wav");
+
+        let inspection = inspect_sample(&SampleInspectArgs {
+            path: Some(path.clone()),
+            format: SampleInspectFormat::Text,
+            buckets: 2,
+        })
+        .expect("inspect sample");
+        let _ = std::fs::remove_file(&path);
+
+        assert_eq!(inspection.sample.sample_rate, 44_100);
+        assert_eq!(inspection.sample.channels, 1);
+        assert_eq!(inspection.sample.frames, 4);
+        assert_eq!(inspection.overview.buckets.len(), 2);
+
+        let text = format_sample_inspection_text(&inspection);
+        assert!(text.contains("sample_rate: 44100"));
+        assert!(text.contains("channels: 1"));
+        assert!(text.contains("waveform_buckets: 2"));
+
+        let json = format_sample_inspection_json(&inspection).expect("json");
+        let value: serde_json::Value = serde_json::from_str(&json).expect("parse json");
+        assert_eq!(value["schema_version"], 1);
+        assert_eq!(value["sample"]["sample_rate"], 44_100);
+        assert_eq!(value["waveform"]["bucket_count"], 2);
+    }
+
+    #[test]
+    fn sample_inspect_reports_invalid_wav_with_context() {
+        let path = std::env::temp_dir().join(format!(
+            "salieri-sample-inspect-invalid-{}.wav",
+            std::process::id()
+        ));
+        std::fs::write(&path, b"not a wave").expect("write invalid wav");
+
+        let error = inspect_sample(&SampleInspectArgs {
+            path: Some(path.clone()),
+            format: SampleInspectFormat::Text,
+            buckets: 4,
+        })
+        .expect_err("invalid wav");
+        let _ = std::fs::remove_file(&path);
+
+        assert!(format!("{error:#}").contains("failed to load sample"));
+    }
+
+    #[test]
     fn euclidean_transform_command_round_trips_project_files() {
         let base =
             std::env::temp_dir().join(format!("salieri-transform-cli-{}", std::process::id()));
@@ -5072,5 +5322,29 @@ mod tests {
             app.handle_key(KeyEvent::new(KeyCode::Char(value), KeyModifiers::NONE));
         }
         app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+    }
+
+    fn wav_pcm16_bytes(sample_rate: u32, channels: u16, samples: &[i16]) -> Vec<u8> {
+        let data_size = samples.len() * 2;
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(b"RIFF");
+        bytes.extend_from_slice(&(36 + data_size as u32).to_le_bytes());
+        bytes.extend_from_slice(b"WAVE");
+        bytes.extend_from_slice(b"fmt ");
+        bytes.extend_from_slice(&16_u32.to_le_bytes());
+        bytes.extend_from_slice(&1_u16.to_le_bytes());
+        bytes.extend_from_slice(&channels.to_le_bytes());
+        bytes.extend_from_slice(&sample_rate.to_le_bytes());
+        let byte_rate = sample_rate * u32::from(channels) * 2;
+        bytes.extend_from_slice(&byte_rate.to_le_bytes());
+        let block_align = channels * 2;
+        bytes.extend_from_slice(&block_align.to_le_bytes());
+        bytes.extend_from_slice(&16_u16.to_le_bytes());
+        bytes.extend_from_slice(b"data");
+        bytes.extend_from_slice(&(data_size as u32).to_le_bytes());
+        for sample in samples {
+            bytes.extend_from_slice(&sample.to_le_bytes());
+        }
+        bytes
     }
 }
