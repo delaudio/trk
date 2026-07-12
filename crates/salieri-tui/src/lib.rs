@@ -1,6 +1,7 @@
 pub mod render;
 
 pub use render::{
-    render, MidiPortView, MidiSettingsState, NotificationKind, NotificationView, SelectionRect,
-    TuiState, TuiView,
+    render, render_waveform_overview, render_waveform_overview_with_glyphs, MidiPortView,
+    MidiSettingsState, NotificationKind, NotificationView, SelectionRect, TuiState, TuiView,
+    WaveformGlyphs,
 };

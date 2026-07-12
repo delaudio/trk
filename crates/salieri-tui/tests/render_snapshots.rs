@@ -2,7 +2,11 @@ use std::{fs, path::PathBuf};
 
 use ratatui::{backend::TestBackend, Terminal};
 use salieri_core::{Cursor, NoteEvent, Song};
-use salieri_tui::{render, MidiPortView, MidiSettingsState, SelectionRect, TuiState, TuiView};
+use salieri_sampler::{WaveformBucket, WaveformOverview};
+use salieri_tui::{
+    render, render_waveform_overview, MidiPortView, MidiSettingsState, SelectionRect, TuiState,
+    TuiView,
+};
 
 #[test]
 fn snapshots_empty_pattern_editor() {
@@ -429,6 +433,106 @@ fn snapshots_patterns_view() {
     );
 }
 
+#[test]
+fn snapshots_empty_waveform() {
+    assert_snapshot(
+        "waveform-empty",
+        render_waveform_snapshot(WaveformOverview {
+            sample_rate: 44_100,
+            channels: 1,
+            frames: 0,
+            duration_seconds: 0.0,
+            buckets: Vec::new(),
+        }),
+    );
+}
+
+#[test]
+fn snapshots_quiet_waveform() {
+    assert_snapshot(
+        "waveform-quiet",
+        render_waveform_snapshot(waveform_overview(vec![WaveformBucket {
+            min: 0.0,
+            max: 0.0,
+        }])),
+    );
+}
+
+#[test]
+fn snapshots_loud_waveform() {
+    assert_snapshot(
+        "waveform-loud",
+        render_waveform_snapshot(waveform_overview(vec![
+            WaveformBucket {
+                min: -1.0,
+                max: 1.0,
+            },
+            WaveformBucket {
+                min: -0.8,
+                max: 0.9,
+            },
+            WaveformBucket {
+                min: -1.0,
+                max: 0.7,
+            },
+            WaveformBucket {
+                min: -0.9,
+                max: 1.0,
+            },
+        ])),
+    );
+}
+
+#[test]
+fn snapshots_asymmetric_waveform() {
+    assert_snapshot(
+        "waveform-asymmetric",
+        render_waveform_snapshot(waveform_overview(vec![
+            WaveformBucket {
+                min: -0.15,
+                max: 0.75,
+            },
+            WaveformBucket {
+                min: -0.10,
+                max: 0.60,
+            },
+            WaveformBucket {
+                min: -0.25,
+                max: 0.35,
+            },
+            WaveformBucket {
+                min: -0.40,
+                max: 0.20,
+            },
+        ])),
+    );
+}
+
+#[test]
+fn snapshots_clipped_looking_waveform() {
+    assert_snapshot(
+        "waveform-clipped",
+        render_waveform_snapshot(waveform_overview(vec![
+            WaveformBucket {
+                min: -1.0,
+                max: 1.0,
+            },
+            WaveformBucket {
+                min: -1.0,
+                max: 1.0,
+            },
+            WaveformBucket {
+                min: -1.0,
+                max: 1.0,
+            },
+            WaveformBucket {
+                min: -1.0,
+                max: 1.0,
+            },
+        ])),
+    );
+}
+
 fn render_snapshot(song: Song, state: TuiState<'_>, width: u16, height: u16) -> String {
     let backend = TestBackend::new(width, height);
     let mut terminal = Terminal::new(backend).expect("test terminal");
@@ -446,6 +550,35 @@ fn render_snapshot(song: Song, state: TuiState<'_>, width: u16, height: u16) -> 
         output.push('\n');
     }
     output
+}
+
+fn render_waveform_snapshot(overview: WaveformOverview) -> String {
+    let backend = TestBackend::new(42, 10);
+    let mut terminal = Terminal::new(backend).expect("test terminal");
+
+    terminal
+        .draw(|frame| render_waveform_overview(frame, frame.area(), &overview))
+        .expect("draw");
+
+    let buffer = terminal.backend().buffer();
+    let mut output = String::new();
+    for y in 0..buffer.area.height {
+        for x in 0..buffer.area.width {
+            output.push_str(buffer[(x, y)].symbol());
+        }
+        output.push('\n');
+    }
+    output
+}
+
+fn waveform_overview(buckets: Vec<WaveformBucket>) -> WaveformOverview {
+    WaveformOverview {
+        sample_rate: 44_100,
+        channels: 2,
+        frames: 88_200,
+        duration_seconds: 2.0,
+        buckets,
+    }
 }
 
 fn assert_snapshot(name: &str, actual: String) {

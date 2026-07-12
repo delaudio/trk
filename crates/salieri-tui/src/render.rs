@@ -4,6 +4,7 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Paragraph, Wrap},
 };
 use salieri_core::{CellField, Cursor, NoteEvent, Pattern, PatternCell, Song};
+use salieri_sampler::WaveformOverview;
 
 const TRACK_PANEL_WIDTH: u16 = 27;
 const ROW_GUTTER_WIDTH: usize = 5;
@@ -49,6 +50,28 @@ pub enum TuiView {
     Sequence,
     Tracks,
     Patterns,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WaveformGlyphs {
+    Unicode,
+    Ascii,
+}
+
+impl WaveformGlyphs {
+    const fn filled(self) -> char {
+        match self {
+            Self::Unicode => '█',
+            Self::Ascii => '#',
+        }
+    }
+
+    const fn baseline(self) -> char {
+        match self {
+            Self::Unicode => '─',
+            Self::Ascii => '-',
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -123,6 +146,33 @@ pub fn render(frame: &mut Frame<'_>, song: &Song, state: TuiState<'_>) {
     if let Some(message) = state.delete_confirmation {
         render_delete_confirmation(frame, area, message);
     }
+}
+
+pub fn render_waveform_overview(frame: &mut Frame<'_>, area: Rect, overview: &WaveformOverview) {
+    render_waveform_overview_with_glyphs(frame, area, overview, WaveformGlyphs::Unicode);
+}
+
+pub fn render_waveform_overview_with_glyphs(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    overview: &WaveformOverview,
+    glyphs: WaveformGlyphs,
+) {
+    let block = Block::default().title(" Waveform ").borders(Borders::ALL);
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    if inner.width == 0 || inner.height == 0 {
+        return;
+    }
+
+    let lines = waveform_lines(
+        overview,
+        inner.width as usize,
+        inner.height as usize,
+        glyphs,
+    );
+    frame.render_widget(Paragraph::new(lines), inner);
 }
 
 fn render_header(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
@@ -942,6 +992,101 @@ fn centered_rect(width: u16, height: u16, area: Rect) -> Rect {
     }
 }
 
+fn waveform_lines(
+    overview: &WaveformOverview,
+    width: usize,
+    height: usize,
+    glyphs: WaveformGlyphs,
+) -> Vec<Line<'static>> {
+    if width == 0 || height == 0 {
+        return Vec::new();
+    }
+
+    let show_metadata = height >= 3;
+    let waveform_height = height.saturating_sub(usize::from(show_metadata));
+    let mut lines = Vec::with_capacity(height);
+    if show_metadata {
+        lines.push(Line::from(fixed_width(
+            &format!(
+                "{}fr {:.2}s {}Hz {}ch",
+                overview.frames, overview.duration_seconds, overview.sample_rate, overview.channels
+            ),
+            width,
+        )));
+    }
+
+    if waveform_height == 0 {
+        return lines;
+    }
+
+    if overview.buckets.is_empty() {
+        lines.extend(empty_waveform_lines(width, waveform_height));
+        return lines;
+    }
+
+    let mut grid = vec![vec![' '; width]; waveform_height];
+    for x in 0..width {
+        let bucket_index = x.saturating_mul(overview.buckets.len()) / width;
+        let bucket = overview.buckets[bucket_index.min(overview.buckets.len() - 1)];
+        let min = sanitize_waveform_value(bucket.min);
+        let max = sanitize_waveform_value(bucket.max);
+        let top = waveform_row(max, waveform_height);
+        let bottom = waveform_row(min, waveform_height);
+        let (top, bottom) = if top <= bottom {
+            (top, bottom)
+        } else {
+            (bottom, top)
+        };
+        let glyph = if top == bottom && min == 0.0 && max == 0.0 {
+            glyphs.baseline()
+        } else {
+            glyphs.filled()
+        };
+        for row in top..=bottom {
+            grid[row][x] = glyph;
+        }
+    }
+
+    lines.extend(
+        grid.into_iter()
+            .map(|row| Line::from(row.into_iter().collect::<String>())),
+    );
+    lines
+}
+
+fn empty_waveform_lines(width: usize, height: usize) -> Vec<Line<'static>> {
+    let mut lines = Vec::with_capacity(height);
+    let label = fixed_width("No waveform", width);
+    lines.push(Line::from(label));
+    lines.extend((1..height).map(|_| Line::from(" ".repeat(width))));
+    lines
+}
+
+fn waveform_row(value: f32, height: usize) -> usize {
+    if height <= 1 {
+        return 0;
+    }
+    let normalized = (sanitize_waveform_value(value) + 1.0) / 2.0;
+    ((1.0 - normalized) * (height - 1) as f32).round() as usize
+}
+
+fn sanitize_waveform_value(value: f32) -> f32 {
+    if value.is_finite() {
+        value.clamp(-1.0, 1.0)
+    } else {
+        0.0
+    }
+}
+
+fn fixed_width(value: &str, width: usize) -> String {
+    let mut text = truncate(value, width);
+    let len = text.chars().count();
+    if len < width {
+        text.push_str(&" ".repeat(width - len));
+    }
+    text
+}
+
 fn truncate(value: &str, max_chars: usize) -> String {
     let mut chars = value.chars();
     let truncated = chars.by_ref().take(max_chars).collect::<String>();
@@ -973,6 +1118,35 @@ mod tests {
         assert_eq!(layout_kind(80), LayoutKind::Medium);
         assert_eq!(layout_kind(119), LayoutKind::Medium);
         assert_eq!(layout_kind(120), LayoutKind::Large);
+    }
+
+    #[test]
+    fn waveform_lines_degrade_to_narrow_widths() {
+        let overview = test_waveform(vec![salieri_sampler::WaveformBucket {
+            min: -1.0,
+            max: 1.0,
+        }]);
+
+        let lines = waveform_lines(&overview, 1, 4, WaveformGlyphs::Unicode);
+
+        assert_eq!(lines.len(), 4);
+        assert!(lines
+            .iter()
+            .all(|line| line_text(line).chars().count() == 1));
+    }
+
+    #[test]
+    fn waveform_lines_support_ascii_glyphs() {
+        let overview = test_waveform(vec![salieri_sampler::WaveformBucket {
+            min: -0.5,
+            max: 0.5,
+        }]);
+
+        let lines = waveform_lines(&overview, 8, 2, WaveformGlyphs::Ascii);
+        let rendered = lines.iter().map(line_text).collect::<Vec<_>>().join("\n");
+
+        assert!(rendered.contains('#'));
+        assert!(!rendered.contains('█'));
     }
 
     #[test]
@@ -1495,5 +1669,22 @@ mod tests {
         assert!(rendered.contains("IAC Driver Bus 1"));
         assert!(rendered.contains("External Synth"));
         assert!(rendered.contains("Enter connect selected"));
+    }
+
+    fn test_waveform(buckets: Vec<salieri_sampler::WaveformBucket>) -> WaveformOverview {
+        WaveformOverview {
+            sample_rate: 44_100,
+            channels: 1,
+            frames: 44_100,
+            duration_seconds: 1.0,
+            buckets,
+        }
+    }
+
+    fn line_text(line: &Line<'_>) -> String {
+        line.spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect::<String>()
     }
 }
