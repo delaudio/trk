@@ -5,5 +5,6 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+cpal = "0.15.3"
 salieri-sampler = { path = "../salieri-sampler" }
 thiserror.workspace = true

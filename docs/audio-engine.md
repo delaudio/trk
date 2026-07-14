@@ -6,11 +6,12 @@ Internal audio is post-MVP. The current product remains MIDI-first.
 
 CPAL is the preferred first backend for macOS and Linux because it provides a Rust-native cross-platform audio callback model and can later support Windows without changing the tracker core. Salieri should keep CPAL isolated inside `salieri-audio`; no core, TUI, or project model code should depend directly on CPAL types.
 
-The initial `salieri-audio` crate does not open a real device yet. It defines the lifecycle and boundary that a CPAL backend will implement:
+`salieri-audio` defines the lifecycle boundary and includes a first CPAL backend:
 
 - `AudioRuntime` owns an audio thread and command channel;
 - `AudioBackend` abstracts start/stop behavior;
 - `NullAudioBackend` makes lifecycle tests deterministic without hardware;
+- `CpalAudioBackend` opens the default output device as a silent output stream;
 - `RealtimeAudioCommand` is plain data intended for future lock-free transport to the callback.
 - offline export supports deterministic sampler-preview rendering and WAV PCM16 encoding without writing files directly.
 - `RealtimeSampler` provides a hardware-free voice pool that consumes realtime sample trigger, stop-voice, and all-notes-off commands.
@@ -33,8 +34,7 @@ Shutdown must stop the backend before the thread exits. Errors are reported as u
 
 ## Current Limitations
 
-- no CPAL dependency is linked yet;
-- no device enumeration;
-- no audio callback;
+- no user-facing device enumeration or selection;
+- CPAL currently runs a silent callback and is not connected to sampler voices;
 - no envelope, looping, choking, or DSP graph;
 - no connected realtime audio backend for sampler assignment playback yet.

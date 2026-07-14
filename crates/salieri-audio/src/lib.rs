@@ -6,6 +6,11 @@ use std::{
 
 use salieri_sampler::PreviewBuffer;
 
+use cpal::{
+    traits::{DeviceTrait, HostTrait, StreamTrait},
+    FromSample, Sample, SampleFormat, SizedSample, Stream, StreamConfig,
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AudioConfig {
     pub sample_rate: u32,
@@ -73,6 +78,72 @@ impl AudioBackend for NullAudioBackend {
         self.started = false;
         Ok(())
     }
+}
+
+#[derive(Default)]
+pub struct CpalAudioBackend {
+    worker: Option<CpalStreamWorker>,
+}
+
+impl CpalAudioBackend {
+    #[must_use]
+    pub const fn new() -> Self {
+        Self { worker: None }
+    }
+
+    #[must_use]
+    pub fn is_started(&self) -> bool {
+        self.worker.is_some()
+    }
+}
+
+impl AudioBackend for CpalAudioBackend {
+    fn start(&mut self, config: AudioConfig) -> Result<(), AudioError> {
+        if self.worker.is_some() {
+            return Ok(());
+        }
+
+        let (command_tx, command_rx) = mpsc::channel();
+        let (startup_tx, startup_rx) = mpsc::channel();
+        let handle = thread::spawn(move || cpal_stream_thread(config, command_rx, startup_tx));
+
+        match startup_rx.recv() {
+            Ok(Ok(())) => {
+                self.worker = Some(CpalStreamWorker { command_tx, handle });
+                Ok(())
+            }
+            Ok(Err(error)) => {
+                let _ = handle.join();
+                Err(error)
+            }
+            Err(error) => {
+                let _ = handle.join();
+                Err(AudioError::Start(format!(
+                    "cpal stream thread failed before startup: {error}"
+                )))
+            }
+        }
+    }
+
+    fn stop(&mut self) -> Result<(), AudioError> {
+        if let Some(worker) = self.worker.take() {
+            let _ = worker.command_tx.send(CpalStreamCommand::Stop);
+            worker
+                .handle
+                .join()
+                .map_err(|_| AudioError::Stop("cpal stream thread panicked".to_string()))?;
+        }
+        Ok(())
+    }
+}
+
+struct CpalStreamWorker {
+    command_tx: Sender<CpalStreamCommand>,
+    handle: JoinHandle<()>,
+}
+
+enum CpalStreamCommand {
+    Stop,
 }
 
 #[derive(Debug)]
@@ -169,6 +240,88 @@ fn audio_thread<B>(
                 break;
             }
         }
+    }
+}
+
+fn cpal_stream_thread(
+    config: AudioConfig,
+    command_rx: Receiver<CpalStreamCommand>,
+    startup_tx: Sender<Result<(), AudioError>>,
+) {
+    match start_silent_cpal_stream(config) {
+        Ok(stream) => {
+            let _ = startup_tx.send(Ok(()));
+            let _ = command_rx.recv();
+            let _ = stream.pause();
+        }
+        Err(error) => {
+            let _ = startup_tx.send(Err(error));
+        }
+    }
+}
+
+fn start_silent_cpal_stream(config: AudioConfig) -> Result<Stream, AudioError> {
+    let host = cpal::default_host();
+    let device = host
+        .default_output_device()
+        .ok_or_else(|| AudioError::Start("no default output device".to_string()))?;
+    let default_config = device
+        .default_output_config()
+        .map_err(|error| AudioError::Start(format!("default output config failed: {error}")))?;
+    let sample_format = default_config.sample_format();
+    let stream_config = StreamConfig {
+        channels: config.channels,
+        sample_rate: cpal::SampleRate(config.sample_rate),
+        buffer_size: cpal::BufferSize::Fixed(u32::from(config.buffer_frames)),
+    };
+
+    let stream = build_silent_output_stream(&device, &stream_config, sample_format)?;
+    stream
+        .play()
+        .map_err(|error| AudioError::Start(format!("failed to play stream: {error}")))?;
+    Ok(stream)
+}
+
+fn build_silent_output_stream(
+    device: &cpal::Device,
+    config: &StreamConfig,
+    sample_format: SampleFormat,
+) -> Result<Stream, AudioError> {
+    match sample_format {
+        SampleFormat::F32 => build_silent_output_stream_for::<f32>(device, config),
+        SampleFormat::I16 => build_silent_output_stream_for::<i16>(device, config),
+        SampleFormat::U16 => build_silent_output_stream_for::<u16>(device, config),
+        sample_format => Err(AudioError::Start(format!(
+            "unsupported output sample format {sample_format}"
+        ))),
+    }
+}
+
+fn build_silent_output_stream_for<T>(
+    device: &cpal::Device,
+    config: &StreamConfig,
+) -> Result<Stream, AudioError>
+where
+    T: Sample + SizedSample + FromSample<f32> + 'static,
+{
+    device
+        .build_output_stream(
+            config,
+            write_silence::<T>,
+            |error| {
+                let _ = error;
+            },
+            None,
+        )
+        .map_err(|error| AudioError::Start(format!("failed to build output stream: {error}")))
+}
+
+fn write_silence<T>(output: &mut [T], _: &cpal::OutputCallbackInfo)
+where
+    T: Sample + FromSample<f32>,
+{
+    for sample in output {
+        *sample = T::from_sample(0.0);
     }
 }
 
@@ -726,6 +879,13 @@ mod tests {
         runtime.stop();
 
         assert_eq!(recv_update(&runtime), Some(AudioUpdate::Stopped));
+    }
+
+    #[test]
+    fn cpal_backend_starts_unopened() {
+        let backend = CpalAudioBackend::new();
+
+        assert!(!backend.is_started());
     }
 
     #[test]
