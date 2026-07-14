@@ -4,7 +4,7 @@ mod playback_runtime;
 mod terminal;
 
 use std::{
-    fs::OpenOptions,
+    fs::{self, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
     process::Command as ProcessCommand,
@@ -22,7 +22,8 @@ use salieri_midi::{list_output_ports, MidiMessage, MidiOutput, MidiOutputPort, M
 use salieri_sampler::{Sample, WaveformBucket, WaveformOverview};
 use salieri_transform::{apply_euclidean, EuclideanRhythm};
 use salieri_tui::{
-    render, MidiPortView, MidiSettingsState, NotificationKind, NotificationView, SamplerViewState,
+    render, MidiPortView, MidiSettingsState, NotificationKind, NotificationView,
+    SampleBrowserEntryKind, SampleBrowserEntryView, SampleBrowserViewState, SamplerViewState,
     SelectionRect, TuiState, TuiView,
 };
 use terminal::TerminalGuard;
@@ -111,6 +112,8 @@ fn run(args: CliArgs) -> Result<()> {
             let midi_ports = app.tui_midi_ports();
             let midi_settings = app.tui_midi_settings(&midi_ports);
             let notification = app.tui_notification();
+            let sample_browser_entries = app.tui_sample_browser_entries();
+            let sample_browser = app.tui_sample_browser_view(&sample_browser_entries);
             render(
                 frame,
                 &app.song,
@@ -136,6 +139,7 @@ fn run(args: CliArgs) -> Result<()> {
                     delete_confirmation: app.delete_confirmation_message(),
                     midi_settings,
                     sampler_view: app.tui_sampler_view(),
+                    sample_browser,
                 },
             );
         })?;
@@ -724,6 +728,60 @@ fn shell_quote(path: &Path) -> String {
     format!("'{}'", value.replace('\'', "'\\''"))
 }
 
+fn read_sample_browser_entries(path: &Path) -> Result<Vec<AppSampleBrowserEntry>> {
+    let mut entries = fs::read_dir(path)
+        .with_context(|| format!("failed to read sample directory {}", path.display()))?
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let path = entry.path();
+            let file_type = entry.file_type().ok()?;
+            let name = entry.file_name().to_string_lossy().to_string();
+            let kind = if file_type.is_dir() {
+                SampleBrowserEntryKind::Directory
+            } else if file_type.is_file() && is_supported_sample_path(&path) {
+                SampleBrowserEntryKind::SupportedSample
+            } else if file_type.is_file() {
+                SampleBrowserEntryKind::UnsupportedFile
+            } else {
+                return None;
+            };
+            Some(AppSampleBrowserEntry { path, name, kind })
+        })
+        .collect::<Vec<_>>();
+
+    entries.sort_by(|left, right| {
+        sample_browser_kind_rank(left.kind)
+            .cmp(&sample_browser_kind_rank(right.kind))
+            .then_with(|| left.name.to_lowercase().cmp(&right.name.to_lowercase()))
+    });
+    Ok(entries)
+}
+
+fn sample_browser_kind_rank(kind: SampleBrowserEntryKind) -> u8 {
+    match kind {
+        SampleBrowserEntryKind::Directory => 0,
+        SampleBrowserEntryKind::SupportedSample => 1,
+        SampleBrowserEntryKind::UnsupportedFile => 2,
+    }
+}
+
+fn is_supported_sample_path(path: &Path) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("wav"))
+}
+
+fn load_sample_view_data(path: PathBuf) -> Result<AppSampleView> {
+    let sample = Sample::load_wav(&path)
+        .with_context(|| format!("failed to load sample {}", path.display()))?;
+    let overview = sample.waveform_overview(96);
+    Ok(AppSampleView {
+        source_path: path,
+        sample,
+        overview,
+    })
+}
+
 fn print_midi_outputs() -> Result<()> {
     let ports = match list_output_ports() {
         Ok(ports) => ports,
@@ -842,6 +900,7 @@ struct App {
     sample_view: Option<AppSampleView>,
     sample_browser: SampleBrowserConfig,
     pending_sample_browser: Option<SampleBrowserRequest>,
+    sample_browser_view: Option<AppSampleBrowserView>,
     dirty: bool,
     should_quit: bool,
     dialog: Option<Dialog>,
@@ -874,6 +933,22 @@ struct AppSampleView {
     source_path: PathBuf,
     sample: Sample,
     overview: WaveformOverview,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct AppSampleBrowserView {
+    current_dir: PathBuf,
+    entries: Vec<AppSampleBrowserEntry>,
+    cursor: usize,
+    preview: Option<AppSampleView>,
+    message: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct AppSampleBrowserEntry {
+    path: PathBuf,
+    name: String,
+    kind: SampleBrowserEntryKind,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -944,6 +1019,7 @@ impl App {
             sample_view: None,
             sample_browser: config.sample_browser.clone(),
             pending_sample_browser: None,
+            sample_browser_view: None,
             dirty: false,
             should_quit: false,
             dialog: None,
@@ -980,6 +1056,7 @@ impl App {
             AppMode::Tracks => self.handle_tracks_key(key),
             AppMode::Patterns => self.handle_patterns_key(key),
             AppMode::Sampler => self.handle_sampler_key(key),
+            AppMode::SampleBrowser => self.handle_sample_browser_key(key),
         }
     }
 
@@ -1509,7 +1586,29 @@ impl App {
             KeyCode::F(10) => self.open_patterns_view(),
             KeyCode::F(11) => self.mode = AppMode::Normal,
             KeyCode::F(8) => self.stop_playback(),
+            KeyCode::Char('b') | KeyCode::Char('B') => self.open_sample_browser_view(None),
             KeyCode::Char(' ') => self.toggle_playback(),
+            _ => {}
+        }
+    }
+
+    fn handle_sample_browser_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Esc => self.mode = AppMode::Sampler,
+            KeyCode::Char('q') => self.request_quit(false),
+            KeyCode::Char('?') | KeyCode::Char('H') => self.mode = AppMode::Help,
+            KeyCode::Char(':') => {
+                self.command_buffer.clear();
+                self.mode = AppMode::Command;
+            }
+            KeyCode::Up | KeyCode::Char('k') => self.move_sample_browser_cursor(-1),
+            KeyCode::Down | KeyCode::Char('j') => self.move_sample_browser_cursor(1),
+            KeyCode::PageUp => self.move_sample_browser_cursor(-10),
+            KeyCode::PageDown => self.move_sample_browser_cursor(10),
+            KeyCode::Backspace | KeyCode::Left | KeyCode::Char('h') => self.sample_browser_parent(),
+            KeyCode::Enter | KeyCode::Right | KeyCode::Char('l') => {
+                self.select_sample_browser_entry()
+            }
             _ => {}
         }
     }
@@ -2530,7 +2629,15 @@ impl App {
                         self.load_sampler_view(PathBuf::from(path));
                     }
                 }
-                Some("browse") | Some("browser") | Some("choose") => {
+                Some("browse") | Some("browser") => {
+                    let path = parts.collect::<Vec<_>>().join(" ");
+                    self.open_sample_browser_view(if path.is_empty() {
+                        None
+                    } else {
+                        Some(PathBuf::from(path))
+                    });
+                }
+                Some("choose") | Some("external") => {
                     let path = parts.collect::<Vec<_>>().join(" ");
                     self.request_sample_browser(if path.is_empty() {
                         None
@@ -2570,7 +2677,7 @@ impl App {
                 }
                 None => self.open_sampler_view(),
                 Some(_) => self.notify_warning(
-                    "Usage: :sample view PATH | browse [DIR] | assign [TRACK] | replace [TRACK] | unassign [TRACK] | unload | cleanup | assignments",
+                    "Usage: :sample view PATH | browse [DIR] | choose [DIR] | assign [TRACK] | replace [TRACK] | unassign [TRACK] | unload | cleanup | assignments",
                 ),
             },
             _ => self.notify_warning(format!("Unknown command: {name}")),
@@ -2736,15 +2843,10 @@ impl App {
     }
 
     fn load_sampler_view(&mut self, path: PathBuf) {
-        match Sample::load_wav(&path) {
-            Ok(sample) => {
-                let overview = sample.waveform_overview(96);
-                let name = sample.name.clone();
-                self.sample_view = Some(AppSampleView {
-                    source_path: path,
-                    sample,
-                    overview,
-                });
+        match load_sample_view_data(path) {
+            Ok(sample_view) => {
+                let name = sample_view.sample.name.clone();
+                self.sample_view = Some(sample_view);
                 self.mode = AppMode::Sampler;
                 self.notify_success(format!("Sample loaded: {name}"));
             }
@@ -2770,6 +2872,140 @@ impl App {
         self.pending_sample_browser = Some(SampleBrowserRequest { start_dir });
         self.mode = AppMode::Sampler;
         self.notify_info("Opening sample browser");
+    }
+
+    fn open_sample_browser_view(&mut self, start_dir: Option<PathBuf>) {
+        let current_dir = start_dir
+            .or_else(|| self.sample_browser.start_dir.clone())
+            .or_else(|| std::env::current_dir().ok())
+            .unwrap_or_else(|| PathBuf::from("."));
+        let current_dir = if current_dir.is_file() {
+            current_dir
+                .parent()
+                .map_or_else(|| PathBuf::from("."), Path::to_path_buf)
+        } else {
+            current_dir
+        };
+
+        self.sample_browser_view = Some(AppSampleBrowserView {
+            current_dir,
+            entries: Vec::new(),
+            cursor: 0,
+            preview: None,
+            message: None,
+        });
+        self.refresh_sample_browser_view();
+        self.mode = AppMode::SampleBrowser;
+    }
+
+    fn refresh_sample_browser_view(&mut self) {
+        let Some(browser) = &mut self.sample_browser_view else {
+            return;
+        };
+
+        match read_sample_browser_entries(&browser.current_dir) {
+            Ok(entries) => {
+                browser.entries = entries;
+                browser.cursor = browser.cursor.min(browser.entries.len().saturating_sub(1));
+                browser.message = if browser.entries.is_empty() {
+                    Some("Directory is empty".to_string())
+                } else {
+                    None
+                };
+            }
+            Err(error) => {
+                browser.entries.clear();
+                browser.cursor = 0;
+                browser.preview = None;
+                browser.message = Some(format!("Failed to read directory: {error}"));
+                return;
+            }
+        }
+        self.update_sample_browser_preview();
+    }
+
+    fn update_sample_browser_preview(&mut self) {
+        let Some(browser) = &mut self.sample_browser_view else {
+            return;
+        };
+        let selected = browser.entries.get(browser.cursor).cloned();
+
+        match selected {
+            Some(entry) if entry.kind == SampleBrowserEntryKind::SupportedSample => {
+                match load_sample_view_data(entry.path) {
+                    Ok(preview) => {
+                        browser.preview = Some(preview);
+                        browser.message = None;
+                    }
+                    Err(error) => {
+                        browser.preview = None;
+                        browser.message = Some(format!("Sample preview failed: {error}"));
+                    }
+                }
+            }
+            Some(entry) if entry.kind == SampleBrowserEntryKind::Directory => {
+                browser.preview = None;
+                browser.message = Some("Press Enter to open directory".to_string());
+            }
+            Some(_) => {
+                browser.preview = None;
+                browser.message = Some("Unsupported file type".to_string());
+            }
+            None => {
+                browser.preview = None;
+                browser.message = Some("No files".to_string());
+            }
+        }
+    }
+
+    fn move_sample_browser_cursor(&mut self, delta: isize) {
+        let Some(browser) = &mut self.sample_browser_view else {
+            return;
+        };
+        if browser.entries.is_empty() {
+            return;
+        }
+
+        let max = browser.entries.len() - 1;
+        browser.cursor = browser.cursor.saturating_add_signed(delta).min(max);
+        self.update_sample_browser_preview();
+    }
+
+    fn sample_browser_parent(&mut self) {
+        let Some(browser) = &mut self.sample_browser_view else {
+            return;
+        };
+        let Some(parent) = browser.current_dir.parent().map(Path::to_path_buf) else {
+            return;
+        };
+        browser.current_dir = parent;
+        browser.cursor = 0;
+        self.refresh_sample_browser_view();
+    }
+
+    fn select_sample_browser_entry(&mut self) {
+        let Some(browser) = &self.sample_browser_view else {
+            return;
+        };
+        let Some(entry) = browser.entries.get(browser.cursor).cloned() else {
+            self.notify_warning("No sample selected");
+            return;
+        };
+
+        match entry.kind {
+            SampleBrowserEntryKind::Directory => {
+                if let Some(browser) = &mut self.sample_browser_view {
+                    browser.current_dir = entry.path;
+                    browser.cursor = 0;
+                }
+                self.refresh_sample_browser_view();
+            }
+            SampleBrowserEntryKind::SupportedSample => self.load_sampler_view(entry.path),
+            SampleBrowserEntryKind::UnsupportedFile => {
+                self.notify_warning("Unsupported sample file");
+                self.update_sample_browser_preview();
+            }
+        }
     }
 
     fn take_sample_browser_request(
@@ -3185,6 +3421,7 @@ impl App {
             AppMode::Tracks => TuiView::Tracks,
             AppMode::Patterns => TuiView::Patterns,
             AppMode::Sampler => TuiView::Sampler,
+            AppMode::SampleBrowser => TuiView::SampleBrowser,
             AppMode::Normal
             | AppMode::Edit
             | AppMode::Command
@@ -3344,6 +3581,46 @@ impl App {
             }
         })
     }
+
+    fn tui_sample_browser_entries(&self) -> Vec<SampleBrowserEntryView<'_>> {
+        self.sample_browser_view
+            .as_ref()
+            .map(|browser| {
+                browser
+                    .entries
+                    .iter()
+                    .map(|entry| SampleBrowserEntryView {
+                        name: entry.name.as_str(),
+                        kind: entry.kind,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    fn tui_sample_browser_view<'a>(
+        &'a self,
+        entries: &'a [SampleBrowserEntryView<'a>],
+    ) -> Option<SampleBrowserViewState<'a>> {
+        self.sample_browser_view
+            .as_ref()
+            .map(|browser| SampleBrowserViewState {
+                current_dir: browser
+                    .current_dir
+                    .to_str()
+                    .unwrap_or("<non-utf8 directory>"),
+                entries,
+                selected: browser.cursor,
+                preview: browser.preview.as_ref().map(|sample| SamplerViewState {
+                    name: sample.sample.name.as_str(),
+                    source_path: sample.source_path.to_str().unwrap_or("<non-utf8 path>"),
+                    overview: &sample.overview,
+                    assigned_track: None,
+                    assigned_track_count: 0,
+                }),
+                message: browser.message.as_deref(),
+            })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -3358,6 +3635,7 @@ enum AppMode {
     Tracks,
     Patterns,
     Sampler,
+    SampleBrowser,
 }
 
 impl AppMode {
@@ -3373,6 +3651,7 @@ impl AppMode {
             AppMode::Tracks => "TRACKS",
             AppMode::Patterns => "PATTERNS",
             AppMode::Sampler => "SAMPLER",
+            AppMode::SampleBrowser => "SAMPLES",
         }
     }
 }
@@ -5008,7 +5287,7 @@ mod tests {
             ..AppConfig::default()
         });
 
-        enter_command(&mut app, "sample browse Drums");
+        enter_command(&mut app, "sample choose Drums");
 
         assert_eq!(app.mode, AppMode::Sampler);
         let (config, request) = app.take_sample_browser_request().expect("browser request");
@@ -5020,7 +5299,7 @@ mod tests {
     fn sample_browser_command_warns_without_configuration() {
         let mut app = App::default();
 
-        enter_command(&mut app, "sample browse");
+        enter_command(&mut app, "sample choose");
 
         assert_eq!(app.mode, AppMode::Sampler);
         assert!(app.take_sample_browser_request().is_none());
@@ -5030,6 +5309,82 @@ mod tests {
                 .map(|value| value.message.as_str()),
             Some("Sample browser not configured")
         );
+    }
+
+    #[test]
+    fn in_app_sample_browser_previews_and_loads_wav_files() {
+        let mut app = App::default();
+        let dir = std::env::temp_dir().join(format!(
+            "salieri-in-app-sample-browser-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&dir).expect("create sample dir");
+        let sample_path = dir.join("kick.wav");
+        std::fs::write(&sample_path, wav_pcm16_bytes(44_100, 1, &[0, i16::MAX]))
+            .expect("write wav");
+
+        enter_command(&mut app, &format!("sample browse {}", dir.display()));
+
+        assert_eq!(app.mode, AppMode::SampleBrowser);
+        assert_eq!(app.tui_active_view(), TuiView::SampleBrowser);
+        let entries = app.tui_sample_browser_entries();
+        let browser = app
+            .tui_sample_browser_view(&entries)
+            .expect("sample browser view");
+        assert_eq!(browser.entries.len(), 1);
+        assert_eq!(
+            browser.entries[0].kind,
+            SampleBrowserEntryKind::SupportedSample
+        );
+        assert!(browser.preview.is_some());
+
+        app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+
+        assert_eq!(app.mode, AppMode::Sampler);
+        assert_eq!(
+            app.tui_sampler_view().expect("loaded sample").source_path,
+            sample_path.to_str().expect("utf8 path")
+        );
+
+        let _ = std::fs::remove_file(&sample_path);
+        let _ = std::fs::remove_dir(&dir);
+    }
+
+    #[test]
+    fn in_app_sample_browser_reports_unsupported_files() {
+        let mut app = App::default();
+        let dir = std::env::temp_dir().join(format!(
+            "salieri-unsupported-sample-browser-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&dir).expect("create sample dir");
+        let text_path = dir.join("notes.txt");
+        std::fs::write(&text_path, "not a wav").expect("write text");
+
+        enter_command(&mut app, &format!("sample browse {}", dir.display()));
+
+        assert_eq!(app.mode, AppMode::SampleBrowser);
+        let entries = app.tui_sample_browser_entries();
+        let browser = app
+            .tui_sample_browser_view(&entries)
+            .expect("sample browser view");
+        assert_eq!(
+            browser.entries[0].kind,
+            SampleBrowserEntryKind::UnsupportedFile
+        );
+        assert_eq!(browser.message, Some("Unsupported file type"));
+
+        app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+
+        assert_eq!(
+            app.notification
+                .as_ref()
+                .map(|value| value.message.as_str()),
+            Some("Unsupported sample file")
+        );
+
+        let _ = std::fs::remove_file(&text_path);
+        let _ = std::fs::remove_dir(&dir);
     }
 
     #[test]

@@ -1,6 +1,15 @@
-# Optional Sample Browser
+# Sample Browsing
 
-Salieri can open an external sample chooser and load the selected WAV into the sampler view. This is optional: if no chooser is configured, the tracker continues to work without Yazi or any other browser installed.
+Salieri includes an in-app sample browser for navigating directories, previewing supported WAV files, and loading the selected file into the sampler view:
+
+```text
+:sample browse
+:sample browse ~/Samples/Drums
+```
+
+The in-app browser shows directories, supported WAV files, unsupported files, metadata, and waveform previews. Press Enter to open a directory or load the highlighted WAV.
+
+Salieri can also open an external sample chooser and load the selected WAV into the sampler view. This is optional: if no chooser is configured, the in-app browser and direct `:sample view PATH` continue to work without Yazi or any other browser installed.
 
 Configure a chooser command in `~/.config/salieri/config.toml`:
 
@@ -20,8 +29,8 @@ The chooser contract is:
 Inside Salieri:
 
 ```text
-:sample browse
-:sample browse ~/Samples/Drums
+:sample choose
+:sample choose ~/Samples/Drums
 ```
 
 Yazi remains only one possible chooser. Any command that writes a selected path to `SALIERI_CHOOSER_FILE` can be used.

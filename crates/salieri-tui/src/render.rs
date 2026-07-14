@@ -43,6 +43,7 @@ pub struct TuiState<'a> {
     pub delete_confirmation: Option<&'a str>,
     pub midi_settings: Option<MidiSettingsState<'a>>,
     pub sampler_view: Option<SamplerViewState<'a>>,
+    pub sample_browser: Option<SampleBrowserViewState<'a>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -52,6 +53,7 @@ pub enum TuiView {
     Tracks,
     Patterns,
     Sampler,
+    SampleBrowser,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -61,6 +63,28 @@ pub struct SamplerViewState<'a> {
     pub overview: &'a WaveformOverview,
     pub assigned_track: Option<&'a str>,
     pub assigned_track_count: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SampleBrowserViewState<'a> {
+    pub current_dir: &'a str,
+    pub entries: &'a [SampleBrowserEntryView<'a>],
+    pub selected: usize,
+    pub preview: Option<SamplerViewState<'a>>,
+    pub message: Option<&'a str>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SampleBrowserEntryView<'a> {
+    pub name: &'a str,
+    pub kind: SampleBrowserEntryKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SampleBrowserEntryKind {
+    Directory,
+    SupportedSample,
+    UnsupportedFile,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -242,6 +266,10 @@ fn render_body(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'
     }
     if state.active_view == TuiView::Sampler {
         render_sampler_view(frame, area, state.sampler_view);
+        return;
+    }
+    if state.active_view == TuiView::SampleBrowser {
+        render_sample_browser(frame, area, state.sample_browser);
         return;
     }
 
@@ -564,6 +592,95 @@ fn render_sampler_view(frame: &mut Frame<'_>, area: Rect, sampler: Option<Sample
     render_waveform_overview(frame, sections[1], overview);
 }
 
+fn render_sample_browser(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    browser: Option<SampleBrowserViewState<'_>>,
+) {
+    let Some(browser) = browser else {
+        let empty = Paragraph::new("Sample browser unavailable").block(
+            Block::default()
+                .title(" Sample Browser ")
+                .borders(Borders::ALL),
+        );
+        frame.render_widget(empty, area);
+        return;
+    };
+
+    let columns = Layout::default()
+        .direction(LayoutDirection::Horizontal)
+        .constraints([Constraint::Percentage(42), Constraint::Percentage(58)])
+        .split(area);
+    let left = Layout::default()
+        .direction(LayoutDirection::Vertical)
+        .constraints([Constraint::Length(3), Constraint::Min(5)])
+        .split(columns[0]);
+
+    let path = Paragraph::new(truncate(
+        browser.current_dir,
+        columns[0].width.saturating_sub(4) as usize,
+    ))
+    .block(Block::default().title(" Directory ").borders(Borders::ALL));
+    frame.render_widget(path, left[0]);
+
+    let visible_rows = left[1].height.saturating_sub(2) as usize;
+    let selected = browser
+        .selected
+        .min(browser.entries.len().saturating_sub(1));
+    let start = selected.saturating_sub(visible_rows.saturating_sub(1));
+    let mut lines = Vec::new();
+
+    if browser.entries.is_empty() {
+        lines.push(Line::from("No files"));
+    } else {
+        for (index, entry) in browser
+            .entries
+            .iter()
+            .enumerate()
+            .skip(start)
+            .take(visible_rows)
+        {
+            let marker = if index == selected { ">" } else { " " };
+            let icon = match entry.kind {
+                SampleBrowserEntryKind::Directory => "[D]",
+                SampleBrowserEntryKind::SupportedSample => "[W]",
+                SampleBrowserEntryKind::UnsupportedFile => "[ ]",
+            };
+            let style = if index == selected {
+                Style::default()
+                    .fg(Color::Black)
+                    .bg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                match entry.kind {
+                    SampleBrowserEntryKind::Directory => Style::default().fg(Color::Cyan),
+                    SampleBrowserEntryKind::SupportedSample => Style::default().fg(Color::White),
+                    SampleBrowserEntryKind::UnsupportedFile => Style::default().fg(Color::DarkGray),
+                }
+            };
+            lines.push(Line::from(Span::styled(
+                format!("{marker} {icon} {}", truncate(entry.name, 38)),
+                style,
+            )));
+        }
+    }
+
+    let list = Paragraph::new(lines)
+        .block(Block::default().title(" Samples ").borders(Borders::ALL))
+        .wrap(Wrap { trim: false });
+    frame.render_widget(list, left[1]);
+
+    if let Some(preview) = browser.preview {
+        render_sampler_view(frame, columns[1], Some(preview));
+    } else {
+        let message = browser.message.unwrap_or("Select a WAV file to preview it");
+        let preview = Paragraph::new(message)
+            .block(Block::default().title(" Preview ").borders(Borders::ALL))
+            .wrap(Wrap { trim: true });
+        frame.render_widget(preview, columns[1]);
+    }
+}
+
 fn render_pattern(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
     let Some(pattern) = active_pattern(song, state.pattern_index) else {
         let empty = Paragraph::new("No pattern")
@@ -826,6 +943,11 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
     } else if state.active_view == TuiView::Sampler {
         format!(
             " {} | H Help | Esc Pattern | F7 Sequence | F9 Tracks | F10 Patterns | : Command | Ctrl+S Save | Ctrl+Shift+S Save As | q Quit ",
+            state.mode_label
+        )
+    } else if state.active_view == TuiView::SampleBrowser {
+        format!(
+            " {} | H Help | Esc Sampler | Up/Down Select | Enter Load/Open | Backspace Parent | : Command | q Quit ",
             state.mode_label
         )
     } else {
@@ -1246,6 +1368,7 @@ mod tests {
                         delete_confirmation: None,
                         midi_settings: None,
                         sampler_view: None,
+                        sample_browser: None,
                     },
                 );
             })
@@ -1262,6 +1385,82 @@ mod tests {
         assert!(rendered.contains("Pattern Editor"));
         assert!(rendered.contains("Drums"));
         assert!(rendered.contains("Bass"));
+    }
+
+    #[test]
+    fn renders_sample_browser_view() {
+        let song = Song::empty();
+        let overview = test_waveform(vec![
+            salieri_sampler::WaveformBucket {
+                min: -0.4,
+                max: 0.6,
+            },
+            salieri_sampler::WaveformBucket {
+                min: -0.2,
+                max: 0.2,
+            },
+        ]);
+        let entries = [
+            SampleBrowserEntryView {
+                name: "Drums",
+                kind: SampleBrowserEntryKind::Directory,
+            },
+            SampleBrowserEntryView {
+                name: "kick.wav",
+                kind: SampleBrowserEntryKind::SupportedSample,
+            },
+        ];
+        let backend = TestBackend::new(100, 28);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+
+        terminal
+            .draw(|frame| {
+                render(
+                    frame,
+                    &song,
+                    TuiState {
+                        cursor: Cursor::new(),
+                        row_offset: 0,
+                        pattern_index: 0,
+                        active_view: TuiView::SampleBrowser,
+                        selection: None,
+                        mode_label: "SAMPLES",
+                        octave: 4,
+                        dirty: false,
+                        show_line_numbers_hex: false,
+                        command_line: None,
+                        notification: None,
+                        show_help: false,
+                        is_playing: false,
+                        loop_pattern: true,
+                        playhead_row: None,
+                        midi_status: "MIDI Disconnected",
+                        sequence_position: None,
+                        quit_confirmation: false,
+                        delete_confirmation: None,
+                        midi_settings: None,
+                        sampler_view: None,
+                        sample_browser: Some(SampleBrowserViewState {
+                            current_dir: "/tmp/samples",
+                            entries: &entries,
+                            selected: 1,
+                            preview: Some(SamplerViewState {
+                                name: "kick.wav",
+                                source_path: "/tmp/samples/kick.wav",
+                                overview: &overview,
+                                assigned_track: None,
+                                assigned_track_count: 0,
+                            }),
+                            message: None,
+                        }),
+                    },
+                );
+            })
+            .expect("draw");
+
+        let rendered = terminal.backend().to_string();
+        assert!(rendered.contains("kick.wav"));
+        assert!(rendered.contains("Sample Metadata"));
     }
 
     #[test]
@@ -1297,6 +1496,7 @@ mod tests {
                         delete_confirmation: None,
                         midi_settings: None,
                         sampler_view: None,
+                        sample_browser: None,
                     },
                 );
             })
@@ -1348,6 +1548,7 @@ mod tests {
                         delete_confirmation: None,
                         midi_settings: None,
                         sampler_view: None,
+                        sample_browser: None,
                     },
                 );
             })
@@ -1399,6 +1600,7 @@ mod tests {
                         delete_confirmation: None,
                         midi_settings: None,
                         sampler_view: None,
+                        sample_browser: None,
                     },
                 );
             })
@@ -1458,6 +1660,7 @@ mod tests {
                         delete_confirmation: None,
                         midi_settings: None,
                         sampler_view: None,
+                        sample_browser: None,
                     },
                 );
             })
@@ -1510,6 +1713,7 @@ mod tests {
                         delete_confirmation: None,
                         midi_settings: None,
                         sampler_view: None,
+                        sample_browser: None,
                     },
                 );
             })
@@ -1562,6 +1766,7 @@ mod tests {
                         delete_confirmation: None,
                         midi_settings: None,
                         sampler_view: None,
+                        sample_browser: None,
                     },
                 );
             })
@@ -1612,6 +1817,7 @@ mod tests {
                         delete_confirmation: None,
                         midi_settings: None,
                         sampler_view: None,
+                        sample_browser: None,
                     },
                 );
             })
@@ -1662,6 +1868,7 @@ mod tests {
                         delete_confirmation: Some("Delete track 02 Bass?"),
                         midi_settings: None,
                         sampler_view: None,
+                        sample_browser: None,
                     },
                 );
             })
@@ -1726,6 +1933,7 @@ mod tests {
                             status: "MIDI Disconnected",
                         }),
                         sampler_view: None,
+                        sample_browser: None,
                     },
                 );
             })

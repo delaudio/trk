@@ -19,7 +19,7 @@ salieri sample inspect path/to/sample.wav --format text --buckets 64
 salieri sample inspect path/to/sample.wav --format json --width 32
 ```
 
-Inside the tracker, `:sample view PATH` loads a WAV reference into the sampler view and renders its metadata and waveform preview. `F11` opens the sampler view even when no sample is loaded.
+Inside the tracker, `:sample view PATH` loads a WAV reference into the sampler view and renders its metadata and waveform preview. `F11` opens the sampler view even when no sample is loaded. `:sample browse [DIR]` opens the in-app sample browser; `:sample choose [DIR]` uses a configured external chooser.
 
 After loading a WAV, assign it to the current track:
 
@@ -46,7 +46,6 @@ Current limitations:
 - no realtime audio output;
 - no streaming for large samples;
 - no envelopes, looping, choking, or velocity layers;
-- no full-screen in-app sample browser yet;
 - assigned samples route to realtime audio commands, but audible triggering still depends on the CPAL backend follow-up.
 
 Next sampler playback steps:
