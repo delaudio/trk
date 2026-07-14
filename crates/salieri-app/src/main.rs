@@ -2545,6 +2545,13 @@ impl App {
                         .unwrap_or(self.cursor.track);
                     self.assign_loaded_sample_to_track(track_index);
                 }
+                Some("replace") | Some("swap") => {
+                    let track_index = parts
+                        .next()
+                        .and_then(parse_track_number)
+                        .unwrap_or(self.cursor.track);
+                    self.replace_track_sample_with_loaded_sample(track_index);
+                }
                 Some("unassign") | Some("clear") => {
                     let track_index = parts
                         .next()
@@ -2552,12 +2559,18 @@ impl App {
                         .unwrap_or(self.cursor.track);
                     self.unassign_sample_from_track(track_index);
                 }
+                Some("unload") => {
+                    self.unload_current_sample();
+                }
+                Some("cleanup") | Some("prune") => {
+                    self.cleanup_unused_sample_references();
+                }
                 Some("assignments") | Some("assigned") | Some("list") => {
                     self.show_sample_assignments();
                 }
                 None => self.open_sampler_view(),
                 Some(_) => self.notify_warning(
-                    "Usage: :sample view PATH | browse [DIR] | assign [TRACK] | unassign [TRACK] | assignments",
+                    "Usage: :sample view PATH | browse [DIR] | assign [TRACK] | replace [TRACK] | unassign [TRACK] | unload | cleanup | assignments",
                 ),
             },
             _ => self.notify_warning(format!("Unknown command: {name}")),
@@ -2818,6 +2831,90 @@ impl App {
             song.unassign_sample_from_track(track_id);
         });
         self.notify_success(format!("Sample unassigned from {track_name}"));
+    }
+
+    fn replace_track_sample_with_loaded_sample(&mut self, track_index: usize) {
+        let Some(sample_view) = &self.sample_view else {
+            self.mode = AppMode::Sampler;
+            self.notify_warning("Load a sample before replacing an assignment");
+            return;
+        };
+
+        let Some(track) = self.song.tracks.get(track_index) else {
+            self.notify_warning("Track out of range");
+            return;
+        };
+
+        let track_id = track.id;
+        let track_name = track.name.clone();
+        let previous_sample = self
+            .song
+            .sample_assignment_for_track(track_id)
+            .map(|assignment| assignment.sample);
+        let sample_name = sample_view.sample.name.clone();
+        let sample_path = sample_view.source_path.to_string_lossy().to_string();
+
+        self.mutate_song(|song, _| {
+            let sample_id = song
+                .replace_track_sample(track_id, sample_path, sample_name)
+                .expect("track exists and sample was just upserted");
+            if let Some(previous) = previous_sample {
+                if previous != sample_id && !song.is_sample_assigned(previous) {
+                    let _ = song.remove_sample_reference(previous);
+                }
+            }
+        });
+        self.mode = AppMode::Sampler;
+        self.notify_success(format!("Sample replaced on {track_name}"));
+    }
+
+    fn unload_current_sample(&mut self) {
+        let Some(sample_view) = &self.sample_view else {
+            self.mode = AppMode::Sampler;
+            self.notify_warning("No sample loaded");
+            return;
+        };
+
+        let sample_path = sample_view.source_path.to_string_lossy();
+        let sample_id = self
+            .song
+            .samples
+            .iter()
+            .find(|sample| sample.path == sample_path)
+            .map(|sample| sample.id);
+
+        match sample_id {
+            Some(sample_id) if self.song.is_sample_assigned(sample_id) => {
+                self.mode = AppMode::Sampler;
+                self.notify_warning("Unassign or replace sample before unloading it");
+            }
+            Some(sample_id) => {
+                self.mutate_song(|song, _| {
+                    let _ = song.remove_sample_reference(sample_id);
+                });
+                self.sample_view = None;
+                self.mode = AppMode::Sampler;
+                self.notify_success("Sample unloaded");
+            }
+            None => {
+                self.sample_view = None;
+                self.mode = AppMode::Sampler;
+                self.notify_info("Sample view cleared");
+            }
+        }
+    }
+
+    fn cleanup_unused_sample_references(&mut self) {
+        let mut removed = 0;
+        self.mutate_song(|song, _| {
+            removed = song.prune_unused_sample_references();
+        });
+
+        if removed == 0 {
+            self.notify_info("No unused sample references");
+        } else {
+            self.notify_success(format!("Removed {removed} unused sample reference(s)"));
+        }
     }
 
     fn show_sample_assignments(&mut self) {
@@ -4842,6 +4939,63 @@ mod tests {
         let _ = std::fs::remove_file(&path);
 
         assert!(app.song.sample_assignment_for_track(track_id).is_none());
+    }
+
+    #[test]
+    fn sampler_commands_replace_unload_and_cleanup_references() {
+        let mut app = App::default();
+        let first_path =
+            std::env::temp_dir().join(format!("salieri-sampler-first-{}.wav", std::process::id()));
+        let second_path =
+            std::env::temp_dir().join(format!("salieri-sampler-second-{}.wav", std::process::id()));
+        std::fs::write(&first_path, wav_pcm16_bytes(44_100, 1, &[0, i16::MAX]))
+            .expect("write first wav");
+        std::fs::write(&second_path, wav_pcm16_bytes(44_100, 1, &[0, i16::MIN]))
+            .expect("write second wav");
+
+        enter_command(&mut app, &format!("sample view {}", first_path.display()));
+        enter_command(&mut app, "sample assign 2");
+        let track_id = app.song.tracks[1].id;
+        let first_sample = app
+            .song
+            .sample_assignment_for_track(track_id)
+            .expect("first assignment")
+            .sample;
+
+        enter_command(&mut app, &format!("sample view {}", second_path.display()));
+        enter_command(&mut app, "sample replace 2");
+        let second_sample = app
+            .song
+            .sample_assignment_for_track(track_id)
+            .expect("second assignment")
+            .sample;
+
+        assert_ne!(first_sample, second_sample);
+        assert!(app.song.sample_for_id(first_sample).is_none());
+        assert_eq!(
+            app.song
+                .sample_for_id(second_sample)
+                .expect("second sample")
+                .path,
+            second_path.to_string_lossy()
+        );
+
+        enter_command(&mut app, "sample unload");
+        assert!(app.song.sample_for_id(second_sample).is_some());
+        assert!(app.tui_sampler_view().is_some());
+        assert!(app
+            .notification
+            .as_ref()
+            .expect("notification")
+            .message
+            .contains("Unassign or replace"));
+
+        enter_command(&mut app, "sample unassign 2");
+        enter_command(&mut app, "sample cleanup");
+
+        assert!(app.song.sample_for_id(second_sample).is_none());
+        let _ = std::fs::remove_file(&first_path);
+        let _ = std::fs::remove_file(&second_path);
     }
 
     #[test]

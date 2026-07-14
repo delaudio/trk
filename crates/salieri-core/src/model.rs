@@ -591,9 +591,51 @@ impl Song {
         Ok(())
     }
 
+    pub fn replace_track_sample(
+        &mut self,
+        track: TrackId,
+        path: impl Into<String>,
+        name: impl Into<String>,
+    ) -> Result<SampleId, EditError> {
+        let sample = self.upsert_sample_reference(path, name);
+        self.assign_sample_to_track(track, sample)?;
+        Ok(sample)
+    }
+
     pub fn unassign_sample_from_track(&mut self, track: TrackId) {
         self.sample_assignments
             .retain(|assignment| assignment.track != track);
+    }
+
+    pub fn remove_sample_reference(&mut self, sample: SampleId) -> Result<(), EditError> {
+        if !self.samples.iter().any(|existing| existing.id == sample) {
+            return Err(EditError::SampleNotFound { sample_id: sample });
+        }
+        if self.is_sample_assigned(sample) {
+            return Err(EditError::SampleInUse { sample_id: sample });
+        }
+
+        self.samples.retain(|reference| reference.id != sample);
+        Ok(())
+    }
+
+    pub fn prune_unused_sample_references(&mut self) -> usize {
+        let assigned_samples = self
+            .sample_assignments
+            .iter()
+            .map(|assignment| assignment.sample)
+            .collect::<HashSet<_>>();
+        let before = self.samples.len();
+        self.samples
+            .retain(|sample| assigned_samples.contains(&sample.id));
+        before - self.samples.len()
+    }
+
+    #[must_use]
+    pub fn is_sample_assigned(&self, sample: SampleId) -> bool {
+        self.sample_assignments
+            .iter()
+            .any(|assignment| assignment.sample == sample)
     }
 
     #[must_use]
@@ -976,6 +1018,8 @@ pub enum EditError {
     InvalidMidiChannel { midi_channel: u8 },
     #[error("sample not found: sample id {sample_id:?}")]
     SampleNotFound { sample_id: SampleId },
+    #[error("sample is still assigned: sample id {sample_id:?}")]
+    SampleInUse { sample_id: SampleId },
     #[error("name cannot be empty")]
     EmptyName,
 }
@@ -1701,6 +1745,48 @@ mod tests {
         song.unassign_sample_from_track(track);
 
         assert!(song.sample_assignment_for_track(track).is_none());
+    }
+
+    #[test]
+    fn sample_references_are_removed_only_when_unused() {
+        let mut song = Song::empty();
+        let assigned = song.upsert_sample_reference("samples/kick.wav", "kick.wav");
+        let unused = song.upsert_sample_reference("samples/snare.wav", "snare.wav");
+        let track = song.tracks[0].id;
+
+        song.assign_sample_to_track(track, assigned)
+            .expect("assign sample");
+
+        assert_eq!(
+            song.remove_sample_reference(assigned)
+                .expect_err("assigned sample is protected"),
+            EditError::SampleInUse {
+                sample_id: assigned
+            }
+        );
+
+        song.remove_sample_reference(unused)
+            .expect("remove unused sample");
+
+        assert!(song.sample_for_id(assigned).is_some());
+        assert!(song.sample_for_id(unused).is_none());
+    }
+
+    #[test]
+    fn unused_sample_references_can_be_pruned() {
+        let mut song = Song::empty();
+        let assigned = song.upsert_sample_reference("samples/kick.wav", "kick.wav");
+        let first_unused = song.upsert_sample_reference("samples/snare.wav", "snare.wav");
+        let second_unused = song.upsert_sample_reference("samples/hat.wav", "hat.wav");
+        let track = song.tracks[0].id;
+
+        song.assign_sample_to_track(track, assigned)
+            .expect("assign sample");
+
+        assert_eq!(song.prune_unused_sample_references(), 2);
+        assert!(song.sample_for_id(assigned).is_some());
+        assert!(song.sample_for_id(first_unused).is_none());
+        assert!(song.sample_for_id(second_unused).is_none());
     }
 
     #[test]

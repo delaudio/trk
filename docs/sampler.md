@@ -26,12 +26,18 @@ After loading a WAV, assign it to the current track:
 ```text
 :sample assign
 :sample assign 2
+:sample replace
+:sample replace 2
 :sample unassign
 :sample unassign 2
+:sample unload
+:sample cleanup
 :sample assignments
 ```
 
 Assignments are saved in `.salieri` project files, and the sampler view shows the assigned track for the currently loaded sample.
+`replace` swaps the sample on a track and removes the previous sample reference when it is no longer used.
+`unload` removes the currently viewed sample reference only when it is unassigned, while `cleanup` prunes all unused sample references.
 
 External sample browsing is optional. See [sample-browser.md](sample-browser.md) for the Yazi/chooser-file workflow and audition helper.
 
@@ -46,4 +52,3 @@ Current limitations:
 Next sampler playback steps:
 
 - route sampler events to realtime sampler voices in the audio engine;
-- add sample unload/replace commands that clean unused references.
