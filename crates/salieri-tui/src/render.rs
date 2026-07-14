@@ -59,6 +59,8 @@ pub struct SamplerViewState<'a> {
     pub name: &'a str,
     pub source_path: &'a str,
     pub overview: &'a WaveformOverview,
+    pub assigned_track: Option<&'a str>,
+    pub assigned_track_count: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -533,13 +535,19 @@ fn render_sampler_view(frame: &mut Frame<'_>, area: Rect, sampler: Option<Sample
 
     let sections = Layout::default()
         .direction(LayoutDirection::Vertical)
-        .constraints([Constraint::Length(8), Constraint::Min(5)])
+        .constraints([Constraint::Length(9), Constraint::Min(5)])
         .split(area);
 
     let overview = sampler.overview;
+    let assignment = match (sampler.assigned_track, sampler.assigned_track_count) {
+        (Some(track), 1) => format!("Assigned: {track}"),
+        (Some(track), count) => format!("Assigned: {track} (+{})", count.saturating_sub(1)),
+        (None, _) => "Assigned: none".to_string(),
+    };
     let lines = vec![
         Line::from(format!("Name: {}", truncate(sampler.name, 48))),
         Line::from(format!("Path: {}", truncate(sampler.source_path, 72))),
+        Line::from(assignment),
         Line::from(format!("Sample rate: {} Hz", overview.sample_rate)),
         Line::from(format!("Channels: {}", overview.channels)),
         Line::from(format!("Frames: {}", overview.frames)),

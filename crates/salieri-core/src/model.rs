@@ -15,6 +15,10 @@ pub struct TrackId(pub u32);
 #[serde(transparent)]
 pub struct PatternId(pub u32);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct SampleId(pub u32);
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Song {
@@ -23,6 +27,10 @@ pub struct Song {
     pub tracks: Vec<Track>,
     pub patterns: Vec<Pattern>,
     pub sequence: Vec<PatternId>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub samples: Vec<SampleReference>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sample_assignments: Vec<TrackSampleAssignment>,
 }
 
 impl Song {
@@ -60,6 +68,8 @@ impl Song {
             tracks,
             patterns: vec![pattern],
             sequence: vec![PatternId(1)],
+            samples: Vec::new(),
+            sample_assignments: Vec::new(),
         }
     }
 
@@ -173,6 +183,49 @@ impl Song {
                 return Err(ValidationError::SequencePatternNotFound {
                     position,
                     pattern_id: *pattern_id,
+                });
+            }
+        }
+
+        let mut sample_ids = HashSet::new();
+        for (sample_index, sample) in self.samples.iter().enumerate() {
+            if !sample_ids.insert(sample.id) {
+                return Err(ValidationError::DuplicateSampleId {
+                    sample_id: sample.id,
+                });
+            }
+            if sample.name.trim().is_empty() {
+                return Err(ValidationError::EmptySampleName { sample_index });
+            }
+            if sample.path.trim().is_empty() {
+                return Err(ValidationError::EmptySamplePath { sample_index });
+            }
+            if sample.root_pitch > 127 {
+                return Err(ValidationError::InvalidSampleRootPitch {
+                    sample_index,
+                    root_pitch: sample.root_pitch,
+                });
+            }
+            if !sample.gain.is_finite() || sample.gain < 0.0 {
+                return Err(ValidationError::InvalidSampleGain { sample_index });
+            }
+        }
+
+        let mut assigned_tracks = HashSet::new();
+        for assignment in &self.sample_assignments {
+            if !track_ids.contains(&assignment.track) {
+                return Err(ValidationError::SampleAssignmentTrackNotFound {
+                    track_id: assignment.track,
+                });
+            }
+            if !sample_ids.contains(&assignment.sample) {
+                return Err(ValidationError::SampleAssignmentSampleNotFound {
+                    sample_id: assignment.sample,
+                });
+            }
+            if !assigned_tracks.insert(assignment.track) {
+                return Err(ValidationError::DuplicateSampleAssignment {
+                    track_id: assignment.track,
                 });
             }
         }
@@ -395,6 +448,10 @@ impl Song {
             pattern.duplicate_track(track_index)?;
         }
 
+        if let Some(source_assignment) = self.sample_assignment_for_track(source.id).cloned() {
+            self.assign_sample_to_track(id, source_assignment.sample)?;
+        }
+
         Ok(id)
     }
 
@@ -411,7 +468,9 @@ impl Song {
             pattern.remove_track(track_index)?;
         }
 
-        Ok(self.tracks.remove(track_index))
+        let removed = self.tracks.remove(track_index);
+        self.unassign_sample_from_track(removed.id);
+        Ok(removed)
     }
 
     pub fn move_track(&mut self, from: usize, to: usize) -> Result<(), EditError> {
@@ -484,6 +543,77 @@ impl Song {
         Ok(())
     }
 
+    pub fn upsert_sample_reference(
+        &mut self,
+        path: impl Into<String>,
+        name: impl Into<String>,
+    ) -> SampleId {
+        let path = path.into();
+        let name = name.into();
+        if let Some(sample) = self.samples.iter_mut().find(|sample| sample.path == path) {
+            sample.name = name;
+            return sample.id;
+        }
+
+        let id = self.next_sample_id();
+        self.samples.push(SampleReference {
+            id,
+            name,
+            path,
+            root_pitch: 60,
+            gain: 1.0,
+        });
+        id
+    }
+
+    pub fn assign_sample_to_track(
+        &mut self,
+        track: TrackId,
+        sample: SampleId,
+    ) -> Result<(), EditError> {
+        if !self.tracks.iter().any(|existing| existing.id == track) {
+            return Err(EditError::TrackIdNotFound { track_id: track });
+        }
+        if !self.samples.iter().any(|existing| existing.id == sample) {
+            return Err(EditError::SampleNotFound { sample_id: sample });
+        }
+
+        if let Some(existing) = self
+            .sample_assignments
+            .iter_mut()
+            .find(|assignment| assignment.track == track)
+        {
+            existing.sample = sample;
+        } else {
+            self.sample_assignments
+                .push(TrackSampleAssignment { track, sample });
+        }
+        Ok(())
+    }
+
+    pub fn unassign_sample_from_track(&mut self, track: TrackId) {
+        self.sample_assignments
+            .retain(|assignment| assignment.track != track);
+    }
+
+    #[must_use]
+    pub fn sample_assignment_for_track(&self, track: TrackId) -> Option<&TrackSampleAssignment> {
+        self.sample_assignments
+            .iter()
+            .find(|assignment| assignment.track == track)
+    }
+
+    #[must_use]
+    pub fn sample_for_id(&self, sample: SampleId) -> Option<&SampleReference> {
+        self.samples.iter().find(|reference| reference.id == sample)
+    }
+
+    #[must_use]
+    pub fn sample_for_track(&self, track: TrackId) -> Option<&SampleReference> {
+        self.sample_assignment_for_track(track)
+            .and_then(|assignment| self.sample_for_id(assignment.sample))
+    }
+
     fn next_track_id(&self) -> TrackId {
         let next = self
             .tracks
@@ -504,6 +634,17 @@ impl Song {
             .unwrap_or(0)
             .saturating_add(1);
         PatternId(next)
+    }
+
+    fn next_sample_id(&self) -> SampleId {
+        let next = self
+            .samples
+            .iter()
+            .map(|sample| sample.id.0)
+            .max()
+            .unwrap_or(0)
+            .saturating_add(1);
+        SampleId(next)
     }
 }
 
@@ -571,6 +712,22 @@ pub enum ValidationError {
         position: usize,
         pattern_id: PatternId,
     },
+    #[error("duplicate sample id {sample_id:?}")]
+    DuplicateSampleId { sample_id: SampleId },
+    #[error("sample {sample_index} name cannot be empty")]
+    EmptySampleName { sample_index: usize },
+    #[error("sample {sample_index} path cannot be empty")]
+    EmptySamplePath { sample_index: usize },
+    #[error("sample {sample_index} has invalid root pitch {root_pitch}")]
+    InvalidSampleRootPitch { sample_index: usize, root_pitch: u8 },
+    #[error("sample {sample_index} has invalid gain")]
+    InvalidSampleGain { sample_index: usize },
+    #[error("sample assignment references missing track {track_id:?}")]
+    SampleAssignmentTrackNotFound { track_id: TrackId },
+    #[error("sample assignment references missing sample {sample_id:?}")]
+    SampleAssignmentSampleNotFound { sample_id: SampleId },
+    #[error("track {track_id:?} has multiple sample assignments")]
+    DuplicateSampleAssignment { track_id: TrackId },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -600,6 +757,23 @@ pub struct Track {
     pub muted: bool,
     pub solo: bool,
     pub armed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SampleReference {
+    pub id: SampleId,
+    pub name: String,
+    pub path: String,
+    pub root_pitch: u8,
+    pub gain: f32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrackSampleAssignment {
+    pub track: TrackId,
+    pub sample: SampleId,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -782,6 +956,8 @@ pub enum EditError {
     RowOutOfBounds { row: usize },
     #[error("track out of bounds: track {track}")]
     TrackOutOfBounds { track: usize },
+    #[error("track not found: track id {track_id:?}")]
+    TrackIdNotFound { track_id: TrackId },
     #[error("cannot delete the last track")]
     CannotDeleteLastTrack,
     #[error("pattern out of bounds: pattern {pattern}")]
@@ -798,6 +974,8 @@ pub enum EditError {
     CannotDeleteLastPatternRow,
     #[error("invalid MIDI channel: {midi_channel}")]
     InvalidMidiChannel { midi_channel: u8 },
+    #[error("sample not found: sample id {sample_id:?}")]
+    SampleNotFound { sample_id: SampleId },
     #[error("name cannot be empty")]
     EmptyName,
 }
@@ -1493,6 +1671,74 @@ mod tests {
             song.move_sequence_position(0, 10)
                 .expect_err("target out of bounds"),
             EditError::SequenceOutOfBounds { position: 10 }
+        );
+    }
+
+    #[test]
+    fn sample_references_can_be_assigned_replaced_and_removed() {
+        let mut song = Song::empty();
+        let drums = song.upsert_sample_reference("samples/kick.wav", "kick.wav");
+        let replacement = song.upsert_sample_reference("samples/snare.wav", "snare.wav");
+        let track = song.tracks[0].id;
+
+        song.assign_sample_to_track(track, drums)
+            .expect("assign drums");
+        song.assign_sample_to_track(track, replacement)
+            .expect("replace assignment");
+
+        assert_eq!(
+            song.sample_assignment_for_track(track),
+            Some(&TrackSampleAssignment {
+                track,
+                sample: replacement
+            })
+        );
+        assert_eq!(
+            song.sample_for_track(track).expect("sample").name,
+            "snare.wav"
+        );
+
+        song.unassign_sample_from_track(track);
+
+        assert!(song.sample_assignment_for_track(track).is_none());
+    }
+
+    #[test]
+    fn sample_assignments_follow_track_lifecycle() {
+        let mut song = Song::empty();
+        let sample = song.upsert_sample_reference("samples/bass.wav", "bass.wav");
+        let source_track = song.tracks[0].id;
+        song.assign_sample_to_track(source_track, sample)
+            .expect("assign source");
+
+        let duplicated_track = song.duplicate_track(0).expect("duplicate track");
+
+        assert_eq!(
+            song.sample_assignment_for_track(duplicated_track)
+                .expect("duplicated assignment")
+                .sample,
+            sample
+        );
+
+        song.delete_track(0).expect("delete source");
+
+        assert!(song.sample_assignment_for_track(source_track).is_none());
+        assert!(song.sample_assignment_for_track(duplicated_track).is_some());
+    }
+
+    #[test]
+    fn validation_rejects_invalid_sample_assignments() {
+        let mut song = Song::empty();
+        song.sample_assignments.push(TrackSampleAssignment {
+            track: song.tracks[0].id,
+            sample: SampleId(99),
+        });
+
+        assert_eq!(
+            song.validate().expect_err("missing sample"),
+            ValidationError::SampleAssignmentSampleNotFound {
+                sample_id: SampleId(99)
+            }
         );
     }
 

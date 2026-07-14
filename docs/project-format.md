@@ -13,6 +13,10 @@ Every project file must contain:
 
 `formatVersion` is mandatory. The current supported version is `1`.
 
+Within `song`, sample playback intent is represented by optional `samples` and
+`sampleAssignments` arrays. Older version-1 files that omit those arrays still
+load as projects with no sampler assignments.
+
 ## Loading Rules
 
 On load, Salieri:
@@ -33,12 +37,16 @@ Loaded projects are rejected when they contain:
 - non-finite swing;
 - no tracks, no patterns, or an empty sequence;
 - duplicate track or pattern IDs;
+- duplicate sample IDs;
 - empty track or pattern names;
+- empty sample names or paths;
 - MIDI channels outside `1..=16`;
+- invalid sample root pitch or gain;
 - patterns with zero rows;
 - pattern rows whose cell count does not match the track count;
 - note pitches, velocities, or gates outside MIDI `0..=127`;
 - sequence entries referencing missing pattern IDs.
+- sample assignments referencing missing track or sample IDs.
 
 Save operations run the same validation before writing. This prevents Salieri from creating a `.salieri` file it would reject on the next load.
 

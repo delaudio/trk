@@ -114,6 +114,25 @@ mod tests {
     }
 
     #[test]
+    fn saves_and_loads_sample_assignments() {
+        let path = test_project_path("sample-assignments");
+        let mut song = Song::empty();
+        let sample = song.upsert_sample_reference("samples/kick.wav", "kick.wav");
+        let track = song.tracks[0].id;
+        song.assign_sample_to_track(track, sample)
+            .expect("assign sample");
+
+        save_project(&path, &song).expect("save");
+        let loaded = load_project(&path).expect("load");
+        let _ = fs::remove_file(&path);
+
+        assert_eq!(
+            loaded.sample_for_track(track).expect("sample").path,
+            "samples/kick.wav"
+        );
+    }
+
+    #[test]
     fn rejects_unknown_format_versions() {
         let path = test_project_path("version");
         let project = ProjectFile {

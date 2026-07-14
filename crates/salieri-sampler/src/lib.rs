@@ -1,9 +1,6 @@
 use std::{fs, path::Path};
 
-use salieri_core::TrackId;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct SampleId(pub u32);
+use salieri_core::{SampleId, TrackId};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Sample {

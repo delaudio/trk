@@ -2538,8 +2538,27 @@ impl App {
                         Some(PathBuf::from(path))
                     });
                 }
+                Some("assign") => {
+                    let track_index = parts
+                        .next()
+                        .and_then(parse_track_number)
+                        .unwrap_or(self.cursor.track);
+                    self.assign_loaded_sample_to_track(track_index);
+                }
+                Some("unassign") | Some("clear") => {
+                    let track_index = parts
+                        .next()
+                        .and_then(parse_track_number)
+                        .unwrap_or(self.cursor.track);
+                    self.unassign_sample_from_track(track_index);
+                }
+                Some("assignments") | Some("assigned") | Some("list") => {
+                    self.show_sample_assignments();
+                }
                 None => self.open_sampler_view(),
-                Some(_) => self.notify_warning("Usage: :sample view PATH or :sample browse [DIR]"),
+                Some(_) => self.notify_warning(
+                    "Usage: :sample view PATH | browse [DIR] | assign [TRACK] | unassign [TRACK] | assignments",
+                ),
             },
             _ => self.notify_warning(format!("Unknown command: {name}")),
         }
@@ -2760,6 +2779,69 @@ impl App {
                 self.notify_error(format!("Sample browser failed: {error}"));
             }
         }
+    }
+
+    fn assign_loaded_sample_to_track(&mut self, track_index: usize) {
+        let Some(sample_view) = &self.sample_view else {
+            self.mode = AppMode::Sampler;
+            self.notify_warning("Load a sample before assigning it");
+            return;
+        };
+
+        let Some(track) = self.song.tracks.get(track_index) else {
+            self.notify_warning("Track out of range");
+            return;
+        };
+
+        let track_id = track.id;
+        let track_name = track.name.clone();
+        let sample_name = sample_view.sample.name.clone();
+        let sample_path = sample_view.source_path.to_string_lossy().to_string();
+
+        self.mutate_song(|song, _| {
+            let sample_id = song.upsert_sample_reference(sample_path, sample_name);
+            let _ = song.assign_sample_to_track(track_id, sample_id);
+        });
+        self.mode = AppMode::Sampler;
+        self.notify_success(format!("Sample assigned to {track_name}"));
+    }
+
+    fn unassign_sample_from_track(&mut self, track_index: usize) {
+        let Some(track) = self.song.tracks.get(track_index) else {
+            self.notify_warning("Track out of range");
+            return;
+        };
+        let track_id = track.id;
+        let track_name = track.name.clone();
+
+        self.mutate_song(|song, _| {
+            song.unassign_sample_from_track(track_id);
+        });
+        self.notify_success(format!("Sample unassigned from {track_name}"));
+    }
+
+    fn show_sample_assignments(&mut self) {
+        if self.song.sample_assignments.is_empty() {
+            self.notify_info("No sample assignments");
+            return;
+        }
+
+        let assignments = self
+            .song
+            .sample_assignments
+            .iter()
+            .filter_map(|assignment| {
+                let track = self
+                    .song
+                    .tracks
+                    .iter()
+                    .find(|track| track.id == assignment.track)?;
+                let sample = self.song.sample_for_id(assignment.sample)?;
+                Some(format!("{}={}", track.name, sample.name))
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        self.notify_info(format!("Samples: {assignments}"));
     }
 
     fn refresh_midi_ports(&mut self) {
@@ -3135,10 +3217,34 @@ impl App {
     }
 
     fn tui_sampler_view(&self) -> Option<SamplerViewState<'_>> {
-        self.sample_view.as_ref().map(|sample| SamplerViewState {
-            name: sample.sample.name.as_str(),
-            source_path: sample.source_path.to_str().unwrap_or("<non-utf8 path>"),
-            overview: &sample.overview,
+        self.sample_view.as_ref().map(|sample| {
+            let sample_path = sample.source_path.to_string_lossy();
+            let sample_id = self
+                .song
+                .samples
+                .iter()
+                .find(|reference| reference.path == sample_path.as_ref())
+                .map(|reference| reference.id);
+            let assigned_tracks = sample_id.map_or_else(Vec::new, |sample_id| {
+                self.song
+                    .sample_assignments
+                    .iter()
+                    .filter(|assignment| assignment.sample == sample_id)
+                    .filter_map(|assignment| {
+                        self.song
+                            .tracks
+                            .iter()
+                            .find(|track| track.id == assignment.track)
+                    })
+                    .collect::<Vec<_>>()
+            });
+            SamplerViewState {
+                name: sample.sample.name.as_str(),
+                source_path: sample.source_path.to_str().unwrap_or("<non-utf8 path>"),
+                overview: &sample.overview,
+                assigned_track: assigned_tracks.first().map(|track| track.name.as_str()),
+                assigned_track_count: assigned_tracks.len(),
+            }
         })
     }
 }
@@ -3182,6 +3288,13 @@ fn parse_optional_numbered_name(values: &[&str], default_index: usize) -> Option
     } else {
         Some((default_index, values.join(" ")))
     }
+}
+
+fn parse_track_number(value: &str) -> Option<usize> {
+    value
+        .parse::<usize>()
+        .ok()
+        .map(|number| number.saturating_sub(1))
 }
 
 fn parse_hex_byte(value: &str) -> Option<u8> {
@@ -4688,6 +4801,47 @@ mod tests {
         assert_eq!(sampler.overview.sample_rate, 44_100);
         assert_eq!(sampler.overview.channels, 1);
         assert_eq!(sampler.overview.frames, 4);
+    }
+
+    #[test]
+    fn sampler_commands_assign_list_and_unassign_loaded_sample() {
+        let mut app = App::default();
+        let path =
+            std::env::temp_dir().join(format!("salieri-sampler-assign-{}.wav", std::process::id()));
+        std::fs::write(&path, wav_pcm16_bytes(44_100, 1, &[0, i16::MAX])).expect("write wav");
+
+        enter_command(&mut app, &format!("sample view {}", path.display()));
+        enter_command(&mut app, "sample assign 2");
+
+        let track_id = app.song.tracks[1].id;
+        let assignment = app
+            .song
+            .sample_assignment_for_track(track_id)
+            .expect("assignment");
+        let sample = app.song.sample_for_id(assignment.sample).expect("sample");
+        assert_eq!(sample.name, path.file_name().unwrap().to_string_lossy());
+        assert_eq!(sample.path, path.to_string_lossy());
+        assert!(app.dirty);
+
+        let sampler = app.tui_sampler_view().expect("sampler view");
+        assert_eq!(
+            sampler.assigned_track,
+            Some(app.song.tracks[1].name.as_str())
+        );
+        assert_eq!(sampler.assigned_track_count, 1);
+
+        enter_command(&mut app, "sample assignments");
+        assert!(app
+            .notification
+            .as_ref()
+            .expect("notification")
+            .message
+            .contains("Bass"));
+
+        enter_command(&mut app, "sample unassign 2");
+        let _ = std::fs::remove_file(&path);
+
+        assert!(app.song.sample_assignment_for_track(track_id).is_none());
     }
 
     #[test]

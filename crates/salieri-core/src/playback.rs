@@ -1,4 +1,4 @@
-use crate::{NoteEvent, Pattern, Song, TrackId, TrackerCommand, TransportSettings};
+use crate::{NoteEvent, Pattern, SampleId, Song, TrackId, TrackerCommand, TransportSettings};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlaybackPosition {
@@ -18,6 +18,18 @@ pub struct PlaybackEvent {
 pub enum PlaybackEventKind {
     NoteOn { pitch: u8, velocity: u8 },
     NoteOff { pitch: u8 },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SamplerPlaybackEvent {
+    pub position: PlaybackPosition,
+    pub track: TrackId,
+    pub sample: SampleId,
+    pub sample_path: String,
+    pub pitch: u8,
+    pub velocity: u8,
+    pub gain: f32,
+    pub pitch_ratio: f32,
 }
 
 #[must_use]
@@ -102,6 +114,55 @@ pub fn pattern_events(song: &Song, pattern: &Pattern) -> Vec<PlaybackEvent> {
     events
 }
 
+#[must_use]
+pub fn sampler_events(song: &Song, pattern: &Pattern) -> Vec<SamplerPlaybackEvent> {
+    let row_duration = row_duration_micros(&song.transport);
+    let solo_active = song.tracks.iter().any(|track| track.solo);
+    let mut events = Vec::new();
+
+    for (row_index, row) in pattern.rows.iter().enumerate() {
+        let position = PlaybackPosition {
+            row: row_index,
+            offset_micros: row_duration.saturating_mul(row_index as u64),
+        };
+
+        for (track_index, track) in song.tracks.iter().enumerate() {
+            if !track_is_audible(track.muted, track.solo, solo_active) {
+                continue;
+            }
+
+            let Some(sample) = song.sample_for_track(track.id) else {
+                continue;
+            };
+            let Some(cell) = row.cells.get(track_index) else {
+                continue;
+            };
+
+            let Some(NoteEvent::Note { pitch }) = cell.note else {
+                continue;
+            };
+
+            let position = apply_delay_command(position, row_duration, cell.command);
+            let velocity = cell.velocity.unwrap_or(0x7f).min(0x7f);
+            let trigger = SamplerPlaybackEvent {
+                position,
+                track: track.id,
+                sample: sample.id,
+                sample_path: sample.path.clone(),
+                pitch,
+                velocity,
+                gain: sample.gain,
+                pitch_ratio: pitch_ratio(pitch, sample.root_pitch),
+            };
+            events.push(trigger.clone());
+            emit_sampler_retrigger_events(&mut events, trigger, row_duration, cell.command);
+        }
+    }
+
+    events.sort_by_key(|event| event.position.offset_micros);
+    events
+}
+
 fn apply_delay_command(
     position: PlaybackPosition,
     row_duration: u64,
@@ -120,6 +181,39 @@ fn apply_delay_command(
             .saturating_add(row_duration.saturating_mul(u64::from(command.value)) / 256),
         ..position
     }
+}
+
+fn emit_sampler_retrigger_events(
+    events: &mut Vec<SamplerPlaybackEvent>,
+    trigger: SamplerPlaybackEvent,
+    row_duration: u64,
+    command: Option<TrackerCommand>,
+) {
+    let Some(command) = command else {
+        return;
+    };
+    if command.code.to_ascii_uppercase() != TrackerCommand::RETRIGGER_CODE {
+        return;
+    }
+
+    let count = command.value.clamp(1, 16);
+    for step in 1..count {
+        let offset = trigger
+            .position
+            .offset_micros
+            .saturating_add(row_duration.saturating_mul(u64::from(step)) / u64::from(count));
+        events.push(SamplerPlaybackEvent {
+            position: PlaybackPosition {
+                offset_micros: offset,
+                ..trigger.position
+            },
+            ..trigger.clone()
+        });
+    }
+}
+
+fn pitch_ratio(pitch: u8, root_pitch: u8) -> f32 {
+    2.0_f32.powf((f32::from(pitch) - f32::from(root_pitch)) / 12.0)
 }
 
 fn emit_retrigger_events(
@@ -391,6 +485,38 @@ mod tests {
         assert!(events
             .iter()
             .all(|event| event.track == TrackId(2) && event.track != TrackId(1)));
+    }
+
+    #[test]
+    fn sampler_events_emit_audio_engine_contract_for_assigned_tracks() {
+        let mut song = Song::empty();
+        let sample_id = song.upsert_sample_reference("samples/kick.wav", "kick.wav");
+        let track_id = song.tracks[0].id;
+        song.samples[0].root_pitch = 48;
+        song.samples[0].gain = 0.75;
+        song.assign_sample_to_track(track_id, sample_id)
+            .expect("assign sample");
+        let pattern = song.current_pattern_mut().expect("pattern");
+        pattern
+            .set_note(2, 0, NoteEvent::Note { pitch: 60 }, 0x64)
+            .expect("set note");
+        pattern.cell_mut(2, 0).expect("cell").command = Some(TrackerCommand::delay(128));
+        pattern
+            .set_note(3, 1, NoteEvent::Note { pitch: 72 }, 0x7f)
+            .expect("set unassigned note");
+
+        let events = sampler_events(&song, song.current_pattern().expect("pattern"));
+
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].position.row, 2);
+        assert_eq!(events[0].position.offset_micros, 312_500);
+        assert_eq!(events[0].track, track_id);
+        assert_eq!(events[0].sample, sample_id);
+        assert_eq!(events[0].sample_path, "samples/kick.wav");
+        assert_eq!(events[0].pitch, 60);
+        assert_eq!(events[0].velocity, 0x64);
+        assert_eq!(events[0].gain, 0.75);
+        assert!((events[0].pitch_ratio - 2.0).abs() < f32::EPSILON);
     }
 
     #[test]
