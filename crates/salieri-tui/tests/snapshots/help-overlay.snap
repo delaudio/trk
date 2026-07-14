@@ -1,36 +1,36 @@
 ┌ Salieri Tracker ─────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ BPM 120 | LPB 4 | Pattern 01 | Oct 4 | Row 00 | Play -- | Loop ON | Track 01 | Field NOTE | HELP | STOP | MIDI Discon│
-└──────────┌ Help ──────────────────────────────────────────────────────────────────────────────────────────┐──────────┘
-┌ Tracks ──│Global                                                                                          │──────────┐
-│> 01 Drums│?/H Help   :h/:help Help   q Quit   Space Play/Stop   Shift+Space Start                         │          │
-│  02 Bass │Enter Play Row   Shift+Enter Play Sequence From Cursor   L Loop   F8 Stop                       │          │
-│  03 Lead │F7 Sequence View   F9 Track View   F10 Pattern View   Esc returns from focused views            │          │
-│  04 Pad  │F11 Sampler View   :sample view PATH loads a WAV reference for waveform inspection              │          │
-│          │:play pattern from start   :play sequence arrangement                                           │          │
-│          │Ctrl+S Save   Ctrl+Shift+S Save As   Ctrl+Z Undo   Ctrl+Y Redo   Ctrl+Arrows BPM/LPB            │          │
-│          │                                                                                                │          │
-│          │MIDI                                                                                            │          │
-│          │F4 or :midi outputs opens MIDI settings and lists output ports                                  │          │
-│          │In MIDI settings: arrows select, Enter connects, F5/r refresh, p panic                          │          │
-│          │CLI fallback: salieri --list-midi-outputs, then :midi connect 0                                 │          │
-│          │4. Press Space or run :play pattern to send notes to the connected output                       │          │
-│          │:midi disconnect closes the output   :midi panic sends All Notes Off                            │          │
-│          │Use :track channel 2 10 to set track 02 to MIDI channel 10                                      │          │
-│          │Config: [midi] default_output = "IAC Driver" auto-connects by name                              │          │
-│          │                                                                                                │          │
-│          │Navigation                                                                                      │          │
-└──────────│Arrows or h/j/k/l move   Tab/Shift+Tab track   PageUp/PageDown jump                             │          │
-┌ Sequence │Home/End pattern bounds   gg first row   G last row                                             │          │
-│  00 Patte│                                                                                                │          │
-│          │Editing                                                                                         │          │
-│          │i Edit   Esc Normal   Del/Backspace clear cell   Ctrl+C/X/V cell clipboard                      │          │
-│          │V select region   Esc cancel selection   Delete clears selection                                │          │
-│          │Insert row   Ctrl+Delete delete row   F1/- octave down                                          │          │
-│          │F2/+/= octave up   Velocity field accepts two hex digits                                        │          │
-│          │                                                                                                │          │
-│          │Notes                                                                                           │          │
-│          │z s x d c v g b h n j m = C C# D D# E F F# G G# A A# B                                          │          │
-│          └────────────────────────────────────────────────────────────────────────────────────────────────┘          │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌ Trac┌ Help 1/28 ───────────────────────────────────────────────────────────────────────────────────────────────┐─────┐
+│> 01 │Global                                                                                                    │     │
+│  02 │  ?/H Help   :h/:help Help   q Quit   Space Play/Stop   Shift+Space Start                                 │     │
+│  03 │  Enter Play Row   Shift+Enter Play Sequence From Cursor   L Loop   F8 Stop                               │     │
+│  04 │  F7 Sequence View   F9 Track View   F10 Pattern View   Esc returns from focused views                    │     │
+│     │  F11 Sampler View   :sample view PATH loads a WAV reference for waveform inspection                      │     │
+│     │  :play pattern from start   :play sequence arrangement                                                   │     │
+│     │  Ctrl+S Save   Ctrl+Shift+S Save As   Ctrl+Z Undo   Ctrl+Y Redo   Ctrl+Arrows BPM/LPB                    │     │
+│     │                                                                                                          │     │
+│     │MIDI                                                                                                      │     │
+│     │  F4 or :midi outputs opens MIDI settings and lists output ports                                          │     │
+│     │  In MIDI settings: arrows select, Enter connects, F5/r refresh, p panic                                  │     │
+│     │  CLI fallback: salieri --list-midi-outputs, then :midi connect 0                                         │     │
+│     │  4. Press Space or run :play pattern to send notes to the connected output                               │     │
+│     │  :midi disconnect closes the output   :midi panic sends All Notes Off                                    │     │
+│     │  Use :track channel 2 10 to set track 02 to MIDI channel 10                                              │     │
+│     │  Config: [midi] default_output = "IAC Driver" auto-connects by name                                      │     │
+│     │                                                                                                          │     │
+└─────│Navigation                                                                                                │     │
+┌ Sequ│  Arrows or h/j/k/l move   Tab/Shift+Tab track   PageUp/PageDown jump                                     │     │
+│  00 │  Home/End pattern bounds   gg first row   G last row                                                     │     │
+│     │                                                                                                          │     │
+│     │Editing                                                                                                   │     │
+│     │  i Edit   Esc Normal   Del/Backspace clear cell   Ctrl+C/X/V cell clipboard                              │     │
+│     │  V select region   Esc cancel selection   Delete clears selection                                        │     │
+│     │  Insert row   Ctrl+Delete delete row   F1/- octave down                                                  │     │
+│     │  F2/+/= octave up   Velocity field accepts two hex digits                                                │     │
+│     │                                                                                                          │     │
+│     │Notes                                                                                                     │     │
+│     └──────────────────────────────────────────────────────────────────────────────────────────────────────────┘     │
 │                         ││ 28   --- --    --- --    --- --    --- --                                                 │
 └─────────────────────────┘└───────────────────────────────────────────────────────────────────────────────────────────┘
  HELP | H Help | F4 MIDI | F7 Sequence | F9 Tracks | F10 Patterns | F11 Sampler | Space Play/Stop | Enter Row | Shift+En

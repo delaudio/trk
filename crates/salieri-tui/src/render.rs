@@ -34,6 +34,7 @@ pub struct TuiState<'a> {
     pub command_line: Option<&'a str>,
     pub notification: Option<NotificationView<'a>>,
     pub show_help: bool,
+    pub help_scroll: usize,
     pub is_playing: bool,
     pub loop_pattern: bool,
     pub playhead_row: Option<usize>,
@@ -170,7 +171,7 @@ pub fn render(frame: &mut Frame<'_>, song: &Song, state: TuiState<'_>) {
     render_status(frame, vertical[2], state);
 
     if state.show_help {
-        render_help_overlay(frame, area, state.mode_label);
+        render_help_overlay(frame, area, state.mode_label, state.help_scroll);
     }
     if let Some(midi_settings) = state.midi_settings {
         render_midi_settings_overlay(frame, area, midi_settings);
@@ -961,9 +962,29 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
     frame.render_widget(status, area);
 }
 
-fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
-    let overlay = centered_rect(98, 31, area);
-    let lines = vec![
+fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str, scroll: usize) {
+    let overlay = large_overlay_rect(area);
+    let visible_rows = overlay.height.saturating_sub(2) as usize;
+    let lines = help_lines(mode_label);
+    let max_scroll = lines.len().saturating_sub(visible_rows);
+    let scroll = scroll.min(max_scroll);
+    let title = if max_scroll == 0 {
+        " Help ".to_string()
+    } else {
+        format!(" Help {}/{} ", scroll + 1, max_scroll + 1)
+    };
+
+    let paragraph = Paragraph::new(lines)
+        .block(Block::default().title(title).borders(Borders::ALL))
+        .scroll((scroll as u16, 0))
+        .wrap(Wrap { trim: false })
+        .style(Style::default().fg(Color::White));
+    frame.render_widget(Clear, overlay);
+    frame.render_widget(paragraph, overlay);
+}
+
+fn help_lines(mode_label: &str) -> Vec<Line<'static>> {
+    vec![
         Line::from(Span::styled(
             "Global",
             Style::default()
@@ -1056,14 +1077,7 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str) {
         Line::from("  :sequence set 0 2   :sequence move 1 0"),
         Line::from(""),
         Line::from(format!("Mode: {mode_label}   Close: Esc, q, or ?")),
-    ];
-
-    let paragraph = Paragraph::new(lines)
-        .block(Block::default().title(" Help ").borders(Borders::ALL))
-        .wrap(Wrap { trim: true })
-        .style(Style::default().fg(Color::White));
-    frame.render_widget(Clear, overlay);
-    frame.render_widget(paragraph, overlay);
+    ]
 }
 
 fn render_midi_settings_overlay(
@@ -1171,6 +1185,19 @@ fn centered_rect(width: u16, height: u16, area: Rect) -> Rect {
         y,
         width,
         height,
+    }
+}
+
+fn large_overlay_rect(area: Rect) -> Rect {
+    let horizontal_margin = if area.width >= 120 { 6 } else { 2 };
+    let vertical_margin = if area.height >= 32 { 3 } else { 1 };
+    let width = area.width.saturating_sub(horizontal_margin * 2).max(20);
+    let height = area.height.saturating_sub(vertical_margin * 2).max(8);
+    Rect {
+        x: area.x + horizontal_margin.min(area.width.saturating_sub(1)),
+        y: area.y + vertical_margin.min(area.height.saturating_sub(1)),
+        width: width.min(area.width),
+        height: height.min(area.height),
     }
 }
 
@@ -1359,6 +1386,7 @@ mod tests {
                         command_line: None,
                         notification: None,
                         show_help: false,
+                        help_scroll: 0,
                         is_playing: false,
                         loop_pattern: true,
                         playhead_row: None,
@@ -1431,6 +1459,7 @@ mod tests {
                         command_line: None,
                         notification: None,
                         show_help: false,
+                        help_scroll: 0,
                         is_playing: false,
                         loop_pattern: true,
                         playhead_row: None,
@@ -1487,6 +1516,7 @@ mod tests {
                         command_line: None,
                         notification: None,
                         show_help: false,
+                        help_scroll: 0,
                         is_playing: false,
                         loop_pattern: true,
                         playhead_row: None,
@@ -1539,6 +1569,7 @@ mod tests {
                         command_line: None,
                         notification: None,
                         show_help: false,
+                        help_scroll: 0,
                         is_playing: false,
                         loop_pattern: true,
                         playhead_row: None,
@@ -1591,6 +1622,7 @@ mod tests {
                         command_line: None,
                         notification: None,
                         show_help: true,
+                        help_scroll: 0,
                         is_playing: false,
                         loop_pattern: true,
                         playhead_row: None,
@@ -1651,6 +1683,7 @@ mod tests {
                         command_line: None,
                         notification: None,
                         show_help: false,
+                        help_scroll: 0,
                         is_playing: true,
                         loop_pattern: true,
                         playhead_row: Some(0),
@@ -1704,6 +1737,7 @@ mod tests {
                         command_line: None,
                         notification: None,
                         show_help: false,
+                        help_scroll: 0,
                         is_playing: false,
                         loop_pattern: true,
                         playhead_row: None,
@@ -1757,6 +1791,7 @@ mod tests {
                             message: "Project saved",
                         }),
                         show_help: false,
+                        help_scroll: 0,
                         is_playing: false,
                         loop_pattern: true,
                         playhead_row: None,
@@ -1808,6 +1843,7 @@ mod tests {
                         command_line: None,
                         notification: None,
                         show_help: false,
+                        help_scroll: 0,
                         is_playing: false,
                         loop_pattern: true,
                         playhead_row: None,
@@ -1859,6 +1895,7 @@ mod tests {
                         command_line: None,
                         notification: None,
                         show_help: false,
+                        help_scroll: 0,
                         is_playing: false,
                         loop_pattern: true,
                         playhead_row: None,
@@ -1920,6 +1957,7 @@ mod tests {
                         command_line: None,
                         notification: None,
                         show_help: false,
+                        help_scroll: 0,
                         is_playing: false,
                         loop_pattern: true,
                         playhead_row: None,

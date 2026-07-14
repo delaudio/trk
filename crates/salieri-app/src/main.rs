@@ -130,6 +130,7 @@ fn run(args: CliArgs) -> Result<()> {
                     command_line: app.command_line(),
                     notification,
                     show_help: app.mode == AppMode::Help,
+                    help_scroll: app.help_scroll,
                     is_playing: app.is_playing,
                     loop_pattern: app.loop_pattern,
                     playhead_row: app.playhead_row,
@@ -883,6 +884,7 @@ struct App {
     pending_goto_start: bool,
     follow_playhead: bool,
     show_line_numbers_hex: bool,
+    help_scroll: usize,
     command_buffer: String,
     clipboard: Option<Clipboard>,
     selection_anchor: Option<SelectionAnchor>,
@@ -1002,6 +1004,7 @@ impl App {
             pending_goto_start: false,
             follow_playhead: config.ui.follow_playhead,
             show_line_numbers_hex: config.ui.show_line_numbers_hex,
+            help_scroll: 0,
             command_buffer: String::new(),
             clipboard: None,
             selection_anchor: None,
@@ -1290,7 +1293,7 @@ impl App {
                 return;
             }
             KeyCode::Char('?') | KeyCode::Char('H') => {
-                self.mode = AppMode::Help;
+                self.open_help();
                 return;
             }
             KeyCode::Char('v') | KeyCode::Char('V') => {
@@ -1410,6 +1413,24 @@ impl App {
         match key.code {
             KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('?') => {
                 self.mode = AppMode::Normal;
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.help_scroll = self.help_scroll.saturating_sub(1);
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.help_scroll = self.help_scroll.saturating_add(1);
+            }
+            KeyCode::PageUp => {
+                self.help_scroll = self.help_scroll.saturating_sub(10);
+            }
+            KeyCode::PageDown => {
+                self.help_scroll = self.help_scroll.saturating_add(10);
+            }
+            KeyCode::Home => {
+                self.help_scroll = 0;
+            }
+            KeyCode::End => {
+                self.help_scroll = usize::MAX;
             }
             _ => {}
         }
@@ -2379,7 +2400,7 @@ impl App {
 
         match name {
             "h" | "help" => {
-                self.mode = AppMode::Help;
+                self.open_help();
             }
             "q" | "quit" => {
                 self.request_quit(false);
@@ -2810,6 +2831,11 @@ impl App {
     fn open_midi_settings(&mut self) {
         self.refresh_midi_ports();
         self.mode = AppMode::MidiSettings;
+    }
+
+    fn open_help(&mut self) {
+        self.help_scroll = 0;
+        self.mode = AppMode::Help;
     }
 
     fn open_sequence_view(&mut self) {
@@ -5766,8 +5792,16 @@ mod tests {
         app.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
 
         assert_eq!(app.mode, AppMode::Help);
+        assert_eq!(app.help_scroll, 1);
         assert_eq!(app.cursor.row, 0);
         assert!(!app.dirty);
+
+        app.handle_key(KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE));
+        assert_eq!(app.help_scroll, 11);
+        app.handle_key(KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE));
+        assert_eq!(app.help_scroll, 1);
+        app.handle_key(KeyEvent::new(KeyCode::Home, KeyModifiers::NONE));
+        assert_eq!(app.help_scroll, 0);
 
         app.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
         assert_eq!(app.mode, AppMode::Normal);
