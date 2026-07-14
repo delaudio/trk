@@ -256,6 +256,157 @@ pub enum AudioExportError {
     WavTooLarge,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RealtimeSamplerConfig {
+    pub sample_rate: u32,
+    pub channels: u16,
+    pub max_voices: usize,
+}
+
+impl Default for RealtimeSamplerConfig {
+    fn default() -> Self {
+        Self {
+            sample_rate: AudioConfig::default().sample_rate,
+            channels: AudioConfig::default().channels,
+            max_voices: 64,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct RealtimeSamplerVoice {
+    voice_id: u64,
+    sample_id: u32,
+    start_frame: u64,
+    gain: f32,
+    pitch_ratio: f32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RealtimeSampler {
+    config: RealtimeSamplerConfig,
+    samples: HashMap<u32, PreviewBuffer>,
+    voices: Vec<RealtimeSamplerVoice>,
+    next_voice_id: u64,
+    current_frame: u64,
+}
+
+impl RealtimeSampler {
+    #[must_use]
+    pub fn new(config: RealtimeSamplerConfig) -> Self {
+        Self {
+            config,
+            samples: HashMap::new(),
+            voices: Vec::new(),
+            next_voice_id: 1,
+            current_frame: 0,
+        }
+    }
+
+    pub fn register_sample(
+        &mut self,
+        sample_id: u32,
+        buffer: PreviewBuffer,
+    ) -> Result<(), AudioExportError> {
+        validate_sampler_render_sample(
+            &buffer,
+            OfflineRenderSpec {
+                sample_rate: self.config.sample_rate,
+                channels: self.config.channels,
+                frames: 0,
+            },
+        )?;
+        self.samples.insert(sample_id, buffer);
+        Ok(())
+    }
+
+    pub fn remove_sample(&mut self, sample_id: u32) {
+        self.samples.remove(&sample_id);
+        self.voices.retain(|voice| voice.sample_id != sample_id);
+    }
+
+    #[must_use]
+    pub fn active_voice_count(&self) -> usize {
+        self.voices.len()
+    }
+
+    pub fn handle_command(
+        &mut self,
+        command: RealtimeAudioCommand,
+    ) -> Result<Option<u64>, AudioExportError> {
+        match command {
+            RealtimeAudioCommand::TriggerSample {
+                sample_id,
+                frame,
+                gain,
+                pitch_ratio,
+            } => {
+                if !self.samples.contains_key(&sample_id) {
+                    return Err(AudioExportError::MissingSample { sample_id });
+                }
+                let pitch_ratio = validated_pitch_ratio(pitch_ratio)?;
+                if self.config.max_voices == 0 {
+                    return Ok(None);
+                }
+                if self.voices.len() >= self.config.max_voices {
+                    self.voices.remove(0);
+                }
+                let voice_id = self.next_voice_id;
+                self.next_voice_id = self.next_voice_id.saturating_add(1);
+                self.voices.push(RealtimeSamplerVoice {
+                    voice_id,
+                    sample_id,
+                    start_frame: frame,
+                    gain: gain.max(0.0),
+                    pitch_ratio,
+                });
+                Ok(Some(voice_id))
+            }
+            RealtimeAudioCommand::StopVoice { voice_id, .. } => {
+                self.voices.retain(|voice| voice.voice_id != voice_id);
+                Ok(None)
+            }
+            RealtimeAudioCommand::AllNotesOff { .. } => {
+                self.voices.clear();
+                Ok(None)
+            }
+        }
+    }
+
+    pub fn render(&mut self, frames: usize) -> RenderedAudio {
+        let channels = usize::from(self.config.channels);
+        let mut data = vec![0.0; frames.saturating_mul(channels)];
+        let render_start = self.current_frame;
+        let render_end = render_start.saturating_add(frames as u64);
+
+        for voice in &self.voices {
+            let Some(sample) = self.samples.get(&voice.sample_id) else {
+                continue;
+            };
+            mix_realtime_voice(&mut data, channels, sample, voice, render_start, render_end);
+        }
+
+        self.current_frame = render_end;
+        let current_frame = self.current_frame;
+        let samples = &self.samples;
+        self.voices.retain(|voice| {
+            samples.get(&voice.sample_id).is_some_and(|sample| {
+                match voice_end_frame(voice, sample) {
+                    Some(end_frame) => end_frame > current_frame,
+                    None => true,
+                }
+            })
+        });
+
+        RenderedAudio {
+            sample_rate: self.config.sample_rate,
+            channels: self.config.channels,
+            frames,
+            data,
+        }
+    }
+}
+
 #[must_use]
 pub const fn supported_audio_export_formats() -> &'static [AudioExportFormat] {
     &[AudioExportFormat::WavPcm16]
@@ -493,6 +644,43 @@ fn mix_sample_event(
         source_frame += pitch_ratio;
         output_frame += 1;
     }
+}
+
+fn mix_realtime_voice(
+    output: &mut [f32],
+    channels: usize,
+    sample: &PreviewBuffer,
+    voice: &RealtimeSamplerVoice,
+    render_start: u64,
+    render_end: u64,
+) {
+    let voice_end = voice_end_frame(voice, sample).unwrap_or(u64::MAX);
+    let mix_start = render_start.max(voice.start_frame);
+    let mix_end = render_end.min(voice_end);
+    if mix_start >= mix_end {
+        return;
+    }
+
+    for absolute_frame in mix_start..mix_end {
+        let output_frame = (absolute_frame - render_start) as usize;
+        let source_frame = (absolute_frame - voice.start_frame) as f32 * voice.pitch_ratio;
+        let output_offset = output_frame * channels;
+        for channel in 0..channels {
+            output[output_offset + channel] +=
+                interpolated_sample(sample, source_frame, channel, channels) * voice.gain;
+        }
+    }
+}
+
+fn voice_end_frame(voice: &RealtimeSamplerVoice, sample: &PreviewBuffer) -> Option<u64> {
+    if sample.frames == 0 {
+        return Some(voice.start_frame);
+    }
+    let rendered_frames = ((sample.frames as f32) / voice.pitch_ratio).ceil();
+    if !rendered_frames.is_finite() || rendered_frames <= 0.0 {
+        return None;
+    }
+    Some(voice.start_frame.saturating_add(rendered_frames as u64))
 }
 
 fn interpolated_sample(
@@ -747,6 +935,89 @@ mod tests {
         );
         assert_eq!(i16::from_le_bytes([bytes[44], bytes[45]]), 16_384);
         assert_eq!(i16::from_le_bytes([bytes[46], bytes[47]]), -16_384);
+    }
+
+    #[test]
+    fn realtime_sampler_renders_triggered_voices() {
+        let mut sampler = RealtimeSampler::new(RealtimeSamplerConfig {
+            sample_rate: 48_000,
+            channels: 1,
+            max_voices: 4,
+        });
+        sampler
+            .register_sample(1, mono_sample(vec![0.25, 0.5, 0.75, 1.0]))
+            .expect("register sample");
+
+        sampler
+            .handle_command(RealtimeAudioCommand::TriggerSample {
+                sample_id: 1,
+                frame: 1,
+                gain: 0.5,
+                pitch_ratio: 2.0,
+            })
+            .expect("trigger");
+
+        let rendered = sampler.render(4);
+
+        assert_eq!(rendered.data[0], 0.0);
+        assert_eq!(rendered.data[1], 0.125);
+        assert_eq!(rendered.data[2], 0.375);
+        assert_eq!(rendered.data[3], 0.0);
+        assert_eq!(sampler.active_voice_count(), 0);
+    }
+
+    #[test]
+    fn realtime_sampler_bounds_and_clears_voices() {
+        let mut sampler = RealtimeSampler::new(RealtimeSamplerConfig {
+            sample_rate: 48_000,
+            channels: 1,
+            max_voices: 1,
+        });
+        sampler
+            .register_sample(1, mono_sample(vec![1.0, 1.0]))
+            .expect("register sample");
+        let first_voice = sampler
+            .handle_command(RealtimeAudioCommand::TriggerSample {
+                sample_id: 1,
+                frame: 0,
+                gain: 1.0,
+                pitch_ratio: 1.0,
+            })
+            .expect("trigger first")
+            .expect("first voice id");
+        let second_voice = sampler
+            .handle_command(RealtimeAudioCommand::TriggerSample {
+                sample_id: 1,
+                frame: 0,
+                gain: 1.0,
+                pitch_ratio: 1.0,
+            })
+            .expect("trigger second")
+            .expect("second voice id");
+
+        assert_ne!(first_voice, second_voice);
+        assert_eq!(sampler.active_voice_count(), 1);
+
+        sampler
+            .handle_command(RealtimeAudioCommand::StopVoice {
+                voice_id: second_voice,
+                frame: 0,
+            })
+            .expect("stop voice");
+        assert_eq!(sampler.active_voice_count(), 0);
+
+        sampler
+            .handle_command(RealtimeAudioCommand::TriggerSample {
+                sample_id: 1,
+                frame: 0,
+                gain: 1.0,
+                pitch_ratio: 1.0,
+            })
+            .expect("trigger third");
+        sampler
+            .handle_command(RealtimeAudioCommand::AllNotesOff { frame: 0 })
+            .expect("all notes off");
+        assert_eq!(sampler.active_voice_count(), 0);
     }
 
     #[test]

@@ -13,6 +13,7 @@ The initial `salieri-audio` crate does not open a real device yet. It defines th
 - `NullAudioBackend` makes lifecycle tests deterministic without hardware;
 - `RealtimeAudioCommand` is plain data intended for future lock-free transport to the callback.
 - offline export supports deterministic sampler-preview rendering and WAV PCM16 encoding without writing files directly.
+- `RealtimeSampler` provides a hardware-free voice pool that consumes realtime sample trigger, stop-voice, and all-notes-off commands.
 
 ## Realtime Boundary
 
@@ -35,5 +36,5 @@ Shutdown must stop the backend before the thread exits. Errors are reported as u
 - no CPAL dependency is linked yet;
 - no device enumeration;
 - no audio callback;
-- no mixer, voices, envelopes, or DSP graph;
-- no integration with sampler assignments or pattern playback.
+- no envelope, looping, choking, or DSP graph;
+- no connected realtime audio backend for sampler assignment playback yet.

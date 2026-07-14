@@ -7,7 +7,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-use salieri_core::{pattern_events, row_duration_micros, PlaybackPosition, Song};
+use salieri_audio::{AudioConfig, RealtimeAudioCommand};
+use salieri_core::{pattern_events, row_duration_micros, sampler_events, PlaybackPosition, Song};
 use salieri_midi::{
     playback_event_to_midi, FakeMidiOutput, MidiError, MidiMessage, MidiOutput, MidirMidiOutput,
 };
@@ -160,6 +161,8 @@ fn playback_thread(
                     update_tx: &update_tx,
                     output: &mut output,
                     midi_logger: &mut midi_logger,
+                    audio_command_tx: None,
+                    audio_sample_rate: AudioConfig::default().sample_rate,
                 };
                 let result = run_pattern(
                     &song,
@@ -171,6 +174,7 @@ fn playback_thread(
                 );
                 if matches!(result, PatternRunResult::Finished) {
                     let _ = send_all_notes_off_logged(&mut output, &mut midi_logger);
+                    let _ = send_all_audio_notes_off(None);
                     let _ = update_tx.send(PlaybackUpdate::Stopped);
                 }
                 next_command = result.into_command();
@@ -187,6 +191,8 @@ fn playback_thread(
                     update_tx: &update_tx,
                     output: &mut output,
                     midi_logger: &mut midi_logger,
+                    audio_command_tx: None,
+                    audio_sample_rate: AudioConfig::default().sample_rate,
                 };
                 next_command = run_sequence(song, start_sequence_index, &mut context);
                 if matches!(next_command, Some(PlaybackCommand::Shutdown)) {
@@ -221,11 +227,13 @@ fn playback_thread(
             PlaybackCommand::Panic => {
                 midi_logger.log_line("PANIC");
                 let _ = send_all_notes_off_logged(&mut output, &mut midi_logger);
+                let _ = send_all_audio_notes_off(None);
                 let _ = update_tx.send(PlaybackUpdate::Stopped);
             }
             PlaybackCommand::Stop => {
                 midi_logger.log_line("STOP");
                 let _ = send_all_notes_off_logged(&mut output, &mut midi_logger);
+                let _ = send_all_audio_notes_off(None);
                 let _ = update_tx.send(PlaybackUpdate::Stopped);
             }
             PlaybackCommand::Shutdown => break,
@@ -322,6 +330,8 @@ struct PlaybackRunContext<'a> {
     update_tx: &'a Sender<PlaybackUpdate>,
     output: &'a mut PlaybackOutput,
     midi_logger: &'a mut MidiLogger,
+    audio_command_tx: Option<&'a Sender<RealtimeAudioCommand>>,
+    audio_sample_rate: u32,
 }
 
 fn run_pattern(
@@ -341,6 +351,7 @@ fn run_pattern(
     let row_duration_micros = row_duration_micros(&song.transport).max(1);
     let row_duration = Duration::from_micros(row_duration_micros);
     let events = pattern_events(song, &pattern);
+    let sample_events = sampler_events(song, &pattern);
     let mut pass_start_row = start_row.min(row_count);
     loop {
         let loop_start = Instant::now();
@@ -352,6 +363,7 @@ fn run_pattern(
             let deadline = loop_start + row_duration.saturating_mul(relative_row as u32);
             if let Some(command) = wait_until(context.command_rx, deadline) {
                 let _ = send_all_notes_off_logged(context.output, context.midi_logger);
+                let _ = send_all_audio_notes_off(context.audio_command_tx);
                 let _ = context.update_tx.send(PlaybackUpdate::Stopped);
                 return PatternRunResult::Command(Box::new(command));
             }
@@ -366,6 +378,7 @@ fn run_pattern(
                     );
                 if let Some(command) = wait_until(context.command_rx, event_deadline) {
                     let _ = send_all_notes_off_logged(context.output, context.midi_logger);
+                    let _ = send_all_audio_notes_off(context.audio_command_tx);
                     let _ = context.update_tx.send(PlaybackUpdate::Stopped);
                     return PatternRunResult::Command(Box::new(command));
                 }
@@ -378,6 +391,30 @@ fn run_pattern(
                     handle_midi_send_failure(context, error);
                     return PatternRunResult::Stopped;
                 }
+            }
+
+            for event in sample_events
+                .iter()
+                .filter(|event| event.position.row == row)
+            {
+                let relative_offset = event
+                    .position
+                    .offset_micros
+                    .saturating_sub(pass_start_offset);
+                let event_deadline = loop_start + Duration::from_micros(relative_offset);
+                if let Some(command) = wait_until(context.command_rx, event_deadline) {
+                    let _ = send_all_notes_off_logged(context.output, context.midi_logger);
+                    let _ = send_all_audio_notes_off(context.audio_command_tx);
+                    let _ = context.update_tx.send(PlaybackUpdate::Stopped);
+                    return PatternRunResult::Command(Box::new(command));
+                }
+                let command = RealtimeAudioCommand::TriggerSample {
+                    sample_id: event.sample.0,
+                    frame: micros_to_frames(relative_offset, context.audio_sample_rate),
+                    gain: event.gain * (f32::from(event.velocity.min(0x7f)) / 127.0),
+                    pitch_ratio: event.pitch_ratio,
+                };
+                let _ = send_audio_command(context.audio_command_tx, command);
             }
 
             if row < row_count {
@@ -432,6 +469,7 @@ fn run_sequence(
     }
 
     let _ = send_all_notes_off_logged(context.output, context.midi_logger);
+    let _ = send_all_audio_notes_off(context.audio_command_tx);
     let _ = context.update_tx.send(PlaybackUpdate::Stopped);
     None
 }
@@ -543,6 +581,29 @@ fn send_all_notes_off_logged(
     Ok(())
 }
 
+fn send_all_audio_notes_off(
+    audio_command_tx: Option<&Sender<RealtimeAudioCommand>>,
+) -> Result<(), mpsc::SendError<RealtimeAudioCommand>> {
+    send_audio_command(
+        audio_command_tx,
+        RealtimeAudioCommand::AllNotesOff { frame: 0 },
+    )
+}
+
+fn send_audio_command(
+    audio_command_tx: Option<&Sender<RealtimeAudioCommand>>,
+    command: RealtimeAudioCommand,
+) -> Result<(), mpsc::SendError<RealtimeAudioCommand>> {
+    let Some(audio_command_tx) = audio_command_tx else {
+        return Ok(());
+    };
+    audio_command_tx.send(command)
+}
+
+fn micros_to_frames(offset_micros: u64, sample_rate: u32) -> u64 {
+    u64::from(sample_rate).saturating_mul(offset_micros) / 1_000_000
+}
+
 fn send_midi_message_logged(
     output: &mut PlaybackOutput,
     midi_logger: &mut MidiLogger,
@@ -648,6 +709,8 @@ mod tests {
             update_tx: &update_tx,
             output: &mut output,
             midi_logger: &mut midi_logger,
+            audio_command_tx: None,
+            audio_sample_rate: AudioConfig::default().sample_rate,
         };
 
         let result = run_pattern(
@@ -661,6 +724,30 @@ mod tests {
         let sent = messages.lock().expect("recorded MIDI messages").clone();
         let updates = update_rx.try_iter().collect();
         (result, sent, updates)
+    }
+
+    fn run_pattern_with_audio_recording(
+        song: &Song,
+        pattern_index: usize,
+        audio_sample_rate: u32,
+    ) -> (PatternRunResult, Vec<RealtimeAudioCommand>) {
+        let messages = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let (_command_tx, command_rx) = mpsc::channel();
+        let (update_tx, _update_rx) = mpsc::channel();
+        let (audio_tx, audio_rx) = mpsc::channel();
+        let mut output = PlaybackOutput::recording(messages);
+        let mut midi_logger = MidiLogger::new(None, &update_tx);
+        let mut context = PlaybackRunContext {
+            command_rx: &command_rx,
+            update_tx: &update_tx,
+            output: &mut output,
+            midi_logger: &mut midi_logger,
+            audio_command_tx: Some(&audio_tx),
+            audio_sample_rate,
+        };
+
+        let result = run_pattern(song, pattern_index, 0, None, false, &mut context);
+        (result, audio_rx.try_iter().collect())
     }
 
     fn run_sequence_with_recording(
@@ -681,6 +768,8 @@ mod tests {
             update_tx: &update_tx,
             output: &mut output,
             midi_logger: &mut midi_logger,
+            audio_command_tx: None,
+            audio_sample_rate: AudioConfig::default().sample_rate,
         };
 
         let next_command = run_sequence(song, start_sequence_index, &mut context);
@@ -779,6 +868,73 @@ mod tests {
         }
 
         assert!(saw_stop);
+    }
+
+    #[test]
+    fn pattern_playback_routes_assigned_samples_to_audio_commands() {
+        let mut song = Song::empty();
+        speed_up_transport(&mut song);
+        let track = song.tracks[0].id;
+        let sample = song.upsert_sample_reference("samples/kick.wav", "kick.wav");
+        song.samples[0].gain = 0.5;
+        song.assign_sample_to_track(track, sample)
+            .expect("assign sample");
+        song.current_pattern_mut()
+            .expect("pattern")
+            .set_note(1, 0, NoteEvent::Note { pitch: 72 }, 64)
+            .expect("set note");
+
+        let (_result, commands) = run_pattern_with_audio_recording(&song, 0, 1_000_000);
+        let trigger = commands
+            .iter()
+            .find_map(|command| match command {
+                RealtimeAudioCommand::TriggerSample {
+                    sample_id,
+                    frame,
+                    gain,
+                    pitch_ratio,
+                } => Some((*sample_id, *frame, *gain, *pitch_ratio)),
+                RealtimeAudioCommand::StopVoice { .. }
+                | RealtimeAudioCommand::AllNotesOff { .. } => None,
+            })
+            .expect("trigger sample command");
+
+        assert_eq!(trigger.0, sample.0);
+        assert_eq!(
+            trigger.1,
+            micros_to_frames(row_duration_micros(&song.transport), 1_000_000)
+        );
+        assert_approx_eq(trigger.2, 0.5 * (64.0 / 127.0));
+        assert_approx_eq(trigger.3, 2.0);
+    }
+
+    #[test]
+    fn interrupted_pattern_playback_sends_audio_all_notes_off() {
+        let mut song = Song::empty();
+        speed_up_transport(&mut song);
+        let (command_tx, command_rx) = mpsc::channel();
+        let (update_tx, _update_rx) = mpsc::channel();
+        let (audio_tx, audio_rx) = mpsc::channel();
+        let messages = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let mut output = PlaybackOutput::recording(messages);
+        let mut midi_logger = MidiLogger::new(None, &update_tx);
+        let mut context = PlaybackRunContext {
+            command_rx: &command_rx,
+            update_tx: &update_tx,
+            output: &mut output,
+            midi_logger: &mut midi_logger,
+            audio_command_tx: Some(&audio_tx),
+            audio_sample_rate: AudioConfig::default().sample_rate,
+        };
+        command_tx.send(PlaybackCommand::Stop).expect("send stop");
+
+        let result = run_pattern(&song, 0, 0, None, true, &mut context);
+        let commands = audio_rx.try_iter().collect::<Vec<_>>();
+
+        assert!(matches!(result, PatternRunResult::Command(_)));
+        assert!(commands
+            .iter()
+            .any(|command| matches!(command, RealtimeAudioCommand::AllNotesOff { frame: 0 })));
     }
 
     #[test]
@@ -917,6 +1073,8 @@ mod tests {
             update_tx: &update_tx,
             output: &mut output,
             midi_logger: &mut midi_logger,
+            audio_command_tx: None,
+            audio_sample_rate: AudioConfig::default().sample_rate,
         };
 
         let result = run_pattern(&song, 0, 0, None, true, &mut context);
@@ -1059,5 +1217,12 @@ mod tests {
 
         assert!(solo_sent.contains(&MidiMessage::note_on(10, 60, 0x7f)));
         assert!(!solo_sent.contains(&MidiMessage::note_on(1, 48, 0x70)));
+    }
+
+    fn assert_approx_eq(actual: f32, expected: f32) {
+        assert!(
+            (actual - expected).abs() < 0.000_001,
+            "expected {expected}, got {actual}"
+        );
     }
 }

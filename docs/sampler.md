@@ -10,7 +10,7 @@ The sampler work is post-MVP and intentionally lives outside `salieri-core`, `sa
 - persistent sample references and assignment metadata for mapping samples to tracker tracks;
 - deterministic waveform overviews for CLI and TUI rendering.
 
-This keeps the MIDI-first runtime intact. Existing pattern playback still emits MIDI, while `salieri-core::sampler_events` defines the data contract a later audio engine can consume: track id, sample id/path, note pitch, velocity, gain, pitch ratio, and scheduled position.
+This keeps the MIDI-first runtime intact. Existing pattern playback still emits MIDI, while `salieri-core::sampler_events` defines the data contract the audio layer consumes: track id, sample id/path, note pitch, velocity, gain, pitch ratio, and scheduled position. The playback runtime can route assigned sample events to realtime audio commands; audible output still depends on connecting those commands to a real audio backend.
 
 Users can inspect supported WAV files without opening the tracker UI:
 
@@ -47,7 +47,7 @@ Current limitations:
 - no streaming for large samples;
 - no envelopes, looping, choking, or velocity layers;
 - no full-screen in-app sample browser yet;
-- assigned samples define playback intent, but audible triggering still depends on the audio engine follow-up.
+- assigned samples route to realtime audio commands, but audible triggering still depends on the CPAL backend follow-up.
 
 Next sampler playback steps:
 

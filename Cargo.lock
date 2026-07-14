@@ -646,6 +646,7 @@ dependencies = [
  "crossterm",
  "ctrlc",
  "ratatui",
+ "salieri-audio",
  "salieri-core",
  "salieri-midi",
  "salieri-sampler",
