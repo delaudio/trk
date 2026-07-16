@@ -1,15 +1,29 @@
 # Salieri Tracker
 
-Salieri Tracker is a MIDI-first music tracker that runs in the terminal. The current MVP is a Rust workspace with a Ratatui/Crossterm TUI, pattern editing, sequence playback, project persistence, undo/redo, and MIDI output through `midir`.
+Salieri Tracker is a MIDI-first music tracker that runs in the terminal. The current app is a Rust workspace with a Ratatui/Crossterm TUI, pattern editing, sequence playback, project persistence, undo/redo, MIDI output through `midir`, sample inspection and assignment workflows, deterministic transforms, and the first internal audio/AI foundations.
 
-The app does not include an internal audio engine yet. It sends MIDI notes to a DAW, a virtual MIDI bus, or an external synth.
+The primary realtime playback path is still MIDI-first: use a DAW, a virtual MIDI bus, or an external synth for audible instruments. Internal audio is under active development: `salieri-audio` has a CPAL backend boundary, realtime sampler voice rendering primitives, and offline WAV rendering/encoding tests, but user-facing realtime audio output is not complete yet.
+
+## Current Capabilities
+
+- Terminal tracker UI with pattern, track, sequence, sampler, MIDI, and help views.
+- Pattern editing with keyboard note entry, note-off/note-cut, velocity, delay/retrigger commands, row insert/delete, selection copy/cut/paste/delete, undo/redo, and playhead follow.
+- Track, pattern, and sequence management, including rename, duplicate, delete, move, mute/solo, pattern length, and arrangement playback.
+- MIDI output routing with port listing, connection from the TUI, panic/all-notes-off, channel assignment, logging, and MIDI test-note CLI support.
+- Project persistence as JSON `.salieri` files with validation and atomic writes.
+- WAV sample loading, waveform inspection, in-app sample browser, external chooser integration, sample assignment to tracks, replacement, unassignment, unload, and cleanup.
+- Deterministic sampler event contracts for routing assigned samples into audio commands.
+- Offline audio rendering foundations for sampler preview/event buffers and WAV PCM16 encoding.
+- Standard MIDI File format 0 import/export for the supported subset.
+- Deterministic generative transform CLI, currently Euclidean rhythm generation.
+- AI-assisted composition boundary with reviewable proposals and explicit apply semantics; no provider contacts external services implicitly.
 
 ## Requirements
 
 - Rust stable
 - macOS or Linux
 - A terminal with alternate-screen support
-- A MIDI destination for playback
+- A MIDI destination for realtime audible playback
 
 On macOS, use IAC Driver for a virtual MIDI cable. On Linux, use your preferred ALSA/JACK/PipeWire MIDI routing setup.
 
@@ -57,6 +71,8 @@ Timing assumptions and jitter test limits are documented in [docs/timing.md](doc
 salieri [OPTIONS] [FILE]
 salieri --list-midi-outputs
 salieri --midi-test-output NAME_OR_INDEX [OPTIONS]
+salieri transform euclidean INPUT OUTPUT [OPTIONS]
+salieri sample inspect FILE [OPTIONS]
 salieri --help
 salieri --version
 ```
@@ -70,6 +86,8 @@ salieri --midi-log salieri-midi.log
 salieri --list-midi-outputs
 salieri --midi-test-output 0 --midi-test-channel 1 --midi-test-note 60
 salieri --midi-test-output "IAC Driver Bus 1" --midi-test-duration-ms 500
+salieri sample inspect kick.wav --format text --buckets 64
+salieri transform euclidean input.salieri output.salieri --pattern 1 --track 1 --steps 16 --pulses 5 --pitch 36
 ```
 
 `--midi-test-output` accepts either a port index or a port name. Configured MIDI output names are normalized, so `IAC Driver`, `IAC Driver Bus 1`, and `IAC Driver (Bus 1)` can match the same CoreMIDI port when available.
@@ -175,7 +193,21 @@ Shift+Enter     Play sequence from selected position
 F8              Stop
 L               Toggle pattern loop
 F4              MIDI settings
+F7              Sequence view
+F9              Tracks view
+F10             Patterns view
+F11             Sampler view
 :               Command mode
+```
+
+Help:
+
+```text
+H or ?          Open help
+Up/Down, j/k    Scroll help
+PageUp/PageDown Scroll help by a larger step
+Home/End        Jump to top/bottom of help
+Esc, q, ?       Close help
 ```
 
 Navigation:
@@ -256,11 +288,59 @@ T               Set sequence position to current pattern
 :sequence move 1 0
 :play pattern
 :play sequence 0
+:sample view path/to/sample.wav
+:sample browse path/to/samples
+:sample choose path/to/samples
+:sample assign
+:sample replace 2
+:sample unassign 2
+:sample unload
+:sample cleanup
+:sample assignments
 :stop
 ```
+
+## Samples And Audio
+
+Salieri can inspect and load WAV samples, render waveform overviews, and persist sample references in `.salieri` projects. Supported sample loading currently covers 16-bit PCM and 32-bit float RIFF/WAVE files.
+
+Inside the tracker:
+
+```text
+F11                         Open sampler view
+:sample view PATH           Load a WAV reference for waveform inspection
+:sample browse [DIR]        Open the in-app sample browser
+:sample choose [DIR]        Launch a configured external chooser
+:sample assign [TRACK]      Assign the loaded sample to a track
+:sample replace [TRACK]     Replace a track assignment
+:sample unassign [TRACK]    Remove a track assignment
+:sample cleanup             Remove unused sample references
+```
+
+Assigned samples are routed into the internal realtime audio command boundary during playback, but audible sampler output still depends on the remaining CPAL backend integration work. See [docs/sampler.md](docs/sampler.md), [docs/audio-engine.md](docs/audio-engine.md), and [docs/audio-export.md](docs/audio-export.md).
+
+## Generative And AI Foundations
+
+Deterministic transforms live in `salieri-transform` and can be used from the CLI today:
+
+```bash
+salieri transform euclidean input.salieri output.salieri --pattern 1 --track 1 --steps 16 --pulses 5 --rotation 0 --pitch 36 --velocity 100
+```
+
+AI-assisted composition lives behind `salieri-ai`. It currently models prompt-scoped pattern requests, proposal providers, reviewable edit proposals, preview validation, and explicit application. It is not wired into the TUI yet, and it does not contact network providers unless a future explicit provider is added and invoked by the user. See [docs/generative-transforms.md](docs/generative-transforms.md) and [docs/ai-assisted-edits.md](docs/ai-assisted-edits.md).
+
+## Interoperability
+
+`salieri-interop` supports a narrow Standard MIDI File format 0 subset for import/export. Tracker module formats such as MOD, XM, IT, S3M, and Renoise XRNS are explicitly unsupported for now and need separate semantic mapping work.
+
+See [docs/interoperability.md](docs/interoperability.md).
 
 ## Project Files
 
 Salieri saves JSON projects with the `.salieri` extension. The file contains a `formatVersion` and a serializable song model so projects can be versioned in Git.
 
 The app tracks dirty state. Quitting with unsaved changes prompts for save, discard, or cancel.
+
+## Roadmap Gaps
+
+Salieri is not yet a full Renoise-class workstation. The largest missing product areas are user-facing realtime sampler audio, a proper instrument model, sampler editing/keyzones/envelopes, a DSP/effects graph, mixer and automation views, MIDI input recording and sync, richer pattern columns, audio export commands, and a TUI workflow for AI proposal review/apply.
