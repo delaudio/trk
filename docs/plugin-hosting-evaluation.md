@@ -1,6 +1,6 @@
 # Plugin Hosting Evaluation
 
-Plugin hosting is post-MVP and currently deferred by [ADR 0001](adr/0001-plugin-hosting.md).
+Plugin hosting is post-MVP and remains deferred by [ADR 0001](adr/0001-plugin-hosting.md). The July 2026 review keeps Salieri DAW/MIDI-first for third-party instruments and effects while native audio, sampler, mixer, DSP, routing, and export boundaries mature.
 
 ## Format Comparison
 
@@ -22,13 +22,14 @@ Plugin hosting is post-MVP and currently deferred by [ADR 0001](adr/0001-plugin-
 
 Do not implement plugin hosting yet. Continue to use DAWs and software instruments through MIDI output.
 
-The first implementation proposal should be a separate ADR after the audio architecture has:
+The first implementation proposal must be a separate ADR after the audio architecture has:
 
-- working sampler playback;
-- deterministic offline render/export;
-- device selection;
-- a clear realtime command queue;
-- documented crash and cleanup behavior.
+- user-facing audio device selection;
+- a plugin-neutral device/instrument model that can represent native devices before SDK-backed devices;
+- routing and send semantics beyond placeholders;
+- a bounded realtime command/event queue for parameter updates and metering;
+- deterministic offline render/export semantics for native devices;
+- documented plugin crash, cleanup, and terminal/audio recovery behavior.
 
 ## Likely Architecture
 
