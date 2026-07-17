@@ -1,24 +1,24 @@
 ┌ Salieri Tracker ─────────────────────────────────────────────────────┐
 │ BPM 120 | LPB 4 | Pattern 01 | Oct 4 | Row 00 | Play -- | Loop ON | T│
 └──────────────────────────────────────────────────────────────────────┘
-┌ Track Editor ────────────────────────────────────────────────────────┐
-│TRK  NAME          CH  M  S  ARM  GAIN  PAN   AM AS                   │
-│01  Drums        CH10  -  -  Y   1.00 +0.00  -  -                     │
-│>02  Bass         CH01  -  -  -   1.00 +0.00  -  -                    │
-│03  Lead         CH02  -  -  -   1.00 +0.00  -  -                     │
-│04  Pad          CH03  -  -  -   1.00 +0.00  -  -                     │
+┌ Track Mixer ─────────────────────────────────────────────────────────┐
+│Track Mixer 1/1 | master +0.0dB | tracks 01-04/4                      │
+│Drums     Bass      Lead      Pad                                     │
+││ │       │ │       │ │       │ │                                     │
+││ │       │ │       │ │       │ │                                     │
+│███       │ │       ███       ███                                     │
+│███       │ │       ███       ███                                     │
+│███       ███       ███       ███                                     │
+│+0.0dB    -6.0dB    +0.0dB    +0.0dB                                  │
+│--  +0    -- -25    --  +0    --  +0                                  │
 │                                                                      │
-│N new   D duplicate   r rename   c channel   Delete remove            │
-│{/} reorder   M mute   S solo   :mixer gain|pan|mute|solo   Esc       │
-│pattern view                                                          │
-│                                                                      │
-│                                                                      │
-│                                                                      │
-│                                                                      │
-│                                                                      │
-│                                                                      │
-│                                                                      │
-│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+┌ Instruments ─────────────────────────────────────────────────────────┐
+│TRK  NAME          INST          SAMPLE        CH  FLAGS   GAIN  PAN  │
+│01  Drums        none          none         CH10 --R-   +0.0dB +0.00  │
+│>02  Bass         bass.wav      bass.wav     CH01 ----   -6.0dB -0.25 │
+│03  Lead         none          none         CH02 ----   +0.0dB +0.00  │
+│04  Pad          none          none         CH03 ----   +0.0dB +0.00  │
 │                                                                      │
 └──────────────────────────────────────────────────────────────────────┘
  TRACKS | H Help | Esc Pattern | N New | D Duplicate | r Rename | c Chan

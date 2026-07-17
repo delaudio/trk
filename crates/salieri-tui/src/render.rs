@@ -579,10 +579,99 @@ fn render_sequence_editor(
 }
 
 fn render_track_editor(frame: &mut Frame<'_>, area: Rect, song: &Song, active_track: usize) {
+    let sections = Layout::default()
+        .direction(LayoutDirection::Vertical)
+        .constraints([Constraint::Percentage(58), Constraint::Percentage(42)])
+        .split(area);
+
+    render_track_mixer(frame, sections[0], song, active_track);
+    render_instrument_matrix(frame, sections[1], song, active_track);
+}
+
+fn render_track_mixer(frame: &mut Frame<'_>, area: Rect, song: &Song, active_track: usize) {
+    let inner_width = area.width.saturating_sub(2) as usize;
+    let channel_width = if inner_width >= 96 { 12 } else { 10 };
+    let visible_channels = (inner_width / channel_width).max(1);
+    let start = visible_track_start(song.tracks.len(), active_track, visible_channels);
+    let end = (start + visible_channels).min(song.tracks.len());
+    let tracks = &song.tracks[start..end];
+    let page = if visible_channels == 0 {
+        1
+    } else {
+        start / visible_channels + 1
+    };
+    let pages = song.tracks.len().div_ceil(visible_channels).max(1);
+    let fader_rows = area.height.saturating_sub(7).max(3) as usize;
+    let mut lines = Vec::with_capacity(fader_rows + 5);
+
+    lines.push(Line::from(format!(
+        "Track Mixer {page}/{pages} | master {} | tracks {:02}-{:02}/{}",
+        format_gain_db(song.mixer.master_gain),
+        start + 1,
+        end,
+        song.tracks.len()
+    )));
+    lines.push(channel_line(
+        tracks
+            .iter()
+            .map(|track| truncate(&track.name, channel_width - 1)),
+        channel_width,
+    ));
+
+    for row in 0..fader_rows {
+        let mut spans = Vec::new();
+        for (offset, track) in tracks.iter().enumerate() {
+            let index = start + offset;
+            let mixer = song.track_mixer_for_track(track.id);
+            let fill_rows = gain_to_meter_rows(mixer.gain, fader_rows);
+            let filled = fader_rows.saturating_sub(row) <= fill_rows;
+            let marker = if filled {
+                "  ███   "
+            } else {
+                "  │ │   "
+            };
+            spans.push(Span::styled(
+                fixed_width(marker, channel_width),
+                mixer_channel_style(index == active_track, mixer.muted || track.muted, filled),
+            ));
+        }
+        lines.push(Line::from(spans));
+    }
+
+    lines.push(channel_line(
+        tracks
+            .iter()
+            .map(|track| format_gain_db(song.track_mixer_for_track(track.id).gain)),
+        channel_width,
+    ));
+    lines.push(channel_line(
+        tracks.iter().map(|track| {
+            let mixer = song.track_mixer_for_track(track.id);
+            format!(
+                "{}{} {:>+3.0}",
+                if track.muted || mixer.muted { "M" } else { "-" },
+                if track.solo || mixer.solo { "S" } else { "-" },
+                mixer.pan * 100.0
+            )
+        }),
+        channel_width,
+    ));
+
+    let mixer = Paragraph::new(lines)
+        .block(
+            Block::default()
+                .title(" Track Mixer ")
+                .borders(Borders::ALL),
+        )
+        .wrap(Wrap { trim: true });
+    frame.render_widget(mixer, area);
+}
+
+fn render_instrument_matrix(frame: &mut Frame<'_>, area: Rect, song: &Song, active_track: usize) {
     let mut lines = vec![Line::from(vec![
         Span::styled("TRK  ", Style::default().fg(Color::DarkGray)),
         Span::styled(
-            "NAME          CH  M  S  ARM  GAIN  PAN   AM AS",
+            "NAME          INST          SAMPLE        CH  FLAGS   GAIN  PAN",
             Style::default()
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
@@ -591,18 +680,29 @@ fn render_track_editor(frame: &mut Frame<'_>, area: Rect, song: &Song, active_tr
 
     for (index, track) in song.tracks.iter().enumerate() {
         let marker = if index == active_track { ">" } else { " " };
-        let muted = if track.muted { "Y" } else { "-" };
-        let solo = if track.solo { "Y" } else { "-" };
-        let armed = if track.armed { "Y" } else { "-" };
         let mixer = song.track_mixer_for_track(track.id);
-        let audio_mute = if mixer.muted { "Y" } else { "-" };
-        let audio_solo = if mixer.solo { "Y" } else { "-" };
+        let instrument = song
+            .instrument_for_track(track.id)
+            .map_or("none", |instrument| instrument.name.as_str());
+        let sample = song
+            .sample_for_track(track.id)
+            .map_or("none", |sample| sample.name.as_str());
+        let flags = format!(
+            "{}{}{}{}",
+            if track.muted { "M" } else { "-" },
+            if track.solo { "S" } else { "-" },
+            if track.armed { "R" } else { "-" },
+            if mixer.muted { "A" } else { "-" }
+        );
         let line = format!(
-            "{marker}{:02}  {:<12} CH{:02} {muted:^3}{solo:^3}{armed:^3}  {:>4.2} {:+.2}  {audio_mute:^2} {audio_solo:^2}",
+            "{marker}{:02}  {:<12} {:<13} {:<12} CH{:02} {:<6} {:>5} {:+.2}",
             index + 1,
             truncate(&track.name, 12),
+            truncate(instrument, 13),
+            truncate(sample, 12),
             track.midi_channel,
-            mixer.gain,
+            flags,
+            format_gain_db(mixer.gain),
             mixer.pan
         );
         if index == active_track {
@@ -621,17 +721,70 @@ fn render_track_editor(frame: &mut Frame<'_>, area: Rect, song: &Song, active_tr
     lines.extend([
         Line::from(""),
         Line::from("N new   D duplicate   r rename   c channel   Delete remove"),
-        Line::from("{/} reorder   M mute   S solo   :mixer gain|pan|mute|solo   Esc pattern view"),
+        Line::from("{/} reorder   M mute   S solo   :mixer gain|pan|mute|solo   :sample assign"),
     ]);
 
-    let tracks = Paragraph::new(lines)
+    let instruments = Paragraph::new(lines)
         .block(
             Block::default()
-                .title(" Track Editor ")
+                .title(" Instruments ")
                 .borders(Borders::ALL),
         )
         .wrap(Wrap { trim: true });
-    frame.render_widget(tracks, area);
+    frame.render_widget(instruments, area);
+}
+
+fn channel_line(values: impl Iterator<Item = String>, channel_width: usize) -> Line<'static> {
+    Line::from(
+        values
+            .map(|value| Span::from(fixed_width(&value, channel_width)))
+            .collect::<Vec<_>>(),
+    )
+}
+
+fn visible_track_start(track_count: usize, active_track: usize, visible_channels: usize) -> usize {
+    if track_count <= visible_channels {
+        return 0;
+    }
+    active_track
+        .saturating_sub(visible_channels / 2)
+        .min(track_count.saturating_sub(visible_channels))
+}
+
+fn gain_to_meter_rows(gain: f32, fader_rows: usize) -> usize {
+    if fader_rows == 0 {
+        return 0;
+    }
+    let normalized = (gain.max(0.0) / 2.0).min(1.0);
+    (normalized * fader_rows as f32).round() as usize
+}
+
+fn format_gain_db(gain: f32) -> String {
+    if gain <= 0.0 || !gain.is_finite() {
+        "-inf dB".to_string()
+    } else {
+        format!("{:+.1}dB", 20.0 * gain.log10())
+    }
+}
+
+fn mixer_channel_style(active: bool, muted: bool, filled: bool) -> Style {
+    let foreground = if muted {
+        Color::DarkGray
+    } else if active && filled {
+        Color::Yellow
+    } else if active {
+        Color::White
+    } else if filled {
+        Color::Cyan
+    } else {
+        Color::DarkGray
+    };
+    let style = Style::default().fg(foreground);
+    if active {
+        style.add_modifier(Modifier::BOLD)
+    } else {
+        style
+    }
 }
 
 fn render_pattern_manager(frame: &mut Frame<'_>, area: Rect, song: &Song, active_pattern: usize) {

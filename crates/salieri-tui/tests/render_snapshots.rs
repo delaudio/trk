@@ -435,10 +435,17 @@ fn snapshots_sequence_view() {
 
 #[test]
 fn snapshots_tracks_view() {
+    let mut song = Song::empty();
+    let sample = song.upsert_sample_reference("samples/bass.wav", "bass.wav");
+    song.assign_sample_to_track(song.tracks[1].id, sample)
+        .expect("assign sample");
+    song.set_track_mixer_gain(1, 0.5).expect("set gain");
+    song.set_track_mixer_pan(1, -0.25).expect("set pan");
+
     assert_snapshot(
         "tracks-view",
         render_snapshot(
-            Song::empty(),
+            song,
             TuiState {
                 cursor: Cursor {
                     track: 1,
