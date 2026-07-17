@@ -222,6 +222,10 @@ impl Song {
             validate_sample_playback_settings(sample_index, sample.playback)?;
         }
 
+        for (pattern_index, pattern) in self.patterns.iter().enumerate() {
+            validate_pattern_automation(pattern_index, pattern, &sample_ids)?;
+        }
+
         let mut assigned_tracks = HashSet::new();
         for assignment in &self.sample_assignments {
             if !track_ids.contains(&assignment.track) {
@@ -1036,6 +1040,22 @@ pub enum ValidationError {
     InvalidSampleLoopWindow { sample_index: usize },
     #[error("sample {sample_index} has invalid envelope")]
     InvalidSampleEnvelope { sample_index: usize },
+    #[error("pattern {pattern_index} has duplicate automation lane {target:?}")]
+    DuplicateAutomationLane {
+        pattern_index: usize,
+        target: AutomationTarget,
+    },
+    #[error("pattern {pattern_index} automation references missing sample {sample_id:?}")]
+    AutomationSampleNotFound {
+        pattern_index: usize,
+        sample_id: SampleId,
+    },
+    #[error("pattern {pattern_index} automation row {row} is out of bounds")]
+    AutomationRowOutOfBounds { pattern_index: usize, row: usize },
+    #[error("pattern {pattern_index} automation row {row} has duplicate points")]
+    DuplicateAutomationPoint { pattern_index: usize, row: usize },
+    #[error("pattern {pattern_index} automation row {row} has invalid value")]
+    InvalidAutomationValue { pattern_index: usize, row: usize },
     #[error("sample assignment references missing track {track_id:?}")]
     SampleAssignmentTrackNotFound { track_id: TrackId },
     #[error("sample assignment references missing sample {sample_id:?}")]
@@ -1194,12 +1214,14 @@ pub struct TrackInstrumentAssignment {
     pub instrument: InstrumentId,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Pattern {
     pub id: PatternId,
     pub name: String,
     pub rows: Vec<PatternRow>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub automation: Vec<AutomationLane>,
 }
 
 impl Pattern {
@@ -1220,6 +1242,7 @@ impl Pattern {
             id,
             name: name.into(),
             rows,
+            automation: Vec::new(),
         }
     }
 
@@ -1302,6 +1325,10 @@ impl Pattern {
     pub fn resize_rows(&mut self, row_count: usize, track_count: usize) {
         self.rows
             .resize_with(row_count, || PatternRow::empty(track_count));
+        for lane in &mut self.automation {
+            lane.points.retain(|point| point.row < row_count);
+        }
+        self.automation.retain(|lane| !lane.points.is_empty());
     }
 
     pub fn insert_row(&mut self, row: usize, track_count: usize) -> Result<(), EditError> {
@@ -1309,6 +1336,13 @@ impl Pattern {
             return Err(EditError::RowOutOfBounds { row });
         }
         self.rows.insert(row, PatternRow::empty(track_count));
+        for lane in &mut self.automation {
+            for point in &mut lane.points {
+                if point.row >= row {
+                    point.row = point.row.saturating_add(1);
+                }
+            }
+        }
         Ok(())
     }
 
@@ -1319,7 +1353,94 @@ impl Pattern {
         if row >= self.rows.len() {
             return Err(EditError::RowOutOfBounds { row });
         }
+        for lane in &mut self.automation {
+            lane.points.retain(|point| point.row != row);
+            for point in &mut lane.points {
+                if point.row > row {
+                    point.row = point.row.saturating_sub(1);
+                }
+            }
+        }
+        self.automation.retain(|lane| !lane.points.is_empty());
         Ok(self.rows.remove(row))
+    }
+
+    pub fn set_automation_point(
+        &mut self,
+        target: AutomationTarget,
+        row: usize,
+        value: f32,
+    ) -> Result<(), EditError> {
+        if row >= self.rows.len() {
+            return Err(EditError::RowOutOfBounds { row });
+        }
+        if !value.is_finite() || value < 0.0 {
+            return Err(EditError::InvalidAutomationValue);
+        }
+
+        let lane = if let Some(lane) = self
+            .automation
+            .iter_mut()
+            .find(|lane| lane.target == target)
+        {
+            lane
+        } else {
+            self.automation.push(AutomationLane {
+                target,
+                interpolation: AutomationInterpolation::Step,
+                points: Vec::new(),
+            });
+            self.automation
+                .last_mut()
+                .expect("automation lane was just inserted")
+        };
+
+        if let Some(point) = lane.points.iter_mut().find(|point| point.row == row) {
+            point.value = value;
+        } else {
+            lane.points.push(AutomationPoint { row, value });
+            lane.points.sort_by_key(|point| point.row);
+        }
+        Ok(())
+    }
+
+    pub fn clear_automation_point(
+        &mut self,
+        target: AutomationTarget,
+        row: usize,
+    ) -> Result<(), EditError> {
+        if row >= self.rows.len() {
+            return Err(EditError::RowOutOfBounds { row });
+        }
+        if let Some(lane) = self
+            .automation
+            .iter_mut()
+            .find(|lane| lane.target == target)
+        {
+            lane.points.retain(|point| point.row != row);
+        }
+        self.automation.retain(|lane| !lane.points.is_empty());
+        Ok(())
+    }
+
+    #[must_use]
+    pub fn automation_value_at(
+        &self,
+        target: AutomationTarget,
+        row: usize,
+        default_value: f32,
+    ) -> f32 {
+        self.automation
+            .iter()
+            .find(|lane| lane.target == target)
+            .and_then(|lane| {
+                lane.points
+                    .iter()
+                    .take_while(|point| point.row <= row)
+                    .last()
+                    .map(|point| point.value)
+            })
+            .unwrap_or(default_value)
     }
 
     fn append_track(&mut self) {
@@ -1366,6 +1487,36 @@ impl Pattern {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum AutomationTarget {
+    SampleGain { sample: SampleId },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum AutomationInterpolation {
+    #[default]
+    Step,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationLane {
+    pub target: AutomationTarget,
+    #[serde(default)]
+    pub interpolation: AutomationInterpolation,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub points: Vec<AutomationPoint>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationPoint {
+    pub row: usize,
+    pub value: f32,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum EditError {
     #[error("cell out of bounds: row {row}, track {track}")]
@@ -1402,6 +1553,8 @@ pub enum EditError {
     InvalidSampleLoopWindow,
     #[error("invalid sample envelope")]
     InvalidSampleEnvelope,
+    #[error("invalid automation value")]
+    InvalidAutomationValue,
     #[error("instrument not found: instrument id {instrument_id:?}")]
     InstrumentNotFound { instrument_id: InstrumentId },
     #[error("name cannot be empty")]
@@ -1634,6 +1787,54 @@ fn validate_sample_playback_settings(
         || !(0.0..=1.0).contains(&envelope.sustain)
     {
         return Err(ValidationError::InvalidSampleEnvelope { sample_index });
+    }
+    Ok(())
+}
+
+fn validate_pattern_automation(
+    pattern_index: usize,
+    pattern: &Pattern,
+    sample_ids: &HashSet<SampleId>,
+) -> Result<(), ValidationError> {
+    let mut targets = HashSet::new();
+    for lane in &pattern.automation {
+        if !targets.insert(lane.target) {
+            return Err(ValidationError::DuplicateAutomationLane {
+                pattern_index,
+                target: lane.target,
+            });
+        }
+        match lane.target {
+            AutomationTarget::SampleGain { sample } if !sample_ids.contains(&sample) => {
+                return Err(ValidationError::AutomationSampleNotFound {
+                    pattern_index,
+                    sample_id: sample,
+                });
+            }
+            AutomationTarget::SampleGain { .. } => {}
+        }
+
+        let mut rows = HashSet::new();
+        for point in &lane.points {
+            if point.row >= pattern.rows.len() {
+                return Err(ValidationError::AutomationRowOutOfBounds {
+                    pattern_index,
+                    row: point.row,
+                });
+            }
+            if !rows.insert(point.row) {
+                return Err(ValidationError::DuplicateAutomationPoint {
+                    pattern_index,
+                    row: point.row,
+                });
+            }
+            if !point.value.is_finite() || point.value < 0.0 {
+                return Err(ValidationError::InvalidAutomationValue {
+                    pattern_index,
+                    row: point.row,
+                });
+            }
+        }
     }
     Ok(())
 }
@@ -2045,6 +2246,33 @@ mod tests {
     }
 
     #[test]
+    fn automation_points_are_stepped_and_follow_row_edits() {
+        let mut pattern = Pattern::empty(PatternId(1), "Pattern 01", 4, 2);
+        let target = AutomationTarget::SampleGain {
+            sample: SampleId(7),
+        };
+
+        pattern
+            .set_automation_point(target, 2, 0.5)
+            .expect("set automation");
+
+        assert_eq!(pattern.automation_value_at(target, 0, 1.0), 1.0);
+        assert_eq!(pattern.automation_value_at(target, 2, 1.0), 0.5);
+        assert_eq!(pattern.automation_value_at(target, 3, 1.0), 0.5);
+
+        pattern.insert_row(1, 2).expect("insert row");
+        assert_eq!(pattern.automation[0].points[0].row, 3);
+
+        pattern.delete_row(0).expect("delete row");
+        assert_eq!(pattern.automation[0].points[0].row, 2);
+
+        pattern
+            .clear_automation_point(target, 2)
+            .expect("clear automation");
+        assert!(pattern.automation.is_empty());
+    }
+
+    #[test]
     fn deleting_rows_validates_bounds_and_keeps_one_row() {
         let mut pattern = Pattern::empty(PatternId(1), "Pattern 01", 1, 4);
 
@@ -2257,6 +2485,29 @@ mod tests {
         assert_eq!(
             song.validate().expect_err("partial loop is invalid"),
             ValidationError::InvalidSampleLoopWindow { sample_index: 0 }
+        );
+    }
+
+    #[test]
+    fn validation_rejects_invalid_automation() {
+        let mut song = Song::empty();
+        song.current_pattern_mut()
+            .expect("pattern")
+            .automation
+            .push(AutomationLane {
+                target: AutomationTarget::SampleGain {
+                    sample: SampleId(99),
+                },
+                interpolation: AutomationInterpolation::Step,
+                points: vec![AutomationPoint { row: 0, value: 1.0 }],
+            });
+
+        assert_eq!(
+            song.validate().expect_err("missing automation target"),
+            ValidationError::AutomationSampleNotFound {
+                pattern_index: 0,
+                sample_id: SampleId(99)
+            }
         );
     }
 

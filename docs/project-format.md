@@ -50,6 +50,31 @@ neutral envelope:
 }
 ```
 
+Each pattern may also include optional stepped automation lanes. The first
+implemented target is `sampleGain`, which automates the effective gain used by
+sampler events from the lane point row onward:
+
+```json
+{
+  "id": 1,
+  "name": "Pattern 01",
+  "rows": [],
+  "automation": [
+    {
+      "target": {
+        "type": "sampleGain",
+        "sample": 1
+      },
+      "interpolation": "step",
+      "points": [
+        { "row": 0, "value": 1.0 },
+        { "row": 4, "value": 0.5 }
+      ]
+    }
+  ]
+}
+```
+
 ## Loading Rules
 
 On load, Salieri:
@@ -79,6 +104,7 @@ Loaded projects are rejected when they contain:
 - MIDI channels outside `1..=16`;
 - invalid sample root pitch or gain;
 - invalid sample frame windows, loop windows, or envelope values;
+- automation lanes with duplicate targets, missing sample targets, duplicate rows, out-of-bounds rows, or invalid values;
 - duplicate instrument IDs;
 - empty instrument names;
 - instruments referencing missing samples;

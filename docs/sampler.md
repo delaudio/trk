@@ -54,6 +54,9 @@ Playback settings are also saved in `.salieri` project files:
 - `envelope` stores attack seconds, decay seconds, sustain level `0..=1`, and release seconds, and is applied to realtime playback and offline audio export;
 - `settings` prints the current settings for the loaded sample.
 
+Pattern-local `sample-gain` automation can change the effective gain of assigned
+samples over time. See [automation.md](automation.md).
+
 External sample browsing is optional. See [sample-browser.md](sample-browser.md) for the Yazi/chooser-file workflow and audition helper.
 
 Current limitations:

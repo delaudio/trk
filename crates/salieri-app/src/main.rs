@@ -23,8 +23,8 @@ use salieri_audio::{
     OfflineRenderSpec, OfflineSamplerEvent, OfflineSamplerSample,
 };
 use salieri_core::{
-    row_duration_micros, sampler_events, CellField, Cursor, Direction, NoteEvent, PatternCell,
-    SampleEnvelope, SamplePlaybackMode, SamplePlaybackSettings, Song, TrackerCommand,
+    row_duration_micros, sampler_events, AutomationTarget, CellField, Cursor, Direction, NoteEvent,
+    PatternCell, SampleEnvelope, SamplePlaybackMode, SamplePlaybackSettings, Song, TrackerCommand,
 };
 use salieri_midi::{list_output_ports, MidiMessage, MidiOutput, MidiOutputPort, MidirMidiOutput};
 use salieri_sampler::{Sample, WaveformBucket, WaveformOverview};
@@ -2689,6 +2689,103 @@ impl App {
         });
     }
 
+    fn handle_automation_command(&mut self, values: &[&str]) {
+        match values {
+            ["sample-gain", "clear"] => {
+                self.clear_sample_gain_automation(self.cursor.track, self.cursor.row);
+            }
+            ["sample-gain", "clear", row] => {
+                if let Ok(row) = row.parse::<usize>() {
+                    self.clear_sample_gain_automation(self.cursor.track, row);
+                } else {
+                    self.notify_warning("Usage: :automation sample-gain [ROW] VALUE");
+                }
+            }
+            ["sample-gain", value] => {
+                if let Ok(value) = value.parse::<f32>() {
+                    self.set_sample_gain_automation(self.cursor.track, self.cursor.row, value);
+                } else {
+                    self.notify_warning("Usage: :automation sample-gain [ROW] VALUE");
+                }
+            }
+            ["sample-gain", row, value] => {
+                let row = row.parse::<usize>().ok();
+                let value = value.parse::<f32>().ok();
+                if let (Some(row), Some(value)) = (row, value) {
+                    self.set_sample_gain_automation(self.cursor.track, row, value);
+                } else {
+                    self.notify_warning("Usage: :automation sample-gain [ROW] VALUE");
+                }
+            }
+            _ => self.notify_warning(
+                "Usage: :automation sample-gain [ROW] VALUE or :automation sample-gain clear [ROW]",
+            ),
+        }
+    }
+
+    fn set_sample_gain_automation(&mut self, track_index: usize, row: usize, value: f32) {
+        if !value.is_finite() || value < 0.0 {
+            self.notify_warning("Automation value must be a non-negative number");
+            return;
+        }
+        let Some(track) = self.song.tracks.get(track_index) else {
+            self.notify_warning("Track out of range");
+            return;
+        };
+        let Some(sample) = self.song.sample_for_track(track.id) else {
+            self.notify_warning("Assign a sample to the track before automating sample gain");
+            return;
+        };
+        let sample_id = sample.id;
+        let sample_name = sample.name.clone();
+
+        let mut result = Ok(());
+        self.mutate_song(|song, _| {
+            if let Some(pattern) = song.current_pattern_mut() {
+                result = pattern.set_automation_point(
+                    AutomationTarget::SampleGain { sample: sample_id },
+                    row,
+                    value,
+                );
+            }
+        });
+        match result {
+            Ok(()) => self.notify_success(format!(
+                "Sample gain automation {sample_name} row {row:02} = {value:.3}"
+            )),
+            Err(error) => self.notify_warning(format!("Automation failed: {error}")),
+        }
+    }
+
+    fn clear_sample_gain_automation(&mut self, track_index: usize, row: usize) {
+        let Some(track) = self.song.tracks.get(track_index) else {
+            self.notify_warning("Track out of range");
+            return;
+        };
+        let Some(sample) = self.song.sample_for_track(track.id) else {
+            self.notify_warning("Assign a sample to the track before editing automation");
+            return;
+        };
+        let sample_id = sample.id;
+        let sample_name = sample.name.clone();
+
+        let mut result = Ok(());
+        self.mutate_song(|song, _| {
+            if let Some(pattern) = song.current_pattern_mut() {
+                result = pattern.clear_automation_point(
+                    AutomationTarget::SampleGain { sample: sample_id },
+                    row,
+                );
+            }
+        });
+        match result {
+            Ok(()) => self.notify_success(format!(
+                "Sample gain automation cleared for {sample_name} row {row:02}"
+            )),
+            Err(error) => self.notify_warning(format!("Automation failed: {error}")),
+        }
+    }
+
     fn execute_command(&mut self) {
         let command = self.command_buffer.trim().to_string();
         self.command_buffer.clear();
@@ -2760,6 +2857,10 @@ impl App {
             "fx" | "effect" => {
                 let values = parts.collect::<Vec<_>>();
                 self.handle_fx_command(&values);
+            }
+            "automation" | "auto" => {
+                let values = parts.collect::<Vec<_>>();
+                self.handle_automation_command(&values);
             }
             "loop" => match parts.next() {
                 Some("on") => {
@@ -5435,6 +5536,40 @@ mod tests {
             None
         );
         assert!(!app.dirty);
+    }
+
+    #[test]
+    fn command_mode_sets_and_clears_sample_gain_automation() {
+        let mut app = App::default();
+        let sample = app
+            .song
+            .upsert_sample_reference("samples/kick.wav", "kick.wav");
+        let track = app.song.tracks[0].id;
+        app.song
+            .assign_sample_to_track(track, sample)
+            .expect("assign sample");
+
+        type_command(&mut app, "automation sample-gain 4 0.250");
+
+        let pattern = app.song.current_pattern().expect("pattern");
+        assert_eq!(
+            pattern.automation_value_at(AutomationTarget::SampleGain { sample }, 3, 1.0),
+            1.0
+        );
+        assert_eq!(
+            pattern.automation_value_at(AutomationTarget::SampleGain { sample }, 4, 1.0),
+            0.25
+        );
+        assert!(app.dirty);
+
+        type_command(&mut app, "automation sample-gain clear 4");
+
+        assert!(app
+            .song
+            .current_pattern()
+            .expect("pattern")
+            .automation
+            .is_empty());
     }
 
     #[test]

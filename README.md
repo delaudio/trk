@@ -13,6 +13,7 @@ The primary realtime playback path remains MIDI-first for external instruments, 
 - Project persistence as JSON `.salieri` files with validation and atomic writes.
 - WAV sample loading, waveform inspection, in-app sample browser, external chooser integration, sample-backed instruments, track assignment, replacement, unassignment, unload, cleanup, frame windows, loop-point metadata, and ADSR-style amplitude envelopes.
 - Realtime sampler playback for assigned WAV samples through the default CPAL output device.
+- Pattern automation lanes with stepped sample-gain automation observed by realtime playback and offline audio export.
 - Deterministic sampler event contracts for routing assigned samples into audio commands.
 - Offline audio rendering foundations for sampler preview/event buffers and WAV PCM16 encoding.
 - Standard MIDI File format 0 import/export for the supported subset.
@@ -307,6 +308,8 @@ T               Set sequence position to current pattern
 :sample unload
 :sample cleanup
 :sample assignments
+:automation sample-gain 4 0.750
+:automation sample-gain clear 4
 :stop
 ```
 
@@ -359,7 +362,7 @@ salieri export audio input.salieri output.wav --pattern 1
 salieri export audio input.salieri output.wav --sequence --sample-rate 48000 --channels 2
 ```
 
-The exporter renders sampler events only. MIDI-only external instruments are not captured in the WAV file. See [docs/audio-export.md](docs/audio-export.md).
+The exporter renders sampler events only. MIDI-only external instruments are not captured in the WAV file. Stepped sample-gain automation is applied through the same sampler event path used by realtime playback. See [docs/audio-export.md](docs/audio-export.md) and [docs/automation.md](docs/automation.md).
 
 ## Project Files
 
@@ -369,4 +372,4 @@ The app tracks dirty state. Quitting with unsaved changes prompts for save, disc
 
 ## Roadmap Gaps
 
-Salieri is not yet a full Renoise-class workstation. The largest missing product areas are keyzones/velocity layers, sustained sampler loop playback and choking, a DSP/effects graph, mixer and automation views, MIDI input recording and sync, richer pattern columns, and a TUI workflow for AI proposal review/apply.
+Salieri is not yet a full Renoise-class workstation. The largest missing product areas are keyzones/velocity layers, sustained sampler loop playback and choking, a DSP/effects graph, mixer and graphical automation views, MIDI input recording and sync, richer pattern columns, and a TUI workflow for AI proposal review/apply.

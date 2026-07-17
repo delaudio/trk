@@ -1,4 +1,7 @@
-use crate::{NoteEvent, Pattern, SampleId, Song, TrackId, TrackerCommand, TransportSettings};
+use crate::{
+    AutomationTarget, NoteEvent, Pattern, SampleId, Song, TrackId, TrackerCommand,
+    TransportSettings,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlaybackPosition {
@@ -144,6 +147,11 @@ pub fn sampler_events(song: &Song, pattern: &Pattern) -> Vec<SamplerPlaybackEven
 
             let position = apply_delay_command(position, row_duration, cell.command);
             let velocity = cell.velocity.unwrap_or(0x7f).min(0x7f);
+            let gain = pattern.automation_value_at(
+                AutomationTarget::SampleGain { sample: sample.id },
+                row_index,
+                sample.gain,
+            );
             let trigger = SamplerPlaybackEvent {
                 position,
                 track: track.id,
@@ -151,7 +159,7 @@ pub fn sampler_events(song: &Song, pattern: &Pattern) -> Vec<SamplerPlaybackEven
                 sample_path: sample.path.clone(),
                 pitch,
                 velocity,
-                gain: sample.gain,
+                gain,
                 pitch_ratio: pitch_ratio(pitch, sample.root_pitch),
             };
             events.push(trigger.clone());
@@ -517,6 +525,34 @@ mod tests {
         assert_eq!(events[0].velocity, 0x64);
         assert_eq!(events[0].gain, 0.75);
         assert!((events[0].pitch_ratio - 2.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn sampler_events_apply_stepped_sample_gain_automation() {
+        let mut song = Song::empty();
+        let sample_id = song.upsert_sample_reference("samples/kick.wav", "kick.wav");
+        let track_id = song.tracks[0].id;
+        song.samples[0].gain = 1.0;
+        song.assign_sample_to_track(track_id, sample_id)
+            .expect("assign sample");
+        let pattern = song.current_pattern_mut().expect("pattern");
+        pattern
+            .set_note(0, 0, NoteEvent::Note { pitch: 48 }, 0x7f)
+            .expect("set first note");
+        pattern
+            .set_note(4, 0, NoteEvent::Note { pitch: 48 }, 0x7f)
+            .expect("set automated note");
+        pattern
+            .set_automation_point(AutomationTarget::SampleGain { sample: sample_id }, 4, 0.25)
+            .expect("set automation");
+
+        let events = sampler_events(&song, song.current_pattern().expect("pattern"));
+
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].position.row, 0);
+        assert_eq!(events[0].gain, 1.0);
+        assert_eq!(events[1].position.row, 4);
+        assert_eq!(events[1].gain, 0.25);
     }
 
     #[test]

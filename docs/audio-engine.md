@@ -16,7 +16,7 @@ CPAL is the preferred first backend for macOS and Linux because it provides a Ru
 - offline export supports deterministic sampler-preview rendering and WAV PCM16 encoding without writing files directly.
 - `RealtimeSampler` provides a hardware-free voice pool that consumes realtime sample trigger, stop-voice, and all-notes-off commands.
 
-The app playback runtime loads WAV files for assigned samples before playback, applies the persisted sample frame window and amplitude envelope, prepares them for the output sample rate and channel count, registers them with the CPAL backend, and then routes scheduled sampler events to realtime voices. MIDI output remains unchanged for non-sample tracks and external instruments. Persisted loop points are validated and displayed, but sustained loop playback is still future work.
+The app playback runtime loads WAV files for assigned samples before playback, applies the persisted sample frame window and amplitude envelope, prepares them for the output sample rate and channel count, registers them with the CPAL backend, and then routes scheduled sampler events to realtime voices. Stepped sample-gain automation is resolved into sampler event gain before the realtime boundary. MIDI output remains unchanged for non-sample tracks and external instruments. Persisted loop points are validated and displayed, but sustained loop playback is still future work.
 
 ## Realtime Boundary
 
