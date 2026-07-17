@@ -92,8 +92,12 @@ The recommended first legacy-module follow-up is not full import. It is a **modu
 Interop should expose structured diagnostics rather than strings only:
 
 - `UnsupportedContainer`: file is not a supported archive/module/container;
+- `MalformedArchive`: XRNS data is not a readable ZIP archive;
 - `MissingSongXml`: XRNS archive has no root `Song.xml`;
 - `MalformedSongXml`: XML cannot be parsed;
+- `EncryptedArchive`: encrypted ZIP entries cannot be inspected/imported;
+- `NestedArchive`: nested ZIP/XRNS payloads are detected but not imported recursively;
+- `UnsupportedCompression`: a required XRNS entry uses unsupported ZIP compression;
 - `UnsupportedRenoiseFeature`: feature name, location, and severity;
 - `UnsupportedSampleFormat`: sample path and codec/extension;
 - `UnsupportedEffectCommand`: pattern, track, row, command, and value;
