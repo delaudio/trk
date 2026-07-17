@@ -18,6 +18,10 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use persistence::{load_project, save_project};
 use playback_runtime::apply_sample_playback_settings;
 use playback_runtime::{PlaybackRuntime, PlaybackUpdate};
+use salieri_ai::{
+    apply_proposal, preview_proposal, AiPatternRequest, AiProposal, AiProposalProvider,
+    CellAddress, LocalDeterministicProvider,
+};
 use salieri_audio::{
     encode_audio, prepare_realtime_sample, render_sampler_events_with_dsp, AudioConfig,
     AudioExportFormat, DspDeviceKind as AudioDspDeviceKind, DspDeviceSpec, DspGraphSpec,
@@ -1240,6 +1244,7 @@ struct App {
     sample_browser: SampleBrowserConfig,
     pending_sample_browser: Option<SampleBrowserRequest>,
     sample_browser_view: Option<AppSampleBrowserView>,
+    pending_ai_proposal: Option<PendingAiProposal>,
     dirty: bool,
     should_quit: bool,
     dialog: Option<Dialog>,
@@ -1293,6 +1298,12 @@ struct AppSampleBrowserEntry {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct SampleBrowserRequest {
     start_dir: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PendingAiProposal {
+    proposal: AiProposal,
+    touched_cells: Vec<CellAddress>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1360,6 +1371,7 @@ impl App {
             sample_browser: config.sample_browser.clone(),
             pending_sample_browser: None,
             sample_browser_view: None,
+            pending_ai_proposal: None,
             dirty: false,
             should_quit: false,
             dialog: None,
@@ -3222,6 +3234,103 @@ impl App {
         }
     }
 
+    fn handle_ai_command(&mut self, values: &[&str]) {
+        match values {
+            ["propose", prompt @ ..] | ["sketch", prompt @ ..] => {
+                let prompt = prompt.join(" ");
+                self.create_ai_proposal(prompt);
+            }
+            ["show"] | ["preview"] => self.show_ai_proposal(),
+            ["accept"] | ["apply"] => self.apply_ai_proposal(),
+            ["reject"] | ["clear"] => {
+                if self.pending_ai_proposal.take().is_some() {
+                    self.notify_info("AI proposal rejected");
+                } else {
+                    self.notify_warning("No pending AI proposal");
+                }
+            }
+            _ => self
+                .notify_warning("Usage: :ai propose PROMPT | :ai show | :ai accept | :ai reject"),
+        }
+    }
+
+    fn create_ai_proposal(&mut self, prompt: String) {
+        let Some(pattern) = self.song.pattern(self.pattern_index) else {
+            self.notify_warning("Pattern out of range");
+            return;
+        };
+        let request = AiPatternRequest {
+            prompt,
+            pattern: self.pattern_index,
+            track: self.cursor.track,
+            rows: pattern.row_count(),
+            root_pitch: self.ai_root_pitch(),
+            velocity: DEFAULT_NOTE_VELOCITY,
+        };
+
+        let provider = LocalDeterministicProvider;
+        let proposal = match provider.propose(&self.song, &request) {
+            Ok(proposal) => proposal,
+            Err(error) => {
+                self.notify_warning(format!("AI proposal failed: {error}"));
+                return;
+            }
+        };
+        let preview = match preview_proposal(&self.song, &proposal) {
+            Ok(preview) => preview,
+            Err(error) => {
+                self.notify_warning(format!("AI preview failed: {error}"));
+                return;
+            }
+        };
+        let touched_cells = preview.touched_cells;
+        let summary = format_ai_proposal_summary(&proposal, &touched_cells);
+        self.pending_ai_proposal = Some(PendingAiProposal {
+            proposal,
+            touched_cells,
+        });
+        self.notify_info(summary);
+    }
+
+    fn show_ai_proposal(&mut self) {
+        let Some(pending) = &self.pending_ai_proposal else {
+            self.notify_warning("No pending AI proposal");
+            return;
+        };
+        self.notify_info(format_ai_proposal_summary(
+            &pending.proposal,
+            &pending.touched_cells,
+        ));
+    }
+
+    fn apply_ai_proposal(&mut self) {
+        let Some(pending) = self.pending_ai_proposal.clone() else {
+            self.notify_warning("No pending AI proposal");
+            return;
+        };
+        let mut result = Ok(Vec::new());
+        self.mutate_song(|song, _| {
+            result = apply_proposal(song, &pending.proposal).map(|preview| preview.touched_cells);
+        });
+        match result {
+            Ok(touched_cells) => {
+                self.pending_ai_proposal = None;
+                self.notify_success(format!(
+                    "AI proposal applied to {} cell(s): {}",
+                    touched_cells.len(),
+                    format_touched_cells(&touched_cells)
+                ));
+            }
+            Err(error) => self.notify_warning(format!("AI apply failed: {error}")),
+        }
+    }
+
+    fn ai_root_pitch(&self) -> u8 {
+        u8::try_from((u16::from(self.octave) + 1).saturating_mul(12))
+            .unwrap_or(127)
+            .min(127)
+    }
+
     fn execute_command(&mut self) {
         let command = self.command_buffer.trim().to_string();
         self.command_buffer.clear();
@@ -3309,6 +3418,10 @@ impl App {
             "dsp" | "effect-chain" => {
                 let values = parts.collect::<Vec<_>>();
                 self.handle_dsp_command(&values);
+            }
+            "ai" => {
+                let values = parts.collect::<Vec<_>>();
+                self.handle_ai_command(&values);
             }
             "loop" => match parts.next() {
                 Some("on") => {
@@ -4792,6 +4905,38 @@ fn format_effect_device(device: &EffectDevice) -> String {
     }
 }
 
+fn format_ai_proposal_summary(proposal: &AiProposal, touched_cells: &[CellAddress]) -> String {
+    format!(
+        "{}; touches {} cell(s): {}",
+        proposal.summary,
+        touched_cells.len(),
+        format_touched_cells(touched_cells)
+    )
+}
+
+fn format_touched_cells(touched_cells: &[CellAddress]) -> String {
+    let mut cells = touched_cells
+        .iter()
+        .take(8)
+        .map(|cell| {
+            format!(
+                "p{:02}/r{:02}/t{:02}",
+                cell.pattern + 1,
+                cell.row,
+                cell.track + 1
+            )
+        })
+        .collect::<Vec<_>>();
+    if touched_cells.len() > cells.len() {
+        cells.push(format!("+{}", touched_cells.len() - cells.len()));
+    }
+    if cells.is_empty() {
+        "none".to_string()
+    } else {
+        cells.join(", ")
+    }
+}
+
 fn parse_optional_frame_value(value: &str) -> Option<Option<usize>> {
     match value.to_ascii_lowercase().as_str() {
         "clear" | "none" | "off" => Some(None),
@@ -6190,6 +6335,45 @@ mod tests {
         let mixer = app.song.track_mixer_for_track(track_id);
         assert!(mixer.effects.is_empty());
         assert!(app.song.mixer.master_effects.is_empty());
+    }
+
+    #[test]
+    fn command_mode_ai_proposal_preview_apply_and_undo() {
+        let mut app = App::default();
+        let before = app.song.clone();
+
+        type_command(&mut app, "ai propose sparse bass sketch");
+
+        assert_eq!(app.song, before);
+        assert!(app.pending_ai_proposal.is_some());
+        assert!(app
+            .notification
+            .as_ref()
+            .expect("notification")
+            .message
+            .contains("touches"));
+
+        type_command(&mut app, "ai accept");
+
+        assert_ne!(app.song, before);
+        assert!(app.pending_ai_proposal.is_none());
+        assert!(app.dirty);
+
+        app.undo();
+
+        assert_eq!(app.song, before);
+    }
+
+    #[test]
+    fn command_mode_ai_proposal_can_be_rejected_without_mutating_song() {
+        let mut app = App::default();
+        let before = app.song.clone();
+
+        type_command(&mut app, "ai propose lead idea");
+        type_command(&mut app, "ai reject");
+
+        assert_eq!(app.song, before);
+        assert!(app.pending_ai_proposal.is_none());
     }
 
     #[test]

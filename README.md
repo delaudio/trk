@@ -328,6 +328,10 @@ T               Set sequence position to current pattern
 :dsp track 2 pan -0.250
 :dsp master gain 0.800
 :dsp track 2 clear
+:ai propose sparse bass sketch
+:ai show
+:ai accept
+:ai reject
 :stop
 ```
 
@@ -376,7 +380,7 @@ Deterministic transforms live in `salieri-transform` and can be used from the CL
 salieri transform euclidean input.salieri output.salieri --pattern 1 --track 1 --steps 16 --pulses 5 --rotation 0 --pitch 36 --velocity 100
 ```
 
-AI-assisted composition lives behind `salieri-ai`. It currently models prompt-scoped pattern requests, proposal providers, reviewable edit proposals, preview validation, and explicit application. It is not wired into the TUI yet, and it does not contact network providers unless a future explicit provider is added and invoked by the user. See [docs/generative-transforms.md](docs/generative-transforms.md) and [docs/ai-assisted-edits.md](docs/ai-assisted-edits.md).
+AI-assisted composition lives behind `salieri-ai` and is available in the TUI through the local deterministic provider: `:ai propose PROMPT`, `:ai show`, `:ai accept`, and `:ai reject`. Proposals are previewed as touched cells before application, and accepted proposals use the normal undo stack. No network provider is invoked implicitly. See [docs/generative-transforms.md](docs/generative-transforms.md) and [docs/ai-assisted-edits.md](docs/ai-assisted-edits.md).
 
 ## Interoperability
 
@@ -403,4 +407,4 @@ The app tracks dirty state. Quitting with unsaved changes prompts for save, disc
 
 ## Roadmap Gaps
 
-Salieri is not yet a full Renoise-class workstation. The largest missing product areas are keyzones/velocity layers, sustained sampler loop playback and choking, multiple effect columns with DSP device parameter mapping, a broader DSP device set, sends/routing, graphical mixer and automation views, MIDI input recording and sync, and a TUI workflow for AI proposal review/apply.
+Salieri is not yet a full Renoise-class workstation. The largest missing product areas are keyzones/velocity layers, sustained sampler loop playback and choking, multiple effect columns with DSP device parameter mapping, a broader DSP device set, sends/routing, graphical mixer and automation views, MIDI input recording and sync, and external-provider AI integration.
