@@ -11,10 +11,12 @@ CPAL is the preferred first backend for macOS and Linux because it provides a Ru
 - `AudioRuntime` owns an audio thread and command channel;
 - `AudioBackend` abstracts start/stop behavior;
 - `NullAudioBackend` makes lifecycle tests deterministic without hardware;
-- `CpalAudioBackend` opens the default output device as a silent output stream;
+- `CpalAudioBackend` opens the default output device and renders registered realtime sampler voices;
 - `RealtimeAudioCommand` is plain data intended for future lock-free transport to the callback.
 - offline export supports deterministic sampler-preview rendering and WAV PCM16 encoding without writing files directly.
 - `RealtimeSampler` provides a hardware-free voice pool that consumes realtime sample trigger, stop-voice, and all-notes-off commands.
+
+The app playback runtime loads WAV files for assigned samples before playback, prepares them for the output sample rate and channel count, registers them with the CPAL backend, and then routes scheduled sampler events to realtime voices. MIDI output remains unchanged for non-sample tracks and external instruments.
 
 ## Realtime Boundary
 
@@ -35,6 +37,5 @@ Shutdown must stop the backend before the thread exits. Errors are reported as u
 ## Current Limitations
 
 - no user-facing device enumeration or selection;
-- CPAL currently runs a silent callback and is not connected to sampler voices;
 - no envelope, looping, choking, or DSP graph;
-- no connected realtime audio backend for sampler assignment playback yet.
+- no mixer, routing, level metering, or effects on internal sampler output yet.

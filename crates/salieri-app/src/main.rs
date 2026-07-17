@@ -3319,6 +3319,9 @@ impl App {
                     self.midi_status = format!("MIDI Log Error: {error}");
                     self.notify_error(format!("MIDI log error: {error}"));
                 }
+                PlaybackUpdate::AudioError(error) => {
+                    self.notify_error(format!("Audio error: {error}"));
+                }
             }
         }
     }

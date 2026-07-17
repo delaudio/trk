@@ -2,7 +2,7 @@
 
 Salieri Tracker is a MIDI-first music tracker that runs in the terminal. The current app is a Rust workspace with a Ratatui/Crossterm TUI, pattern editing, sequence playback, project persistence, undo/redo, MIDI output through `midir`, sample inspection and assignment workflows, deterministic transforms, and the first internal audio/AI foundations.
 
-The primary realtime playback path is still MIDI-first: use a DAW, a virtual MIDI bus, or an external synth for audible instruments. Internal audio is under active development: `salieri-audio` has a CPAL backend boundary, realtime sampler voice rendering primitives, and offline WAV rendering/encoding tests, but user-facing realtime audio output is not complete yet.
+The primary realtime playback path remains MIDI-first for external instruments, but assigned WAV samples can also play through the internal CPAL audio backend on the default output device. Internal audio is still early: sampler playback is intentionally minimal and does not yet include device selection, envelopes, loop points, mixer routing, or effects.
 
 ## Current Capabilities
 
@@ -12,6 +12,7 @@ The primary realtime playback path is still MIDI-first: use a DAW, a virtual MID
 - MIDI output routing with port listing, connection from the TUI, panic/all-notes-off, channel assignment, logging, and MIDI test-note CLI support.
 - Project persistence as JSON `.salieri` files with validation and atomic writes.
 - WAV sample loading, waveform inspection, in-app sample browser, external chooser integration, sample assignment to tracks, replacement, unassignment, unload, and cleanup.
+- Realtime sampler playback for assigned WAV samples through the default CPAL output device.
 - Deterministic sampler event contracts for routing assigned samples into audio commands.
 - Offline audio rendering foundations for sampler preview/event buffers and WAV PCM16 encoding.
 - Standard MIDI File format 0 import/export for the supported subset.
@@ -23,7 +24,8 @@ The primary realtime playback path is still MIDI-first: use a DAW, a virtual MID
 - Rust stable
 - macOS or Linux
 - A terminal with alternate-screen support
-- A MIDI destination for realtime audible playback
+- A MIDI destination for external instrument playback
+- A default audio output device for internal assigned-sample playback
 
 On macOS, use IAC Driver for a virtual MIDI cable. On Linux, use your preferred ALSA/JACK/PipeWire MIDI routing setup.
 
@@ -317,7 +319,7 @@ F11                         Open sampler view
 :sample cleanup             Remove unused sample references
 ```
 
-Assigned samples are routed into the internal realtime audio command boundary during playback, but audible sampler output still depends on the remaining CPAL backend integration work. See [docs/sampler.md](docs/sampler.md), [docs/audio-engine.md](docs/audio-engine.md), and [docs/audio-export.md](docs/audio-export.md).
+Assigned samples are routed into the internal realtime audio command boundary during playback and rendered through the default CPAL output device. Samples are prepared for the output sample rate and channel count before playback. See [docs/sampler.md](docs/sampler.md), [docs/audio-engine.md](docs/audio-engine.md), and [docs/audio-export.md](docs/audio-export.md).
 
 ## Generative And AI Foundations
 
@@ -343,4 +345,4 @@ The app tracks dirty state. Quitting with unsaved changes prompts for save, disc
 
 ## Roadmap Gaps
 
-Salieri is not yet a full Renoise-class workstation. The largest missing product areas are user-facing realtime sampler audio, a proper instrument model, sampler editing/keyzones/envelopes, a DSP/effects graph, mixer and automation views, MIDI input recording and sync, richer pattern columns, audio export commands, and a TUI workflow for AI proposal review/apply.
+Salieri is not yet a full Renoise-class workstation. The largest missing product areas are a proper instrument model, sampler editing/keyzones/envelopes, a DSP/effects graph, mixer and automation views, MIDI input recording and sync, richer pattern columns, audio export commands, and a TUI workflow for AI proposal review/apply.

@@ -49,6 +49,8 @@ pub enum AudioError {
     Start(String),
     #[error("audio backend failed to stop: {0}")]
     Stop(String),
+    #[error("audio backend command failed: {0}")]
+    Command(String),
 }
 
 pub trait AudioBackend: Send + 'static {
@@ -95,6 +97,30 @@ impl CpalAudioBackend {
     pub fn is_started(&self) -> bool {
         self.worker.is_some()
     }
+
+    pub fn register_sample(&self, sample_id: u32, buffer: PreviewBuffer) -> Result<(), AudioError> {
+        self.send_stream_command(CpalStreamCommand::RegisterSample { sample_id, buffer })
+    }
+
+    pub fn send_realtime_command(&self, command: RealtimeAudioCommand) -> Result<(), AudioError> {
+        self.send_stream_command(CpalStreamCommand::Realtime(command))
+    }
+
+    pub fn clear_samples(&self) -> Result<(), AudioError> {
+        self.send_stream_command(CpalStreamCommand::ClearSamples)
+    }
+
+    fn send_stream_command(&self, command: CpalStreamCommand) -> Result<(), AudioError> {
+        let Some(worker) = &self.worker else {
+            return Err(AudioError::Command(
+                "CPAL stream is not started".to_string(),
+            ));
+        };
+        worker
+            .command_tx
+            .send(command)
+            .map_err(|error| AudioError::Command(format!("CPAL stream command failed: {error}")))
+    }
 }
 
 impl AudioBackend for CpalAudioBackend {
@@ -137,12 +163,24 @@ impl AudioBackend for CpalAudioBackend {
     }
 }
 
+impl Drop for CpalAudioBackend {
+    fn drop(&mut self) {
+        let _ = self.stop();
+    }
+}
+
 struct CpalStreamWorker {
     command_tx: Sender<CpalStreamCommand>,
     handle: JoinHandle<()>,
 }
 
 enum CpalStreamCommand {
+    RegisterSample {
+        sample_id: u32,
+        buffer: PreviewBuffer,
+    },
+    ClearSamples,
+    Realtime(RealtimeAudioCommand),
     Stop,
 }
 
@@ -248,10 +286,16 @@ fn cpal_stream_thread(
     command_rx: Receiver<CpalStreamCommand>,
     startup_tx: Sender<Result<(), AudioError>>,
 ) {
-    match start_silent_cpal_stream(config) {
+    let (realtime_tx, realtime_rx) = mpsc::channel();
+    match start_realtime_cpal_stream(config, realtime_rx) {
         Ok(stream) => {
             let _ = startup_tx.send(Ok(()));
-            let _ = command_rx.recv();
+            while let Ok(command) = command_rx.recv() {
+                if matches!(command, CpalStreamCommand::Stop) {
+                    break;
+                }
+                let _ = realtime_tx.send(command);
+            }
             let _ = stream.pause();
         }
         Err(error) => {
@@ -260,7 +304,10 @@ fn cpal_stream_thread(
     }
 }
 
-fn start_silent_cpal_stream(config: AudioConfig) -> Result<Stream, AudioError> {
+fn start_realtime_cpal_stream(
+    config: AudioConfig,
+    command_rx: Receiver<CpalStreamCommand>,
+) -> Result<Stream, AudioError> {
     let host = cpal::default_host();
     let device = host
         .default_output_device()
@@ -275,39 +322,51 @@ fn start_silent_cpal_stream(config: AudioConfig) -> Result<Stream, AudioError> {
         buffer_size: cpal::BufferSize::Fixed(u32::from(config.buffer_frames)),
     };
 
-    let stream = build_silent_output_stream(&device, &stream_config, sample_format)?;
+    let stream = build_realtime_output_stream(&device, &stream_config, sample_format, command_rx)?;
     stream
         .play()
         .map_err(|error| AudioError::Start(format!("failed to play stream: {error}")))?;
     Ok(stream)
 }
 
-fn build_silent_output_stream(
+fn build_realtime_output_stream(
     device: &cpal::Device,
     config: &StreamConfig,
     sample_format: SampleFormat,
+    command_rx: Receiver<CpalStreamCommand>,
 ) -> Result<Stream, AudioError> {
     match sample_format {
-        SampleFormat::F32 => build_silent_output_stream_for::<f32>(device, config),
-        SampleFormat::I16 => build_silent_output_stream_for::<i16>(device, config),
-        SampleFormat::U16 => build_silent_output_stream_for::<u16>(device, config),
+        SampleFormat::F32 => build_realtime_output_stream_for::<f32>(device, config, command_rx),
+        SampleFormat::I16 => build_realtime_output_stream_for::<i16>(device, config, command_rx),
+        SampleFormat::U16 => build_realtime_output_stream_for::<u16>(device, config, command_rx),
         sample_format => Err(AudioError::Start(format!(
             "unsupported output sample format {sample_format}"
         ))),
     }
 }
 
-fn build_silent_output_stream_for<T>(
+fn build_realtime_output_stream_for<T>(
     device: &cpal::Device,
     config: &StreamConfig,
+    command_rx: Receiver<CpalStreamCommand>,
 ) -> Result<Stream, AudioError>
 where
     T: Sample + SizedSample + FromSample<f32> + 'static,
 {
+    let sampler_config = RealtimeSamplerConfig {
+        sample_rate: config.sample_rate.0,
+        channels: config.channels,
+        max_voices: RealtimeSamplerConfig::default().max_voices,
+    };
+    let mut sampler = RealtimeSampler::new(sampler_config);
+    let mut scratch = vec![0.0; usize::from(config.channels) * config.buffer_size_frame_hint()];
+
     device
         .build_output_stream(
             config,
-            write_silence::<T>,
+            move |output, _| {
+                write_realtime_output::<T>(output, &mut scratch, &mut sampler, &command_rx);
+            },
             |error| {
                 let _ = error;
             },
@@ -316,12 +375,49 @@ where
         .map_err(|error| AudioError::Start(format!("failed to build output stream: {error}")))
 }
 
-fn write_silence<T>(output: &mut [T], _: &cpal::OutputCallbackInfo)
-where
+trait StreamConfigFrameHint {
+    fn buffer_size_frame_hint(&self) -> usize;
+}
+
+impl StreamConfigFrameHint for StreamConfig {
+    fn buffer_size_frame_hint(&self) -> usize {
+        match self.buffer_size {
+            cpal::BufferSize::Fixed(frames) => frames as usize,
+            cpal::BufferSize::Default => 512,
+        }
+    }
+}
+
+fn write_realtime_output<T>(
+    output: &mut [T],
+    scratch: &mut Vec<f32>,
+    sampler: &mut RealtimeSampler,
+    command_rx: &Receiver<CpalStreamCommand>,
+) where
     T: Sample + FromSample<f32>,
 {
-    for sample in output {
-        *sample = T::from_sample(0.0);
+    while let Ok(command) = command_rx.try_recv() {
+        match command {
+            CpalStreamCommand::RegisterSample { sample_id, buffer } => {
+                let _ = sampler.register_sample(sample_id, buffer);
+            }
+            CpalStreamCommand::ClearSamples => {
+                sampler.clear_samples();
+            }
+            CpalStreamCommand::Realtime(command) => {
+                let _ = sampler.handle_command_now(command);
+            }
+            CpalStreamCommand::Stop => {}
+        }
+    }
+
+    if scratch.len() != output.len() {
+        scratch.resize(output.len(), 0.0);
+    }
+    sampler.render_into(scratch);
+
+    for (output, sample) in output.iter_mut().zip(scratch.iter()) {
+        *output = T::from_sample((*sample).clamp(-1.0, 1.0));
     }
 }
 
@@ -450,7 +546,7 @@ impl RealtimeSampler {
         Self {
             config,
             samples: HashMap::new(),
-            voices: Vec::new(),
+            voices: Vec::with_capacity(config.max_voices),
             next_voice_id: 1,
             current_frame: 0,
         }
@@ -476,6 +572,11 @@ impl RealtimeSampler {
     pub fn remove_sample(&mut self, sample_id: u32) {
         self.samples.remove(&sample_id);
         self.voices.retain(|voice| voice.sample_id != sample_id);
+    }
+
+    pub fn clear_samples(&mut self) {
+        self.samples.clear();
+        self.voices.clear();
     }
 
     #[must_use]
@@ -526,9 +627,53 @@ impl RealtimeSampler {
         }
     }
 
+    pub fn handle_command_now(
+        &mut self,
+        command: RealtimeAudioCommand,
+    ) -> Result<Option<u64>, AudioExportError> {
+        let command = match command {
+            RealtimeAudioCommand::TriggerSample {
+                sample_id,
+                gain,
+                pitch_ratio,
+                ..
+            } => RealtimeAudioCommand::TriggerSample {
+                sample_id,
+                frame: self.current_frame,
+                gain,
+                pitch_ratio,
+            },
+            RealtimeAudioCommand::StopVoice { voice_id, .. } => RealtimeAudioCommand::StopVoice {
+                voice_id,
+                frame: self.current_frame,
+            },
+            RealtimeAudioCommand::AllNotesOff { .. } => RealtimeAudioCommand::AllNotesOff {
+                frame: self.current_frame,
+            },
+        };
+        self.handle_command(command)
+    }
+
     pub fn render(&mut self, frames: usize) -> RenderedAudio {
         let channels = usize::from(self.config.channels);
         let mut data = vec![0.0; frames.saturating_mul(channels)];
+        self.render_into(&mut data);
+
+        RenderedAudio {
+            sample_rate: self.config.sample_rate,
+            channels: self.config.channels,
+            frames,
+            data,
+        }
+    }
+
+    pub fn render_into(&mut self, data: &mut [f32]) {
+        data.fill(0.0);
+        let channels = usize::from(self.config.channels);
+        if channels == 0 {
+            return;
+        }
+        let frames = data.len() / channels;
         let render_start = self.current_frame;
         let render_end = render_start.saturating_add(frames as u64);
 
@@ -536,7 +681,7 @@ impl RealtimeSampler {
             let Some(sample) = self.samples.get(&voice.sample_id) else {
                 continue;
             };
-            mix_realtime_voice(&mut data, channels, sample, voice, render_start, render_end);
+            mix_realtime_voice(data, channels, sample, voice, render_start, render_end);
         }
 
         self.current_frame = render_end;
@@ -550,19 +695,57 @@ impl RealtimeSampler {
                 }
             })
         });
-
-        RenderedAudio {
-            sample_rate: self.config.sample_rate,
-            channels: self.config.channels,
-            frames,
-            data,
-        }
     }
 }
 
 #[must_use]
 pub const fn supported_audio_export_formats() -> &'static [AudioExportFormat] {
     &[AudioExportFormat::WavPcm16]
+}
+
+#[must_use]
+pub fn prepare_realtime_sample(
+    preview: &PreviewBuffer,
+    target_sample_rate: u32,
+    target_channels: u16,
+) -> PreviewBuffer {
+    if preview.sample_rate == target_sample_rate && preview.channels == target_channels {
+        return preview.clone();
+    }
+
+    let target_channels_usize = usize::from(target_channels).max(1);
+    let target_frames = if preview.sample_rate == 0 || target_sample_rate == 0 {
+        preview.frames
+    } else {
+        ((preview.frames as f64) * f64::from(target_sample_rate) / f64::from(preview.sample_rate))
+            .ceil() as usize
+    };
+    let frame_ratio = if target_sample_rate == 0 {
+        1.0
+    } else {
+        preview.sample_rate as f32 / target_sample_rate as f32
+    };
+    let mut data = vec![0.0; target_frames.saturating_mul(target_channels_usize)];
+
+    for target_frame in 0..target_frames {
+        let source_frame = target_frame as f32 * frame_ratio;
+        let output_offset = target_frame * target_channels_usize;
+        for target_channel in 0..target_channels_usize {
+            data[output_offset + target_channel] = converted_channel_sample(
+                preview,
+                source_frame,
+                target_channel,
+                target_channels_usize,
+            );
+        }
+    }
+
+    PreviewBuffer {
+        sample_rate: target_sample_rate,
+        channels: target_channels,
+        frames: target_frames,
+        data,
+    }
 }
 
 pub fn render_sampler_preview(
@@ -840,14 +1023,43 @@ fn interpolated_sample(
     sample: &PreviewBuffer,
     source_frame: f32,
     channel: usize,
-    channels: usize,
+    _channels: usize,
 ) -> f32 {
+    let channels = usize::from(sample.channels).max(1);
     let base_frame = source_frame.floor() as usize;
     let next_frame = (base_frame + 1).min(sample.frames.saturating_sub(1));
     let fractional = source_frame - base_frame as f32;
+    let channel = channel.min(channels.saturating_sub(1));
     let current = sample.data[base_frame * channels + channel];
     let next = sample.data[next_frame * channels + channel];
     current + ((next - current) * fractional)
+}
+
+fn converted_channel_sample(
+    sample: &PreviewBuffer,
+    source_frame: f32,
+    target_channel: usize,
+    target_channels: usize,
+) -> f32 {
+    let source_channels = usize::from(sample.channels).max(1);
+    if source_channels == 1 {
+        return interpolated_sample(sample, source_frame, 0, source_channels);
+    }
+    if target_channels == 1 {
+        return downmixed_sample(sample, source_frame, source_channels);
+    }
+    if target_channel < source_channels {
+        return interpolated_sample(sample, source_frame, target_channel, source_channels);
+    }
+
+    downmixed_sample(sample, source_frame, source_channels)
+}
+
+fn downmixed_sample(sample: &PreviewBuffer, source_frame: f32, source_channels: usize) -> f32 {
+    let sum = (0..source_channels)
+        .map(|channel| interpolated_sample(sample, source_frame, channel, source_channels))
+        .sum::<f32>();
+    sum / source_channels as f32
 }
 
 #[cfg(test)]
@@ -936,6 +1148,26 @@ mod tests {
         assert_eq!(first, second);
         assert_eq!(first.frames, 4);
         assert_eq!(first.data, vec![0.25, -0.25, 0.5, -0.5, 0.0, 0.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn prepares_realtime_samples_for_output_config() {
+        let preview = PreviewBuffer {
+            sample_rate: 2,
+            channels: 1,
+            frames: 2,
+            data: vec![0.25, 0.75],
+        };
+
+        let prepared = prepare_realtime_sample(&preview, 4, 2);
+
+        assert_eq!(prepared.sample_rate, 4);
+        assert_eq!(prepared.channels, 2);
+        assert_eq!(prepared.frames, 4);
+        assert_eq!(prepared.data[0], 0.25);
+        assert_eq!(prepared.data[1], 0.25);
+        assert_approx_eq(prepared.data[2], 0.5);
+        assert_approx_eq(prepared.data[3], 0.5);
     }
 
     #[test]
@@ -1124,6 +1356,32 @@ mod tests {
         assert_eq!(rendered.data[2], 0.375);
         assert_eq!(rendered.data[3], 0.0);
         assert_eq!(sampler.active_voice_count(), 0);
+    }
+
+    #[test]
+    fn realtime_sampler_can_trigger_at_current_callback_frame() {
+        let mut sampler = RealtimeSampler::new(RealtimeSamplerConfig {
+            sample_rate: 48_000,
+            channels: 1,
+            max_voices: 4,
+        });
+        sampler
+            .register_sample(1, mono_sample(vec![0.25, 0.5]))
+            .expect("register sample");
+        let preroll = sampler.render(8);
+        assert_eq!(preroll.data, vec![0.0; 8]);
+
+        sampler
+            .handle_command_now(RealtimeAudioCommand::TriggerSample {
+                sample_id: 1,
+                frame: 0,
+                gain: 1.0,
+                pitch_ratio: 1.0,
+            })
+            .expect("trigger now");
+
+        let rendered = sampler.render(2);
+        assert_eq!(rendered.data, vec![0.25, 0.5]);
     }
 
     #[test]
