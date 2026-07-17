@@ -75,6 +75,7 @@ salieri --list-midi-outputs
 salieri --midi-test-output NAME_OR_INDEX [OPTIONS]
 salieri transform euclidean INPUT OUTPUT [OPTIONS]
 salieri sample inspect FILE [OPTIONS]
+salieri export audio INPUT OUTPUT [OPTIONS]
 salieri --help
 salieri --version
 ```
@@ -90,6 +91,8 @@ salieri --midi-test-output 0 --midi-test-channel 1 --midi-test-note 60
 salieri --midi-test-output "IAC Driver Bus 1" --midi-test-duration-ms 500
 salieri sample inspect kick.wav --format text --buckets 64
 salieri transform euclidean input.salieri output.salieri --pattern 1 --track 1 --steps 16 --pulses 5 --pitch 36
+salieri export audio song.salieri song.wav --pattern 1
+salieri export audio song.salieri song.wav --sequence --sample-rate 48000 --channels 2
 ```
 
 `--midi-test-output` accepts either a port index or a port name. Configured MIDI output names are normalized, so `IAC Driver`, `IAC Driver Bus 1`, and `IAC Driver (Bus 1)` can match the same CoreMIDI port when available.
@@ -337,6 +340,17 @@ AI-assisted composition lives behind `salieri-ai`. It currently models prompt-sc
 
 See [docs/interoperability.md](docs/interoperability.md).
 
+## Audio Export
+
+Assigned-sample playback can be rendered offline to WAV PCM16:
+
+```bash
+salieri export audio input.salieri output.wav --pattern 1
+salieri export audio input.salieri output.wav --sequence --sample-rate 48000 --channels 2
+```
+
+The exporter renders sampler events only. MIDI-only external instruments are not captured in the WAV file. See [docs/audio-export.md](docs/audio-export.md).
+
 ## Project Files
 
 Salieri saves JSON projects with the `.salieri` extension. The file contains a `formatVersion` and a serializable song model so projects can be versioned in Git.
@@ -345,4 +359,4 @@ The app tracks dirty state. Quitting with unsaved changes prompts for save, disc
 
 ## Roadmap Gaps
 
-Salieri is not yet a full Renoise-class workstation. The largest missing product areas are a proper instrument model, sampler editing/keyzones/envelopes, a DSP/effects graph, mixer and automation views, MIDI input recording and sync, richer pattern columns, audio export commands, and a TUI workflow for AI proposal review/apply.
+Salieri is not yet a full Renoise-class workstation. The largest missing product areas are a proper instrument model, sampler editing/keyzones/envelopes, a DSP/effects graph, mixer and automation views, MIDI input recording and sync, richer pattern columns, and a TUI workflow for AI proposal review/apply.

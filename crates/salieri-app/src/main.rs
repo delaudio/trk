@@ -17,7 +17,14 @@ use config::{load_config, AppConfig, SampleBrowserConfig};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use persistence::{load_project, save_project};
 use playback_runtime::{PlaybackRuntime, PlaybackUpdate};
-use salieri_core::{CellField, Cursor, Direction, NoteEvent, PatternCell, Song, TrackerCommand};
+use salieri_audio::{
+    encode_audio, prepare_realtime_sample, render_sampler_events, AudioConfig, AudioExportFormat,
+    OfflineRenderSpec, OfflineSamplerEvent, OfflineSamplerSample,
+};
+use salieri_core::{
+    row_duration_micros, sampler_events, CellField, Cursor, Direction, NoteEvent, PatternCell,
+    Song, TrackerCommand,
+};
 use salieri_midi::{list_output_ports, MidiMessage, MidiOutput, MidiOutputPort, MidirMidiOutput};
 use salieri_sampler::{Sample, WaveformBucket, WaveformOverview};
 use salieri_transform::{apply_euclidean, EuclideanRhythm};
@@ -79,6 +86,10 @@ fn run(args: CliArgs) -> Result<()> {
         }
         CliCommand::SampleInspect(sample_args) => {
             run_sample_inspect(sample_args)?;
+            return Ok(());
+        }
+        CliCommand::ExportAudio(export_args) => {
+            run_export_audio(export_args)?;
             return Ok(());
         }
         CliCommand::Run | CliCommand::MidiTest => {}
@@ -252,6 +263,16 @@ impl CliArgs {
                         midi_test,
                     }
                 }
+                "export" => {
+                    return Self {
+                        command: parse_export_command(args),
+                        project_path: None,
+                        config_path,
+                        log_level,
+                        midi_log_path,
+                        midi_test,
+                    }
+                }
                 "--midi-test-output" => {
                     midi_test.output = args.next();
                 }
@@ -365,11 +386,12 @@ enum CliCommand {
     MidiTest,
     TransformEuclidean(TransformEuclideanArgs),
     SampleInspect(SampleInspectArgs),
+    ExportAudio(AudioExportArgs),
 }
 
 fn print_help() {
     println!(
-        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri sample inspect FILE [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index (default 1)\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Velocity, 0-127 (default 100)\n\nSample inspect options:\n  --format text|json            Output format (default text)\n  --buckets N, --width N        Waveform bucket count (default 64)\n\n  --help                        Show this help\n  --version                     Show version"
+        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri sample inspect FILE [OPTIONS]\n  salieri export audio INPUT OUTPUT [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index (default 1)\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Velocity, 0-127 (default 100)\n\nSample inspect options:\n  --format text|json            Output format (default text)\n  --buckets N, --width N        Waveform bucket count (default 64)\n\nAudio export options:\n  --pattern N                   Export 1-based pattern index (default 1)\n  --sequence                    Export the full sequence instead of one pattern\n  --sample-rate HZ              Output sample rate (default 48000)\n  --channels N                  Output channels (default 2)\n\n  --help                        Show this help\n  --version                     Show version"
     );
 }
 
@@ -385,6 +407,14 @@ fn parse_sample_command(args: impl IntoIterator<Item = String>) -> CliCommand {
     let mut args = args.into_iter();
     match args.next().as_deref() {
         Some("inspect") => CliCommand::SampleInspect(parse_sample_inspect_args(args)),
+        _ => CliCommand::Help,
+    }
+}
+
+fn parse_export_command(args: impl IntoIterator<Item = String>) -> CliCommand {
+    let mut args = args.into_iter();
+    match args.next().as_deref() {
+        Some("audio") => CliCommand::ExportAudio(parse_audio_export_args(args)),
         _ => CliCommand::Help,
     }
 }
@@ -415,6 +445,16 @@ struct SampleInspectArgs {
     buckets: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct AudioExportArgs {
+    input_path: Option<PathBuf>,
+    output_path: Option<PathBuf>,
+    pattern: usize,
+    sequence: bool,
+    sample_rate: u32,
+    channels: u16,
+}
+
 impl Default for SampleInspectArgs {
     fn default() -> Self {
         Self {
@@ -443,6 +483,19 @@ impl Default for TransformEuclideanArgs {
             rotation: 0,
             pitch: 36,
             velocity: 100,
+        }
+    }
+}
+
+impl Default for AudioExportArgs {
+    fn default() -> Self {
+        Self {
+            input_path: None,
+            output_path: None,
+            pattern: 1,
+            sequence: false,
+            sample_rate: AudioConfig::default().sample_rate,
+            channels: AudioConfig::default().channels,
         }
     }
 }
@@ -522,6 +575,40 @@ fn parse_sample_inspect_args(args: impl IntoIterator<Item = String>) -> SampleIn
     parsed
 }
 
+fn parse_audio_export_args(args: impl IntoIterator<Item = String>) -> AudioExportArgs {
+    let mut parsed = AudioExportArgs::default();
+    let mut args = args.into_iter();
+
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--pattern" => parse_next_usize(&mut args, &mut parsed.pattern),
+            "--sequence" => parsed.sequence = true,
+            "--sample-rate" => parse_next_u32(&mut args, &mut parsed.sample_rate),
+            "--channels" => parse_next_u16(&mut args, &mut parsed.channels),
+            _ if arg.starts_with("--pattern=") => {
+                parse_usize_value(arg.trim_start_matches("--pattern="), &mut parsed.pattern);
+            }
+            _ if arg.starts_with("--sample-rate=") => {
+                parse_u32_value(
+                    arg.trim_start_matches("--sample-rate="),
+                    &mut parsed.sample_rate,
+                );
+            }
+            _ if arg.starts_with("--channels=") => {
+                parse_u16_value(arg.trim_start_matches("--channels="), &mut parsed.channels);
+            }
+            _ if parsed.input_path.is_none() => parsed.input_path = Some(PathBuf::from(arg)),
+            _ if parsed.output_path.is_none() => parsed.output_path = Some(PathBuf::from(arg)),
+            _ => {}
+        }
+    }
+
+    parsed.pattern = parsed.pattern.max(1);
+    parsed.sample_rate = parsed.sample_rate.max(1);
+    parsed.channels = parsed.channels.max(1);
+    parsed
+}
+
 fn parse_sample_format(value: &str, target: &mut SampleInspectFormat) {
     match value {
         "text" => *target = SampleInspectFormat::Text,
@@ -551,6 +638,30 @@ fn parse_next_u8(args: &mut impl Iterator<Item = String>, target: &mut u8) {
 fn parse_u8_value(value: &str, target: &mut u8) {
     if let Ok(parsed) = value.parse::<u8>() {
         *target = parsed.min(127);
+    }
+}
+
+fn parse_next_u32(args: &mut impl Iterator<Item = String>, target: &mut u32) {
+    if let Some(value) = args.next() {
+        parse_u32_value(&value, target);
+    }
+}
+
+fn parse_u32_value(value: &str, target: &mut u32) {
+    if let Ok(parsed) = value.parse::<u32>() {
+        *target = parsed;
+    }
+}
+
+fn parse_next_u16(args: &mut impl Iterator<Item = String>, target: &mut u16) {
+    if let Some(value) = args.next() {
+        parse_u16_value(&value, target);
+    }
+}
+
+fn parse_u16_value(value: &str, target: &mut u16) {
+    if let Ok(parsed) = value.parse::<u16>() {
+        *target = parsed;
     }
 }
 
@@ -602,6 +713,31 @@ fn run_sample_inspect(args: &SampleInspectArgs) -> Result<()> {
     Ok(())
 }
 
+fn run_export_audio(args: &AudioExportArgs) -> Result<()> {
+    let input_path = args
+        .input_path
+        .as_deref()
+        .context("missing export input path: usage is salieri export audio INPUT OUTPUT")?;
+    let output_path = args
+        .output_path
+        .as_deref()
+        .context("missing export output path: usage is salieri export audio INPUT OUTPUT")?;
+    let song = load_project(input_path)?;
+    let rendered = render_audio_export(&song, args)?;
+    let bytes = encode_audio(&rendered, AudioExportFormat::WavPcm16)
+        .context("failed to encode WAV PCM16 audio")?;
+    write_bytes_atomically(output_path, &bytes)
+        .with_context(|| format!("failed to write audio export {}", output_path.display()))?;
+
+    println!(
+        "Exported {} frames at {} Hz to {}",
+        rendered.frames,
+        rendered.sample_rate,
+        output_path.display()
+    );
+    Ok(())
+}
+
 fn inspect_sample(args: &SampleInspectArgs) -> Result<SampleInspection> {
     let path = args
         .path
@@ -612,6 +748,167 @@ fn inspect_sample(args: &SampleInspectArgs) -> Result<SampleInspection> {
     let overview = sample.waveform_overview(args.buckets.max(1));
 
     Ok(SampleInspection { sample, overview })
+}
+
+fn render_audio_export(
+    song: &Song,
+    args: &AudioExportArgs,
+) -> Result<salieri_audio::RenderedAudio> {
+    let spec_base = OfflineRenderSpec {
+        sample_rate: args.sample_rate,
+        channels: args.channels,
+        frames: 0,
+    };
+    let events = if args.sequence {
+        sequence_export_events(song, args.sample_rate)
+    } else {
+        if args.pattern == 0 {
+            anyhow::bail!("--pattern is 1-based and must be greater than zero");
+        }
+        pattern_export_events(song, args.pattern - 1, 0, args.sample_rate)?
+    };
+    let samples = load_offline_export_samples(song, args.sample_rate, args.channels)?;
+    let frames = if events.is_empty() {
+        export_duration_frames(song, args, args.sample_rate)?
+    } else {
+        0
+    };
+
+    render_sampler_events(
+        &samples,
+        &events,
+        OfflineRenderSpec {
+            frames,
+            ..spec_base
+        },
+    )
+    .context("failed to render sampler audio events")
+}
+
+fn pattern_export_events(
+    song: &Song,
+    pattern_index: usize,
+    base_micros: u64,
+    sample_rate: u32,
+) -> Result<Vec<OfflineSamplerEvent>> {
+    let pattern = song
+        .pattern(pattern_index)
+        .with_context(|| format!("pattern {} does not exist", pattern_index + 1))?;
+    Ok(sampler_events(song, pattern)
+        .into_iter()
+        .map(|event| OfflineSamplerEvent {
+            sample_id: event.sample.0,
+            frame: micros_to_frames(
+                base_micros.saturating_add(event.position.offset_micros),
+                sample_rate,
+            ),
+            gain: event.gain,
+            pitch_ratio: event.pitch_ratio,
+            velocity: event.velocity,
+        })
+        .collect())
+}
+
+fn sequence_export_events(song: &Song, sample_rate: u32) -> Vec<OfflineSamplerEvent> {
+    let mut base_micros = 0_u64;
+    let mut events = Vec::new();
+    for pattern_id in &song.sequence {
+        let Some(pattern_index) = song
+            .patterns
+            .iter()
+            .position(|pattern| pattern.id == *pattern_id)
+        else {
+            continue;
+        };
+        if let Ok(mut pattern_events) =
+            pattern_export_events(song, pattern_index, base_micros, sample_rate)
+        {
+            events.append(&mut pattern_events);
+        }
+        if let Some(pattern) = song.pattern(pattern_index) {
+            base_micros = base_micros.saturating_add(
+                row_duration_micros(&song.transport).saturating_mul(pattern.row_count() as u64),
+            );
+        }
+    }
+    events
+}
+
+fn load_offline_export_samples(
+    song: &Song,
+    sample_rate: u32,
+    channels: u16,
+) -> Result<Vec<OfflineSamplerSample>> {
+    song.samples
+        .iter()
+        .map(|reference| {
+            let sample = Sample::load_wav(&reference.path)
+                .with_context(|| format!("failed to load sample {}", reference.path))?;
+            let preview = sample.preview(Default::default());
+            Ok(OfflineSamplerSample {
+                sample_id: reference.id.0,
+                buffer: prepare_realtime_sample(&preview, sample_rate, channels),
+            })
+        })
+        .collect()
+}
+
+fn export_duration_frames(song: &Song, args: &AudioExportArgs, sample_rate: u32) -> Result<usize> {
+    let duration_micros = if args.sequence {
+        song.sequence.iter().fold(0_u64, |duration, pattern_id| {
+            let Some(pattern) = song
+                .patterns
+                .iter()
+                .find(|pattern| pattern.id == *pattern_id)
+            else {
+                return duration;
+            };
+            duration.saturating_add(
+                row_duration_micros(&song.transport).saturating_mul(pattern.row_count() as u64),
+            )
+        })
+    } else {
+        let pattern = song
+            .pattern(args.pattern - 1)
+            .with_context(|| format!("pattern {} does not exist", args.pattern))?;
+        row_duration_micros(&song.transport).saturating_mul(pattern.row_count() as u64)
+    };
+    usize::try_from(micros_to_frames(duration_micros, sample_rate))
+        .context("audio export duration is too large")
+}
+
+fn micros_to_frames(offset_micros: u64, sample_rate: u32) -> u64 {
+    u64::from(sample_rate).saturating_mul(offset_micros) / 1_000_000
+}
+
+fn write_bytes_atomically(path: &Path, bytes: &[u8]) -> Result<()> {
+    let temp_path = export_temp_path_for(path);
+    {
+        let mut file = fs::File::create(&temp_path)
+            .with_context(|| format!("failed to create temp file {}", temp_path.display()))?;
+        file.write_all(bytes)
+            .with_context(|| format!("failed to write temp file {}", temp_path.display()))?;
+        file.sync_all()
+            .with_context(|| format!("failed to sync temp file {}", temp_path.display()))?;
+    }
+    fs::rename(&temp_path, path).with_context(|| {
+        format!(
+            "failed to replace export {} with {}",
+            path.display(),
+            temp_path.display()
+        )
+    })?;
+    Ok(())
+}
+
+fn export_temp_path_for(path: &Path) -> PathBuf {
+    let mut temp_path = path.to_path_buf();
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .map_or_else(|| "tmp".to_string(), |value| format!("{value}.tmp"));
+    temp_path.set_extension(extension);
+    temp_path
 }
 
 fn format_sample_inspection_text(inspection: &SampleInspection) -> String {
@@ -3954,6 +4251,37 @@ mod tests {
     }
 
     #[test]
+    fn cli_parses_audio_export_options() {
+        assert_eq!(
+            CliArgs::parse([
+                "export".to_string(),
+                "audio".to_string(),
+                "song.salieri".to_string(),
+                "song.wav".to_string(),
+                "--sequence".to_string(),
+                "--sample-rate".to_string(),
+                "44100".to_string(),
+                "--channels=1".to_string(),
+            ]),
+            CliArgs {
+                command: CliCommand::ExportAudio(AudioExportArgs {
+                    input_path: Some(PathBuf::from("song.salieri")),
+                    output_path: Some(PathBuf::from("song.wav")),
+                    pattern: 1,
+                    sequence: true,
+                    sample_rate: 44_100,
+                    channels: 1,
+                }),
+                project_path: None,
+                config_path: None,
+                log_level: None,
+                midi_log_path: None,
+                midi_test: MidiTestArgs::default(),
+            }
+        );
+    }
+
+    #[test]
     fn sample_inspect_loads_tiny_wav_and_formats_outputs() {
         let path =
             std::env::temp_dir().join(format!("salieri-sample-inspect-{}.wav", std::process::id()));
@@ -3986,6 +4314,55 @@ mod tests {
         assert_eq!(value["schema_version"], 1);
         assert_eq!(value["sample"]["sample_rate"], 44_100);
         assert_eq!(value["waveform"]["bucket_count"], 2);
+    }
+
+    #[test]
+    fn audio_export_writes_sampler_events_to_wav() {
+        let base =
+            std::env::temp_dir().join(format!("salieri-audio-export-{}", std::process::id()));
+        let project_path = base.with_extension("salieri");
+        let sample_path = base.with_extension("wav");
+        let output_path = base.with_extension("export.wav");
+        std::fs::write(
+            &sample_path,
+            wav_pcm16_bytes(44_100, 1, &[i16::MAX, 16_384]),
+        )
+        .expect("write sample");
+
+        let mut song = Song::empty();
+        let sample = song.upsert_sample_reference(sample_path.to_string_lossy(), "hit.wav");
+        let track = song.tracks[0].id;
+        song.assign_sample_to_track(track, sample)
+            .expect("assign sample");
+        song.current_pattern_mut()
+            .expect("pattern")
+            .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 127)
+            .expect("set note");
+        save_project(&project_path, &song).expect("save project");
+
+        run_export_audio(&AudioExportArgs {
+            input_path: Some(project_path.clone()),
+            output_path: Some(output_path.clone()),
+            pattern: 1,
+            sequence: false,
+            sample_rate: 44_100,
+            channels: 1,
+        })
+        .expect("export audio");
+
+        let bytes = std::fs::read(&output_path).expect("read wav");
+        let _ = std::fs::remove_file(&project_path);
+        let _ = std::fs::remove_file(&sample_path);
+        let _ = std::fs::remove_file(&output_path);
+        let _ = std::fs::remove_file(base.with_extension("export.wav.tmp"));
+
+        assert_eq!(&bytes[0..4], b"RIFF");
+        assert_eq!(&bytes[8..12], b"WAVE");
+        assert_eq!(
+            u32::from_le_bytes([bytes[40], bytes[41], bytes[42], bytes[43]]),
+            4
+        );
+        assert!(i16::from_le_bytes([bytes[44], bytes[45]]) > 32_760);
     }
 
     #[test]
