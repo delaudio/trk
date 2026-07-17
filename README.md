@@ -76,6 +76,7 @@ Timing assumptions and jitter test limits are documented in [docs/timing.md](doc
 ```bash
 salieri [OPTIONS] [FILE]
 salieri --list-midi-outputs
+salieri --list-midi-inputs
 salieri --midi-test-output NAME_OR_INDEX [OPTIONS]
 salieri transform euclidean INPUT OUTPUT [OPTIONS]
 salieri sample inspect FILE [OPTIONS]
@@ -100,7 +101,7 @@ salieri export audio song.salieri song.wav --pattern 1
 salieri export audio song.salieri song.wav --sequence --sample-rate 48000 --channels 2
 ```
 
-`--midi-test-output` accepts either a port index or a port name. Configured MIDI output names are normalized, so `IAC Driver`, `IAC Driver Bus 1`, and `IAC Driver (Bus 1)` can match the same CoreMIDI port when available.
+`--midi-test-output` accepts either a port index or a port name. Configured MIDI output and input names are normalized, so `IAC Driver`, `IAC Driver Bus 1`, and `IAC Driver (Bus 1)` can match the same CoreMIDI port when available.
 
 ## macOS IAC Driver Setup
 
@@ -164,6 +165,7 @@ List ports:
 
 ```bash
 salieri --list-midi-outputs
+salieri --list-midi-inputs
 ```
 
 Send a single note outside the TUI:
@@ -187,6 +189,8 @@ Example log lines:
 ```
 
 MIDI channel numbers in the log are user-facing `1..16`. Raw status bytes use the MIDI wire format, where channel 1 note-on is `0x90`.
+
+MIDI input recording and transport sync are documented in [docs/midi-input-sync.md](docs/midi-input-sync.md).
 
 ## TUI Commands
 

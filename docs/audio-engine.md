@@ -37,5 +37,5 @@ Shutdown must stop the backend before the thread exits. Errors are reported as u
 ## Current Limitations
 
 - no user-facing device enumeration or selection;
-- no envelope, looping, choking, or DSP graph;
-- no send routing, realtime meter transport, sustained sampler loop playback, or effects beyond native gain/pan on internal sampler output yet.
+- no sample choking or sustained sampler loop playback;
+- no send routing, realtime meter transport, or effects beyond native gain/pan on internal sampler output yet.
