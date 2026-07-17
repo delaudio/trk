@@ -4,7 +4,7 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Paragraph, Wrap},
 };
 use salieri_core::{CellField, Cursor, NoteEvent, Pattern, PatternCell, Song};
-use salieri_sampler::WaveformOverview;
+use salieri_sampler::{WaveformBucket, WaveformOverview};
 
 const TRACK_PANEL_WIDTH: u16 = 27;
 const ROW_GUTTER_WIDTH: usize = 5;
@@ -155,9 +155,23 @@ pub enum WaveformGlyphs {
 }
 
 impl WaveformGlyphs {
-    const fn filled(self) -> char {
+    const fn full(self) -> char {
         match self {
             Self::Unicode => '█',
+            Self::Ascii => '#',
+        }
+    }
+
+    const fn upper(self) -> char {
+        match self {
+            Self::Unicode => '▀',
+            Self::Ascii => '#',
+        }
+    }
+
+    const fn lower(self) -> char {
+        match self {
+            Self::Unicode => '▄',
             Self::Ascii => '#',
         }
     }
@@ -1456,38 +1470,79 @@ fn waveform_lines(
         return lines;
     }
 
-    let mut grid = vec![vec![' '; width]; waveform_height];
-    for (x, bucket) in (0..width).map(|x| {
-        let bucket_index = x.saturating_mul(overview.buckets.len()) / width;
-        (
-            x,
-            overview.buckets[bucket_index.min(overview.buckets.len() - 1)],
-        )
-    }) {
+    let subrow_height = waveform_height.saturating_mul(2);
+    let mut grid = vec![vec![WaveformCell::default(); width]; waveform_height];
+    for (x, bucket) in (0..width).map(|x| (x, waveform_column_bucket(&overview.buckets, x, width)))
+    {
         let min = sanitize_waveform_value(bucket.min);
         let max = sanitize_waveform_value(bucket.max);
-        let top = waveform_row(max, waveform_height);
-        let bottom = waveform_row(min, waveform_height);
+        if min == 0.0 && max == 0.0 {
+            grid[waveform_row(0.0, waveform_height)][x].baseline = true;
+            continue;
+        }
+
+        let top = waveform_subrow(max, subrow_height);
+        let bottom = waveform_subrow(min, subrow_height);
         let (top, bottom) = if top <= bottom {
             (top, bottom)
         } else {
             (bottom, top)
         };
-        let glyph = if top == bottom && min == 0.0 && max == 0.0 {
-            glyphs.baseline()
-        } else {
-            glyphs.filled()
-        };
-        for row in grid.iter_mut().take(bottom + 1).skip(top) {
-            row[x] = glyph;
+        for subrow in top..=bottom {
+            let row = (subrow / 2).min(waveform_height - 1);
+            if subrow % 2 == 0 {
+                grid[row][x].upper = true;
+            } else {
+                grid[row][x].lower = true;
+            }
         }
     }
 
-    lines.extend(
-        grid.into_iter()
-            .map(|row| Line::from(row.into_iter().collect::<String>())),
-    );
+    lines.extend(grid.into_iter().map(|row| {
+        Line::from(
+            row.into_iter()
+                .map(|cell| cell.to_char(glyphs))
+                .collect::<String>(),
+        )
+    }));
     lines
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct WaveformCell {
+    upper: bool,
+    lower: bool,
+    baseline: bool,
+}
+
+impl WaveformCell {
+    const fn to_char(self, glyphs: WaveformGlyphs) -> char {
+        match (self.upper, self.lower, self.baseline) {
+            (true, true, _) => glyphs.full(),
+            (true, false, _) => glyphs.upper(),
+            (false, true, _) => glyphs.lower(),
+            (false, false, true) => glyphs.baseline(),
+            (false, false, false) => ' ',
+        }
+    }
+}
+
+fn waveform_column_bucket(buckets: &[WaveformBucket], x: usize, width: usize) -> WaveformBucket {
+    let start = x.saturating_mul(buckets.len()) / width;
+    let mut end = (x + 1).saturating_mul(buckets.len()) / width;
+    if end <= start {
+        end = start + 1;
+    }
+    end = end.min(buckets.len());
+
+    let mut min = f32::INFINITY;
+    let mut max = f32::NEG_INFINITY;
+    for bucket in &buckets[start..end] {
+        min = min.min(bucket.min);
+        max = max.max(bucket.max);
+    }
+
+    WaveformBucket { min, max }
 }
 
 fn empty_waveform_lines(width: usize, height: usize) -> Vec<Line<'static>> {
@@ -1504,6 +1559,10 @@ fn waveform_row(value: f32, height: usize) -> usize {
     }
     let normalized = (sanitize_waveform_value(value) + 1.0) / 2.0;
     ((1.0 - normalized) * (height - 1) as f32).round() as usize
+}
+
+fn waveform_subrow(value: f32, height: usize) -> usize {
+    waveform_row(value, height)
 }
 
 fn sanitize_waveform_value(value: f32) -> f32 {
@@ -1594,6 +1653,34 @@ mod tests {
 
         assert!(rendered.contains('#'));
         assert!(!rendered.contains('█'));
+    }
+
+    #[test]
+    fn waveform_lines_use_half_block_resolution() {
+        let overview = test_waveform(vec![salieri_sampler::WaveformBucket { min: 0.2, max: 0.2 }]);
+
+        let lines = waveform_lines(&overview, 8, 6, WaveformGlyphs::Unicode);
+        let rendered = lines.iter().map(line_text).collect::<Vec<_>>().join("\n");
+
+        assert!(rendered.contains('▀') || rendered.contains('▄'));
+    }
+
+    #[test]
+    fn waveform_lines_preserve_peaks_when_downsampling() {
+        let overview = test_waveform(vec![
+            salieri_sampler::WaveformBucket { min: 0.0, max: 0.0 },
+            salieri_sampler::WaveformBucket {
+                min: -1.0,
+                max: 1.0,
+            },
+            salieri_sampler::WaveformBucket { min: 0.0, max: 0.0 },
+            salieri_sampler::WaveformBucket { min: 0.0, max: 0.0 },
+        ]);
+
+        let lines = waveform_lines(&overview, 2, 6, WaveformGlyphs::Unicode);
+        let rendered = lines.iter().map(line_text).collect::<Vec<_>>().join("\n");
+
+        assert!(rendered.contains('█'));
     }
 
     #[test]

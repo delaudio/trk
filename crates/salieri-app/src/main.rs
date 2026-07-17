@@ -48,6 +48,7 @@ use terminal::TerminalGuard;
 
 const UI_TICK_RATE: Duration = Duration::from_millis(33);
 const NOTIFICATION_TTL: Duration = Duration::from_secs(4);
+const SAMPLE_WAVEFORM_BUCKETS: usize = 2048;
 const DEFAULT_NOTE_VELOCITY: u8 = 0x7f;
 const UNDO_LIMIT: usize = 100;
 const MIN_BPM: u16 = 1;
@@ -1138,7 +1139,7 @@ fn is_supported_sample_path(path: &Path) -> bool {
 fn load_sample_view_data(path: PathBuf) -> Result<AppSampleView> {
     let sample = Sample::load_wav(&path)
         .with_context(|| format!("failed to load sample {}", path.display()))?;
-    let overview = sample.waveform_overview(96);
+    let overview = sample.waveform_overview(SAMPLE_WAVEFORM_BUCKETS);
     Ok(AppSampleView {
         source_path: path,
         sample,
