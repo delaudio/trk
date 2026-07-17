@@ -36,6 +36,46 @@ pub enum TrackerModuleFormat {
     Renoise,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrackerModuleInspection {
+    pub format: TrackerModuleFormat,
+    pub title: Option<String>,
+    pub channels: Option<usize>,
+    pub patterns: Option<usize>,
+    pub samples: Vec<TrackerModuleSampleInfo>,
+    pub instrument_count: Option<usize>,
+    pub effect_commands: Vec<u8>,
+    pub diagnostics: Vec<TrackerModuleDiagnostic>,
+    pub recommendation: TrackerModuleRecommendation,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrackerModuleSampleInfo {
+    pub index: usize,
+    pub name: Option<String>,
+    pub length_bytes: Option<usize>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrackerModuleDiagnostic {
+    pub kind: TrackerModuleDiagnosticKind,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrackerModuleDiagnosticKind {
+    MalformedModule,
+    UnsupportedTimingSemantics,
+    UnsupportedEffectMemory,
+    EffectDecodeIncomplete,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrackerModuleRecommendation {
+    SampleExtractionOnly,
+    CoarseNoteImportNeedsTimingSpike,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum InteropError {
     #[error("pattern {0} does not exist")]
@@ -296,6 +336,273 @@ pub fn import_tracker_module(
     format: TrackerModuleFormat,
 ) -> Result<Song, InteropError> {
     Err(InteropError::UnsupportedTrackerModule(format))
+}
+
+#[must_use]
+pub fn inspect_tracker_module(
+    bytes: &[u8],
+    format: TrackerModuleFormat,
+) -> TrackerModuleInspection {
+    match format {
+        TrackerModuleFormat::Mod => inspect_mod_module(bytes),
+        TrackerModuleFormat::Xm => inspect_xm_module(bytes),
+        TrackerModuleFormat::S3m => inspect_s3m_module(bytes),
+        TrackerModuleFormat::It => inspect_it_module(bytes),
+        TrackerModuleFormat::Renoise => TrackerModuleInspection {
+            format,
+            title: None,
+            channels: None,
+            patterns: None,
+            samples: Vec::new(),
+            instrument_count: None,
+            effect_commands: Vec::new(),
+            diagnostics: vec![tracker_module_diagnostic(
+                TrackerModuleDiagnosticKind::MalformedModule,
+                "XRNS is handled by inspect_xrns/import_xrns, not legacy module inspection",
+            )],
+            recommendation: TrackerModuleRecommendation::SampleExtractionOnly,
+        },
+    }
+}
+
+fn inspect_mod_module(bytes: &[u8]) -> TrackerModuleInspection {
+    let mut diagnostics = legacy_module_diagnostics();
+    if bytes.len() < 1084 {
+        diagnostics.push(tracker_module_diagnostic(
+            TrackerModuleDiagnosticKind::MalformedModule,
+            "MOD data is too short for a 31-sample header",
+        ));
+        return tracker_module_inspection(
+            TrackerModuleFormat::Mod,
+            None,
+            None,
+            None,
+            Vec::new(),
+            Some(0),
+            Vec::new(),
+            diagnostics,
+        );
+    }
+
+    let signature = &bytes[1080..1084];
+    let channels = match signature {
+        b"M.K." | b"M!K!" | b"4CHN" => Some(4),
+        b"6CHN" => Some(6),
+        b"8CHN" => Some(8),
+        _ => None,
+    };
+    let song_len = usize::from(bytes[950]).min(128);
+    let patterns = bytes[952..1080]
+        .iter()
+        .take(song_len)
+        .copied()
+        .max()
+        .map(|pattern| usize::from(pattern) + 1);
+    let samples = (0..31)
+        .map(|index| {
+            let offset = 20 + index * 30;
+            let name = clean_ascii(&bytes[offset..offset + 22]);
+            let length_words = u16::from_be_bytes([bytes[offset + 22], bytes[offset + 23]]);
+            TrackerModuleSampleInfo {
+                index,
+                name,
+                length_bytes: Some(usize::from(length_words) * 2),
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let mut effect_commands = Vec::new();
+    if let (Some(channels), Some(patterns)) = (channels, patterns) {
+        let pattern_data_start = 1084;
+        let pattern_bytes = patterns
+            .saturating_mul(64)
+            .saturating_mul(channels)
+            .saturating_mul(4);
+        if bytes.len() >= pattern_data_start + pattern_bytes {
+            let mut commands = HashSet::new();
+            for event in bytes[pattern_data_start..pattern_data_start + pattern_bytes].chunks(4) {
+                let command = event[2] & 0x0f;
+                if command != 0 {
+                    commands.insert(command);
+                }
+            }
+            effect_commands = commands.into_iter().collect();
+            effect_commands.sort_unstable();
+        } else {
+            diagnostics.push(tracker_module_diagnostic(
+                TrackerModuleDiagnosticKind::MalformedModule,
+                "MOD pattern data is truncated",
+            ));
+        }
+    }
+
+    tracker_module_inspection(
+        TrackerModuleFormat::Mod,
+        clean_ascii(&bytes[0..20]),
+        channels,
+        patterns,
+        samples,
+        Some(31),
+        effect_commands,
+        diagnostics,
+    )
+}
+
+fn inspect_xm_module(bytes: &[u8]) -> TrackerModuleInspection {
+    let mut diagnostics = legacy_module_diagnostics();
+    if bytes.len() < 80 || !bytes.starts_with(b"Extended Module: ") {
+        diagnostics.push(tracker_module_diagnostic(
+            TrackerModuleDiagnosticKind::MalformedModule,
+            "XM data is missing the Extended Module header",
+        ));
+        return tracker_module_inspection(
+            TrackerModuleFormat::Xm,
+            None,
+            None,
+            None,
+            Vec::new(),
+            None,
+            Vec::new(),
+            diagnostics,
+        );
+    }
+    tracker_module_inspection(
+        TrackerModuleFormat::Xm,
+        clean_ascii(&bytes[17..37]),
+        read_le_u16_at(bytes, 68).map(usize::from),
+        read_le_u16_at(bytes, 70).map(usize::from),
+        Vec::new(),
+        read_le_u16_at(bytes, 72).map(usize::from),
+        Vec::new(),
+        diagnostics,
+    )
+}
+
+fn inspect_s3m_module(bytes: &[u8]) -> TrackerModuleInspection {
+    let mut diagnostics = legacy_module_diagnostics();
+    if bytes.len() < 96 || bytes.get(44..48) != Some(&b"SCRM"[..]) {
+        diagnostics.push(tracker_module_diagnostic(
+            TrackerModuleDiagnosticKind::MalformedModule,
+            "S3M data is missing the SCRM signature",
+        ));
+        return tracker_module_inspection(
+            TrackerModuleFormat::S3m,
+            None,
+            None,
+            None,
+            Vec::new(),
+            None,
+            Vec::new(),
+            diagnostics,
+        );
+    }
+    let channels = bytes[64..96]
+        .iter()
+        .filter(|channel| **channel < 16)
+        .count();
+    tracker_module_inspection(
+        TrackerModuleFormat::S3m,
+        clean_ascii(&bytes[0..28]),
+        Some(channels),
+        read_le_u16_at(bytes, 36).map(usize::from),
+        Vec::new(),
+        read_le_u16_at(bytes, 34).map(usize::from),
+        Vec::new(),
+        diagnostics,
+    )
+}
+
+fn inspect_it_module(bytes: &[u8]) -> TrackerModuleInspection {
+    let mut diagnostics = legacy_module_diagnostics();
+    if bytes.len() < 192 || !bytes.starts_with(b"IMPM") {
+        diagnostics.push(tracker_module_diagnostic(
+            TrackerModuleDiagnosticKind::MalformedModule,
+            "IT data is missing the IMPM signature",
+        ));
+        return tracker_module_inspection(
+            TrackerModuleFormat::It,
+            None,
+            None,
+            None,
+            Vec::new(),
+            None,
+            Vec::new(),
+            diagnostics,
+        );
+    }
+    let channels = bytes[64..128].iter().filter(|pan| **pan != 0xff).count();
+    tracker_module_inspection(
+        TrackerModuleFormat::It,
+        clean_ascii(&bytes[4..30]),
+        Some(channels),
+        read_le_u16_at(bytes, 38).map(usize::from),
+        Vec::new(),
+        read_le_u16_at(bytes, 34).map(usize::from),
+        Vec::new(),
+        diagnostics,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn tracker_module_inspection(
+    format: TrackerModuleFormat,
+    title: Option<String>,
+    channels: Option<usize>,
+    patterns: Option<usize>,
+    samples: Vec<TrackerModuleSampleInfo>,
+    instrument_count: Option<usize>,
+    effect_commands: Vec<u8>,
+    diagnostics: Vec<TrackerModuleDiagnostic>,
+) -> TrackerModuleInspection {
+    TrackerModuleInspection {
+        format,
+        title,
+        channels,
+        patterns,
+        samples,
+        instrument_count,
+        effect_commands,
+        diagnostics,
+        recommendation: TrackerModuleRecommendation::SampleExtractionOnly,
+    }
+}
+
+fn legacy_module_diagnostics() -> Vec<TrackerModuleDiagnostic> {
+    vec![
+        tracker_module_diagnostic(
+            TrackerModuleDiagnosticKind::UnsupportedTimingSemantics,
+            "legacy tracker tick tempo, speed changes, and row effects do not map losslessly to Salieri row timing",
+        ),
+        tracker_module_diagnostic(
+            TrackerModuleDiagnosticKind::UnsupportedEffectMemory,
+            "legacy tracker effect memory and per-channel playback state are not represented in Salieri pattern cells",
+        ),
+        tracker_module_diagnostic(
+            TrackerModuleDiagnosticKind::EffectDecodeIncomplete,
+            "probe reports effect command numbers but does not implement player-compatible effect semantics",
+        ),
+    ]
+}
+
+fn tracker_module_diagnostic(
+    kind: TrackerModuleDiagnosticKind,
+    message: impl Into<String>,
+) -> TrackerModuleDiagnostic {
+    TrackerModuleDiagnostic {
+        kind,
+        message: message.into(),
+    }
+}
+
+fn clean_ascii(bytes: &[u8]) -> Option<String> {
+    let text = bytes
+        .iter()
+        .copied()
+        .take_while(|byte| *byte != 0 && (byte.is_ascii_graphic() || *byte == b' '))
+        .map(char::from)
+        .collect::<String>();
+    let text = text.trim();
+    (!text.is_empty()).then(|| text.to_string())
 }
 
 #[must_use]
@@ -1486,6 +1793,89 @@ mod tests {
                 TrackerModuleFormat::Xm
             ))
         ));
+    }
+
+    #[test]
+    fn inspects_mod_metadata_samples_and_effect_commands() {
+        let mut bytes = vec![0_u8; 1084 + 64 * 4 * 4];
+        bytes[0..10].copy_from_slice(b"Test Song ");
+        bytes[20..24].copy_from_slice(b"Kick");
+        bytes[42..44].copy_from_slice(&4_u16.to_be_bytes());
+        bytes[950] = 1;
+        bytes[952] = 0;
+        bytes[1080..1084].copy_from_slice(b"M.K.");
+        bytes[1084 + 2] = 0x0f;
+        bytes[1084 + 3] = 0x01;
+
+        let inspection = inspect_tracker_module(&bytes, TrackerModuleFormat::Mod);
+
+        assert_eq!(inspection.title.as_deref(), Some("Test Song"));
+        assert_eq!(inspection.channels, Some(4));
+        assert_eq!(inspection.patterns, Some(1));
+        assert_eq!(inspection.instrument_count, Some(31));
+        assert_eq!(inspection.samples[0].name.as_deref(), Some("Kick"));
+        assert_eq!(inspection.samples[0].length_bytes, Some(8));
+        assert_eq!(inspection.effect_commands, vec![0x0f]);
+        assert_eq!(
+            inspection.recommendation,
+            TrackerModuleRecommendation::SampleExtractionOnly
+        );
+        assert!(inspection.diagnostics.iter().any(|diagnostic| {
+            diagnostic.kind == TrackerModuleDiagnosticKind::UnsupportedTimingSemantics
+        }));
+    }
+
+    #[test]
+    fn inspects_xm_s3m_and_it_headers_without_full_import() {
+        let mut xm = vec![0_u8; 80];
+        xm[0..17].copy_from_slice(b"Extended Module: ");
+        xm[17..25].copy_from_slice(b"XM Song ");
+        xm[68..70].copy_from_slice(&8_u16.to_le_bytes());
+        xm[70..72].copy_from_slice(&3_u16.to_le_bytes());
+        xm[72..74].copy_from_slice(&2_u16.to_le_bytes());
+        let xm = inspect_tracker_module(&xm, TrackerModuleFormat::Xm);
+        assert_eq!(xm.title.as_deref(), Some("XM Song"));
+        assert_eq!(xm.channels, Some(8));
+        assert_eq!(xm.patterns, Some(3));
+        assert_eq!(xm.instrument_count, Some(2));
+
+        let mut s3m = vec![0xff_u8; 96];
+        s3m[0..8].copy_from_slice(b"S3M Song");
+        s3m[32..34].copy_from_slice(&4_u16.to_le_bytes());
+        s3m[34..36].copy_from_slice(&5_u16.to_le_bytes());
+        s3m[36..38].copy_from_slice(&6_u16.to_le_bytes());
+        s3m[44..48].copy_from_slice(b"SCRM");
+        s3m[64] = 0;
+        s3m[65] = 1;
+        let s3m = inspect_tracker_module(&s3m, TrackerModuleFormat::S3m);
+        assert_eq!(s3m.title.as_deref(), Some("S3M Song"));
+        assert_eq!(s3m.channels, Some(2));
+        assert_eq!(s3m.patterns, Some(6));
+        assert_eq!(s3m.instrument_count, Some(5));
+
+        let mut it = vec![0xff_u8; 192];
+        it[0..4].copy_from_slice(b"IMPM");
+        it[4..11].copy_from_slice(b"IT Song");
+        it[34..36].copy_from_slice(&7_u16.to_le_bytes());
+        it[38..40].copy_from_slice(&9_u16.to_le_bytes());
+        it[64] = 0;
+        it[65] = 32;
+        let it = inspect_tracker_module(&it, TrackerModuleFormat::It);
+        assert_eq!(it.title.as_deref(), Some("IT Song"));
+        assert_eq!(it.channels, Some(2));
+        assert_eq!(it.patterns, Some(9));
+        assert_eq!(it.instrument_count, Some(7));
+    }
+
+    #[test]
+    fn legacy_module_probe_reports_malformed_data() {
+        let inspection = inspect_tracker_module(b"short", TrackerModuleFormat::Mod);
+
+        assert!(inspection
+            .diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.kind == TrackerModuleDiagnosticKind::MalformedModule }));
+        assert!(inspection.samples.is_empty());
     }
 
     #[test]

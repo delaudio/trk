@@ -92,7 +92,16 @@ MOD, XM, S3M, and IT should remain explicit unsupported formats until Salieri ha
 - a module parser/player compatibility layer that can evaluate tick timing, effect memory, pattern jumps, arpeggios, slides, retrigger, sample offset, tempo changes, global volume, and volume-column effects; or
 - a declared lossy importer mode that only extracts samples and coarse note data.
 
-The recommended first legacy-module follow-up is not full import. It is a **module diagnostics and sample extraction spike** that reports module metadata and identifies which effects would be lost. Follow-up: #63.
+The current `salieri-interop` probe can inspect:
+
+- MOD title, channel count for common signatures, pattern count, 31 sample headers, and raw effect command nibbles from pattern data;
+- XM title, channel count, pattern count, and instrument count from the module header;
+- S3M title, active channel count, pattern count, and instrument count from the module header;
+- IT title, enabled channel count, pattern count, and instrument count from the module header.
+
+The probe deliberately does not decode player-compatible note data or effect semantics. It always reports timing/effect-memory diagnostics because those semantics are not represented by Salieri's current row-event model.
+
+Recommendation: the first legacy-module feature should be **sample extraction only**, with metadata/effect diagnostics shown before extraction. Coarse note import should wait for a second spike that either embeds a player-compatibility layer or defines an explicitly lossy effect/timing translation table. Follow-up implementation, if accepted, should be limited to module metadata plus sample extraction and must not claim MOD/XM/S3M/IT song import.
 
 ## Error And Warning Shape
 
@@ -111,5 +120,9 @@ Interop should expose structured diagnostics rather than strings only:
 - `DroppedExtraEffectColumn`: pattern, track, row, and column index;
 - `TimingQuantized`: source position and resulting Salieri row;
 - `ValidationFailed`: produced project did not pass Salieri validation.
+- `MalformedModule`: legacy module header/data is too short or has the wrong signature;
+- `UnsupportedTimingSemantics`: module tick/control-flow timing cannot be represented losslessly;
+- `UnsupportedEffectMemory`: module effect memory/channel state cannot be represented losslessly;
+- `EffectDecodeIncomplete`: effect command numbers were observed but player-compatible semantics were not decoded.
 
 Diagnostics should be collected into an import report and surfaced by CLI/app code before save.
