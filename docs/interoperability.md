@@ -94,14 +94,14 @@ MOD, XM, S3M, and IT should remain explicit unsupported formats until Salieri ha
 
 The current `salieri-interop` probe can inspect:
 
-- MOD title, channel count for common signatures, pattern count, 31 sample headers, and raw effect command nibbles from pattern data;
+- MOD title, channel count for common signatures, pattern count, 31 sample headers, raw effect command nibbles from pattern data, and contiguous sample payloads when the module is not truncated;
 - XM title, channel count, pattern count, and instrument count from the module header;
 - S3M title, active channel count, pattern count, and instrument count from the module header;
 - IT title, enabled channel count, pattern count, and instrument count from the module header.
 
 The probe deliberately does not decode player-compatible note data or effect semantics. It always reports timing/effect-memory diagnostics because those semantics are not represented by Salieri's current row-event model.
 
-Recommendation: the first legacy-module feature should be **sample extraction only**, with metadata/effect diagnostics shown before extraction. Coarse note import should wait for a second spike that either embeds a player-compatibility layer or defines an explicitly lossy effect/timing translation table. Follow-up implementation, if accepted, should be limited to module metadata plus sample extraction and must not claim MOD/XM/S3M/IT song import.
+Recommendation: keep the first legacy-module feature as **sample extraction only**, with metadata/effect diagnostics shown before extraction. The initial extraction implementation is safe for MOD sample payloads; XM/S3M/IT sample extraction still needs their instrument/sample offset tables decoded before payload bytes can be returned. Coarse note import should wait for a second spike that either embeds a player-compatibility layer or defines an explicitly lossy effect/timing translation table. This must not claim MOD/XM/S3M/IT song import.
 
 ## Error And Warning Shape
 

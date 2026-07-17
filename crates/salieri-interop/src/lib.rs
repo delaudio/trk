@@ -50,6 +50,19 @@ pub struct TrackerModuleInspection {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrackerModuleSampleExtraction {
+    pub inspection: TrackerModuleInspection,
+    pub samples: Vec<ExtractedTrackerModuleSample>,
+    pub diagnostics: Vec<TrackerModuleDiagnostic>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExtractedTrackerModuleSample {
+    pub info: TrackerModuleSampleInfo,
+    pub data: Vec<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TrackerModuleSampleInfo {
     pub index: usize,
     pub name: Option<String>,
@@ -365,6 +378,33 @@ pub fn inspect_tracker_module(
     }
 }
 
+#[must_use]
+pub fn extract_tracker_module_samples(
+    bytes: &[u8],
+    format: TrackerModuleFormat,
+) -> TrackerModuleSampleExtraction {
+    let inspection = inspect_tracker_module(bytes, format);
+    let mut diagnostics = inspection.diagnostics.clone();
+    let samples = match format {
+        TrackerModuleFormat::Mod => extract_mod_samples(bytes, &inspection, &mut diagnostics),
+        TrackerModuleFormat::Xm | TrackerModuleFormat::S3m | TrackerModuleFormat::It => {
+            diagnostics.push(tracker_module_diagnostic(
+                TrackerModuleDiagnosticKind::EffectDecodeIncomplete,
+                format!(
+                    "{format:?} sample extraction requires instrument/sample offset table decoding"
+                ),
+            ));
+            Vec::new()
+        }
+        TrackerModuleFormat::Renoise => Vec::new(),
+    };
+    TrackerModuleSampleExtraction {
+        inspection,
+        samples,
+        diagnostics,
+    }
+}
+
 fn inspect_mod_module(bytes: &[u8]) -> TrackerModuleInspection {
     let mut diagnostics = legacy_module_diagnostics();
     if bytes.len() < 1084 {
@@ -446,6 +486,63 @@ fn inspect_mod_module(bytes: &[u8]) -> TrackerModuleInspection {
         effect_commands,
         diagnostics,
     )
+}
+
+fn extract_mod_samples(
+    bytes: &[u8],
+    inspection: &TrackerModuleInspection,
+    diagnostics: &mut Vec<TrackerModuleDiagnostic>,
+) -> Vec<ExtractedTrackerModuleSample> {
+    let Some(channels) = inspection.channels else {
+        diagnostics.push(tracker_module_diagnostic(
+            TrackerModuleDiagnosticKind::MalformedModule,
+            "cannot extract MOD samples without a recognized channel signature",
+        ));
+        return Vec::new();
+    };
+    let Some(patterns) = inspection.patterns else {
+        diagnostics.push(tracker_module_diagnostic(
+            TrackerModuleDiagnosticKind::MalformedModule,
+            "cannot extract MOD samples without a pattern count",
+        ));
+        return Vec::new();
+    };
+    let sample_data_start = 1084_usize.saturating_add(
+        patterns
+            .saturating_mul(64)
+            .saturating_mul(channels)
+            .saturating_mul(4),
+    );
+    if sample_data_start > bytes.len() {
+        diagnostics.push(tracker_module_diagnostic(
+            TrackerModuleDiagnosticKind::MalformedModule,
+            "MOD sample data starts beyond the available bytes",
+        ));
+        return Vec::new();
+    }
+
+    let mut offset = sample_data_start;
+    let mut extracted = Vec::new();
+    for sample in &inspection.samples {
+        let length = sample.length_bytes.unwrap_or(0);
+        if length == 0 {
+            continue;
+        }
+        let end = offset.saturating_add(length);
+        if end > bytes.len() {
+            diagnostics.push(tracker_module_diagnostic(
+                TrackerModuleDiagnosticKind::MalformedModule,
+                format!("MOD sample {} is truncated", sample.index),
+            ));
+            break;
+        }
+        extracted.push(ExtractedTrackerModuleSample {
+            info: sample.clone(),
+            data: bytes[offset..end].to_vec(),
+        });
+        offset = end;
+    }
+    extracted
 }
 
 fn inspect_xm_module(bytes: &[u8]) -> TrackerModuleInspection {
@@ -1822,6 +1919,46 @@ mod tests {
         );
         assert!(inspection.diagnostics.iter().any(|diagnostic| {
             diagnostic.kind == TrackerModuleDiagnosticKind::UnsupportedTimingSemantics
+        }));
+    }
+
+    #[test]
+    fn extracts_mod_samples_without_importing_song_data() {
+        let mut bytes = vec![0_u8; 1084 + 64 * 4 * 4];
+        bytes[0..10].copy_from_slice(b"Test Song ");
+        bytes[20..24].copy_from_slice(b"Kick");
+        bytes[42..44].copy_from_slice(&4_u16.to_be_bytes());
+        bytes[50..55].copy_from_slice(b"Snare");
+        bytes[72..74].copy_from_slice(&2_u16.to_be_bytes());
+        bytes[950] = 1;
+        bytes[1080..1084].copy_from_slice(b"M.K.");
+        bytes.extend_from_slice(&[1, 2, 3, 4, 5, 6, 7, 8]);
+        bytes.extend_from_slice(&[9, 10, 11, 12]);
+
+        let extraction = extract_tracker_module_samples(&bytes, TrackerModuleFormat::Mod);
+
+        assert_eq!(extraction.samples.len(), 2);
+        assert_eq!(extraction.samples[0].info.name.as_deref(), Some("Kick"));
+        assert_eq!(extraction.samples[0].data, vec![1, 2, 3, 4, 5, 6, 7, 8]);
+        assert_eq!(extraction.samples[1].info.name.as_deref(), Some("Snare"));
+        assert_eq!(extraction.samples[1].data, vec![9, 10, 11, 12]);
+    }
+
+    #[test]
+    fn sample_extraction_reports_truncated_mod_payloads() {
+        let mut bytes = vec![0_u8; 1084 + 64 * 4 * 4];
+        bytes[20..24].copy_from_slice(b"Kick");
+        bytes[42..44].copy_from_slice(&4_u16.to_be_bytes());
+        bytes[950] = 1;
+        bytes[1080..1084].copy_from_slice(b"M.K.");
+        bytes.extend_from_slice(&[1, 2, 3]);
+
+        let extraction = extract_tracker_module_samples(&bytes, TrackerModuleFormat::Mod);
+
+        assert!(extraction.samples.is_empty());
+        assert!(extraction.diagnostics.iter().any(|diagnostic| {
+            diagnostic.kind == TrackerModuleDiagnosticKind::MalformedModule
+                && diagnostic.message.contains("truncated")
         }));
     }
 
