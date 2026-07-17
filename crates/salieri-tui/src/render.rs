@@ -599,11 +599,7 @@ fn render_track_mixer(frame: &mut Frame<'_>, area: Rect, song: &Song, active_tra
     let start = visible_track_start(song.tracks.len(), active_track, visible_channels);
     let end = (start + visible_channels).min(song.tracks.len());
     let tracks = &song.tracks[start..end];
-    let page = if visible_channels == 0 {
-        1
-    } else {
-        start / visible_channels + 1
-    };
+    let page = start / visible_channels + 1;
     let pages = song.tracks.len().div_ceil(visible_channels).max(1);
     let fader_rows = area.height.saturating_sub(7).max(3) as usize;
     let mut lines = Vec::with_capacity(fader_rows + 5);
