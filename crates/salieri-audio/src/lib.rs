@@ -427,6 +427,7 @@ pub enum RealtimeAudioCommand {
         sample_id: u32,
         frame: u64,
         gain: f32,
+        pan: f32,
         pitch_ratio: f32,
     },
     StopVoice {
@@ -468,6 +469,12 @@ pub struct RenderedAudio {
     pub data: Vec<f32>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LevelMeter {
+    pub peak: f32,
+    pub rms: f32,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct OfflineSamplerSample {
     pub sample_id: u32,
@@ -479,6 +486,7 @@ pub struct OfflineSamplerEvent {
     pub sample_id: u32,
     pub frame: u64,
     pub gain: f32,
+    pub pan: f32,
     pub pitch_ratio: f32,
     pub velocity: u8,
 }
@@ -528,6 +536,7 @@ struct RealtimeSamplerVoice {
     sample_id: u32,
     start_frame: u64,
     gain: f32,
+    pan: f32,
     pitch_ratio: f32,
 }
 
@@ -593,6 +602,7 @@ impl RealtimeSampler {
                 sample_id,
                 frame,
                 gain,
+                pan,
                 pitch_ratio,
             } => {
                 if !self.samples.contains_key(&sample_id) {
@@ -612,6 +622,7 @@ impl RealtimeSampler {
                     sample_id,
                     start_frame: frame,
                     gain: gain.max(0.0),
+                    pan: pan.clamp(-1.0, 1.0),
                     pitch_ratio,
                 });
                 Ok(Some(voice_id))
@@ -635,12 +646,14 @@ impl RealtimeSampler {
             RealtimeAudioCommand::TriggerSample {
                 sample_id,
                 gain,
+                pan,
                 pitch_ratio,
                 ..
             } => RealtimeAudioCommand::TriggerSample {
                 sample_id,
                 frame: self.current_frame,
                 gain,
+                pan,
                 pitch_ratio,
             },
             RealtimeAudioCommand::StopVoice { voice_id, .. } => RealtimeAudioCommand::StopVoice {
@@ -816,6 +829,35 @@ pub fn apply_preview_envelope(
     }
 }
 
+#[must_use]
+pub fn measure_levels(audio: &RenderedAudio) -> Vec<LevelMeter> {
+    let channels = usize::from(audio.channels).max(1);
+    let mut peaks = vec![0.0_f32; channels];
+    let mut sums = vec![0.0_f32; channels];
+    for frame in 0..audio.frames {
+        let offset = frame.saturating_mul(channels);
+        for channel in 0..channels {
+            let value = audio
+                .data
+                .get(offset + channel)
+                .copied()
+                .unwrap_or_default();
+            let abs = value.abs();
+            peaks[channel] = peaks[channel].max(abs);
+            sums[channel] += value * value;
+        }
+    }
+    let frames = audio.frames.max(1) as f32;
+    peaks
+        .into_iter()
+        .zip(sums)
+        .map(|(peak, sum)| LevelMeter {
+            peak,
+            rms: (sum / frames).sqrt(),
+        })
+        .collect()
+}
+
 pub fn render_sampler_preview(
     preview: &PreviewBuffer,
     spec: OfflineRenderSpec,
@@ -892,14 +934,18 @@ pub fn render_sampler_events(
         }
 
         let level = event.gain.max(0.0) * (f32::from(event.velocity.min(0x7f)) / 127.0);
+        let pan = event.pan.clamp(-1.0, 1.0);
         mix_sample_event(
             &mut data,
             frames,
             channels,
             sample,
             output_frame,
-            pitch_ratio,
-            level,
+            MixParams {
+                pitch_ratio,
+                level,
+                pan,
+            },
         );
     }
 
@@ -1034,8 +1080,7 @@ fn mix_sample_event(
     channels: usize,
     sample: &PreviewBuffer,
     output_start_frame: usize,
-    pitch_ratio: f32,
-    level: f32,
+    params: MixParams,
 ) {
     let mut source_frame = 0.0_f32;
     let mut output_frame = output_start_frame;
@@ -1043,11 +1088,20 @@ fn mix_sample_event(
         let output_offset = output_frame * channels;
         for channel in 0..channels {
             output[output_offset + channel] +=
-                interpolated_sample(sample, source_frame, channel, channels) * level;
+                interpolated_sample(sample, source_frame, channel, channels)
+                    * params.level
+                    * pan_gain(params.pan, channel, channels);
         }
-        source_frame += pitch_ratio;
+        source_frame += params.pitch_ratio;
         output_frame += 1;
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct MixParams {
+    pitch_ratio: f32,
+    level: f32,
+    pan: f32,
 }
 
 fn mix_realtime_voice(
@@ -1071,8 +1125,21 @@ fn mix_realtime_voice(
         let output_offset = output_frame * channels;
         for channel in 0..channels {
             output[output_offset + channel] +=
-                interpolated_sample(sample, source_frame, channel, channels) * voice.gain;
+                interpolated_sample(sample, source_frame, channel, channels)
+                    * voice.gain
+                    * pan_gain(voice.pan, channel, channels);
         }
+    }
+}
+
+fn pan_gain(pan: f32, channel: usize, channels: usize) -> f32 {
+    if channels < 2 {
+        return 1.0;
+    }
+    match channel {
+        0 if pan > 0.0 => 1.0 - pan,
+        1 if pan < 0.0 => 1.0 + pan,
+        _ => 1.0,
     }
 }
 
@@ -1174,6 +1241,7 @@ mod tests {
             sample_id: 1,
             frame: 128,
             gain: 0.5,
+            pan: 0.0,
             pitch_ratio: 2.0,
         };
 
@@ -1183,6 +1251,7 @@ mod tests {
                 sample_id: 1,
                 frame: 128,
                 gain: 0.5,
+                pan: 0.0,
                 pitch_ratio: 2.0,
             }
         );
@@ -1282,6 +1351,7 @@ mod tests {
             sample_id: 7,
             frame: 2,
             gain: 0.5,
+            pan: 0.0,
             pitch_ratio: 1.0,
             velocity: 64,
         }];
@@ -1306,6 +1376,59 @@ mod tests {
     }
 
     #[test]
+    fn renders_sampler_events_with_linear_stereo_pan() {
+        let samples = vec![OfflineSamplerSample {
+            sample_id: 7,
+            buffer: PreviewBuffer {
+                sample_rate: 48_000,
+                channels: 2,
+                frames: 1,
+                data: vec![1.0, 1.0],
+            },
+        }];
+        let events = vec![OfflineSamplerEvent {
+            sample_id: 7,
+            frame: 0,
+            gain: 1.0,
+            pan: 0.75,
+            pitch_ratio: 1.0,
+            velocity: 127,
+        }];
+
+        let rendered = render_sampler_events(
+            &samples,
+            &events,
+            OfflineRenderSpec {
+                sample_rate: 48_000,
+                channels: 2,
+                frames: 1,
+            },
+        )
+        .expect("render");
+
+        assert_approx_eq(rendered.data[0], 0.25);
+        assert_approx_eq(rendered.data[1], 1.0);
+    }
+
+    #[test]
+    fn measures_rendered_audio_levels() {
+        let audio = RenderedAudio {
+            sample_rate: 48_000,
+            channels: 2,
+            frames: 2,
+            data: vec![1.0, 0.5, -1.0, 0.0],
+        };
+
+        let levels = measure_levels(&audio);
+
+        assert_eq!(levels.len(), 2);
+        assert_approx_eq(levels[0].peak, 1.0);
+        assert_approx_eq(levels[0].rms, 1.0);
+        assert_approx_eq(levels[1].peak, 0.5);
+        assert_approx_eq(levels[1].rms, (0.125_f32).sqrt());
+    }
+
+    #[test]
     fn renders_sampler_events_with_pitch_ratio() {
         let samples = vec![OfflineSamplerSample {
             sample_id: 1,
@@ -1315,6 +1438,7 @@ mod tests {
             sample_id: 1,
             frame: 0,
             gain: 1.0,
+            pan: 0.0,
             pitch_ratio: 2.0,
             velocity: 127,
         }];
@@ -1365,6 +1489,7 @@ mod tests {
                     sample_id: 99,
                     frame: 0,
                     gain: 1.0,
+                    pan: 0.0,
                     pitch_ratio: 1.0,
                     velocity: 127,
                 }],
@@ -1384,6 +1509,7 @@ mod tests {
                     sample_id: 1,
                     frame: 0,
                     gain: 1.0,
+                    pan: 0.0,
                     pitch_ratio: 0.0,
                     velocity: 127,
                 }],
@@ -1409,6 +1535,7 @@ mod tests {
                 sample_id: 1,
                 frame: 0,
                 gain: 1.0,
+                pan: 0.0,
                 pitch_ratio: 1.0,
                 velocity: 127,
             }],
@@ -1447,6 +1574,7 @@ mod tests {
                 sample_id: 1,
                 frame: 1,
                 gain: 0.5,
+                pan: 0.0,
                 pitch_ratio: 2.0,
             })
             .expect("trigger");
@@ -1478,6 +1606,7 @@ mod tests {
                 sample_id: 1,
                 frame: 0,
                 gain: 1.0,
+                pan: 0.0,
                 pitch_ratio: 1.0,
             })
             .expect("trigger now");
@@ -1501,6 +1630,7 @@ mod tests {
                 sample_id: 1,
                 frame: 0,
                 gain: 1.0,
+                pan: 0.0,
                 pitch_ratio: 1.0,
             })
             .expect("trigger first")
@@ -1510,6 +1640,7 @@ mod tests {
                 sample_id: 1,
                 frame: 0,
                 gain: 1.0,
+                pan: 0.0,
                 pitch_ratio: 1.0,
             })
             .expect("trigger second")
@@ -1531,6 +1662,7 @@ mod tests {
                 sample_id: 1,
                 frame: 0,
                 gain: 1.0,
+                pan: 0.0,
                 pitch_ratio: 1.0,
             })
             .expect("trigger third");

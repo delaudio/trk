@@ -2,15 +2,15 @@
 │ BPM 120 | LPB 4 | Pattern 01 | Oct 4 | Row 00 | Play -- | Loop ON | T│
 └──────────────────────────────────────────────────────────────────────┘
 ┌ Track Editor ────────────────────────────────────────────────────────┐
-│TRK  NAME          CH  M  S  ARM                                      │
-│01  Drums        CH10  -  -  Y                                        │
-│>02  Bass         CH01  -  -  -                                       │
-│03  Lead         CH02  -  -  -                                        │
-│04  Pad          CH03  -  -  -                                        │
+│TRK  NAME          CH  M  S  ARM  GAIN  PAN   AM AS                   │
+│01  Drums        CH10  -  -  Y   1.00 +0.00  -  -                     │
+│>02  Bass         CH01  -  -  -   1.00 +0.00  -  -                    │
+│03  Lead         CH02  -  -  -   1.00 +0.00  -  -                     │
+│04  Pad          CH03  -  -  -   1.00 +0.00  -  -                     │
 │                                                                      │
 │N new   D duplicate   r rename   c channel   Delete remove            │
-│{/} reorder   M mute   S solo   Esc pattern view                      │
-│                                                                      │
+│{/} reorder   M mute   S solo   :mixer gain|pan|mute|solo   Esc       │
+│pattern view                                                          │
 │                                                                      │
 │                                                                      │
 │                                                                      │

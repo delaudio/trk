@@ -466,7 +466,7 @@ fn render_track_editor(frame: &mut Frame<'_>, area: Rect, song: &Song, active_tr
     let mut lines = vec![Line::from(vec![
         Span::styled("TRK  ", Style::default().fg(Color::DarkGray)),
         Span::styled(
-            "NAME          CH  M  S  ARM",
+            "NAME          CH  M  S  ARM  GAIN  PAN   AM AS",
             Style::default()
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
@@ -478,11 +478,16 @@ fn render_track_editor(frame: &mut Frame<'_>, area: Rect, song: &Song, active_tr
         let muted = if track.muted { "Y" } else { "-" };
         let solo = if track.solo { "Y" } else { "-" };
         let armed = if track.armed { "Y" } else { "-" };
+        let mixer = song.track_mixer_for_track(track.id);
+        let audio_mute = if mixer.muted { "Y" } else { "-" };
+        let audio_solo = if mixer.solo { "Y" } else { "-" };
         let line = format!(
-            "{marker}{:02}  {:<12} CH{:02} {muted:^3}{solo:^3}{armed:^3}",
+            "{marker}{:02}  {:<12} CH{:02} {muted:^3}{solo:^3}{armed:^3}  {:>4.2} {:+.2}  {audio_mute:^2} {audio_solo:^2}",
             index + 1,
             truncate(&track.name, 12),
-            track.midi_channel
+            track.midi_channel,
+            mixer.gain,
+            mixer.pan
         );
         if index == active_track {
             lines.push(Line::styled(
@@ -500,7 +505,7 @@ fn render_track_editor(frame: &mut Frame<'_>, area: Rect, song: &Song, active_tr
     lines.extend([
         Line::from(""),
         Line::from("N new   D duplicate   r rename   c channel   Delete remove"),
-        Line::from("{/} reorder   M mute   S solo   Esc pattern view"),
+        Line::from("{/} reorder   M mute   S solo   :mixer gain|pan|mute|solo   Esc pattern view"),
     ]);
 
     let tracks = Paragraph::new(lines)

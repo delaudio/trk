@@ -570,6 +570,7 @@ fn run_pattern(
                     sample_id: event.sample.0,
                     frame: micros_to_frames(relative_offset, context.audio_sample_rate),
                     gain: event.gain * (f32::from(event.velocity.min(0x7f)) / 127.0),
+                    pan: event.pan,
                     pitch_ratio: event.pitch_ratio,
                 };
                 send_audio_command(context.audio_output, command);
@@ -1066,8 +1067,9 @@ mod tests {
                     sample_id,
                     frame,
                     gain,
+                    pan,
                     pitch_ratio,
-                } => Some((*sample_id, *frame, *gain, *pitch_ratio)),
+                } => Some((*sample_id, *frame, *gain, *pan, *pitch_ratio)),
                 RealtimeAudioCommand::StopVoice { .. }
                 | RealtimeAudioCommand::AllNotesOff { .. } => None,
             })
@@ -1079,7 +1081,8 @@ mod tests {
             micros_to_frames(row_duration_micros(&song.transport), 1_000_000)
         );
         assert_approx_eq(trigger.2, 0.5 * (64.0 / 127.0));
-        assert_approx_eq(trigger.3, 2.0);
+        assert_approx_eq(trigger.3, 0.0);
+        assert_approx_eq(trigger.4, 2.0);
     }
 
     #[test]

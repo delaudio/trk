@@ -57,6 +57,9 @@ Playback settings are also saved in `.salieri` project files:
 Pattern-local `sample-gain` automation can change the effective gain of assigned
 samples over time. See [automation.md](automation.md).
 
+Mixer gain, pan, and audio mute/solo are applied to sampler-backed tracks. See
+[mixer.md](mixer.md).
+
 External sample browsing is optional. See [sample-browser.md](sample-browser.md) for the Yazi/chooser-file workflow and audition helper.
 
 Current limitations:
@@ -65,7 +68,7 @@ Current limitations:
 - no streaming for large samples;
 - loop points are persisted and displayed but are not yet rendered as sustained loop playback;
 - no choking, keyzones, or velocity layers;
-- no mixer, effects, level metering, or device selection yet.
+- no effects, realtime level meter transport, or device selection yet.
 
 Next sampler playback steps:
 

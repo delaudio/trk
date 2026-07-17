@@ -75,6 +75,7 @@ fn migrate_project(project: ProjectFile, path: &Path) -> Result<Song> {
                         path.display()
                     )
                 })?;
+            song.ensure_mixer_for_tracks();
             song.validate().with_context(|| {
                 format!("project validation failed while loading {}", path.display())
             })?;

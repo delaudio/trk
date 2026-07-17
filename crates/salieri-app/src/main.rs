@@ -804,6 +804,7 @@ fn pattern_export_events(
                 sample_rate,
             ),
             gain: event.gain,
+            pan: event.pan,
             pitch_ratio: event.pitch_ratio,
             velocity: event.velocity,
         })
@@ -2786,6 +2787,170 @@ impl App {
         }
     }
 
+    fn handle_mixer_command(&mut self, values: &[&str]) {
+        match values {
+            ["master", gain] => {
+                if let Ok(gain) = gain.parse::<f32>() {
+                    self.set_master_gain(gain);
+                } else {
+                    self.notify_warning("Usage: :mixer master GAIN");
+                }
+            }
+            ["gain", value] => {
+                if let Ok(gain) = value.parse::<f32>() {
+                    self.set_track_mixer_gain(self.cursor.track, gain);
+                } else {
+                    self.notify_warning("Usage: :mixer gain [TRACK] GAIN");
+                }
+            }
+            ["gain", track, value] => {
+                let track = track.parse::<usize>().ok().map(|value| value.saturating_sub(1));
+                let gain = value.parse::<f32>().ok();
+                if let (Some(track), Some(gain)) = (track, gain) {
+                    self.set_track_mixer_gain(track, gain);
+                } else {
+                    self.notify_warning("Usage: :mixer gain [TRACK] GAIN");
+                }
+            }
+            ["pan", value] => {
+                if let Ok(pan) = value.parse::<f32>() {
+                    self.set_track_mixer_pan(self.cursor.track, pan);
+                } else {
+                    self.notify_warning("Usage: :mixer pan [TRACK] PAN");
+                }
+            }
+            ["pan", track, value] => {
+                let track = track.parse::<usize>().ok().map(|value| value.saturating_sub(1));
+                let pan = value.parse::<f32>().ok();
+                if let (Some(track), Some(pan)) = (track, pan) {
+                    self.set_track_mixer_pan(track, pan);
+                } else {
+                    self.notify_warning("Usage: :mixer pan [TRACK] PAN");
+                }
+            }
+            ["mute"] => self.toggle_track_mixer_mute(self.cursor.track),
+            ["mute", track] => {
+                if let Some(track) = parse_track_number(track) {
+                    self.toggle_track_mixer_mute(track);
+                } else {
+                    self.notify_warning("Usage: :mixer mute [TRACK]");
+                }
+            }
+            ["solo"] => self.toggle_track_mixer_solo(self.cursor.track),
+            ["solo", track] => {
+                if let Some(track) = parse_track_number(track) {
+                    self.toggle_track_mixer_solo(track);
+                } else {
+                    self.notify_warning("Usage: :mixer solo [TRACK]");
+                }
+            }
+            _ => self.notify_warning(
+                "Usage: :mixer master GAIN | gain [TRACK] GAIN | pan [TRACK] PAN | mute [TRACK] | solo [TRACK]",
+            ),
+        }
+    }
+
+    fn set_track_mixer_gain(&mut self, track_index: usize, gain: f32) {
+        let name = self
+            .song
+            .tracks
+            .get(track_index)
+            .map(|track| track.name.clone());
+        let mut result = Ok(());
+        self.mutate_song(|song, _| {
+            result = song.set_track_mixer_gain(track_index, gain);
+        });
+        match (result, name) {
+            (Ok(()), Some(name)) => self.notify_success(format!("Mixer gain {name} = {gain:.2}")),
+            (Err(error), _) => self.notify_warning(format!("Mixer failed: {error}")),
+            (Ok(()), None) => self.notify_warning("Track out of range"),
+        }
+    }
+
+    fn set_track_mixer_pan(&mut self, track_index: usize, pan: f32) {
+        let name = self
+            .song
+            .tracks
+            .get(track_index)
+            .map(|track| track.name.clone());
+        let mut result = Ok(());
+        self.mutate_song(|song, _| {
+            result = song.set_track_mixer_pan(track_index, pan);
+        });
+        match (result, name) {
+            (Ok(()), Some(name)) => self.notify_success(format!("Mixer pan {name} = {pan:+.2}")),
+            (Err(error), _) => self.notify_warning(format!("Mixer failed: {error}")),
+            (Ok(()), None) => self.notify_warning("Track out of range"),
+        }
+    }
+
+    fn toggle_track_mixer_mute(&mut self, track_index: usize) {
+        let name = self
+            .song
+            .tracks
+            .get(track_index)
+            .map(|track| track.name.clone());
+        let mut muted = false;
+        let mut result = Ok(());
+        self.mutate_song(|song, _| {
+            result = song.toggle_track_mixer_mute(track_index);
+            if result.is_ok() {
+                muted = song
+                    .tracks
+                    .get(track_index)
+                    .map(|track| song.track_mixer_for_track(track.id).muted)
+                    .unwrap_or(false);
+            }
+        });
+        match (result, name) {
+            (Ok(()), Some(name)) => self.notify_success(format!(
+                "Mixer mute {name} {}",
+                if muted { "ON" } else { "OFF" }
+            )),
+            (Err(error), _) => self.notify_warning(format!("Mixer failed: {error}")),
+            (Ok(()), None) => self.notify_warning("Track out of range"),
+        }
+    }
+
+    fn toggle_track_mixer_solo(&mut self, track_index: usize) {
+        let name = self
+            .song
+            .tracks
+            .get(track_index)
+            .map(|track| track.name.clone());
+        let mut solo = false;
+        let mut result = Ok(());
+        self.mutate_song(|song, _| {
+            result = song.toggle_track_mixer_solo(track_index);
+            if result.is_ok() {
+                solo = song
+                    .tracks
+                    .get(track_index)
+                    .map(|track| song.track_mixer_for_track(track.id).solo)
+                    .unwrap_or(false);
+            }
+        });
+        match (result, name) {
+            (Ok(()), Some(name)) => self.notify_success(format!(
+                "Mixer solo {name} {}",
+                if solo { "ON" } else { "OFF" }
+            )),
+            (Err(error), _) => self.notify_warning(format!("Mixer failed: {error}")),
+            (Ok(()), None) => self.notify_warning("Track out of range"),
+        }
+    }
+
+    fn set_master_gain(&mut self, gain: f32) {
+        let mut result = Ok(());
+        self.mutate_song(|song, _| {
+            result = song.set_master_gain(gain);
+        });
+        match result {
+            Ok(()) => self.notify_success(format!("Master gain = {gain:.2}")),
+            Err(error) => self.notify_warning(format!("Mixer failed: {error}")),
+        }
+    }
+
     fn execute_command(&mut self) {
         let command = self.command_buffer.trim().to_string();
         self.command_buffer.clear();
@@ -2861,6 +3026,10 @@ impl App {
             "automation" | "auto" => {
                 let values = parts.collect::<Vec<_>>();
                 self.handle_automation_command(&values);
+            }
+            "mixer" | "mix" => {
+                let values = parts.collect::<Vec<_>>();
+                self.handle_mixer_command(&values);
             }
             "loop" => match parts.next() {
                 Some("on") => {
@@ -5570,6 +5739,29 @@ mod tests {
             .expect("pattern")
             .automation
             .is_empty());
+    }
+
+    #[test]
+    fn command_mode_edits_mixer_state() {
+        let mut app = App::default();
+
+        type_command(&mut app, "mixer gain 2 0.500");
+        type_command(&mut app, "mixer pan 2 -0.250");
+        type_command(&mut app, "mixer mute 2");
+        type_command(&mut app, "mixer solo 2");
+        type_command(&mut app, "mixer master 0.800");
+
+        let track_id = app.song.tracks[1].id;
+        let mixer = app.song.track_mixer_for_track(track_id);
+        assert_eq!(mixer.gain, 0.5);
+        assert_eq!(mixer.pan, -0.25);
+        assert!(mixer.muted);
+        assert!(mixer.solo);
+        assert_eq!(app.song.mixer.master_gain, 0.8);
+        assert!(app.dirty);
+
+        app.handle_key(KeyEvent::new(KeyCode::F(9), KeyModifiers::NONE));
+        assert_eq!(app.tui_active_view(), TuiView::Tracks);
     }
 
     #[test]

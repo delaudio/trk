@@ -32,6 +32,7 @@ pub struct SamplerPlaybackEvent {
     pub pitch: u8,
     pub velocity: u8,
     pub gain: f32,
+    pub pan: f32,
     pub pitch_ratio: f32,
 }
 
@@ -121,6 +122,7 @@ pub fn pattern_events(song: &Song, pattern: &Pattern) -> Vec<PlaybackEvent> {
 pub fn sampler_events(song: &Song, pattern: &Pattern) -> Vec<SamplerPlaybackEvent> {
     let row_duration = row_duration_micros(&song.transport);
     let solo_active = song.tracks.iter().any(|track| track.solo);
+    let mixer_solo_active = song.mixer.tracks.iter().any(|track| track.solo);
     let mut events = Vec::new();
 
     for (row_index, row) in pattern.rows.iter().enumerate() {
@@ -131,6 +133,10 @@ pub fn sampler_events(song: &Song, pattern: &Pattern) -> Vec<SamplerPlaybackEven
 
         for (track_index, track) in song.tracks.iter().enumerate() {
             if !track_is_audible(track.muted, track.solo, solo_active) {
+                continue;
+            }
+            let mixer = song.track_mixer_for_track(track.id);
+            if mixer.muted || (mixer_solo_active && !mixer.solo) {
                 continue;
             }
 
@@ -151,7 +157,8 @@ pub fn sampler_events(song: &Song, pattern: &Pattern) -> Vec<SamplerPlaybackEven
                 AutomationTarget::SampleGain { sample: sample.id },
                 row_index,
                 sample.gain,
-            );
+            ) * mixer.gain
+                * song.mixer.master_gain;
             let trigger = SamplerPlaybackEvent {
                 position,
                 track: track.id,
@@ -160,6 +167,7 @@ pub fn sampler_events(song: &Song, pattern: &Pattern) -> Vec<SamplerPlaybackEven
                 pitch,
                 velocity,
                 gain,
+                pan: mixer.pan,
                 pitch_ratio: pitch_ratio(pitch, sample.root_pitch),
             };
             events.push(trigger.clone());
@@ -553,6 +561,29 @@ mod tests {
         assert_eq!(events[0].gain, 1.0);
         assert_eq!(events[1].position.row, 4);
         assert_eq!(events[1].gain, 0.25);
+    }
+
+    #[test]
+    fn sampler_events_apply_mixer_gain_pan_and_master() {
+        let mut song = Song::empty();
+        let sample_id = song.upsert_sample_reference("samples/kick.wav", "kick.wav");
+        let track_id = song.tracks[0].id;
+        song.samples[0].gain = 0.5;
+        song.set_track_mixer_gain(0, 0.5).expect("track gain");
+        song.set_track_mixer_pan(0, 0.75).expect("track pan");
+        song.set_master_gain(0.5).expect("master gain");
+        song.assign_sample_to_track(track_id, sample_id)
+            .expect("assign sample");
+        let pattern = song.current_pattern_mut().expect("pattern");
+        pattern
+            .set_note(0, 0, NoteEvent::Note { pitch: 48 }, 0x7f)
+            .expect("set note");
+
+        let events = sampler_events(&song, song.current_pattern().expect("pattern"));
+
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].gain, 0.125);
+        assert_eq!(events[0].pan, 0.75);
     }
 
     #[test]

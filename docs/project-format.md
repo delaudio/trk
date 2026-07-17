@@ -75,6 +75,26 @@ sampler events from the lane point row onward:
 }
 ```
 
+Projects also include mixer state. Omitted mixer state is normalized on load
+with one default track mixer per song track:
+
+```json
+{
+  "masterGain": 0.9,
+  "tracks": [
+    {
+      "track": 1,
+      "gain": 0.75,
+      "pan": -0.25,
+      "muted": false,
+      "solo": false,
+      "sends": []
+    }
+  ],
+  "sends": []
+}
+```
+
 ## Loading Rules
 
 On load, Salieri:
@@ -105,6 +125,7 @@ Loaded projects are rejected when they contain:
 - invalid sample root pitch or gain;
 - invalid sample frame windows, loop windows, or envelope values;
 - automation lanes with duplicate targets, missing sample targets, duplicate rows, out-of-bounds rows, or invalid values;
+- invalid mixer master gain, missing/duplicate mixer tracks, mixer tracks referencing missing song tracks, or invalid mixer gain/pan;
 - duplicate instrument IDs;
 - empty instrument names;
 - instruments referencing missing samples;

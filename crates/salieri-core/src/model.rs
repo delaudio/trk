@@ -31,6 +31,8 @@ pub struct Song {
     pub tracks: Vec<Track>,
     pub patterns: Vec<Pattern>,
     pub sequence: Vec<PatternId>,
+    #[serde(default)]
+    pub mixer: MixerState,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub samples: Vec<SampleReference>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -62,6 +64,8 @@ impl Song {
             tracks.len(),
         );
 
+        let mixer = MixerState::for_tracks(&tracks);
+
         Self {
             metadata: SongMetadata {
                 title: "Untitled".to_string(),
@@ -76,6 +80,7 @@ impl Song {
             tracks,
             patterns: vec![pattern],
             sequence: vec![PatternId(1)],
+            mixer,
             samples: Vec::new(),
             sample_assignments: Vec::new(),
             instruments: Vec::new(),
@@ -196,6 +201,8 @@ impl Song {
                 });
             }
         }
+
+        validate_mixer(&self.mixer, &track_ids)?;
 
         let mut sample_ids = HashSet::new();
         for (sample_index, sample) in self.samples.iter().enumerate() {
@@ -478,6 +485,7 @@ impl Song {
         for pattern in &mut self.patterns {
             pattern.append_track();
         }
+        self.ensure_mixer_for_tracks();
 
         id
     }
@@ -508,6 +516,7 @@ impl Song {
         if let Some(source_assignment) = self.instrument_assignment_for_track(source.id).cloned() {
             self.assign_instrument_to_track(id, source_assignment.instrument)?;
         }
+        self.ensure_mixer_for_tracks();
 
         Ok(id)
     }
@@ -528,6 +537,7 @@ impl Song {
         let removed = self.tracks.remove(track_index);
         self.unassign_sample_from_track(removed.id);
         self.unassign_instrument_from_track(removed.id);
+        self.ensure_mixer_for_tracks();
         Ok(removed)
     }
 
@@ -548,6 +558,7 @@ impl Song {
         for pattern in &mut self.patterns {
             pattern.move_track(from, to)?;
         }
+        self.ensure_mixer_for_tracks();
 
         Ok(())
     }
@@ -598,6 +609,88 @@ impl Song {
             .get_mut(track_index)
             .ok_or(EditError::TrackOutOfBounds { track: track_index })?;
         track.midi_channel = midi_channel;
+        Ok(())
+    }
+
+    pub fn set_track_mixer_gain(&mut self, track_index: usize, gain: f32) -> Result<(), EditError> {
+        if !gain.is_finite() || gain < 0.0 {
+            return Err(EditError::InvalidMixerValue);
+        }
+        let track_id = self
+            .tracks
+            .get(track_index)
+            .ok_or(EditError::TrackOutOfBounds { track: track_index })?
+            .id;
+        self.ensure_mixer_for_tracks();
+        let mixer = self
+            .mixer
+            .tracks
+            .iter_mut()
+            .find(|mixer| mixer.track == track_id)
+            .expect("mixer track exists after normalization");
+        mixer.gain = gain;
+        Ok(())
+    }
+
+    pub fn set_track_mixer_pan(&mut self, track_index: usize, pan: f32) -> Result<(), EditError> {
+        if !pan.is_finite() || !(-1.0..=1.0).contains(&pan) {
+            return Err(EditError::InvalidMixerValue);
+        }
+        let track_id = self
+            .tracks
+            .get(track_index)
+            .ok_or(EditError::TrackOutOfBounds { track: track_index })?
+            .id;
+        self.ensure_mixer_for_tracks();
+        let mixer = self
+            .mixer
+            .tracks
+            .iter_mut()
+            .find(|mixer| mixer.track == track_id)
+            .expect("mixer track exists after normalization");
+        mixer.pan = pan;
+        Ok(())
+    }
+
+    pub fn toggle_track_mixer_mute(&mut self, track_index: usize) -> Result<(), EditError> {
+        let track_id = self
+            .tracks
+            .get(track_index)
+            .ok_or(EditError::TrackOutOfBounds { track: track_index })?
+            .id;
+        self.ensure_mixer_for_tracks();
+        let mixer = self
+            .mixer
+            .tracks
+            .iter_mut()
+            .find(|mixer| mixer.track == track_id)
+            .expect("mixer track exists after normalization");
+        mixer.muted = !mixer.muted;
+        Ok(())
+    }
+
+    pub fn toggle_track_mixer_solo(&mut self, track_index: usize) -> Result<(), EditError> {
+        let track_id = self
+            .tracks
+            .get(track_index)
+            .ok_or(EditError::TrackOutOfBounds { track: track_index })?
+            .id;
+        self.ensure_mixer_for_tracks();
+        let mixer = self
+            .mixer
+            .tracks
+            .iter_mut()
+            .find(|mixer| mixer.track == track_id)
+            .expect("mixer track exists after normalization");
+        mixer.solo = !mixer.solo;
+        Ok(())
+    }
+
+    pub fn set_master_gain(&mut self, gain: f32) -> Result<(), EditError> {
+        if !gain.is_finite() || gain < 0.0 {
+            return Err(EditError::InvalidMixerValue);
+        }
+        self.mixer.master_gain = gain;
         Ok(())
     }
 
@@ -906,6 +999,16 @@ impl Song {
             .and_then(|assignment| self.instrument_for_id(assignment.instrument))
     }
 
+    #[must_use]
+    pub fn track_mixer_for_track(&self, track: TrackId) -> TrackMixerState {
+        self.mixer
+            .tracks
+            .iter()
+            .find(|mixer| mixer.track == track)
+            .cloned()
+            .unwrap_or_else(|| TrackMixerState::default_for_track(track))
+    }
+
     pub fn ensure_instruments_for_sample_assignments(&mut self) -> Result<(), EditError> {
         let assignments = self.sample_assignments.clone();
         for assignment in assignments {
@@ -913,6 +1016,21 @@ impl Song {
             self.assign_instrument_to_track(assignment.track, instrument)?;
         }
         Ok(())
+    }
+
+    pub fn ensure_mixer_for_tracks(&mut self) {
+        let existing = self.mixer.tracks.clone();
+        self.mixer.tracks = self
+            .tracks
+            .iter()
+            .map(|track| {
+                existing
+                    .iter()
+                    .find(|mixer| mixer.track == track.id)
+                    .cloned()
+                    .unwrap_or_else(|| TrackMixerState::default_for_track(track.id))
+            })
+            .collect();
     }
 
     fn next_track_id(&self) -> TrackId {
@@ -1056,6 +1174,18 @@ pub enum ValidationError {
     DuplicateAutomationPoint { pattern_index: usize, row: usize },
     #[error("pattern {pattern_index} automation row {row} has invalid value")]
     InvalidAutomationValue { pattern_index: usize, row: usize },
+    #[error("mixer has invalid master gain")]
+    InvalidMixerMasterGain,
+    #[error("mixer references missing track {track_id:?}")]
+    MixerTrackNotFound { track_id: TrackId },
+    #[error("mixer is missing track {track_id:?}")]
+    MixerTrackMissing { track_id: TrackId },
+    #[error("mixer has duplicate track {track_id:?}")]
+    DuplicateMixerTrack { track_id: TrackId },
+    #[error("mixer track {track_id:?} has invalid gain")]
+    InvalidMixerTrackGain { track_id: TrackId },
+    #[error("mixer track {track_id:?} has invalid pan")]
+    InvalidMixerTrackPan { track_id: TrackId },
     #[error("sample assignment references missing track {track_id:?}")]
     SampleAssignmentTrackNotFound { track_id: TrackId },
     #[error("sample assignment references missing sample {sample_id:?}")]
@@ -1106,6 +1236,80 @@ pub struct Track {
     pub muted: bool,
     pub solo: bool,
     pub armed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MixerState {
+    pub master_gain: f32,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tracks: Vec<TrackMixerState>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sends: Vec<MixerSend>,
+}
+
+impl MixerState {
+    #[must_use]
+    pub fn for_tracks(tracks: &[Track]) -> Self {
+        Self {
+            master_gain: 1.0,
+            tracks: tracks
+                .iter()
+                .map(|track| TrackMixerState::default_for_track(track.id))
+                .collect(),
+            sends: Vec::new(),
+        }
+    }
+}
+
+impl Default for MixerState {
+    fn default() -> Self {
+        Self {
+            master_gain: 1.0,
+            tracks: Vec::new(),
+            sends: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrackMixerState {
+    pub track: TrackId,
+    pub gain: f32,
+    pub pan: f32,
+    pub muted: bool,
+    pub solo: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sends: Vec<TrackSendLevel>,
+}
+
+impl TrackMixerState {
+    #[must_use]
+    pub fn default_for_track(track: TrackId) -> Self {
+        Self {
+            track,
+            gain: 1.0,
+            pan: 0.0,
+            muted: false,
+            solo: false,
+            sends: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MixerSend {
+    pub id: u32,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrackSendLevel {
+    pub send: u32,
+    pub gain: f32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1555,6 +1759,8 @@ pub enum EditError {
     InvalidSampleEnvelope,
     #[error("invalid automation value")]
     InvalidAutomationValue,
+    #[error("invalid mixer value")]
+    InvalidMixerValue,
     #[error("instrument not found: instrument id {instrument_id:?}")]
     InstrumentNotFound { instrument_id: InstrumentId },
     #[error("name cannot be empty")]
@@ -1839,6 +2045,44 @@ fn validate_pattern_automation(
     Ok(())
 }
 
+fn validate_mixer(mixer: &MixerState, track_ids: &HashSet<TrackId>) -> Result<(), ValidationError> {
+    if !mixer.master_gain.is_finite() || mixer.master_gain < 0.0 {
+        return Err(ValidationError::InvalidMixerMasterGain);
+    }
+
+    let mut mixer_tracks = HashSet::new();
+    for track in &mixer.tracks {
+        if !track_ids.contains(&track.track) {
+            return Err(ValidationError::MixerTrackNotFound {
+                track_id: track.track,
+            });
+        }
+        if !mixer_tracks.insert(track.track) {
+            return Err(ValidationError::DuplicateMixerTrack {
+                track_id: track.track,
+            });
+        }
+        if !track.gain.is_finite() || track.gain < 0.0 {
+            return Err(ValidationError::InvalidMixerTrackGain {
+                track_id: track.track,
+            });
+        }
+        if !track.pan.is_finite() || !(-1.0..=1.0).contains(&track.pan) {
+            return Err(ValidationError::InvalidMixerTrackPan {
+                track_id: track.track,
+            });
+        }
+    }
+    for track_id in track_ids {
+        if !mixer_tracks.contains(track_id) {
+            return Err(ValidationError::MixerTrackMissing {
+                track_id: *track_id,
+            });
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1973,6 +2217,8 @@ mod tests {
         let mut song = Song::empty();
         song.tracks[1].midi_channel = 12;
         song.tracks[1].muted = true;
+        song.set_track_mixer_gain(1, 0.5).expect("set mixer gain");
+        song.set_track_mixer_pan(1, -0.25).expect("set mixer pan");
         song.current_pattern_mut()
             .expect("pattern")
             .set_note(0, 1, NoteEvent::Note { pitch: 48 }, 0x64)
@@ -1986,6 +2232,9 @@ mod tests {
         assert_eq!(song.tracks[4].midi_channel, 12);
         assert!(song.tracks[4].muted);
         assert!(!song.tracks[4].solo);
+        let mixer = song.track_mixer_for_track(song.tracks[4].id);
+        assert_eq!(mixer.gain, 1.0);
+        assert_eq!(mixer.pan, 0.0);
         assert_eq!(
             song.current_pattern()
                 .expect("pattern")
@@ -2026,6 +2275,41 @@ mod tests {
                 .iter()
                 .all(|row| row.cells.len() == song.tracks.len())
         }));
+        assert_eq!(song.mixer.tracks.len(), song.tracks.len());
+        assert!(song
+            .mixer
+            .tracks
+            .iter()
+            .all(|mixer| song.tracks.iter().any(|track| track.id == mixer.track)));
+    }
+
+    #[test]
+    fn mixer_state_validates_and_edits() {
+        let mut song = Song::empty();
+
+        song.set_track_mixer_gain(0, 0.75).expect("set gain");
+        song.set_track_mixer_pan(0, -0.5).expect("set pan");
+        song.toggle_track_mixer_mute(0).expect("mute");
+        song.toggle_track_mixer_solo(0).expect("solo");
+        song.set_master_gain(0.8).expect("master");
+
+        let mixer = song.track_mixer_for_track(song.tracks[0].id);
+        assert_eq!(mixer.gain, 0.75);
+        assert_eq!(mixer.pan, -0.5);
+        assert!(mixer.muted);
+        assert!(mixer.solo);
+        assert_eq!(song.mixer.master_gain, 0.8);
+        song.validate().expect("valid mixer");
+
+        assert_eq!(
+            song.set_track_mixer_pan(0, 2.0).expect_err("invalid pan"),
+            EditError::InvalidMixerValue
+        );
+        assert_eq!(
+            song.set_track_mixer_gain(0, -1.0)
+                .expect_err("invalid gain"),
+            EditError::InvalidMixerValue
+        );
     }
 
     #[test]
