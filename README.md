@@ -396,7 +396,7 @@ AI-assisted composition lives behind `salieri-ai` and is available in the TUI th
 
 ## Interoperability
 
-`salieri-interop` supports a narrow Standard MIDI File format 0 subset for import/export. The next recommended project-import target is an XRNS inspector followed by a minimal XRNS importer. Legacy module formats such as MOD, XM, IT, and S3M remain explicit unsupported formats until a diagnostics/sample-extraction spike defines the acceptable lossy subset.
+`salieri-interop` supports a narrow Standard MIDI File format 0 subset for import/export, plus library-level XRNS inspection and a minimal lossy XRNS importer for the constrained subset documented below. Legacy module formats such as MOD, XM, IT, and S3M remain explicit unsupported formats until a diagnostics/sample-extraction spike defines the acceptable lossy subset.
 
 See [docs/interoperability.md](docs/interoperability.md).
 

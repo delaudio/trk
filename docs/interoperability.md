@@ -9,6 +9,13 @@ Current MIDI file support is intentionally narrow:
 - map imported MIDI channels onto existing tracks by channel, creating tracks only when needed;
 - reject unsupported MIDI formats, SMPTE timing, SysEx, and unsupported event types with explicit errors.
 
+Current XRNS support is library-level and intentionally lossy:
+
+- inspect XRNS ZIP archives, locate root `Song.xml`, enumerate sample payloads, and report track, pattern, instrument, sample, and device metadata;
+- import a constrained XML subset into a validated `.salieri` `Song`;
+- map track names, pattern row counts, sequence order, note/velocity/instrument/volume/pan/delay cells, the first effect command, supported WAV sample payloads, mixer gain/pan, and recognized native gain/pan devices;
+- report unsupported samples, devices, extra effect columns, unknown effect commands, quantized timing, malformed archives/XML, nested/encrypted archives, and validation failures as structured diagnostics.
+
 Round-trip expectations:
 
 - note pitch, velocity, row placement, channel, and BPM are preserved for the supported subset;
@@ -43,10 +50,10 @@ References used for this decision:
 
 First implementation target: **XRNS read/import subset**, not legacy tracker modules.
 
-The first target should be split into two stages:
+The first target is split into two stages:
 
-1. **XRNS inspector and diagnostics**: read the ZIP, locate `Song.xml` and sample payloads, parse enough metadata to report tracks, patterns, instruments, samples, device-chain kinds, and unsupported features without mutating a Salieri project. Follow-up: #62.
-2. **XRNS minimal importer**: convert a constrained subset into `.salieri`: pattern length/order, note pitch, velocity, instrument number, volume, pan, delay, first effect command, simple sample-backed instruments, track names, mixer gain/pan, and native gain/pan DSP devices. Follow-up: #61.
+1. **XRNS inspector and diagnostics**: read the ZIP, locate `Song.xml` and sample payloads, parse enough metadata to report tracks, patterns, instruments, samples, device-chain kinds, and unsupported features without mutating a Salieri project. Implemented by #62.
+2. **XRNS minimal importer**: convert a constrained subset into `.salieri`: pattern length/order, note pitch, velocity, instrument number, volume, pan, delay, first effect command, simple sample-backed instruments, track names, mixer gain/pan, and native gain/pan DSP devices. Implemented by #61.
 
 The importer must be explicit about loss. It should return an import report with warnings, not silently discard project data.
 

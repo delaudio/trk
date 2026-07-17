@@ -1,6 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
-use salieri_core::{pattern_events, NoteEvent, PlaybackEventKind, Song};
+use salieri_core::{
+    pattern_events, EffectDevice, InstrumentId, NoteEvent, PatternCell, PlaybackEventKind, Song,
+    TrackerCommand,
+};
 
 const MTHD: &[u8; 4] = b"MThd";
 const MTRK: &[u8; 4] = b"MTrk";
@@ -63,6 +66,13 @@ pub struct XrnsInspection {
     pub patterns: Vec<XrnsPatternInfo>,
     pub instruments: Vec<XrnsInstrumentInfo>,
     pub device_chains: Vec<XrnsDeviceChainInfo>,
+    pub diagnostics: Vec<XrnsDiagnostic>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct XrnsImportReport {
+    pub song: Option<Song>,
+    pub inspection: XrnsInspection,
     pub diagnostics: Vec<XrnsDiagnostic>,
 }
 
@@ -131,7 +141,11 @@ pub enum XrnsDiagnosticKind {
     NestedArchive,
     UnsupportedCompression,
     UnsupportedSampleFormat,
+    UnsupportedEffectCommand,
+    DroppedExtraEffectColumn,
+    TimingQuantized,
     UnsupportedRenoiseFeature,
+    ValidationFailed,
 }
 
 pub fn export_pattern_smf(
@@ -389,6 +403,541 @@ pub fn inspect_xrns(bytes: &[u8]) -> XrnsInspection {
     }
 
     inspection
+}
+
+#[must_use]
+pub fn import_xrns(bytes: &[u8]) -> XrnsImportReport {
+    let inspection = inspect_xrns(bytes);
+    let mut diagnostics = inspection.diagnostics.clone();
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity == XrnsDiagnosticSeverity::Error)
+    {
+        return XrnsImportReport {
+            song: None,
+            inspection,
+            diagnostics,
+        };
+    }
+
+    let entries = match parse_zip_entries(bytes) {
+        Ok(entries) => entries,
+        Err(message) => {
+            diagnostics.push(xrns_diagnostic(
+                XrnsDiagnosticKind::MalformedArchive,
+                XrnsDiagnosticSeverity::Error,
+                None,
+                message,
+            ));
+            return XrnsImportReport {
+                song: None,
+                inspection,
+                diagnostics,
+            };
+        }
+    };
+    let song_xml = entries
+        .iter()
+        .find(|entry| entry.path == "Song.xml" && entry.compression_method == 0)
+        .and_then(|entry| std::str::from_utf8(entry.data).ok());
+    let Some(song_xml) = song_xml else {
+        return XrnsImportReport {
+            song: None,
+            inspection,
+            diagnostics,
+        };
+    };
+
+    let Some(model) = parse_xrns_import_model(song_xml, &mut diagnostics) else {
+        return XrnsImportReport {
+            song: None,
+            inspection,
+            diagnostics,
+        };
+    };
+
+    let song = build_song_from_xrns_model(&model, &inspection, &mut diagnostics);
+    let song = match song {
+        Some(song) => match song.validate() {
+            Ok(()) => Some(song),
+            Err(error) => {
+                diagnostics.push(xrns_diagnostic(
+                    XrnsDiagnosticKind::ValidationFailed,
+                    XrnsDiagnosticSeverity::Error,
+                    None,
+                    format!("imported XRNS project failed validation: {error}"),
+                ));
+                None
+            }
+        },
+        None => None,
+    };
+
+    XrnsImportReport {
+        song,
+        inspection,
+        diagnostics,
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+struct XrnsImportModel {
+    tracks: Vec<XrnsImportTrack>,
+    patterns: Vec<XrnsImportPattern>,
+    instruments: Vec<String>,
+    sequence: Vec<usize>,
+}
+
+#[derive(Debug, Clone, Default)]
+struct XrnsImportTrack {
+    name: Option<String>,
+    gain: Option<f32>,
+    pan: Option<f32>,
+    effects: Vec<EffectDevice>,
+}
+
+#[derive(Debug, Clone, Default)]
+struct XrnsImportPattern {
+    rows: Option<usize>,
+    cells: Vec<XrnsImportCell>,
+}
+
+#[derive(Debug, Clone)]
+struct XrnsImportCell {
+    track: usize,
+    row: usize,
+    cell: PatternCell,
+}
+
+#[derive(Debug, Clone)]
+struct PendingXrnsLine {
+    track: usize,
+    row: Option<usize>,
+    cell: PatternCell,
+    effect_code: Option<u8>,
+    effect_value: Option<u8>,
+}
+
+fn parse_xrns_import_model(
+    xml: &str,
+    diagnostics: &mut Vec<XrnsDiagnostic>,
+) -> Option<XrnsImportModel> {
+    let events = match parse_xml_events(xml) {
+        Ok(events) => events,
+        Err(message) => {
+            diagnostics.push(xrns_diagnostic(
+                XrnsDiagnosticKind::MalformedSongXml,
+                XrnsDiagnosticSeverity::Error,
+                Some("Song.xml".to_string()),
+                message,
+            ));
+            return None;
+        }
+    };
+
+    let mut model = XrnsImportModel::default();
+    let mut stack = Vec::<String>::new();
+    let mut current_track: Option<XrnsImportTrack> = None;
+    let mut current_instrument: Option<String> = None;
+    let mut current_pattern: Option<XrnsImportPattern> = None;
+    let mut current_pattern_track: Option<usize> = None;
+    let mut pattern_track_line_counts = Vec::<usize>::new();
+    let mut current_line: Option<PendingXrnsLine> = None;
+    let mut next_effect_device_id = 1_u32;
+
+    for event in events {
+        match event {
+            XmlEvent::Start(name) => {
+                let in_pattern = current_pattern.is_some();
+                if name == "Track" && stack_contains(&stack, "Tracks") && !in_pattern {
+                    current_track = Some(XrnsImportTrack::default());
+                } else if name == "Instrument" && stack_contains(&stack, "Instruments") {
+                    current_instrument = Some(String::new());
+                } else if name == "Pattern" && stack_contains(&stack, "Patterns") {
+                    current_pattern = Some(XrnsImportPattern::default());
+                    current_pattern_track = None;
+                    pattern_track_line_counts.clear();
+                } else if name == "Track" && in_pattern {
+                    let track = current_pattern_track.map_or(0, |track| track + 1);
+                    current_pattern_track = Some(track);
+                    if pattern_track_line_counts.len() <= track {
+                        pattern_track_line_counts.resize(track + 1, 0);
+                    }
+                } else if name == "Line" && current_pattern.is_some() {
+                    let track = current_pattern_track.unwrap_or(0);
+                    current_line = Some(PendingXrnsLine {
+                        track,
+                        row: None,
+                        cell: PatternCell::default(),
+                        effect_code: None,
+                        effect_value: None,
+                    });
+                }
+                stack.push(name);
+            }
+            XmlEvent::End(name) => {
+                if name == "Track" && current_line.is_none() {
+                    if current_pattern.is_some() {
+                        current_pattern_track = None;
+                    } else if let Some(track) = current_track.take() {
+                        model.tracks.push(track);
+                    }
+                } else if name == "Instrument" {
+                    if let Some(name) = current_instrument.take() {
+                        model.instruments.push(if name.trim().is_empty() {
+                            format!("Instrument {:02}", model.instruments.len() + 1)
+                        } else {
+                            name
+                        });
+                    }
+                } else if name == "Pattern" {
+                    if let Some(pattern) = current_pattern.take() {
+                        model.patterns.push(pattern);
+                    }
+                    current_pattern_track = None;
+                } else if name == "Line" {
+                    if let (Some(mut pattern), Some(mut line)) =
+                        (current_pattern.take(), current_line.take())
+                    {
+                        let row = line.row.unwrap_or_else(|| {
+                            let count = pattern_track_line_counts
+                                .get_mut(line.track)
+                                .expect("line counter exists");
+                            let row = *count;
+                            *count += 1;
+                            row
+                        });
+                        line.row = Some(row);
+                        pattern.cells.push(XrnsImportCell {
+                            track: line.track,
+                            row,
+                            cell: line.cell,
+                        });
+                        current_pattern = Some(pattern);
+                    }
+                } else if name == "Effect" {
+                    if let Some(line) = &mut current_line {
+                        if let Some(code) = line.effect_code.take() {
+                            let command = TrackerCommand {
+                                code,
+                                value: line.effect_value.take().unwrap_or(0),
+                            };
+                            if !matches!(
+                                code,
+                                TrackerCommand::DELAY_CODE | TrackerCommand::RETRIGGER_CODE
+                            ) {
+                                diagnostics.push(xrns_diagnostic(
+                                    XrnsDiagnosticKind::UnsupportedEffectCommand,
+                                    XrnsDiagnosticSeverity::Warning,
+                                    Some(xml_location(&stack, &name)),
+                                    format!(
+                                        "unknown Renoise effect command {} preserved as tracker command",
+                                        code as char
+                                    ),
+                                ));
+                            }
+                            if line.cell.command.is_some() {
+                                diagnostics.push(xrns_diagnostic(
+                                    XrnsDiagnosticKind::DroppedExtraEffectColumn,
+                                    XrnsDiagnosticSeverity::Warning,
+                                    Some(xml_location(&stack, &name)),
+                                    "extra XRNS effect column was dropped",
+                                ));
+                            } else {
+                                line.cell.command = Some(command);
+                            }
+                        }
+                    }
+                }
+                let _ = stack.pop();
+            }
+            XmlEvent::Text(text) => {
+                let current = stack.last().map(String::as_str).unwrap_or_default();
+                if let Some(line) = &mut current_line {
+                    apply_xrns_line_text(current, &text, line, diagnostics, &stack);
+                    continue;
+                }
+                if let Some(track) = &mut current_track {
+                    match current {
+                        "Name" => track.name = Some(text),
+                        "Gain" | "Volume" => track.gain = parse_float(&text),
+                        "Pan" | "Panning" => track.pan = parse_float(&text),
+                        "Device" | "Type" => {
+                            if let Some(effect) =
+                                effect_device_from_name(next_effect_device_id, &text)
+                            {
+                                next_effect_device_id += 1;
+                                track.effects.push(effect);
+                            } else {
+                                diagnostics.push(xrns_diagnostic(
+                                    XrnsDiagnosticKind::UnsupportedRenoiseFeature,
+                                    XrnsDiagnosticSeverity::Warning,
+                                    Some(xml_location(&stack, current)),
+                                    format!("unsupported Renoise device: {text}"),
+                                ));
+                            }
+                        }
+                        _ => {}
+                    }
+                } else if let Some(instrument) = &mut current_instrument {
+                    if current == "Name" {
+                        *instrument = text;
+                    }
+                } else if let Some(pattern) = &mut current_pattern {
+                    if matches!(current, "NumberOfLines" | "Lines") {
+                        pattern.rows = text.parse::<usize>().ok().or(pattern.rows);
+                    }
+                } else if current == "Pattern" && stack_contains(&stack, "SequenceEntry") {
+                    if let Ok(pattern) = text.parse::<usize>() {
+                        model.sequence.push(pattern);
+                    }
+                }
+            }
+        }
+    }
+
+    Some(model)
+}
+
+fn apply_xrns_line_text(
+    current: &str,
+    text: &str,
+    line: &mut PendingXrnsLine,
+    diagnostics: &mut Vec<XrnsDiagnostic>,
+    stack: &[String],
+) {
+    match current {
+        "Index" | "Row" => line.row = text.parse::<usize>().ok(),
+        "Note" => line.cell.note = parse_xrns_note(text),
+        "Velocity" => line.cell.velocity = parse_u8_value(text),
+        "Instrument" => {
+            line.cell.instrument = parse_u32_value(text).map(InstrumentId);
+        }
+        "Volume" => line.cell.volume = parse_u8_value(text).map(|value| value.min(127)),
+        "Pan" | "Panning" => line.cell.pan = parse_u8_value(text).map(|value| value.min(127)),
+        "Delay" => line.cell.delay = parse_u8_value(text),
+        "Code" | "Command" => {
+            line.effect_code = text
+                .as_bytes()
+                .first()
+                .copied()
+                .map(|byte| byte.to_ascii_uppercase());
+        }
+        "Value" => line.effect_value = parse_u8_value(text),
+        "SourceTick" | "SourceTime" => diagnostics.push(xrns_diagnostic(
+            XrnsDiagnosticKind::TimingQuantized,
+            XrnsDiagnosticSeverity::Warning,
+            Some(xml_location(stack, current)),
+            "XRNS timing was quantized to the nearest Salieri row",
+        )),
+        _ => {}
+    }
+}
+
+fn build_song_from_xrns_model(
+    model: &XrnsImportModel,
+    inspection: &XrnsInspection,
+    diagnostics: &mut Vec<XrnsDiagnostic>,
+) -> Option<Song> {
+    let mut song = Song::empty();
+    let track_count = model.tracks.len().max(1);
+    while song.tracks.len() < track_count {
+        song.create_track();
+    }
+    while song.tracks.len() > track_count {
+        song.delete_track(song.tracks.len() - 1).ok()?;
+    }
+
+    for (index, track) in model.tracks.iter().enumerate() {
+        if let Some(name) = &track.name {
+            song.rename_track(index, name).ok()?;
+        }
+        if let Some(gain) = track.gain {
+            let _ = song.set_track_mixer_gain(index, gain.max(0.0));
+        }
+        if let Some(pan) = track.pan {
+            let _ = song.set_track_mixer_pan(index, pan.clamp(-1.0, 1.0));
+        }
+        let track_id = song.tracks[index].id;
+        if let Some(mixer) = song
+            .mixer
+            .tracks
+            .iter_mut()
+            .find(|mixer| mixer.track == track_id)
+        {
+            mixer.effects = track.effects.clone();
+        }
+    }
+
+    let mut imported_instruments = HashSet::new();
+    for sample in inspection
+        .sample_payloads
+        .iter()
+        .filter(|sample| sample.supported)
+    {
+        let sample_id = song.upsert_sample_reference(&sample.path, sample_name(&sample.path));
+        if let Ok(instrument) = song.upsert_sample_instrument(sample_id) {
+            imported_instruments.insert(instrument);
+        }
+    }
+
+    let pattern_count = model.patterns.len().max(1);
+    while song.patterns.len() < pattern_count {
+        let rows = model
+            .patterns
+            .get(song.patterns.len())
+            .and_then(|pattern| pattern.rows)
+            .unwrap_or(64);
+        song.create_pattern(rows.max(1));
+    }
+    while song.patterns.len() > pattern_count {
+        song.delete_pattern(song.patterns.len() - 1).ok()?;
+    }
+
+    for (index, pattern) in model.patterns.iter().enumerate() {
+        let rows = pattern.rows.unwrap_or(64).max(1);
+        song.resize_pattern(index, rows).ok()?;
+        for imported in &pattern.cells {
+            if imported.track >= song.tracks.len() || imported.row >= rows {
+                continue;
+            }
+            let mut cell = imported.cell.clone();
+            if let Some(instrument) = cell.instrument {
+                if !imported_instruments.contains(&instrument) {
+                    diagnostics.push(xrns_diagnostic(
+                        XrnsDiagnosticKind::UnsupportedRenoiseFeature,
+                        XrnsDiagnosticSeverity::Warning,
+                        Some(format!("Pattern {index} row {}", imported.row)),
+                        format!(
+                            "instrument {:?} has no supported sample payload",
+                            instrument
+                        ),
+                    ));
+                    cell.instrument = None;
+                }
+            }
+            song.pattern_mut(index)?
+                .set_cell(imported.row, imported.track, cell)
+                .ok()?;
+        }
+    }
+
+    if !model.sequence.is_empty() {
+        song.sequence.clear();
+        for pattern in &model.sequence {
+            if let Some(pattern_id) = song.patterns.get(*pattern).map(|pattern| pattern.id) {
+                song.sequence.push(pattern_id);
+            } else {
+                diagnostics.push(xrns_diagnostic(
+                    XrnsDiagnosticKind::UnsupportedRenoiseFeature,
+                    XrnsDiagnosticSeverity::Warning,
+                    Some("PatternSequence".to_string()),
+                    format!("sequence references missing pattern {pattern}"),
+                ));
+            }
+        }
+        if song.sequence.is_empty() {
+            song.sequence.push(song.patterns[0].id);
+        }
+    }
+
+    Some(song)
+}
+
+fn parse_xrns_note(value: &str) -> Option<NoteEvent> {
+    let value = value.trim();
+    if value.is_empty() || value == "---" {
+        return None;
+    }
+    if matches!(value.to_ascii_uppercase().as_str(), "OFF" | "NOTE_OFF") {
+        return Some(NoteEvent::NoteOff);
+    }
+    if matches!(value.to_ascii_uppercase().as_str(), "CUT" | "NOTE_CUT") {
+        return Some(NoteEvent::NoteCut);
+    }
+    if let Some(pitch) = parse_u8_value(value) {
+        return Some(NoteEvent::Note {
+            pitch: pitch.min(127),
+        });
+    }
+    parse_note_name(value).map(|pitch| NoteEvent::Note { pitch })
+}
+
+fn parse_note_name(value: &str) -> Option<u8> {
+    let value = value.trim().to_ascii_uppercase();
+    let bytes = value.as_bytes();
+    let semitone = match bytes.first().copied()? as char {
+        'C' => 0,
+        'D' => 2,
+        'E' => 4,
+        'F' => 5,
+        'G' => 7,
+        'A' => 9,
+        'B' => 11,
+        _ => return None,
+    };
+    let mut index = 1;
+    let accidental = match bytes.get(index).copied().map(char::from) {
+        Some('#') => {
+            index += 1;
+            1
+        }
+        Some('B') => {
+            index += 1;
+            -1
+        }
+        Some('-') => {
+            index += 1;
+            0
+        }
+        _ => 0,
+    };
+    let octave = value.get(index..)?.parse::<i16>().ok()?;
+    let pitch = (octave + 1) * 12 + semitone + accidental;
+    u8::try_from(pitch).ok().filter(|pitch| *pitch <= 127)
+}
+
+fn parse_u8_value(value: &str) -> Option<u8> {
+    parse_u32_value(value).and_then(|value| u8::try_from(value).ok())
+}
+
+fn parse_u32_value(value: &str) -> Option<u32> {
+    let value = value.trim();
+    if value.is_empty() {
+        return None;
+    }
+    value
+        .parse::<u32>()
+        .ok()
+        .or_else(|| u32::from_str_radix(value.trim_start_matches("0x"), 16).ok())
+}
+
+fn parse_float(value: &str) -> Option<f32> {
+    value
+        .trim()
+        .parse::<f32>()
+        .ok()
+        .filter(|value| value.is_finite())
+}
+
+fn effect_device_from_name(id: u32, name: &str) -> Option<EffectDevice> {
+    let normalized = name.to_ascii_lowercase();
+    if normalized.contains("gain") || normalized.contains("gainer") || normalized.contains("volume")
+    {
+        Some(EffectDevice::gain(id, 1.0))
+    } else if normalized.contains("pan") {
+        Some(EffectDevice::pan(id, 0.0))
+    } else {
+        None
+    }
+}
+
+fn sample_name(path: &str) -> String {
+    path.rsplit('/')
+        .next()
+        .filter(|name| !name.trim().is_empty())
+        .unwrap_or(path)
+        .to_string()
 }
 
 #[derive(Debug, Clone)]
@@ -1073,6 +1622,155 @@ mod tests {
             .diagnostics
             .iter()
             .any(|diagnostic| { diagnostic.kind == XrnsDiagnosticKind::UnsupportedCompression }));
+    }
+
+    #[test]
+    fn imports_minimal_xrns_subset_to_valid_song() {
+        let xml = r#"
+<RenoiseSong>
+  <Tracks>
+    <Track><Name>Drums</Name><Gain>0.75</Gain><Pan>-0.25</Pan><Device>Gainer</Device></Track>
+    <Track><Name>Bass</Name></Track>
+  </Tracks>
+  <PatternSequence>
+    <SequenceEntry><Pattern>0</Pattern></SequenceEntry>
+    <SequenceEntry><Pattern>1</Pattern></SequenceEntry>
+  </PatternSequence>
+  <Patterns>
+    <Pattern>
+      <NumberOfLines>8</NumberOfLines>
+      <Tracks>
+        <Track>
+          <Line>
+            <Index>0</Index>
+            <Note>C-4</Note>
+            <Velocity>100</Velocity>
+            <Instrument>1</Instrument>
+            <Volume>64</Volume>
+            <Pan>127</Pan>
+            <Delay>32</Delay>
+            <Effect><Code>R</Code><Value>4</Value></Effect>
+          </Line>
+        </Track>
+      </Tracks>
+    </Pattern>
+    <Pattern><NumberOfLines>4</NumberOfLines></Pattern>
+  </Patterns>
+  <Instruments><Instrument><Name>Kick</Name></Instrument></Instruments>
+</RenoiseSong>
+"#;
+        let archive = xrns_archive([
+            xrns_entry("Song.xml", xml.as_bytes()),
+            xrns_entry("SampleData/Instrument00/Sample00.wav", b"RIFF....WAVE"),
+        ]);
+
+        let report = import_xrns(&archive);
+        let song = report.song.expect("imported song");
+
+        song.validate().expect("valid song");
+        assert_eq!(song.tracks.len(), 2);
+        assert_eq!(song.tracks[0].name, "Drums");
+        assert_eq!(song.track_mixer_for_track(song.tracks[0].id).gain, 0.75);
+        assert_eq!(song.track_mixer_for_track(song.tracks[0].id).pan, -0.25);
+        assert_eq!(
+            song.track_mixer_for_track(song.tracks[0].id).effects,
+            vec![EffectDevice::gain(1, 1.0)]
+        );
+        assert_eq!(song.patterns.len(), 2);
+        assert_eq!(song.patterns[0].row_count(), 8);
+        assert_eq!(song.patterns[1].row_count(), 4);
+        assert_eq!(
+            song.sequence,
+            vec![song.patterns[0].id, song.patterns[1].id]
+        );
+
+        let cell = song.patterns[0].cell(0, 0).expect("cell");
+        assert_eq!(cell.note, Some(NoteEvent::Note { pitch: 60 }));
+        assert_eq!(cell.velocity, Some(100));
+        assert_eq!(cell.instrument, Some(InstrumentId(1)));
+        assert_eq!(cell.volume, Some(64));
+        assert_eq!(cell.pan, Some(127));
+        assert_eq!(cell.delay, Some(32));
+        assert_eq!(cell.command, Some(TrackerCommand::retrigger(4)));
+        assert_eq!(song.samples.len(), 1);
+        assert_eq!(song.instruments.len(), 1);
+    }
+
+    #[test]
+    fn xrns_import_reports_warnings_without_silent_drops() {
+        let xml = r#"
+<RenoiseSong>
+  <Tracks><Track><Name>Lead</Name><Device>Comb Filter</Device></Track></Tracks>
+  <Patterns>
+    <Pattern>
+      <NumberOfLines>4</NumberOfLines>
+      <Tracks>
+        <Track>
+          <Line>
+            <Row>1</Row>
+            <Note>72</Note>
+            <Instrument>1</Instrument>
+            <SourceTick>37</SourceTick>
+            <Effect><Code>Z</Code><Value>1</Value></Effect>
+            <Effect><Code>D</Code><Value>20</Value></Effect>
+          </Line>
+        </Track>
+      </Tracks>
+    </Pattern>
+  </Patterns>
+</RenoiseSong>
+"#;
+        let archive = xrns_archive([
+            xrns_entry("Song.xml", xml.as_bytes()),
+            xrns_entry("SampleData/Instrument00/Sample00.flac", b"fLaC"),
+        ]);
+
+        let report = import_xrns(&archive);
+        let song = report.song.expect("lossy import still produces song");
+
+        song.validate().expect("valid lossy song");
+        let cell = song.patterns[0].cell(1, 0).expect("cell");
+        assert_eq!(cell.note, Some(NoteEvent::Note { pitch: 72 }));
+        assert_eq!(cell.instrument, None);
+        assert_eq!(
+            cell.command,
+            Some(TrackerCommand {
+                code: b'Z',
+                value: 1
+            })
+        );
+        assert!(report
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.kind == XrnsDiagnosticKind::UnsupportedSampleFormat));
+        assert!(report.diagnostics.iter().any(|diagnostic| {
+            diagnostic.kind == XrnsDiagnosticKind::UnsupportedRenoiseFeature
+                && diagnostic.message.contains("instrument")
+        }));
+        assert!(report
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.kind == XrnsDiagnosticKind::UnsupportedEffectCommand));
+        assert!(report
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.kind == XrnsDiagnosticKind::DroppedExtraEffectColumn));
+        assert!(report
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.kind == XrnsDiagnosticKind::TimingQuantized));
+    }
+
+    #[test]
+    fn xrns_import_rejects_archives_without_song_xml() {
+        let archive = xrns_archive([xrns_entry("SampleData/Sample00.wav", b"RIFF....WAVE")]);
+        let report = import_xrns(&archive);
+
+        assert!(report.song.is_none());
+        assert!(report
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.kind == XrnsDiagnosticKind::MissingSongXml));
     }
 
     fn hex_fixture(contents: &str) -> Vec<u8> {
