@@ -40,7 +40,7 @@ use salieri_midi::{
 use salieri_sampler::{Sample, WaveformBucket, WaveformOverview};
 use salieri_transform::{apply_euclidean, EuclideanRhythm};
 use salieri_tui::{
-    render, MidiPortView, MidiSettingsState, NotificationKind, NotificationView,
+    render, HelpTab, MidiPortView, MidiSettingsState, NotificationKind, NotificationView,
     SampleBrowserEntryKind, SampleBrowserEntryView, SampleBrowserViewState, SamplerViewState,
     SelectionRect, TuiState, TuiView,
 };
@@ -159,6 +159,7 @@ fn run(args: CliArgs) -> Result<()> {
                     notification,
                     show_help: app.mode == AppMode::Help,
                     help_scroll: app.help_scroll,
+                    help_tab: app.help_tab,
                     is_playing: app.is_playing,
                     loop_pattern: app.loop_pattern,
                     playhead_row: app.playhead_row,
@@ -1267,6 +1268,7 @@ struct App {
     follow_playhead: bool,
     show_line_numbers_hex: bool,
     help_scroll: usize,
+    help_tab: HelpTab,
     command_buffer: String,
     clipboard: Option<Clipboard>,
     selection_anchor: Option<SelectionAnchor>,
@@ -1427,6 +1429,7 @@ impl App {
             follow_playhead: config.ui.follow_playhead,
             show_line_numbers_hex: config.ui.show_line_numbers_hex,
             help_scroll: 0,
+            help_tab: HelpTab::Basics,
             command_buffer: String::new(),
             clipboard: None,
             selection_anchor: None,
@@ -1849,6 +1852,14 @@ impl App {
             }
             KeyCode::Down | KeyCode::Char('j') => {
                 self.help_scroll = self.help_scroll.saturating_add(1);
+            }
+            KeyCode::Tab | KeyCode::Right | KeyCode::Char('l') => {
+                self.help_tab = self.help_tab.next();
+                self.help_scroll = 0;
+            }
+            KeyCode::BackTab | KeyCode::Left | KeyCode::Char('h') => {
+                self.help_tab = self.help_tab.previous();
+                self.help_scroll = 0;
             }
             KeyCode::PageUp => {
                 self.help_scroll = self.help_scroll.saturating_sub(10);
@@ -3932,6 +3943,13 @@ impl App {
 
     fn open_help(&mut self) {
         self.help_scroll = 0;
+        self.help_tab = match self.mode {
+            AppMode::Sampler | AppMode::SampleBrowser => HelpTab::Sampler,
+            AppMode::MidiSettings => HelpTab::Midi,
+            AppMode::Command => HelpTab::Commands,
+            AppMode::Edit => HelpTab::Editing,
+            _ => HelpTab::Basics,
+        };
         self.mode = AppMode::Help;
     }
 
@@ -7927,14 +7945,20 @@ mod tests {
         app.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
 
         assert_eq!(app.mode, AppMode::Help);
+        assert_eq!(app.help_tab, HelpTab::Basics);
         assert_eq!(app.help_scroll, 1);
         assert_eq!(app.cursor.row, 0);
         assert!(!app.dirty);
 
         app.handle_key(KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE));
         assert_eq!(app.help_scroll, 11);
+        app.handle_key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+        assert_eq!(app.help_tab, HelpTab::Editing);
+        assert_eq!(app.help_scroll, 0);
+        app.handle_key(KeyEvent::new(KeyCode::BackTab, KeyModifiers::NONE));
+        assert_eq!(app.help_tab, HelpTab::Basics);
         app.handle_key(KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE));
-        assert_eq!(app.help_scroll, 1);
+        assert_eq!(app.help_scroll, 0);
         app.handle_key(KeyEvent::new(KeyCode::Home, KeyModifiers::NONE));
         assert_eq!(app.help_scroll, 0);
 

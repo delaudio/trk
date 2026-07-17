@@ -35,6 +35,7 @@ pub struct TuiState<'a> {
     pub notification: Option<NotificationView<'a>>,
     pub show_help: bool,
     pub help_scroll: usize,
+    pub help_tab: HelpTab,
     pub is_playing: bool,
     pub loop_pattern: bool,
     pub playhead_row: Option<usize>,
@@ -55,6 +56,58 @@ pub enum TuiView {
     Patterns,
     Sampler,
     SampleBrowser,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HelpTab {
+    Basics,
+    Editing,
+    Sampler,
+    Midi,
+    Commands,
+}
+
+impl HelpTab {
+    const ALL: [Self; 5] = [
+        Self::Basics,
+        Self::Editing,
+        Self::Sampler,
+        Self::Midi,
+        Self::Commands,
+    ];
+
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Basics => "Basics",
+            Self::Editing => "Editing",
+            Self::Sampler => "Sampler",
+            Self::Midi => "MIDI",
+            Self::Commands => "Commands",
+        }
+    }
+
+    #[must_use]
+    pub const fn next(self) -> Self {
+        match self {
+            Self::Basics => Self::Editing,
+            Self::Editing => Self::Sampler,
+            Self::Sampler => Self::Midi,
+            Self::Midi => Self::Commands,
+            Self::Commands => Self::Basics,
+        }
+    }
+
+    #[must_use]
+    pub const fn previous(self) -> Self {
+        match self {
+            Self::Basics => Self::Commands,
+            Self::Editing => Self::Basics,
+            Self::Sampler => Self::Editing,
+            Self::Midi => Self::Sampler,
+            Self::Commands => Self::Midi,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -178,7 +231,13 @@ pub fn render(frame: &mut Frame<'_>, song: &Song, state: TuiState<'_>) {
     render_status(frame, vertical[2], state);
 
     if state.show_help {
-        render_help_overlay(frame, area, state.mode_label, state.help_scroll);
+        render_help_overlay(
+            frame,
+            area,
+            state.mode_label,
+            state.help_scroll,
+            state.help_tab,
+        );
     }
     if let Some(midi_settings) = state.midi_settings {
         render_midi_settings_overlay(frame, area, midi_settings);
@@ -1000,16 +1059,27 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
     frame.render_widget(status, area);
 }
 
-fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str, scroll: usize) {
+fn render_help_overlay(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    mode_label: &str,
+    scroll: usize,
+    tab: HelpTab,
+) {
     let overlay = large_overlay_rect(area);
     let visible_rows = overlay.height.saturating_sub(2) as usize;
-    let lines = help_lines(mode_label);
+    let lines = help_lines(mode_label, tab);
     let max_scroll = lines.len().saturating_sub(visible_rows);
     let scroll = scroll.min(max_scroll);
     let title = if max_scroll == 0 {
-        " Help ".to_string()
+        format!(" Help: {} | Tab/Shift+Tab pages ", tab.label())
     } else {
-        format!(" Help {}/{} ", scroll + 1, max_scroll + 1)
+        format!(
+            " Help: {} {}/{} | Tab/Shift+Tab pages ",
+            tab.label(),
+            scroll + 1,
+            max_scroll + 1
+        )
     };
 
     let paragraph = Paragraph::new(lines)
@@ -1021,7 +1091,44 @@ fn render_help_overlay(frame: &mut Frame<'_>, area: Rect, mode_label: &str, scro
     frame.render_widget(paragraph, overlay);
 }
 
-fn help_lines(mode_label: &str) -> Vec<Line<'static>> {
+fn help_lines(mode_label: &str, tab: HelpTab) -> Vec<Line<'static>> {
+    let mut lines = vec![
+        help_tab_line(tab),
+        Line::from("  Tab/Right next page   Shift+Tab/Left previous page   Up/Down scroll"),
+        Line::from(""),
+    ];
+
+    match tab {
+        HelpTab::Basics => lines.extend(help_basics_lines(mode_label)),
+        HelpTab::Editing => lines.extend(help_editing_lines(mode_label)),
+        HelpTab::Sampler => lines.extend(help_sampler_lines(mode_label)),
+        HelpTab::Midi => lines.extend(help_midi_lines(mode_label)),
+        HelpTab::Commands => lines.extend(help_command_lines(mode_label)),
+    }
+
+    lines
+}
+
+fn help_tab_line(active: HelpTab) -> Line<'static> {
+    let mut spans = Vec::new();
+    for (index, tab) in HelpTab::ALL.iter().copied().enumerate() {
+        if index > 0 {
+            spans.push(Span::raw(" | "));
+        }
+        let style = if tab == active {
+            Style::default()
+                .fg(Color::Black)
+                .bg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::White)
+        };
+        spans.push(Span::styled(format!(" {} ", tab.label()), style));
+    }
+    Line::from(spans)
+}
+
+fn help_basics_lines(mode_label: &str) -> Vec<Line<'static>> {
     vec![
         Line::from(Span::styled(
             "Global",
@@ -1031,27 +1138,12 @@ fn help_lines(mode_label: &str) -> Vec<Line<'static>> {
         )),
         Line::from("  ?/H Help   :h/:help Help   q Quit   Space Play/Stop   Shift+Space Start"),
         Line::from("  Enter Play Row   Shift+Enter Play Sequence From Cursor   L Loop   F8 Stop"),
-        Line::from("  F7 Sequence View   F9 Track View   F10 Pattern View   Esc returns from focused views"),
-        Line::from("  F11 Sampler View   :sample view PATH loads a WAV reference for waveform inspection"),
+        Line::from(
+            "  F7 Sequence View   F9 Track View   F10 Pattern View   F11 Sampler View",
+        ),
+        Line::from("  Esc returns from focused views"),
         Line::from("  :play pattern from start   :play sequence arrangement"),
         Line::from("  Ctrl+S Save   Ctrl+Shift+S Save As   Ctrl+Z Undo   Ctrl+Y Redo   Ctrl+Arrows BPM/LPB"),
-        Line::from(""),
-        Line::from(Span::styled(
-            "MIDI",
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
-        )),
-        Line::from("  F4 or :midi outputs opens MIDI settings and lists output ports"),
-        Line::from("  In MIDI settings: arrows select, Enter connects, F5/r refresh, p panic"),
-        Line::from("  CLI fallback: salieri --list-midi-outputs, then :midi connect 0"),
-        Line::from("  Input: salieri --list-midi-inputs, then :midi-input connect 0"),
-        Line::from("  :midi-input record on captures note-on events into the current pattern"),
-        Line::from("  :midi-input clock on follows MIDI start/continue/stop transport"),
-        Line::from("  4. Press Space or run :play pattern to send notes to the connected output"),
-        Line::from("  :midi disconnect closes the output   :midi panic sends All Notes Off"),
-        Line::from("  Use :track channel 2 10 to set track 02 to MIDI channel 10"),
-        Line::from("  Config: [midi] default_output/default_input auto-connect by name"),
         Line::from(""),
         Line::from(Span::styled(
             "Navigation",
@@ -1062,6 +1154,12 @@ fn help_lines(mode_label: &str) -> Vec<Line<'static>> {
         Line::from("  Arrows or h/j/k/l move   Tab/Shift+Tab track   PageUp/PageDown jump"),
         Line::from("  Home/End pattern bounds   gg first row   G last row"),
         Line::from(""),
+        Line::from(format!("Mode: {mode_label}   Close: Esc, q, or ?")),
+    ]
+}
+
+fn help_editing_lines(mode_label: &str) -> Vec<Line<'static>> {
+    vec![
         Line::from(Span::styled(
             "Editing",
             Style::default()
@@ -1084,6 +1182,99 @@ fn help_lines(mode_label: &str) -> Vec<Line<'static>> {
         Line::from("  o = OFF   . = CUT"),
         Line::from(""),
         Line::from(Span::styled(
+            "Patterns And Sequence",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::from(
+            "  N new pattern   P duplicate pattern   X delete pattern   F3 rename   F6 length",
+        ),
+        Line::from("  Pattern view: 1/2/3/4/5 set length 16/32/64/128/256"),
+        Line::from("  A add current pattern to sequence   ,/. move sequence cursor"),
+        Line::from("  Y duplicate sequence position   R remove   T set to current pattern"),
+        Line::from("  </> move selected sequence position up/down"),
+        Line::from(""),
+        Line::from(format!("Mode: {mode_label}   Close: Esc, q, or ?")),
+    ]
+}
+
+fn help_sampler_lines(mode_label: &str) -> Vec<Line<'static>> {
+    vec![
+        Line::from(Span::styled(
+            "Sampler And Instruments",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::from("  F11 opens Sampler view   Esc returns to Pattern view"),
+        Line::from("  :sample view PATH loads a WAV and shows metadata plus waveform"),
+        Line::from("  :sample browse [DIR] opens the in-app sample browser"),
+        Line::from("  :sample choose [DIR] opens the configured external chooser"),
+        Line::from(""),
+        Line::from(Span::styled(
+            "Track Assignment",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::from("  :sample assign [TRACK] assigns the loaded sample to a track"),
+        Line::from("  :sample replace [TRACK] swaps the track sample and prunes the old reference"),
+        Line::from("  :sample unassign [TRACK] clears the track sample and instrument assignment"),
+        Line::from("  TRACK is 1-based; omitted TRACK means the current track"),
+        Line::from("  :sample assignments lists track=sample mappings"),
+        Line::from(""),
+        Line::from(Span::styled(
+            "Instrument Column",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::from("  Assigning a sample creates a sample-backed instrument for that track"),
+        Line::from("  Cells can override the track default with INST, e.g. :cell instrument 01"),
+        Line::from("  An empty INST field uses the track instrument or sample assignment"),
+        Line::from(""),
+        Line::from(Span::styled(
+            "Playback Window",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::from("  :sample start FRAME|clear   :sample end FRAME|clear"),
+        Line::from("  :sample loop START END   :sample loop off"),
+        Line::from("  :sample envelope ATTACK DECAY SUSTAIN RELEASE"),
+        Line::from("  :sample settings shows mode, frame window, loop and envelope"),
+        Line::from(""),
+        Line::from(format!("Mode: {mode_label}   Close: Esc, q, or ?")),
+    ]
+}
+
+fn help_midi_lines(mode_label: &str) -> Vec<Line<'static>> {
+    vec![
+        Line::from(Span::styled(
+            "MIDI",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::from("  F4 or :midi outputs opens MIDI settings and lists output ports"),
+        Line::from("  In MIDI settings: arrows select, Enter connects, F5/r refresh, p panic"),
+        Line::from("  CLI fallback: salieri --list-midi-outputs, then :midi connect 0"),
+        Line::from("  Input: salieri --list-midi-inputs, then :midi-input connect 0"),
+        Line::from("  :midi-input record on captures note-on events into the current pattern"),
+        Line::from("  :midi-input clock on follows MIDI start/continue/stop transport"),
+        Line::from("  Press Space or run :play pattern to send notes to the connected output"),
+        Line::from("  :midi disconnect closes the output   :midi panic sends All Notes Off"),
+        Line::from("  Use :track channel 2 10 to set track 02 to MIDI channel 10"),
+        Line::from("  Config: [midi] default_output/default_input auto-connect by name"),
+        Line::from(""),
+        Line::from(format!("Mode: {mode_label}   Close: Esc, q, or ?")),
+    ]
+}
+
+fn help_command_lines(mode_label: &str) -> Vec<Line<'static>> {
+    vec![
+        Line::from(Span::styled(
             "Tracks And Commands",
             Style::default()
                 .fg(Color::Yellow)
@@ -1103,21 +1294,8 @@ fn help_lines(mode_label: &str) -> Vec<Line<'static>> {
         Line::from("  :ai propose PROMPT   :ai show   :ai accept   :ai reject"),
         Line::from("  :play pattern   :play sequence [position]   :stop"),
         Line::from(""),
-        Line::from(Span::styled(
-            "Patterns And Sequence",
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
-        )),
-        Line::from(
-            "  N new pattern   P duplicate pattern   X delete pattern   F3 rename   F6 length",
-        ),
-        Line::from("  Pattern view: 1/2/3/4/5 set length 16/32/64/128/256"),
         Line::from("  :pattern new   :pattern duplicate   :pattern delete   :pattern length 128"),
         Line::from("  :pattern rename Intro   :pattern 1   [ previous pattern   ] next pattern"),
-        Line::from("  A add current pattern to sequence   ,/. move sequence cursor"),
-        Line::from("  Y duplicate sequence position   R remove   T set to current pattern"),
-        Line::from("  </> move selected sequence position up/down"),
         Line::from("  :sequence add   :sequence remove 0   :sequence duplicate 0"),
         Line::from("  :sequence set 0 2   :sequence move 1 0"),
         Line::from(""),
@@ -1443,6 +1621,7 @@ mod tests {
                         notification: None,
                         show_help: false,
                         help_scroll: 0,
+                        help_tab: HelpTab::Basics,
                         is_playing: false,
                         loop_pattern: true,
                         playhead_row: None,
@@ -1507,6 +1686,7 @@ mod tests {
                         notification: None,
                         show_help: false,
                         help_scroll: 0,
+                        help_tab: HelpTab::Basics,
                         is_playing: false,
                         loop_pattern: true,
                         playhead_row: None,
@@ -1578,6 +1758,7 @@ mod tests {
                         notification: None,
                         show_help: false,
                         help_scroll: 0,
+                        help_tab: HelpTab::Basics,
                         is_playing: false,
                         loop_pattern: true,
                         playhead_row: None,
@@ -1642,6 +1823,7 @@ mod tests {
                         notification: None,
                         show_help: false,
                         help_scroll: 0,
+                        help_tab: HelpTab::Basics,
                         is_playing: false,
                         loop_pattern: true,
                         playhead_row: None,
@@ -1695,6 +1877,7 @@ mod tests {
                         notification: None,
                         show_help: false,
                         help_scroll: 0,
+                        help_tab: HelpTab::Basics,
                         is_playing: false,
                         loop_pattern: true,
                         playhead_row: None,
@@ -1748,6 +1931,7 @@ mod tests {
                         notification: None,
                         show_help: true,
                         help_scroll: 0,
+                        help_tab: HelpTab::Basics,
                         is_playing: false,
                         loop_pattern: true,
                         playhead_row: None,
@@ -1773,10 +1957,10 @@ mod tests {
 
         assert!(rendered.contains("Help"));
         assert!(rendered.contains("Global"));
-        assert!(rendered.contains("Notes"));
         assert!(rendered.contains("MIDI"));
-        assert!(rendered.contains(":midi outputs"));
-        assert!(rendered.contains("salieri --list-midi-outputs"));
+        assert!(rendered.contains("Commands"));
+        assert!(rendered.contains("Navigation"));
+        assert!(rendered.contains("Tab/Right next page"));
     }
 
     #[test]
@@ -1809,6 +1993,7 @@ mod tests {
                         notification: None,
                         show_help: false,
                         help_scroll: 0,
+                        help_tab: HelpTab::Basics,
                         is_playing: true,
                         loop_pattern: true,
                         playhead_row: Some(0),
@@ -1863,6 +2048,7 @@ mod tests {
                         notification: None,
                         show_help: false,
                         help_scroll: 0,
+                        help_tab: HelpTab::Basics,
                         is_playing: false,
                         loop_pattern: true,
                         playhead_row: None,
@@ -1917,6 +2103,7 @@ mod tests {
                         }),
                         show_help: false,
                         help_scroll: 0,
+                        help_tab: HelpTab::Basics,
                         is_playing: false,
                         loop_pattern: true,
                         playhead_row: None,
@@ -1969,6 +2156,7 @@ mod tests {
                         notification: None,
                         show_help: false,
                         help_scroll: 0,
+                        help_tab: HelpTab::Basics,
                         is_playing: false,
                         loop_pattern: true,
                         playhead_row: None,
@@ -2021,6 +2209,7 @@ mod tests {
                         notification: None,
                         show_help: false,
                         help_scroll: 0,
+                        help_tab: HelpTab::Basics,
                         is_playing: false,
                         loop_pattern: true,
                         playhead_row: None,
@@ -2083,6 +2272,7 @@ mod tests {
                         notification: None,
                         show_help: false,
                         help_scroll: 0,
+                        help_tab: HelpTab::Basics,
                         is_playing: false,
                         loop_pattern: true,
                         playhead_row: None,
