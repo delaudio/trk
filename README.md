@@ -10,6 +10,7 @@ The primary realtime playback path remains MIDI-first for external instruments, 
 - Pattern editing with keyboard note entry, note-off/note-cut, velocity, instrument, volume, pan, delay, effect columns, row insert/delete, selection copy/cut/paste/delete, undo/redo, and playhead follow.
 - Track, pattern, and sequence management, including rename, duplicate, delete, move, mute/solo, pattern length, and arrangement playback.
 - MIDI output routing with port listing, connection from the TUI, panic/all-notes-off, channel assignment, logging, and MIDI test-note CLI support.
+- MIDI input port listing, command-mode connection, note-on recording into the current pattern, and basic MIDI clock start/continue/stop following.
 - Project persistence as JSON `.salieri` files with validation and atomic writes.
 - WAV sample loading, waveform inspection, in-app sample browser, external chooser integration, sample-backed instruments, track assignment, replacement, unassignment, unload, cleanup, frame windows, loop-point metadata, and ADSR-style amplitude envelopes.
 - Realtime sampler playback for assigned WAV samples through the default CPAL output device.
@@ -90,6 +91,7 @@ salieri --config config/iac-driver.toml
 salieri --log-level debug
 salieri --midi-log salieri-midi.log
 salieri --list-midi-outputs
+salieri --list-midi-inputs
 salieri --midi-test-output 0 --midi-test-channel 1 --midi-test-note 60
 salieri --midi-test-output "IAC Driver Bus 1" --midi-test-duration-ms 500
 salieri sample inspect kick.wav --format text --buckets 64
@@ -130,6 +132,7 @@ Or copy the relevant settings into `~/.config/salieri/config.toml`:
 ```toml
 [midi]
 default_output = "IAC Driver Bus 1"
+default_input = "IAC Driver Bus 1"
 log_file = "salieri-midi.log"
 ```
 
@@ -289,6 +292,11 @@ T               Set sequence position to current pattern
 :midi connect 0
 :midi disconnect
 :midi panic
+:midi-input ports
+:midi-input connect 0
+:midi-input record on
+:midi-input clock on
+:midi-input disconnect
 :track new Acid
 :track rename Bass
 :track channel 2 10
@@ -407,4 +415,4 @@ The app tracks dirty state. Quitting with unsaved changes prompts for save, disc
 
 ## Roadmap Gaps
 
-Salieri is not yet a full Renoise-class workstation. The largest missing product areas are keyzones/velocity layers, sustained sampler loop playback and choking, multiple effect columns with DSP device parameter mapping, a broader DSP device set, sends/routing, graphical mixer and automation views, MIDI input recording and sync, and external-provider AI integration.
+Salieri is not yet a full Renoise-class workstation. The largest missing product areas are keyzones/velocity layers, sustained sampler loop playback and choking, multiple effect columns with DSP device parameter mapping, a broader DSP device set, sends/routing, graphical mixer and automation views, richer MIDI input mapping/quantization, and external-provider AI integration.

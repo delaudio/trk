@@ -32,7 +32,11 @@ use salieri_core::{
     EffectDevice, EffectDeviceKind, InstrumentId, NoteEvent, PatternCell, SampleEnvelope,
     SamplePlaybackMode, SamplePlaybackSettings, Song, TrackerCommand,
 };
-use salieri_midi::{list_output_ports, MidiMessage, MidiOutput, MidiOutputPort, MidirMidiOutput};
+use salieri_midi::{
+    list_input_ports, list_output_ports, MidiClockMessage, MidiInput, MidiInputEvent,
+    MidiInputPacket, MidiInputPort, MidiMessage, MidiOutput, MidiOutputPort, MidirMidiInput,
+    MidirMidiOutput,
+};
 use salieri_sampler::{Sample, WaveformBucket, WaveformOverview};
 use salieri_transform::{apply_euclidean, EuclideanRhythm};
 use salieri_tui::{
@@ -87,6 +91,10 @@ fn run(args: CliArgs) -> Result<()> {
             print_midi_outputs()?;
             return Ok(());
         }
+        CliCommand::ListMidiInputs => {
+            print_midi_inputs()?;
+            return Ok(());
+        }
         CliCommand::TransformEuclidean(transform_args) => {
             run_transform_euclidean(transform_args)?;
             return Ok(());
@@ -124,6 +132,7 @@ fn run(args: CliArgs) -> Result<()> {
 
     loop {
         app.drain_playback_updates();
+        app.drain_midi_input();
         app.expire_notification();
         app.keep_active_row_visible(terminal.visible_pattern_rows());
         terminal.draw(|frame| {
@@ -132,6 +141,7 @@ fn run(args: CliArgs) -> Result<()> {
             let notification = app.tui_notification();
             let sample_browser_entries = app.tui_sample_browser_entries();
             let sample_browser = app.tui_sample_browser_view(&sample_browser_entries);
+            let midi_status = app.tui_midi_status();
             render(
                 frame,
                 &app.song,
@@ -152,7 +162,7 @@ fn run(args: CliArgs) -> Result<()> {
                     is_playing: app.is_playing,
                     loop_pattern: app.loop_pattern,
                     playhead_row: app.playhead_row,
-                    midi_status: app.midi_status.as_str(),
+                    midi_status: midi_status.as_str(),
                     sequence_position: app.tui_sequence_position(),
                     quit_confirmation: app.quit_confirmation(),
                     delete_confirmation: app.delete_confirmation_message(),
@@ -243,6 +253,16 @@ impl CliArgs {
                 "--list-midi-outputs" => {
                     return Self {
                         command: CliCommand::ListMidiOutputs,
+                        project_path: None,
+                        config_path,
+                        log_level,
+                        midi_log_path,
+                        midi_test,
+                    }
+                }
+                "--list-midi-inputs" => {
+                    return Self {
+                        command: CliCommand::ListMidiInputs,
                         project_path: None,
                         config_path,
                         log_level,
@@ -390,6 +410,7 @@ enum CliCommand {
     Help,
     Version,
     ListMidiOutputs,
+    ListMidiInputs,
     MidiTest,
     TransformEuclidean(TransformEuclideanArgs),
     SampleInspect(SampleInspectArgs),
@@ -398,7 +419,7 @@ enum CliCommand {
 
 fn print_help() {
     println!(
-        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri sample inspect FILE [OPTIONS]\n  salieri export audio INPUT OUTPUT [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index (default 1)\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Velocity, 0-127 (default 100)\n\nSample inspect options:\n  --format text|json            Output format (default text)\n  --buckets N, --width N        Waveform bucket count (default 64)\n\nAudio export options:\n  --pattern N                   Export 1-based pattern index (default 1)\n  --sequence                    Export the full sequence instead of one pattern\n  --sample-rate HZ              Output sample rate (default 48000)\n  --channels N                  Output channels (default 2)\n\n  --help                        Show this help\n  --version                     Show version"
+        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --list-midi-inputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri sample inspect FILE [OPTIONS]\n  salieri export audio INPUT OUTPUT [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --list-midi-inputs            List available MIDI input ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index (default 1)\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Velocity, 0-127 (default 100)\n\nSample inspect options:\n  --format text|json            Output format (default text)\n  --buckets N, --width N        Waveform bucket count (default 64)\n\nAudio export options:\n  --pattern N                   Export 1-based pattern index (default 1)\n  --sequence                    Export the full sequence instead of one pattern\n  --sample-rate HZ              Output sample rate (default 48000)\n  --channels N                  Output channels (default 2)\n\n  --help                        Show this help\n  --version                     Show version"
     );
 }
 
@@ -1144,6 +1165,26 @@ fn print_midi_outputs() -> Result<()> {
     Ok(())
 }
 
+fn print_midi_inputs() -> Result<()> {
+    let ports = match list_input_ports() {
+        Ok(ports) => ports,
+        Err(error) => {
+            println!("MIDI input unavailable: {error}");
+            return Ok(());
+        }
+    };
+    if ports.is_empty() {
+        println!("No MIDI input ports found");
+        return Ok(());
+    }
+
+    for port in ports {
+        println!("{}: {}", port.index, port.name);
+    }
+
+    Ok(())
+}
+
 fn run_midi_test(config: &AppConfig, args: &MidiTestArgs) -> Result<()> {
     let ports = list_output_ports().context("failed to list MIDI output ports")?;
     let output = args
@@ -1240,6 +1281,12 @@ struct App {
     midi_status: String,
     midi_ports: Vec<MidiOutputPort>,
     midi_port_cursor: usize,
+    midi_input_status: String,
+    midi_input_ports: Vec<MidiInputPort>,
+    midi_input: Option<AppMidiInput>,
+    midi_record_armed: bool,
+    midi_clock_follow: bool,
+    midi_clock_ticks: u32,
     sample_view: Option<AppSampleView>,
     sample_browser: SampleBrowserConfig,
     pending_sample_browser: Option<SampleBrowserRequest>,
@@ -1250,6 +1297,32 @@ struct App {
     dialog: Option<Dialog>,
     notification: Option<Notification>,
     last_tick: Instant,
+}
+
+struct AppMidiInput {
+    inner: Box<dyn MidiInput>,
+}
+
+impl AppMidiInput {
+    fn new(input: impl MidiInput + 'static) -> Self {
+        Self {
+            inner: Box::new(input),
+        }
+    }
+}
+
+impl std::fmt::Debug for AppMidiInput {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("AppMidiInput")
+            .finish_non_exhaustive()
+    }
+}
+
+impl MidiInput for AppMidiInput {
+    fn poll(&mut self) -> Result<Option<MidiInputPacket>, salieri_midi::MidiInputError> {
+        self.inner.poll()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1333,6 +1406,7 @@ impl App {
     fn new(config: AppConfig) -> Self {
         let song = Song::empty();
         let default_midi_output = config.midi.default_output.trim().to_string();
+        let default_midi_input = config.midi.default_input.trim().to_string();
         let midi_status = if default_midi_output.is_empty() {
             "MIDI Disconnected".to_string()
         } else {
@@ -1367,6 +1441,12 @@ impl App {
             midi_status,
             midi_ports: Vec::new(),
             midi_port_cursor: 0,
+            midi_input_status: "MIDI In Disconnected".to_string(),
+            midi_input_ports: Vec::new(),
+            midi_input: None,
+            midi_record_armed: false,
+            midi_clock_follow: false,
+            midi_clock_ticks: 0,
             sample_view: None,
             sample_browser: config.sample_browser.clone(),
             pending_sample_browser: None,
@@ -1379,6 +1459,7 @@ impl App {
             last_tick: Instant::now(),
         };
         app.connect_default_midi_output(&default_midi_output);
+        app.connect_default_midi_input(&default_midi_input);
         app
     }
 
@@ -3452,6 +3533,10 @@ impl App {
                     self.notify_warning("Usage: :midi outputs|connect|disconnect|panic")
                 }
             },
+            "midi-input" | "midi-in" => {
+                let values = parts.collect::<Vec<_>>();
+                self.handle_midi_input_command(&values);
+            }
             "play" => match parts.next() {
                 Some("sequence") | Some("seq") => {
                     let start_sequence_index = parts
@@ -4375,6 +4460,113 @@ impl App {
         }
     }
 
+    fn handle_midi_input_command(&mut self, values: &[&str]) {
+        match values {
+            ["ports"] | ["inputs"] | ["settings"] => self.refresh_midi_input_ports(),
+            ["connect", port] => {
+                if let Ok(port_index) = port.parse::<usize>() {
+                    self.connect_midi_input(port_index);
+                } else {
+                    self.notify_warning("Usage: :midi-input connect PORT_INDEX");
+                }
+            }
+            ["disconnect"] => self.disconnect_midi_input(),
+            ["record", "on"] | ["record", "arm"] => {
+                self.midi_record_armed = true;
+                self.notify_info("MIDI input record armed");
+            }
+            ["record", "off"] => {
+                self.midi_record_armed = false;
+                self.notify_info("MIDI input record off");
+            }
+            ["clock", "on"] => {
+                self.midi_clock_follow = true;
+                self.midi_clock_ticks = 0;
+                self.notify_info("MIDI clock follow ON");
+            }
+            ["clock", "off"] => {
+                self.midi_clock_follow = false;
+                self.midi_clock_ticks = 0;
+                self.notify_info("MIDI clock follow OFF");
+            }
+            _ => self.notify_warning(
+                "Usage: :midi-input ports|connect PORT|disconnect|record on|record off|clock on|clock off",
+            ),
+        }
+    }
+
+    fn refresh_midi_input_ports(&mut self) {
+        match list_input_ports() {
+            Ok(ports) => {
+                self.midi_input_ports = ports;
+                if self.midi_input_ports.is_empty() {
+                    self.midi_input_status = "MIDI In No Inputs".to_string();
+                    self.notify_warning("No MIDI input ports found");
+                } else {
+                    self.notify_info(format!(
+                        "Found {} MIDI input(s)",
+                        self.midi_input_ports.len()
+                    ));
+                }
+            }
+            Err(error) => {
+                self.midi_input_ports.clear();
+                self.midi_input_status = format!("MIDI In Error: {error}");
+                self.notify_error(format!("MIDI input list failed: {error}"));
+            }
+        }
+    }
+
+    fn connect_midi_input(&mut self, port_index: usize) {
+        match MidirMidiInput::connect(port_index, "salieri-input") {
+            Ok(input) => {
+                self.midi_input = Some(AppMidiInput::new(input));
+                self.midi_input_status = format!("MIDI In Connected {port_index}");
+                self.notify_success(format!("MIDI input connected: {port_index}"));
+            }
+            Err(error) => {
+                self.midi_input = None;
+                self.midi_input_status = format!("MIDI In Error: {error}");
+                self.notify_error(format!("MIDI input connect failed: {error}"));
+            }
+        }
+    }
+
+    fn connect_default_midi_input(&mut self, input_name: &str) {
+        if input_name.trim().is_empty() {
+            return;
+        }
+
+        match list_input_ports() {
+            Ok(ports) => {
+                self.midi_input_ports = ports;
+                if let Some((_, port)) = resolve_midi_input_port(&self.midi_input_ports, input_name)
+                {
+                    let index = port.index;
+                    let name = port.name.clone();
+                    self.midi_input_status = format!("MIDI In Connecting {index} ({name})");
+                    self.connect_midi_input(index);
+                } else {
+                    self.midi_input_status = format!("MIDI In Not Found ({input_name})");
+                    self.notify_error(format!("MIDI input not found: {input_name}"));
+                }
+            }
+            Err(error) => {
+                self.midi_input_status = format!("MIDI In Error: {error}");
+                self.notify_error(format!("MIDI input list failed: {error}"));
+            }
+        }
+    }
+
+    fn disconnect_midi_input(&mut self) {
+        self.midi_input = None;
+        self.midi_input_status = "MIDI In Disconnected".to_string();
+        self.midi_record_armed = false;
+        self.midi_clock_follow = false;
+        self.midi_clock_ticks = 0;
+        self.notify_info("MIDI input disconnected");
+    }
+
     fn next_midi_port(&mut self) {
         self.midi_port_cursor = self
             .midi_port_cursor
@@ -4472,6 +4664,86 @@ impl App {
                     self.notify_error(format!("Audio error: {error}"));
                 }
             }
+        }
+    }
+
+    fn drain_midi_input(&mut self) {
+        let mut packets = Vec::new();
+        if let Some(input) = &mut self.midi_input {
+            loop {
+                match input.poll() {
+                    Ok(Some(packet)) => packets.push(packet),
+                    Ok(None) => break,
+                    Err(error) => {
+                        self.midi_input_status = format!("MIDI In Error: {error}");
+                        self.notify_error(format!("MIDI input error: {error}"));
+                        break;
+                    }
+                }
+            }
+        }
+
+        for packet in packets {
+            self.handle_midi_input_packet(packet);
+        }
+    }
+
+    fn handle_midi_input_packet(&mut self, packet: MidiInputPacket) {
+        match packet.event {
+            MidiInputEvent::NoteOn { note, velocity, .. } => {
+                if self.midi_record_armed {
+                    self.record_midi_note(note, velocity);
+                }
+            }
+            MidiInputEvent::Clock(message) => self.handle_midi_clock_message(message),
+            MidiInputEvent::NoteOff { .. }
+            | MidiInputEvent::ControlChange { .. }
+            | MidiInputEvent::ProgramChange { .. } => {}
+        }
+    }
+
+    fn record_midi_note(&mut self, note: u8, velocity: u8) {
+        let pattern_index = self.pattern_index;
+        let mut recorded = false;
+        self.mutate_song(|song, cursor| {
+            let Some(pattern) = song.pattern_mut(pattern_index) else {
+                return;
+            };
+            if pattern
+                .set_note(
+                    cursor.row,
+                    cursor.track,
+                    NoteEvent::Note {
+                        pitch: note.min(127),
+                    },
+                    velocity.min(127),
+                )
+                .is_ok()
+            {
+                recorded = true;
+            }
+        });
+        if recorded {
+            self.advance_after_edit();
+            self.notify_info(format!("Recorded MIDI note {note}"));
+        }
+    }
+
+    fn handle_midi_clock_message(&mut self, message: MidiClockMessage) {
+        if !self.midi_clock_follow {
+            return;
+        }
+        match message {
+            MidiClockMessage::TimingClock => {
+                self.midi_clock_ticks = self.midi_clock_ticks.saturating_add(1);
+                self.midi_input_status = format!("MIDI In Clock {}", self.midi_clock_ticks);
+            }
+            MidiClockMessage::Start => {
+                self.midi_clock_ticks = 0;
+                self.start_playback();
+            }
+            MidiClockMessage::Continue => self.start_playback_from_cursor(),
+            MidiClockMessage::Stop => self.stop_playback(),
         }
     }
 
@@ -4715,6 +4987,27 @@ impl App {
                 name: port.name.as_str(),
             })
             .collect()
+    }
+
+    fn tui_midi_status(&self) -> String {
+        let mut input_status = self.midi_input_status.as_str();
+        let input_active = self.midi_input.is_some()
+            || self.midi_record_armed
+            || self.midi_clock_follow
+            || !matches!(input_status, "MIDI In Disconnected" | "MIDI In No Inputs");
+        if self.midi_record_armed && self.midi_clock_follow {
+            input_status = "MIDI In Rec+Clock";
+        } else if self.midi_record_armed {
+            input_status = "MIDI In Rec";
+        } else if self.midi_clock_follow {
+            input_status = "MIDI In Clock";
+        }
+
+        if input_active {
+            format!("{} | {}", self.midi_status, input_status)
+        } else {
+            self.midi_status.clone()
+        }
     }
 
     fn tui_midi_settings<'a>(
@@ -5138,6 +5431,53 @@ fn resolve_midi_output_port<'a>(
         .or_else(|| find_midi_output_port(ports, value))
 }
 
+fn find_midi_input_port<'a>(
+    ports: &'a [MidiInputPort],
+    input_name: &str,
+) -> Option<(usize, &'a MidiInputPort)> {
+    let needle = input_name.trim().to_lowercase();
+    let normalized_needle = normalize_midi_port_name(input_name);
+    if needle.is_empty() {
+        return None;
+    }
+
+    ports
+        .iter()
+        .enumerate()
+        .find(|(_, port)| port.name.eq_ignore_ascii_case(input_name.trim()))
+        .or_else(|| {
+            ports
+                .iter()
+                .enumerate()
+                .find(|(_, port)| port.name.to_lowercase().contains(&needle))
+        })
+        .or_else(|| {
+            ports.iter().enumerate().find(|(_, port)| {
+                let normalized_name = normalize_midi_port_name(&port.name);
+                normalized_name == normalized_needle
+                    || normalized_name.contains(&normalized_needle)
+                    || normalized_needle.contains(&normalized_name)
+            })
+        })
+}
+
+fn resolve_midi_input_port<'a>(
+    ports: &'a [MidiInputPort],
+    input_name_or_index: &str,
+) -> Option<(usize, &'a MidiInputPort)> {
+    let value = input_name_or_index.trim();
+    value
+        .parse::<usize>()
+        .ok()
+        .and_then(|index| {
+            ports
+                .iter()
+                .enumerate()
+                .find(|(_, port)| port.index == index)
+        })
+        .or_else(|| find_midi_input_port(ports, value))
+}
+
 fn normalize_midi_port_name(value: &str) -> String {
     value
         .chars()
@@ -5149,6 +5489,7 @@ fn normalize_midi_port_name(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use salieri_midi::FakeMidiInput;
 
     #[test]
     fn cli_parses_help_version_and_midi_listing() {
@@ -5170,6 +5511,10 @@ mod tests {
         assert_eq!(
             CliArgs::parse(["--list-midi-outputs".to_string()]).command,
             CliCommand::ListMidiOutputs
+        );
+        assert_eq!(
+            CliArgs::parse(["--list-midi-inputs".to_string()]).command,
+            CliCommand::ListMidiInputs
         );
     }
 
@@ -5576,6 +5921,36 @@ mod tests {
             Some((1, "IAC Driver Bus 1"))
         );
         assert!(find_midi_output_port(&ports, "Missing").is_none());
+    }
+
+    #[test]
+    fn finds_midi_input_by_exact_or_partial_name() {
+        let ports = vec![
+            MidiInputPort {
+                index: 0,
+                name: "USB Keyboard".to_string(),
+            },
+            MidiInputPort {
+                index: 2,
+                name: "IAC Driver Bus 1".to_string(),
+            },
+        ];
+
+        assert_eq!(
+            resolve_midi_input_port(&ports, "2")
+                .map(|(position, port)| (position, port.name.as_str())),
+            Some((1, "IAC Driver Bus 1"))
+        );
+        assert_eq!(
+            find_midi_input_port(&ports, "IAC Driver (Bus 1)")
+                .map(|(position, port)| (position, port.index)),
+            Some((1, 2))
+        );
+        assert_eq!(
+            find_midi_input_port(&ports, "keyboard").map(|(_, port)| port.index),
+            Some(0)
+        );
+        assert!(find_midi_input_port(&ports, "Missing").is_none());
     }
 
     #[test]
@@ -6571,6 +6946,93 @@ mod tests {
         assert!(app.is_playing);
 
         type_command(&mut app, "midi panic");
+        assert!(!app.is_playing);
+        assert_eq!(app.playhead_row, None);
+    }
+
+    #[test]
+    fn command_mode_edits_midi_input_record_and_clock_state() {
+        let mut app = App::default();
+
+        type_command(&mut app, "midi-input record on");
+        assert!(app.midi_record_armed);
+        assert_eq!(app.tui_midi_status(), "MIDI Disconnected | MIDI In Rec");
+
+        type_command(&mut app, "midi-in clock on");
+        assert!(app.midi_clock_follow);
+        assert_eq!(
+            app.tui_midi_status(),
+            "MIDI Disconnected | MIDI In Rec+Clock"
+        );
+
+        type_command(&mut app, "midi-input disconnect");
+        assert!(!app.midi_record_armed);
+        assert!(!app.midi_clock_follow);
+        assert_eq!(app.midi_input_status, "MIDI In Disconnected");
+    }
+
+    #[test]
+    fn midi_input_recording_drains_fake_input_and_is_undoable() {
+        let packet = MidiInputPacket {
+            timestamp_micros: 0,
+            event: MidiInputEvent::NoteOn {
+                channel: 1,
+                note: 60,
+                velocity: 100,
+            },
+        };
+        let mut app = App {
+            midi_input: Some(AppMidiInput::new(FakeMidiInput::new([packet]))),
+            midi_record_armed: true,
+            ..App::default()
+        };
+
+        app.drain_midi_input();
+
+        let cell = app
+            .song
+            .pattern(0)
+            .and_then(|pattern| pattern.cell(0, 0))
+            .expect("recorded cell");
+        assert_eq!(cell.note, Some(NoteEvent::Note { pitch: 60 }));
+        assert_eq!(cell.velocity, Some(100));
+        assert_eq!(app.cursor.row, 1);
+        assert!(app.dirty);
+
+        app.undo();
+        let cell = app
+            .song
+            .pattern(0)
+            .and_then(|pattern| pattern.cell(0, 0))
+            .expect("undo cell");
+        assert_eq!(cell, &PatternCell::default());
+    }
+
+    #[test]
+    fn midi_clock_follow_controls_transport() {
+        let mut app = App {
+            midi_clock_follow: true,
+            ..App::default()
+        };
+
+        app.handle_midi_input_packet(MidiInputPacket {
+            timestamp_micros: 0,
+            event: MidiInputEvent::Clock(MidiClockMessage::Start),
+        });
+        assert!(app.is_playing);
+        assert_eq!(app.playhead_row, Some(0));
+
+        app.handle_midi_input_packet(MidiInputPacket {
+            timestamp_micros: 1,
+            event: MidiInputEvent::Clock(MidiClockMessage::TimingClock),
+        });
+        assert_eq!(app.midi_clock_ticks, 1);
+        assert_eq!(app.midi_input_status, "MIDI In Clock 1");
+
+        app.handle_midi_input_packet(MidiInputPacket {
+            timestamp_micros: 2,
+            event: MidiInputEvent::Clock(MidiClockMessage::Stop),
+        });
         assert!(!app.is_playing);
         assert_eq!(app.playhead_row, None);
     }

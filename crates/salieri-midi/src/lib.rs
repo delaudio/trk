@@ -5,8 +5,8 @@ mod output;
 
 pub use convert::playback_event_to_midi;
 pub use input::{
-    parse_midi_input, FakeMidiInput, MidiClockMessage, MidiInput, MidiInputError, MidiInputEvent,
-    MidiInputPacket,
+    list_input_ports, parse_midi_input, FakeMidiInput, MidiClockMessage, MidiInput, MidiInputError,
+    MidiInputEvent, MidiInputPacket, MidiInputPort, MidirMidiInput,
 };
 pub use message::MidiMessage;
 pub use output::{

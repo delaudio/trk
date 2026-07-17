@@ -9,6 +9,7 @@ follow_playhead = true
 
 [midi]
 default_output = "IAC Driver (Bus 1)"
+default_input = "IAC Driver (Bus 1)"
 log_file = "salieri-midi.log"
 
 [sample_browser]

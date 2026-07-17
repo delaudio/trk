@@ -1,9 +1,18 @@
 use std::collections::VecDeque;
+use std::sync::mpsc::{self, Receiver};
+
+use midir::{Ignore, MidiInput as MidirInput, MidiInputConnection};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MidiInputPacket {
     pub timestamp_micros: u64,
     pub event: MidiInputEvent,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MidiInputPort {
+    pub index: usize,
+    pub name: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,12 +53,66 @@ pub trait MidiInput {
 
 #[derive(Debug, thiserror::Error)]
 pub enum MidiInputError {
+    #[error("failed to initialize MIDI input: {0}")]
+    Init(String),
+    #[error("MIDI input port {index} is not available")]
+    PortUnavailable { index: usize },
+    #[error("failed to connect MIDI input: {0}")]
+    Connect(String),
     #[error("MIDI input message is empty")]
     Empty,
     #[error("unsupported MIDI input status byte 0x{0:02X}")]
     UnsupportedStatus(u8),
     #[error("MIDI input message is too short for status byte 0x{status:02X}")]
     Truncated { status: u8 },
+}
+
+pub struct MidirMidiInput {
+    _connection: MidiInputConnection<()>,
+    packet_rx: Receiver<Result<MidiInputPacket, MidiInputError>>,
+}
+
+impl MidirMidiInput {
+    pub fn connect(port_index: usize, connection_name: &str) -> Result<Self, MidiInputError> {
+        let mut midi =
+            MidirInput::new("salieri").map_err(|error| MidiInputError::Init(error.to_string()))?;
+        midi.ignore(Ignore::None);
+        let ports = midi.ports();
+        let port = ports
+            .get(port_index)
+            .ok_or(MidiInputError::PortUnavailable { index: port_index })?;
+        let (packet_tx, packet_rx) = mpsc::channel();
+        let connection = midi
+            .connect(
+                port,
+                connection_name,
+                move |timestamp_micros, bytes, _| {
+                    let packet = parse_midi_input(bytes).map(|event| MidiInputPacket {
+                        timestamp_micros,
+                        event,
+                    });
+                    let _ = packet_tx.send(packet);
+                },
+                (),
+            )
+            .map_err(|error| MidiInputError::Connect(error.to_string()))?;
+        Ok(Self {
+            _connection: connection,
+            packet_rx,
+        })
+    }
+}
+
+impl MidiInput for MidirMidiInput {
+    fn poll(&mut self) -> Result<Option<MidiInputPacket>, MidiInputError> {
+        match self.packet_rx.try_recv() {
+            Ok(packet) => packet.map(Some),
+            Err(mpsc::TryRecvError::Empty) => Ok(None),
+            Err(mpsc::TryRecvError::Disconnected) => Err(MidiInputError::Connect(
+                "MIDI input disconnected".to_string(),
+            )),
+        }
+    }
 }
 
 #[derive(Debug, Default)]
@@ -74,6 +137,21 @@ impl MidiInput for FakeMidiInput {
     fn poll(&mut self) -> Result<Option<MidiInputPacket>, MidiInputError> {
         Ok(self.packets.pop_front())
     }
+}
+
+pub fn list_input_ports() -> Result<Vec<MidiInputPort>, MidiInputError> {
+    let midi =
+        MidirInput::new("salieri").map_err(|error| MidiInputError::Init(error.to_string()))?;
+    midi.ports()
+        .iter()
+        .enumerate()
+        .map(|(index, port)| {
+            let name = midi
+                .port_name(port)
+                .unwrap_or_else(|_| format!("MIDI Input {index}"));
+            Ok(MidiInputPort { index, name })
+        })
+        .collect()
 }
 
 pub fn parse_midi_input(bytes: &[u8]) -> Result<MidiInputEvent, MidiInputError> {

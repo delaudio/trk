@@ -1,7 +1,7 @@
 ┌ Salieri Tracker ─────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ BPM 120 | LPB 4 | Pattern 01 | Oct 4 | Row 00 | Play -- | Loop ON | Track 01 | Field NOTE | HELP | STOP | MIDI Discon│
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-┌ Trac┌ Help 1/32 ───────────────────────────────────────────────────────────────────────────────────────────────┐─────┐
+┌ Trac┌ Help 1/35 ───────────────────────────────────────────────────────────────────────────────────────────────┐─────┐
 │> 01 │Global                                                                                                    │     │
 │  02 │  ?/H Help   :h/:help Help   q Quit   Space Play/Stop   Shift+Space Start                                 │- -- │
 │  03 │  Enter Play Row   Shift+Enter Play Sequence From Cursor   L Loop   F8 Stop                               │- -- │
@@ -14,22 +14,22 @@
 │     │  F4 or :midi outputs opens MIDI settings and lists output ports                                          │- -- │
 │     │  In MIDI settings: arrows select, Enter connects, F5/r refresh, p panic                                  │- -- │
 │     │  CLI fallback: salieri --list-midi-outputs, then :midi connect 0                                         │- -- │
+│     │  Input: salieri --list-midi-inputs, then :midi-input connect 0                                           │- -- │
+│     │  :midi-input record on captures note-on events into the current pattern                                  │- -- │
+│     │  :midi-input clock on follows MIDI start/continue/stop transport                                         │- -- │
 │     │  4. Press Space or run :play pattern to send notes to the connected output                               │- -- │
 │     │  :midi disconnect closes the output   :midi panic sends All Notes Off                                    │- -- │
-│     │  Use :track channel 2 10 to set track 02 to MIDI channel 10                                              │- -- │
-│     │  Config: [midi] default_output = "IAC Driver" auto-connects by name                                      │- -- │
-│     │                                                                                                          │- -- │
-└─────│Navigation                                                                                                │- -- │
-┌ Sequ│  Arrows or h/j/k/l move   Tab/Shift+Tab track   PageUp/PageDown jump                                     │- -- │
-│  00 │  Home/End pattern bounds   gg first row   G last row                                                     │- -- │
+└─────│  Use :track channel 2 10 to set track 02 to MIDI channel 10                                              │- -- │
+┌ Sequ│  Config: [midi] default_output/default_input auto-connect by name                                        │- -- │
+│  00 │                                                                                                          │- -- │
+│     │Navigation                                                                                                │- -- │
+│     │  Arrows or h/j/k/l move   Tab/Shift+Tab track   PageUp/PageDown jump                                     │- -- │
+│     │  Home/End pattern bounds   gg first row   G last row                                                     │- -- │
 │     │                                                                                                          │- -- │
 │     │Editing                                                                                                   │- -- │
 │     │  i Edit   Esc Normal   Del/Backspace clear cell   Ctrl+C/X/V cell clipboard                              │- -- │
 │     │  V select region   Esc cancel selection   Delete clears selection                                        │- -- │
 │     │  Insert row   Ctrl+Delete delete row   F1/- octave down                                                  │- -- │
-│     │  F2/+/= octave up   VEL/INST/VOL/PAN/DLY/FX accept two hex digits                                        │- -- │
-│     │                                                                                                          │- -- │
-│     │Notes                                                                                                     │- -- │
 │     └──────────────────────────────────────────────────────────────────────────────────────────────────────────┘- -- │
 │                         ││ 28   --- -- -- -- -- -- --- --- -- -- -- -- -- --- --- -- -- -- -- -- --- --- -- -- -- -- │
 └─────────────────────────┘└───────────────────────────────────────────────────────────────────────────────────────────┘
