@@ -23,8 +23,9 @@ use salieri_audio::{
     OfflineRenderSpec, OfflineSamplerEvent, OfflineSamplerSample,
 };
 use salieri_core::{
-    row_duration_micros, sampler_events, AutomationTarget, CellField, Cursor, Direction, NoteEvent,
-    PatternCell, SampleEnvelope, SamplePlaybackMode, SamplePlaybackSettings, Song, TrackerCommand,
+    row_duration_micros, sampler_events, AutomationTarget, CellField, Cursor, Direction,
+    InstrumentId, NoteEvent, PatternCell, SampleEnvelope, SamplePlaybackMode,
+    SamplePlaybackSettings, Song, TrackerCommand,
 };
 use salieri_midi::{list_output_ports, MidiMessage, MidiOutput, MidiOutputPort, MidirMidiOutput};
 use salieri_sampler::{Sample, WaveformBucket, WaveformOverview};
@@ -1697,9 +1698,9 @@ impl App {
             KeyCode::F(2) | KeyCode::Char('+') | KeyCode::Char('=') => self.increment_octave(),
             KeyCode::Char('o') | KeyCode::Char('O') => self.insert_note_event(NoteEvent::NoteOff),
             KeyCode::Char('.') => self.insert_note_event(NoteEvent::NoteCut),
-            KeyCode::Char(value) if self.cursor.field == CellField::Velocity => {
+            KeyCode::Char(value) if self.cursor.field != CellField::Note => {
                 if let Some(hex) = value.to_digit(16) {
-                    self.enter_velocity_digit(hex as u8);
+                    self.enter_cell_hex_digit(hex as u8);
                 }
             }
             KeyCode::Char(value) => {
@@ -2013,23 +2014,26 @@ impl App {
         self.advance_after_edit();
     }
 
-    fn enter_velocity_digit(&mut self, digit: u8) {
+    fn enter_cell_hex_digit(&mut self, digit: u8) {
         let current_digit = self.cursor.digit.min(1);
+        let field = self.cursor.field;
         let pattern_index = self.pattern_index;
         self.mutate_song(|song, cursor| {
             let Some(pattern) = song.pattern_mut(pattern_index) else {
                 return;
             };
-            let current_velocity = pattern
+            let current_value = pattern
                 .cell(cursor.row, cursor.track)
-                .and_then(|cell| cell.velocity)
+                .and_then(|cell| current_cell_hex_value(cell, field))
                 .unwrap_or(0);
-            let next_velocity = if current_digit == 0 {
-                (digit << 4) | (current_velocity & 0x0f)
+            let next_value = if current_digit == 0 {
+                (digit << 4) | (current_value & 0x0f)
             } else {
-                (current_velocity & 0xf0) | digit
+                (current_value & 0xf0) | digit
             };
-            let _ = pattern.set_velocity(cursor.row, cursor.track, next_velocity);
+            if let Some(cell) = pattern.cell_mut(cursor.row, cursor.track) {
+                set_current_cell_hex_value(cell, field, next_value);
+            }
         });
 
         if current_digit == 0 {
@@ -2690,6 +2694,97 @@ impl App {
         });
     }
 
+    fn handle_cell_command(&mut self, values: &[&str]) {
+        match values {
+            ["instrument" | "inst", "clear" | "off" | "none"] => {
+                self.set_current_cell_field(|cell| cell.instrument = None);
+                self.notify_success("Instrument column cleared");
+            }
+            ["instrument" | "inst", value] => {
+                if let Some(value) = parse_cell_byte(value) {
+                    if value == 0 {
+                        self.set_current_cell_field(|cell| cell.instrument = None);
+                        self.notify_success("Instrument column cleared");
+                    } else {
+                        self.set_current_cell_field(|cell| {
+                            cell.instrument = Some(InstrumentId(u32::from(value)))
+                        });
+                        self.notify_success(format!("Instrument column {value:02X}"));
+                    }
+                } else {
+                    self.notify_warning("Usage: :cell instrument HEX|clear");
+                }
+            }
+            ["volume" | "vol", "clear" | "off" | "none"] => {
+                self.set_current_cell_field(|cell| cell.volume = None);
+                self.notify_success("Volume column cleared");
+            }
+            ["volume" | "vol", value] => {
+                if let Some(value) = parse_cell_byte(value) {
+                    self.set_current_cell_field(|cell| cell.volume = Some(value.min(0x7f)));
+                    self.notify_success(format!("Volume column {:02X}", value.min(0x7f)));
+                } else {
+                    self.notify_warning("Usage: :cell volume HEX|clear");
+                }
+            }
+            ["pan", "clear" | "off" | "none"] => {
+                self.set_current_cell_field(|cell| cell.pan = None);
+                self.notify_success("Pan column cleared");
+            }
+            ["pan", value] => {
+                if let Some(value) = parse_cell_byte(value) {
+                    self.set_current_cell_field(|cell| cell.pan = Some(value.min(0x7f)));
+                    self.notify_success(format!("Pan column {:02X}", value.min(0x7f)));
+                } else {
+                    self.notify_warning("Usage: :cell pan HEX|clear");
+                }
+            }
+            ["delay" | "dly", "clear" | "off" | "none"] => {
+                self.set_current_cell_field(|cell| cell.delay = None);
+                self.notify_success("Delay column cleared");
+            }
+            ["delay" | "dly", value] => {
+                if let Some(value) = parse_cell_byte(value) {
+                    self.set_current_cell_field(|cell| cell.delay = Some(value));
+                    self.notify_success(format!("Delay column {value:02X}"));
+                } else {
+                    self.notify_warning("Usage: :cell delay HEX|clear");
+                }
+            }
+            ["effect" | "fx", "clear" | "off" | "none"] => {
+                self.set_current_cell_field(|cell| cell.command = None);
+                self.notify_success("Effect column cleared");
+            }
+            ["effect" | "fx", code, value] => {
+                let Some(code) = code.chars().next() else {
+                    self.notify_warning("Usage: :cell effect CODE HEX");
+                    return;
+                };
+                if let Some(value) = parse_cell_byte(value) {
+                    self.set_current_cell_field(|cell| {
+                        cell.command = Some(TrackerCommand::from_code_char(code, value));
+                    });
+                    self.notify_success(format!("Effect {}{value:02X}", code.to_ascii_uppercase()));
+                } else {
+                    self.notify_warning("Usage: :cell effect CODE HEX");
+                }
+            }
+            _ => self.notify_warning(
+                "Usage: :cell instrument|volume|pan|delay|effect VALUE or :cell FIELD clear",
+            ),
+        }
+    }
+
+    fn set_current_cell_field(&mut self, mut edit: impl FnMut(&mut PatternCell)) {
+        self.mutate_song(|song, cursor| {
+            if let Some(pattern) = song.current_pattern_mut() {
+                if let Some(cell) = pattern.cell_mut(cursor.row, cursor.track) {
+                    edit(cell);
+                }
+            }
+        });
+    }
+
     fn handle_automation_command(&mut self, values: &[&str]) {
         match values {
             ["sample-gain", "clear"] => {
@@ -3022,6 +3117,10 @@ impl App {
             "fx" | "effect" => {
                 let values = parts.collect::<Vec<_>>();
                 self.handle_fx_command(&values);
+            }
+            "cell" => {
+                let values = parts.collect::<Vec<_>>();
+                self.handle_cell_command(&values);
             }
             "automation" | "auto" => {
                 let values = parts.collect::<Vec<_>>();
@@ -4565,6 +4664,51 @@ fn parse_hex_byte(value: &str) -> Option<u8> {
     u8::from_str_radix(value.trim_start_matches("0x"), 16).ok()
 }
 
+fn parse_cell_byte(value: &str) -> Option<u8> {
+    parse_hex_byte(value).or_else(|| value.parse::<u8>().ok())
+}
+
+fn current_cell_hex_value(cell: &PatternCell, field: CellField) -> Option<u8> {
+    match field {
+        CellField::Note => None,
+        CellField::Velocity => cell.velocity,
+        CellField::Instrument => cell.instrument.and_then(|instrument| {
+            if instrument.0 <= u32::from(u8::MAX) {
+                Some(instrument.0 as u8)
+            } else {
+                None
+            }
+        }),
+        CellField::Volume => cell.volume,
+        CellField::Pan => cell.pan,
+        CellField::Delay => cell.delay,
+        CellField::Effect => cell.command.map(|command| command.value),
+    }
+}
+
+fn set_current_cell_hex_value(cell: &mut PatternCell, field: CellField, value: u8) {
+    match field {
+        CellField::Note => {}
+        CellField::Velocity => cell.velocity = Some(value.min(0x7f)),
+        CellField::Instrument => {
+            cell.instrument = if value == 0 {
+                None
+            } else {
+                Some(InstrumentId(u32::from(value)))
+            };
+        }
+        CellField::Volume => cell.volume = Some(value.min(0x7f)),
+        CellField::Pan => cell.pan = Some(value.min(0x7f)),
+        CellField::Delay => cell.delay = Some(value),
+        CellField::Effect => {
+            let code = cell
+                .command
+                .map_or(TrackerCommand::DELAY_CODE, |command| command.code);
+            cell.command = Some(TrackerCommand { code, value });
+        }
+    }
+}
+
 fn keyboard_note(key: char, octave: u8) -> Option<u8> {
     let (semitone, octave_offset) = match key.to_ascii_lowercase() {
         'z' => (0, 0),
@@ -5303,6 +5447,26 @@ mod tests {
     }
 
     #[test]
+    fn edit_mode_hex_entry_updates_tracker_subcolumns() {
+        let mut app = App {
+            mode: AppMode::Edit,
+            cursor: Cursor {
+                field: CellField::Delay,
+                ..Cursor::new()
+            },
+            ..App::default()
+        };
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('2'), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Char('0'), KeyModifiers::NONE));
+
+        let pattern = app.song.current_pattern().expect("pattern");
+        let cell = pattern.cell(0, 0).expect("cell");
+        assert_eq!(cell.delay, Some(0x20));
+        assert_eq!(app.cursor.row, 1);
+    }
+
+    #[test]
     fn clipboard_copies_cuts_and_pastes_current_cell() {
         let mut app = App {
             mode: AppMode::Edit,
@@ -5705,6 +5869,39 @@ mod tests {
             None
         );
         assert!(!app.dirty);
+    }
+
+    #[test]
+    fn command_mode_sets_and_clears_tracker_cell_columns() {
+        let mut app = App::default();
+
+        type_command(&mut app, "cell instrument 01");
+        type_command(&mut app, "cell volume 40");
+        type_command(&mut app, "cell pan 7f");
+        type_command(&mut app, "cell delay 20");
+        type_command(&mut app, "cell effect R 04");
+
+        let pattern = app.song.current_pattern().expect("pattern");
+        let cell = pattern.cell(0, 0).expect("cell");
+        assert_eq!(cell.instrument, Some(InstrumentId(1)));
+        assert_eq!(cell.volume, Some(0x40));
+        assert_eq!(cell.pan, Some(0x7f));
+        assert_eq!(cell.delay, Some(0x20));
+        assert_eq!(cell.command, Some(TrackerCommand::retrigger(0x04)));
+
+        type_command(&mut app, "cell instrument clear");
+        type_command(&mut app, "cell volume clear");
+        type_command(&mut app, "cell pan clear");
+        type_command(&mut app, "cell delay clear");
+        type_command(&mut app, "cell effect clear");
+
+        let pattern = app.song.current_pattern().expect("pattern");
+        let cell = pattern.cell(0, 0).expect("cell");
+        assert_eq!(cell.instrument, None);
+        assert_eq!(cell.volume, None);
+        assert_eq!(cell.pan, None);
+        assert_eq!(cell.delay, None);
+        assert_eq!(cell.command, None);
     }
 
     #[test]

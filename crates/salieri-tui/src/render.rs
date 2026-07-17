@@ -8,7 +8,7 @@ use salieri_sampler::WaveformOverview;
 
 const TRACK_PANEL_WIDTH: u16 = 27;
 const ROW_GUTTER_WIDTH: usize = 5;
-const PATTERN_CELL_WIDTH: usize = 10;
+const PATTERN_CELL_WIDTH: usize = 21;
 const TRACK_LIST_NAME_WIDTH: usize = 11;
 const MEDIUM_MIN_WIDTH: u16 = 80;
 const LARGE_MIN_WIDTH: u16 = 120;
@@ -859,9 +859,23 @@ fn cell_spans(
     let velocity = cell
         .velocity
         .map_or_else(|| "--".to_string(), |value| format!("{value:02X}"));
-    let command = cell
-        .command
-        .map(|command| format!("{}{:02X}", command.display_code(), command.value));
+    let instrument = cell.instrument.map_or_else(
+        || "--".to_string(),
+        |instrument| format!("{:02X}", instrument.0.min(0xff)),
+    );
+    let volume = cell
+        .volume
+        .map_or_else(|| "--".to_string(), |value| format!("{value:02X}"));
+    let pan = cell
+        .pan
+        .map_or_else(|| "--".to_string(), |value| format!("{value:02X}"));
+    let delay = cell
+        .delay
+        .map_or_else(|| "--".to_string(), |value| format!("{value:02X}"));
+    let command = cell.command.map_or_else(
+        || "---".to_string(),
+        |command| format!("{}{:02X}", command.display_code(), command.value),
+    );
 
     let normal = Style::default().fg(Color::White);
     let focused_style = Style::default()
@@ -876,27 +890,18 @@ fn cell_spans(
         .fg(Color::LightGreen)
         .add_modifier(Modifier::BOLD);
     let active_track_style = Style::default().fg(Color::White).bg(Color::DarkGray);
-    let note_style = if focused && focused_field == CellField::Note {
-        focused_style
-    } else if selected {
-        selected_style
-    } else if playing {
-        playing_style
-    } else if active_track {
-        active_track_style
-    } else {
-        normal
-    };
-    let velocity_style = if focused && focused_field == CellField::Velocity {
-        focused_style
-    } else if selected {
-        selected_style
-    } else if playing {
-        playing_style
-    } else if active_track {
-        active_track_style
-    } else {
-        normal
+    let style_for_field = |field| {
+        if focused && focused_field == field {
+            focused_style
+        } else if selected {
+            selected_style
+        } else if playing {
+            playing_style
+        } else if active_track {
+            active_track_style
+        } else {
+            normal
+        }
     };
     let spacer_style = if selected {
         selected_style
@@ -908,19 +913,22 @@ fn cell_spans(
         normal
     };
 
-    let mut spans = vec![
+    vec![
         Span::styled(" ", spacer_style),
-        Span::styled(note, note_style),
+        Span::styled(note, style_for_field(CellField::Note)),
         Span::styled(" ", spacer_style),
-        Span::styled(velocity, velocity_style),
-    ];
-    if let Some(command) = command {
-        spans.push(Span::styled(" ", spacer_style));
-        spans.push(Span::styled(command, normal));
-    } else {
-        spans.push(Span::styled("   ", spacer_style));
-    }
-    spans
+        Span::styled(velocity, style_for_field(CellField::Velocity)),
+        Span::styled(" ", spacer_style),
+        Span::styled(instrument, style_for_field(CellField::Instrument)),
+        Span::styled(" ", spacer_style),
+        Span::styled(volume, style_for_field(CellField::Volume)),
+        Span::styled(" ", spacer_style),
+        Span::styled(pan, style_for_field(CellField::Pan)),
+        Span::styled(" ", spacer_style),
+        Span::styled(delay, style_for_field(CellField::Delay)),
+        Span::styled(" ", spacer_style),
+        Span::styled(command, style_for_field(CellField::Effect)),
+    ]
 }
 
 fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
@@ -1060,7 +1068,7 @@ fn help_lines(mode_label: &str) -> Vec<Line<'static>> {
         Line::from("  i Edit   Esc Normal   Del/Backspace clear cell   Ctrl+C/X/V cell clipboard"),
         Line::from("  V select region   Esc cancel selection   Delete clears selection"),
         Line::from("  Insert row   Ctrl+Delete delete row   F1/- octave down"),
-        Line::from("  F2/+/= octave up   Velocity field accepts two hex digits"),
+        Line::from("  F2/+/= octave up   VEL/INST/VOL/PAN/DLY/FX accept two hex digits"),
         Line::from(""),
         Line::from(Span::styled(
             "Notes",
@@ -1086,6 +1094,8 @@ fn help_lines(mode_label: &str) -> Vec<Line<'static>> {
         Line::from("  :track new   :track duplicate 2   :track delete 2   :track move 2 3"),
         Line::from("  :track mute 2   :track solo 2   :track rename Acid Bass"),
         Line::from("  :track channel 12   :fx D 20 delay   :fx R 04 retrigger   :fx clear"),
+        Line::from("  :cell instrument 01   :cell volume 40   :cell pan 7F   :cell delay 20"),
+        Line::from("  :cell effect R 04   :cell FIELD clear"),
         Line::from("  :play pattern   :play sequence [position]   :stop"),
         Line::from(""),
         Line::from(Span::styled(
@@ -1364,7 +1374,7 @@ fn format_note(pitch: u8) -> String {
 mod tests {
     use super::*;
     use ratatui::{backend::TestBackend, Terminal};
-    use salieri_core::Song;
+    use salieri_core::{InstrumentId, NoteEvent, Song, TrackerCommand};
 
     #[test]
     fn classifies_responsive_layout_breakpoints() {
@@ -1454,6 +1464,68 @@ mod tests {
         assert!(rendered.contains("Pattern Editor"));
         assert!(rendered.contains("Drums"));
         assert!(rendered.contains("Bass"));
+    }
+
+    #[test]
+    fn renders_tracker_cell_subcolumns() {
+        let mut song = Song::empty();
+        let pattern = song.current_pattern_mut().expect("pattern");
+        pattern
+            .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x64)
+            .expect("note");
+        let cell = pattern.cell_mut(0, 0).expect("cell");
+        cell.instrument = Some(InstrumentId(1));
+        cell.volume = Some(0x40);
+        cell.pan = Some(0x7f);
+        cell.delay = Some(0x20);
+        cell.command = Some(TrackerCommand::retrigger(4));
+
+        let backend = TestBackend::new(180, 32);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+
+        terminal
+            .draw(|frame| {
+                render(
+                    frame,
+                    &song,
+                    TuiState {
+                        cursor: Cursor::new(),
+                        row_offset: 0,
+                        pattern_index: 0,
+                        active_view: TuiView::Pattern,
+                        selection: None,
+                        mode_label: "NORMAL",
+                        octave: 4,
+                        dirty: false,
+                        show_line_numbers_hex: false,
+                        command_line: None,
+                        notification: None,
+                        show_help: false,
+                        help_scroll: 0,
+                        is_playing: false,
+                        loop_pattern: true,
+                        playhead_row: None,
+                        midi_status: "MIDI Disconnected",
+                        sequence_position: None,
+                        quit_confirmation: false,
+                        delete_confirmation: None,
+                        midi_settings: None,
+                        sampler_view: None,
+                        sample_browser: None,
+                    },
+                );
+            })
+            .expect("draw");
+
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+
+        assert!(rendered.contains("C-4 64 01 40 7F 20 R04"));
     }
 
     #[test]

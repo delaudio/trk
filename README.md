@@ -7,7 +7,7 @@ The primary realtime playback path remains MIDI-first for external instruments, 
 ## Current Capabilities
 
 - Terminal tracker UI with pattern, track, sequence, sampler, MIDI, and help views.
-- Pattern editing with keyboard note entry, note-off/note-cut, velocity, delay/retrigger commands, row insert/delete, selection copy/cut/paste/delete, undo/redo, and playhead follow.
+- Pattern editing with keyboard note entry, note-off/note-cut, velocity, instrument, volume, pan, delay, effect columns, row insert/delete, selection copy/cut/paste/delete, undo/redo, and playhead follow.
 - Track, pattern, and sequence management, including rename, duplicate, delete, move, mute/solo, pattern length, and arrangement playback.
 - MIDI output routing with port listing, connection from the TUI, panic/all-notes-off, channel assignment, logging, and MIDI test-note CLI support.
 - Project persistence as JSON `.salieri` files with validation and atomic writes.
@@ -237,6 +237,7 @@ Esc             Normal mode
 z s x d c v...  Insert notes from computer keyboard
 o               Note off
 .               Note cut
+Hex digits      Edit VEL/INST/VOL/PAN/DLY/FX value fields
 F1 or -         Octave down
 F2 or +         Octave up
 Delete          Clear current cell or selection
@@ -277,6 +278,12 @@ T               Set sequence position to current pattern
 :fx D 20
 :fx R 04
 :fx clear
+:cell instrument 01
+:cell volume 40
+:cell pan 7f
+:cell delay 20
+:cell effect R 04
+:cell volume clear
 :midi outputs
 :midi connect 0
 :midi disconnect
@@ -318,6 +325,19 @@ T               Set sequence position to current pattern
 :mixer master 0.900
 :stop
 ```
+
+## Tracker Columns
+
+Pattern cells render as:
+
+```text
+NOTE VEL IN VOL PN DL FX
+C-4  64 01 40 7F 20 R04
+```
+
+`NOTE` and `VEL` continue to drive MIDI note playback. `INST`, `VOL`, `PN`, and `DL` are optional tracker metadata columns for richer sampler-backed playback: `INST` selects a sample-backed instrument for that cell, `VOL` scales sampler gain, `PN` overrides mixer pan for the sampler event, and `DL` offsets the event within the row. `FX` stores the first tracker command; delay (`Dxx`) and retrigger (`Rxx`) remain supported, and `DL` takes precedence over `Dxx` when both are present.
+
+Move horizontally through sub-columns with Left/Right. In edit mode, type two hex digits on value columns to enter a value. Command mode can also edit the current cell with `:cell instrument|volume|pan|delay|effect VALUE` and clear fields with `:cell FIELD clear`.
 
 ## Samples And Audio
 
@@ -368,7 +388,7 @@ salieri export audio input.salieri output.wav --pattern 1
 salieri export audio input.salieri output.wav --sequence --sample-rate 48000 --channels 2
 ```
 
-The exporter renders sampler events only. MIDI-only external instruments are not captured in the WAV file. Stepped sample-gain automation and mixer gain/pan are applied through the same sampler event path used by realtime playback. See [docs/audio-export.md](docs/audio-export.md), [docs/automation.md](docs/automation.md), and [docs/mixer.md](docs/mixer.md).
+The exporter renders sampler events only. MIDI-only external instruments are not captured in the WAV file. Tracker instrument/volume/pan/delay columns, stepped sample-gain automation, and mixer gain/pan are applied through the same sampler event path used by realtime playback. See [docs/audio-export.md](docs/audio-export.md), [docs/automation.md](docs/automation.md), and [docs/mixer.md](docs/mixer.md).
 
 ## Project Files
 
@@ -378,4 +398,4 @@ The app tracks dirty state. Quitting with unsaved changes prompts for save, disc
 
 ## Roadmap Gaps
 
-Salieri is not yet a full Renoise-class workstation. The largest missing product areas are keyzones/velocity layers, sustained sampler loop playback and choking, a DSP/effects graph, sends/routing, graphical mixer and automation views, MIDI input recording and sync, richer pattern columns, and a TUI workflow for AI proposal review/apply.
+Salieri is not yet a full Renoise-class workstation. The largest missing product areas are keyzones/velocity layers, sustained sampler loop playback and choking, multiple effect columns with DSP device parameter mapping, a DSP/effects graph, sends/routing, graphical mixer and automation views, MIDI input recording and sync, and a TUI workflow for AI proposal review/apply.

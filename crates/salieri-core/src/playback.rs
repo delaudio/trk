@@ -1,6 +1,6 @@
 use crate::{
-    AutomationTarget, NoteEvent, Pattern, SampleId, Song, TrackId, TrackerCommand,
-    TransportSettings,
+    AutomationTarget, NoteEvent, Pattern, PatternCell, SampleId, SampleReference, Song, TrackId,
+    TrackerCommand, TransportSettings,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -65,7 +65,7 @@ pub fn pattern_events(song: &Song, pattern: &Pattern) -> Vec<PlaybackEvent> {
                 continue;
             };
 
-            let position = apply_delay_command(position, row_duration, cell.command);
+            let position = apply_cell_delay(position, row_duration, cell);
 
             match cell.note {
                 Some(NoteEvent::Note { pitch }) => {
@@ -140,10 +140,10 @@ pub fn sampler_events(song: &Song, pattern: &Pattern) -> Vec<SamplerPlaybackEven
                 continue;
             }
 
-            let Some(sample) = song.sample_for_track(track.id) else {
+            let Some(cell) = row.cells.get(track_index) else {
                 continue;
             };
-            let Some(cell) = row.cells.get(track_index) else {
+            let Some(sample) = sample_for_cell(song, cell, track.id) else {
                 continue;
             };
 
@@ -151,13 +151,15 @@ pub fn sampler_events(song: &Song, pattern: &Pattern) -> Vec<SamplerPlaybackEven
                 continue;
             };
 
-            let position = apply_delay_command(position, row_duration, cell.command);
+            let position = apply_cell_delay(position, row_duration, cell);
             let velocity = cell.velocity.unwrap_or(0x7f).min(0x7f);
+            let cell_gain = cell.volume.map_or(1.0, |volume| f32::from(volume) / 127.0);
             let gain = pattern.automation_value_at(
                 AutomationTarget::SampleGain { sample: sample.id },
                 row_index,
                 sample.gain,
-            ) * mixer.gain
+            ) * cell_gain
+                * mixer.gain
                 * song.mixer.master_gain;
             let trigger = SamplerPlaybackEvent {
                 position,
@@ -167,7 +169,7 @@ pub fn sampler_events(song: &Song, pattern: &Pattern) -> Vec<SamplerPlaybackEven
                 pitch,
                 velocity,
                 gain,
-                pan: mixer.pan,
+                pan: cell.pan.map_or(mixer.pan, pan_u7_to_float),
                 pitch_ratio: pitch_ratio(pitch, sample.root_pitch),
             };
             events.push(trigger.clone());
@@ -177,6 +179,31 @@ pub fn sampler_events(song: &Song, pattern: &Pattern) -> Vec<SamplerPlaybackEven
 
     events.sort_by_key(|event| event.position.offset_micros);
     events
+}
+
+fn sample_for_cell<'a>(
+    song: &'a Song,
+    cell: &PatternCell,
+    track: TrackId,
+) -> Option<&'a SampleReference> {
+    if let Some(instrument_id) = cell.instrument {
+        return song
+            .instrument_for_id(instrument_id)
+            .and_then(|instrument| instrument.sample)
+            .and_then(|sample| song.sample_for_id(sample));
+    }
+    song.sample_for_track(track)
+}
+
+fn apply_cell_delay(
+    position: PlaybackPosition,
+    row_duration: u64,
+    cell: &PatternCell,
+) -> PlaybackPosition {
+    if let Some(delay) = cell.delay {
+        return apply_delay_value(position, row_duration, delay);
+    }
+    apply_delay_command(position, row_duration, cell.command)
 }
 
 fn apply_delay_command(
@@ -191,12 +218,20 @@ fn apply_delay_command(
         return position;
     }
 
+    apply_delay_value(position, row_duration, command.value)
+}
+
+fn apply_delay_value(position: PlaybackPosition, row_duration: u64, value: u8) -> PlaybackPosition {
     PlaybackPosition {
         offset_micros: position
             .offset_micros
-            .saturating_add(row_duration.saturating_mul(u64::from(command.value)) / 256),
+            .saturating_add(row_duration.saturating_mul(u64::from(value)) / 256),
         ..position
     }
+}
+
+fn pan_u7_to_float(value: u8) -> f32 {
+    ((f32::from(value.min(0x7f)) - 64.0) / 63.0).clamp(-1.0, 1.0)
 }
 
 fn emit_sampler_retrigger_events(
@@ -584,6 +619,39 @@ mod tests {
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].gain, 0.125);
         assert_eq!(events[0].pan, 0.75);
+    }
+
+    #[test]
+    fn sampler_events_apply_tracker_cell_columns() {
+        let mut song = Song::empty();
+        let track_sample = song.upsert_sample_reference("samples/kick.wav", "kick.wav");
+        let cell_sample = song.upsert_sample_reference("samples/snare.wav", "snare.wav");
+        let instrument = song
+            .upsert_sample_instrument(cell_sample)
+            .expect("instrument");
+        let track_id = song.tracks[0].id;
+        song.samples[0].gain = 0.5;
+        song.samples[1].gain = 1.0;
+        song.assign_sample_to_track(track_id, track_sample)
+            .expect("assign track sample");
+        let pattern = song.current_pattern_mut().expect("pattern");
+        pattern
+            .set_note(1, 0, NoteEvent::Note { pitch: 48 }, 0x7f)
+            .expect("set note");
+        let cell = pattern.cell_mut(1, 0).expect("cell");
+        cell.instrument = Some(instrument);
+        cell.volume = Some(0x40);
+        cell.pan = Some(0x7f);
+        cell.delay = Some(0x40);
+
+        let events = sampler_events(&song, song.current_pattern().expect("pattern"));
+
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].sample, cell_sample);
+        assert_eq!(events[0].sample_path, "samples/snare.wav");
+        assert_eq!(events[0].position.offset_micros, 156_250);
+        assert!((events[0].gain - (64.0 / 127.0)).abs() < f32::EPSILON);
+        assert_eq!(events[0].pan, 1.0);
     }
 
     #[test]

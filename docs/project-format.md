@@ -75,6 +75,27 @@ sampler events from the lane point row onward:
 }
 ```
 
+Pattern cells are backward-compatible. Older cells may contain only `note`,
+`velocity`, `gate`, and `command`; richer tracker cells can also include
+instrument, volume, pan, and delay metadata:
+
+```json
+{
+  "note": { "type": "note", "pitch": 60 },
+  "velocity": 100,
+  "instrument": 1,
+  "volume": 64,
+  "pan": 127,
+  "delay": 32,
+  "command": { "code": 82, "value": 4 }
+}
+```
+
+`instrument` references a sample-backed instrument. `volume` and `pan` use
+MIDI-style `0..127` values for sampler gain and stereo position, while `delay`
+uses `0..255` row fractions. `command` remains the first tracker effect column
+and preserves existing delay/retrigger command compatibility.
+
 Projects also include mixer state. Omitted mixer state is normalized on load
 with one default track mixer per song track:
 
@@ -125,6 +146,7 @@ Loaded projects are rejected when they contain:
 - invalid sample root pitch or gain;
 - invalid sample frame windows, loop windows, or envelope values;
 - automation lanes with duplicate targets, missing sample targets, duplicate rows, out-of-bounds rows, or invalid values;
+- pattern cells referencing missing instruments or invalid velocity, gate, volume, or pan values;
 - invalid mixer master gain, missing/duplicate mixer tracks, mixer tracks referencing missing song tracks, or invalid mixer gain/pan;
 - duplicate instrument IDs;
 - empty instrument names;

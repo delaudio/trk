@@ -179,6 +179,40 @@ impl Song {
                             });
                         }
                     }
+                    if let Some(instrument) = cell.instrument {
+                        if !self
+                            .instruments
+                            .iter()
+                            .any(|existing| existing.id == instrument)
+                        {
+                            return Err(ValidationError::CellInstrumentNotFound {
+                                pattern_index,
+                                row_index,
+                                track_index,
+                                instrument_id: instrument,
+                            });
+                        }
+                    }
+                    if let Some(volume) = cell.volume {
+                        if volume > 0x7f {
+                            return Err(ValidationError::InvalidCellVolume {
+                                pattern_index,
+                                row_index,
+                                track_index,
+                                volume,
+                            });
+                        }
+                    }
+                    if let Some(pan) = cell.pan {
+                        if pan > 0x7f {
+                            return Err(ValidationError::InvalidCellPan {
+                                pattern_index,
+                                row_index,
+                                track_index,
+                                pan,
+                            });
+                        }
+                    }
                     if let Some(gate) = cell.gate {
                         if gate > 0x7f {
                             return Err(ValidationError::InvalidGate {
@@ -1174,6 +1208,29 @@ pub enum ValidationError {
     DuplicateAutomationPoint { pattern_index: usize, row: usize },
     #[error("pattern {pattern_index} automation row {row} has invalid value")]
     InvalidAutomationValue { pattern_index: usize, row: usize },
+    #[error(
+        "pattern {pattern_index} row {row_index} track {track_index} references missing instrument {instrument_id:?}"
+    )]
+    CellInstrumentNotFound {
+        pattern_index: usize,
+        row_index: usize,
+        track_index: usize,
+        instrument_id: InstrumentId,
+    },
+    #[error("pattern {pattern_index} row {row_index} track {track_index} has invalid volume")]
+    InvalidCellVolume {
+        pattern_index: usize,
+        row_index: usize,
+        track_index: usize,
+        volume: u8,
+    },
+    #[error("pattern {pattern_index} row {row_index} track {track_index} has invalid pan")]
+    InvalidCellPan {
+        pattern_index: usize,
+        row_index: usize,
+        track_index: usize,
+        pan: u8,
+    },
     #[error("mixer has invalid master gain")]
     InvalidMixerMasterGain,
     #[error("mixer references missing track {track_id:?}")]
@@ -1789,6 +1846,14 @@ pub struct PatternCell {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub velocity: Option<u8>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub instrument: Option<InstrumentId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub volume: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pan: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delay: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gate: Option<u8>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub command: Option<TrackerCommand>,
@@ -1883,9 +1948,14 @@ impl Cursor {
     fn move_left(&mut self) {
         match self.field {
             CellField::Velocity => self.field = CellField::Note,
+            CellField::Instrument => self.field = CellField::Velocity,
+            CellField::Volume => self.field = CellField::Instrument,
+            CellField::Pan => self.field = CellField::Volume,
+            CellField::Delay => self.field = CellField::Pan,
+            CellField::Effect => self.field = CellField::Delay,
             CellField::Note if self.track > 0 => {
                 self.track -= 1;
-                self.field = CellField::Velocity;
+                self.field = CellField::Effect;
             }
             CellField::Note => {}
         }
@@ -1894,11 +1964,16 @@ impl Cursor {
     fn move_right(&mut self, track_count: usize) {
         match self.field {
             CellField::Note => self.field = CellField::Velocity,
-            CellField::Velocity if self.track + 1 < track_count => {
+            CellField::Velocity => self.field = CellField::Instrument,
+            CellField::Instrument => self.field = CellField::Volume,
+            CellField::Volume => self.field = CellField::Pan,
+            CellField::Pan => self.field = CellField::Delay,
+            CellField::Delay => self.field = CellField::Effect,
+            CellField::Effect if self.track + 1 < track_count => {
                 self.track += 1;
                 self.field = CellField::Note;
             }
-            CellField::Velocity => {}
+            CellField::Effect => {}
         }
     }
 }
@@ -1913,6 +1988,11 @@ impl Default for Cursor {
 pub enum CellField {
     Note,
     Velocity,
+    Instrument,
+    Volume,
+    Pan,
+    Delay,
+    Effect,
 }
 
 impl fmt::Display for CellField {
@@ -1920,6 +2000,11 @@ impl fmt::Display for CellField {
         match self {
             CellField::Note => f.write_str("NOTE"),
             CellField::Velocity => f.write_str("VEL"),
+            CellField::Instrument => f.write_str("INST"),
+            CellField::Volume => f.write_str("VOL"),
+            CellField::Pan => f.write_str("PAN"),
+            CellField::Delay => f.write_str("DLY"),
+            CellField::Effect => f.write_str("FX"),
         }
     }
 }
@@ -2113,15 +2198,15 @@ mod tests {
         }
         assert_eq!(cursor.row, 63);
 
-        for _ in 0..20 {
+        for _ in 0..100 {
             cursor.move_in(Direction::Right, 64, 4);
         }
         assert_eq!(cursor.track, 3);
-        assert_eq!(cursor.field, CellField::Velocity);
+        assert_eq!(cursor.field, CellField::Effect);
     }
 
     #[test]
-    fn cursor_moves_between_note_and_velocity_fields() {
+    fn cursor_moves_across_tracker_subcolumns_before_next_track() {
         let mut cursor = Cursor::new();
 
         cursor.move_in(Direction::Right, 64, 4);
@@ -2129,12 +2214,23 @@ mod tests {
         assert_eq!(cursor.track, 0);
 
         cursor.move_in(Direction::Right, 64, 4);
-        assert_eq!(cursor.field, CellField::Note);
-        assert_eq!(cursor.track, 1);
+        assert_eq!(cursor.field, CellField::Instrument);
+        cursor.move_in(Direction::Right, 64, 4);
+        assert_eq!(cursor.field, CellField::Volume);
+        cursor.move_in(Direction::Right, 64, 4);
+        assert_eq!(cursor.field, CellField::Pan);
+        cursor.move_in(Direction::Right, 64, 4);
+        assert_eq!(cursor.field, CellField::Delay);
+        cursor.move_in(Direction::Right, 64, 4);
+        assert_eq!(cursor.field, CellField::Effect);
 
         cursor.move_in(Direction::Left, 64, 4);
-        assert_eq!(cursor.field, CellField::Velocity);
-        assert_eq!(cursor.track, 0);
+        assert_eq!(cursor.field, CellField::Delay);
+
+        cursor.move_in(Direction::Right, 64, 4);
+        cursor.move_in(Direction::Right, 64, 4);
+        assert_eq!(cursor.field, CellField::Note);
+        assert_eq!(cursor.track, 1);
     }
 
     #[test]
@@ -2165,6 +2261,7 @@ mod tests {
             velocity: Some(0x40),
             gate: None,
             command: None,
+            ..PatternCell::default()
         };
 
         pattern.set_cell(4, 2, cell.clone()).expect("set cell");
@@ -2960,6 +3057,32 @@ mod tests {
                 row_index: 0,
                 track_index: 0,
                 velocity: 0x80,
+            }
+        );
+
+        let mut song = Song::empty();
+        song.patterns[0].rows[0].cells[0].pan = Some(0x80);
+
+        assert_eq!(
+            song.validate().expect_err("invalid pan"),
+            ValidationError::InvalidCellPan {
+                pattern_index: 0,
+                row_index: 0,
+                track_index: 0,
+                pan: 0x80,
+            }
+        );
+
+        let mut song = Song::empty();
+        song.patterns[0].rows[0].cells[0].instrument = Some(InstrumentId(99));
+
+        assert_eq!(
+            song.validate().expect_err("missing cell instrument"),
+            ValidationError::CellInstrumentNotFound {
+                pattern_index: 0,
+                row_index: 0,
+                track_index: 0,
+                instrument_id: InstrumentId(99),
             }
         );
     }
