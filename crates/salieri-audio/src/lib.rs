@@ -110,6 +110,10 @@ impl CpalAudioBackend {
         self.send_stream_command(CpalStreamCommand::ClearSamples)
     }
 
+    pub fn set_dsp_graph(&self, graph: DspGraphSpec) -> Result<(), AudioError> {
+        self.send_stream_command(CpalStreamCommand::SetDspGraph(graph))
+    }
+
     fn send_stream_command(&self, command: CpalStreamCommand) -> Result<(), AudioError> {
         let Some(worker) = &self.worker else {
             return Err(AudioError::Command(
@@ -180,6 +184,7 @@ enum CpalStreamCommand {
         buffer: PreviewBuffer,
     },
     ClearSamples,
+    SetDspGraph(DspGraphSpec),
     Realtime(RealtimeAudioCommand),
     Stop,
 }
@@ -404,6 +409,9 @@ fn write_realtime_output<T>(
             CpalStreamCommand::ClearSamples => {
                 sampler.clear_samples();
             }
+            CpalStreamCommand::SetDspGraph(graph) => {
+                sampler.set_dsp_graph(graph);
+            }
             CpalStreamCommand::Realtime(command) => {
                 let _ = sampler.handle_command_now(command);
             }
@@ -424,6 +432,7 @@ fn write_realtime_output<T>(
 #[derive(Debug, Clone, PartialEq)]
 pub enum RealtimeAudioCommand {
     TriggerSample {
+        track_id: u32,
         sample_id: u32,
         frame: u64,
         gain: f32,
@@ -483,6 +492,7 @@ pub struct OfflineSamplerSample {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct OfflineSamplerEvent {
+    pub track_id: u32,
     pub sample_id: u32,
     pub frame: u64,
     pub gain: f32,
@@ -507,10 +517,36 @@ pub enum AudioExportError {
     },
     #[error("invalid sampler pitch ratio {pitch_ratio}")]
     InvalidPitchRatio { pitch_ratio: f32 },
+    #[error("invalid DSP parameter")]
+    InvalidDspParameter,
     #[error("rendered audio has {actual} samples, expected {expected}")]
     InvalidBufferLength { expected: usize, actual: usize },
     #[error("rendered audio is too large for a RIFF/WAV file")]
     WavTooLarge,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct DspGraphSpec {
+    pub track_chains: Vec<TrackDspChainSpec>,
+    pub master: Vec<DspDeviceSpec>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TrackDspChainSpec {
+    pub track_id: u32,
+    pub devices: Vec<DspDeviceSpec>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DspDeviceSpec {
+    pub bypassed: bool,
+    pub kind: DspDeviceKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum DspDeviceKind {
+    Gain { gain: f32 },
+    Pan { pan: f32 },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -533,6 +569,7 @@ impl Default for RealtimeSamplerConfig {
 #[derive(Debug, Clone, PartialEq)]
 struct RealtimeSamplerVoice {
     voice_id: u64,
+    track_id: u32,
     sample_id: u32,
     start_frame: u64,
     gain: f32,
@@ -545,6 +582,7 @@ pub struct RealtimeSampler {
     config: RealtimeSamplerConfig,
     samples: HashMap<u32, PreviewBuffer>,
     voices: Vec<RealtimeSamplerVoice>,
+    dsp_graph: DspGraphSpec,
     next_voice_id: u64,
     current_frame: u64,
 }
@@ -556,6 +594,7 @@ impl RealtimeSampler {
             config,
             samples: HashMap::new(),
             voices: Vec::with_capacity(config.max_voices),
+            dsp_graph: DspGraphSpec::default(),
             next_voice_id: 1,
             current_frame: 0,
         }
@@ -588,6 +627,10 @@ impl RealtimeSampler {
         self.voices.clear();
     }
 
+    pub fn set_dsp_graph(&mut self, graph: DspGraphSpec) {
+        self.dsp_graph = graph;
+    }
+
     #[must_use]
     pub fn active_voice_count(&self) -> usize {
         self.voices.len()
@@ -599,6 +642,7 @@ impl RealtimeSampler {
     ) -> Result<Option<u64>, AudioExportError> {
         match command {
             RealtimeAudioCommand::TriggerSample {
+                track_id,
                 sample_id,
                 frame,
                 gain,
@@ -619,6 +663,7 @@ impl RealtimeSampler {
                 self.next_voice_id = self.next_voice_id.saturating_add(1);
                 self.voices.push(RealtimeSamplerVoice {
                     voice_id,
+                    track_id,
                     sample_id,
                     start_frame: frame,
                     gain: gain.max(0.0),
@@ -644,12 +689,14 @@ impl RealtimeSampler {
     ) -> Result<Option<u64>, AudioExportError> {
         let command = match command {
             RealtimeAudioCommand::TriggerSample {
+                track_id,
                 sample_id,
                 gain,
                 pan,
                 pitch_ratio,
                 ..
             } => RealtimeAudioCommand::TriggerSample {
+                track_id,
                 sample_id,
                 frame: self.current_frame,
                 gain,
@@ -694,8 +741,18 @@ impl RealtimeSampler {
             let Some(sample) = self.samples.get(&voice.sample_id) else {
                 continue;
             };
-            mix_realtime_voice(data, channels, sample, voice, render_start, render_end);
+            mix_realtime_voice(
+                data,
+                channels,
+                sample,
+                voice,
+                render_start,
+                render_end,
+                &self.dsp_graph,
+            );
         }
+
+        apply_dsp_chain_to_buffer(data, channels, &self.dsp_graph.master);
 
         self.current_frame = render_end;
         let current_frame = self.current_frame;
@@ -906,6 +963,15 @@ pub fn render_sampler_events(
     events: &[OfflineSamplerEvent],
     spec: OfflineRenderSpec,
 ) -> Result<RenderedAudio, AudioExportError> {
+    render_sampler_events_with_dsp(samples, events, spec, &DspGraphSpec::default())
+}
+
+pub fn render_sampler_events_with_dsp(
+    samples: &[OfflineSamplerSample],
+    events: &[OfflineSamplerEvent],
+    spec: OfflineRenderSpec,
+    dsp_graph: &DspGraphSpec,
+) -> Result<RenderedAudio, AudioExportError> {
     let sample_lookup = samples
         .iter()
         .map(|sample| (sample.sample_id, &sample.buffer))
@@ -935,19 +1001,19 @@ pub fn render_sampler_events(
 
         let level = event.gain.max(0.0) * (f32::from(event.velocity.min(0x7f)) / 127.0);
         let pan = event.pan.clamp(-1.0, 1.0);
-        mix_sample_event(
-            &mut data,
-            frames,
-            channels,
-            sample,
-            output_frame,
+        let params = apply_track_dsp_to_mix_params(
             MixParams {
                 pitch_ratio,
                 level,
                 pan,
             },
-        );
+            event.track_id,
+            dsp_graph,
+        )?;
+        mix_sample_event(&mut data, frames, channels, sample, output_frame, params);
     }
+
+    apply_dsp_chain_to_buffer(&mut data, channels, &dsp_graph.master);
 
     Ok(RenderedAudio {
         sample_rate: spec.sample_rate,
@@ -1111,6 +1177,7 @@ fn mix_realtime_voice(
     voice: &RealtimeSamplerVoice,
     render_start: u64,
     render_end: u64,
+    dsp_graph: &DspGraphSpec,
 ) {
     let voice_end = voice_end_frame(voice, sample).unwrap_or(u64::MAX);
     let mix_start = render_start.max(voice.start_frame);
@@ -1123,11 +1190,101 @@ fn mix_realtime_voice(
         let output_frame = (absolute_frame - render_start) as usize;
         let source_frame = (absolute_frame - voice.start_frame) as f32 * voice.pitch_ratio;
         let output_offset = output_frame * channels;
+        let params = apply_track_dsp_to_mix_params_lossy(
+            MixParams {
+                pitch_ratio: voice.pitch_ratio,
+                level: voice.gain,
+                pan: voice.pan,
+            },
+            voice.track_id,
+            dsp_graph,
+        );
         for channel in 0..channels {
             output[output_offset + channel] +=
                 interpolated_sample(sample, source_frame, channel, channels)
-                    * voice.gain
-                    * pan_gain(voice.pan, channel, channels);
+                    * params.level
+                    * pan_gain(params.pan, channel, channels);
+        }
+    }
+}
+
+fn apply_track_dsp_to_mix_params(
+    params: MixParams,
+    track_id: u32,
+    graph: &DspGraphSpec,
+) -> Result<MixParams, AudioExportError> {
+    let Some(chain) = graph
+        .track_chains
+        .iter()
+        .find(|chain| chain.track_id == track_id)
+    else {
+        return Ok(params);
+    };
+
+    chain
+        .devices
+        .iter()
+        .try_fold(params, apply_device_to_mix_params)
+}
+
+fn apply_track_dsp_to_mix_params_lossy(
+    params: MixParams,
+    track_id: u32,
+    graph: &DspGraphSpec,
+) -> MixParams {
+    apply_track_dsp_to_mix_params(params, track_id, graph).unwrap_or(params)
+}
+
+fn apply_device_to_mix_params(
+    params: MixParams,
+    device: &DspDeviceSpec,
+) -> Result<MixParams, AudioExportError> {
+    if device.bypassed {
+        return Ok(params);
+    }
+    match device.kind {
+        DspDeviceKind::Gain { gain } => {
+            if !gain.is_finite() || gain < 0.0 {
+                return Err(AudioExportError::InvalidDspParameter);
+            }
+            Ok(MixParams {
+                level: params.level * gain,
+                ..params
+            })
+        }
+        DspDeviceKind::Pan { pan } => {
+            if !pan.is_finite() || !(-1.0..=1.0).contains(&pan) {
+                return Err(AudioExportError::InvalidDspParameter);
+            }
+            Ok(MixParams {
+                pan: (params.pan + pan).clamp(-1.0, 1.0),
+                ..params
+            })
+        }
+    }
+}
+
+fn apply_dsp_chain_to_buffer(data: &mut [f32], channels: usize, devices: &[DspDeviceSpec]) {
+    for device in devices {
+        if device.bypassed {
+            continue;
+        }
+        match device.kind {
+            DspDeviceKind::Gain { gain } if gain.is_finite() && gain >= 0.0 => {
+                for sample in data.iter_mut() {
+                    *sample *= gain;
+                }
+            }
+            DspDeviceKind::Pan { pan }
+                if pan.is_finite() && (-1.0..=1.0).contains(&pan) && channels > 0 =>
+            {
+                for frame in data.chunks_exact_mut(channels) {
+                    for (channel, sample) in frame.iter_mut().enumerate() {
+                        *sample *= pan_gain(pan, channel, channels);
+                    }
+                }
+            }
+            _ => {}
         }
     }
 }
@@ -1238,6 +1395,7 @@ mod tests {
     #[test]
     fn realtime_commands_are_plain_data_messages() {
         let command = RealtimeAudioCommand::TriggerSample {
+            track_id: 1,
             sample_id: 1,
             frame: 128,
             gain: 0.5,
@@ -1248,6 +1406,7 @@ mod tests {
         assert_eq!(
             command,
             RealtimeAudioCommand::TriggerSample {
+                track_id: 1,
                 sample_id: 1,
                 frame: 128,
                 gain: 0.5,
@@ -1348,6 +1507,7 @@ mod tests {
             buffer: mono_sample(vec![1.0, 0.5]),
         }];
         let events = vec![OfflineSamplerEvent {
+            track_id: 1,
             sample_id: 7,
             frame: 2,
             gain: 0.5,
@@ -1387,6 +1547,7 @@ mod tests {
             },
         }];
         let events = vec![OfflineSamplerEvent {
+            track_id: 1,
             sample_id: 7,
             frame: 0,
             gain: 1.0,
@@ -1408,6 +1569,94 @@ mod tests {
 
         assert_approx_eq(rendered.data[0], 0.25);
         assert_approx_eq(rendered.data[1], 1.0);
+    }
+
+    #[test]
+    fn renders_sampler_events_through_track_and_master_dsp() {
+        let samples = vec![OfflineSamplerSample {
+            sample_id: 7,
+            buffer: mono_sample(vec![1.0]),
+        }];
+        let events = vec![OfflineSamplerEvent {
+            track_id: 2,
+            sample_id: 7,
+            frame: 0,
+            gain: 1.0,
+            pan: 0.0,
+            pitch_ratio: 1.0,
+            velocity: 127,
+        }];
+        let graph = DspGraphSpec {
+            track_chains: vec![TrackDspChainSpec {
+                track_id: 2,
+                devices: vec![DspDeviceSpec {
+                    bypassed: false,
+                    kind: DspDeviceKind::Gain { gain: 0.5 },
+                }],
+            }],
+            master: vec![DspDeviceSpec {
+                bypassed: false,
+                kind: DspDeviceKind::Gain { gain: 0.25 },
+            }],
+        };
+
+        let rendered = render_sampler_events_with_dsp(
+            &samples,
+            &events,
+            OfflineRenderSpec {
+                sample_rate: 48_000,
+                channels: 1,
+                frames: 1,
+            },
+            &graph,
+        )
+        .expect("render");
+
+        assert_approx_eq(rendered.data[0], 0.125);
+    }
+
+    #[test]
+    fn bypassed_dsp_devices_do_not_process_audio() {
+        let samples = vec![OfflineSamplerSample {
+            sample_id: 7,
+            buffer: mono_sample(vec![1.0]),
+        }];
+        let events = vec![OfflineSamplerEvent {
+            track_id: 2,
+            sample_id: 7,
+            frame: 0,
+            gain: 1.0,
+            pan: 0.0,
+            pitch_ratio: 1.0,
+            velocity: 127,
+        }];
+        let graph = DspGraphSpec {
+            track_chains: vec![TrackDspChainSpec {
+                track_id: 2,
+                devices: vec![DspDeviceSpec {
+                    bypassed: true,
+                    kind: DspDeviceKind::Gain { gain: 0.0 },
+                }],
+            }],
+            master: vec![DspDeviceSpec {
+                bypassed: true,
+                kind: DspDeviceKind::Gain { gain: 0.0 },
+            }],
+        };
+
+        let rendered = render_sampler_events_with_dsp(
+            &samples,
+            &events,
+            OfflineRenderSpec {
+                sample_rate: 48_000,
+                channels: 1,
+                frames: 1,
+            },
+            &graph,
+        )
+        .expect("render");
+
+        assert_approx_eq(rendered.data[0], 1.0);
     }
 
     #[test]
@@ -1435,6 +1684,7 @@ mod tests {
             buffer: mono_sample(vec![0.25, 0.5, 0.75, 1.0]),
         }];
         let events = vec![OfflineSamplerEvent {
+            track_id: 1,
             sample_id: 1,
             frame: 0,
             gain: 1.0,
@@ -1486,6 +1736,7 @@ mod tests {
             render_sampler_events(
                 &samples,
                 &[OfflineSamplerEvent {
+                    track_id: 1,
                     sample_id: 99,
                     frame: 0,
                     gain: 1.0,
@@ -1506,6 +1757,7 @@ mod tests {
             render_sampler_events(
                 &samples,
                 &[OfflineSamplerEvent {
+                    track_id: 1,
                     sample_id: 1,
                     frame: 0,
                     gain: 1.0,
@@ -1532,6 +1784,7 @@ mod tests {
         let rendered = render_sampler_events(
             &samples,
             &[OfflineSamplerEvent {
+                track_id: 1,
                 sample_id: 1,
                 frame: 0,
                 gain: 1.0,
@@ -1571,6 +1824,7 @@ mod tests {
 
         sampler
             .handle_command(RealtimeAudioCommand::TriggerSample {
+                track_id: 1,
                 sample_id: 1,
                 frame: 1,
                 gain: 0.5,
@@ -1589,6 +1843,46 @@ mod tests {
     }
 
     #[test]
+    fn realtime_sampler_applies_dsp_graph() {
+        let mut sampler = RealtimeSampler::new(RealtimeSamplerConfig {
+            sample_rate: 48_000,
+            channels: 1,
+            max_voices: 4,
+        });
+        sampler
+            .register_sample(1, mono_sample(vec![1.0]))
+            .expect("register sample");
+        sampler.set_dsp_graph(DspGraphSpec {
+            track_chains: vec![TrackDspChainSpec {
+                track_id: 1,
+                devices: vec![DspDeviceSpec {
+                    bypassed: false,
+                    kind: DspDeviceKind::Gain { gain: 0.5 },
+                }],
+            }],
+            master: vec![DspDeviceSpec {
+                bypassed: false,
+                kind: DspDeviceKind::Gain { gain: 0.5 },
+            }],
+        });
+
+        sampler
+            .handle_command(RealtimeAudioCommand::TriggerSample {
+                track_id: 1,
+                sample_id: 1,
+                frame: 0,
+                gain: 1.0,
+                pan: 0.0,
+                pitch_ratio: 1.0,
+            })
+            .expect("trigger");
+
+        let rendered = sampler.render(1);
+
+        assert_approx_eq(rendered.data[0], 0.25);
+    }
+
+    #[test]
     fn realtime_sampler_can_trigger_at_current_callback_frame() {
         let mut sampler = RealtimeSampler::new(RealtimeSamplerConfig {
             sample_rate: 48_000,
@@ -1603,6 +1897,7 @@ mod tests {
 
         sampler
             .handle_command_now(RealtimeAudioCommand::TriggerSample {
+                track_id: 1,
                 sample_id: 1,
                 frame: 0,
                 gain: 1.0,
@@ -1627,6 +1922,7 @@ mod tests {
             .expect("register sample");
         let first_voice = sampler
             .handle_command(RealtimeAudioCommand::TriggerSample {
+                track_id: 1,
                 sample_id: 1,
                 frame: 0,
                 gain: 1.0,
@@ -1637,6 +1933,7 @@ mod tests {
             .expect("first voice id");
         let second_voice = sampler
             .handle_command(RealtimeAudioCommand::TriggerSample {
+                track_id: 1,
                 sample_id: 1,
                 frame: 0,
                 gain: 1.0,
@@ -1659,6 +1956,7 @@ mod tests {
 
         sampler
             .handle_command(RealtimeAudioCommand::TriggerSample {
+                track_id: 1,
                 sample_id: 1,
                 frame: 0,
                 gain: 1.0,

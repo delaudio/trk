@@ -10,11 +10,12 @@ use std::{
 
 use salieri_audio::{
     apply_preview_envelope, prepare_realtime_sample, slice_preview_buffer, AudioConfig,
-    CpalAudioBackend, RealtimeAudioCommand,
+    CpalAudioBackend, DspDeviceKind as AudioDspDeviceKind, DspDeviceSpec, DspGraphSpec,
+    RealtimeAudioCommand, TrackDspChainSpec,
 };
 use salieri_core::{
-    pattern_events, row_duration_micros, sampler_events, PlaybackPosition, SamplePlaybackSettings,
-    Song,
+    pattern_events, row_duration_micros, sampler_events, EffectDevice, EffectDeviceKind,
+    PlaybackPosition, SamplePlaybackSettings, Song,
 };
 use salieri_midi::{
     playback_event_to_midi, FakeMidiOutput, MidiError, MidiMessage, MidiOutput, MidirMidiOutput,
@@ -349,6 +350,9 @@ impl PlaybackAudioOutput {
                 let _ = update_tx.send(PlaybackUpdate::AudioError(error.to_string()));
             }
         }
+        if let Err(error) = backend.set_dsp_graph(audio_dsp_graph(song)) {
+            let _ = update_tx.send(PlaybackUpdate::AudioError(error.to_string()));
+        }
 
         Self::Cpal {
             backend,
@@ -567,6 +571,7 @@ fn run_pattern(
                     return PatternRunResult::Command(Box::new(command));
                 }
                 let command = RealtimeAudioCommand::TriggerSample {
+                    track_id: event.track.0,
                     sample_id: event.sample.0,
                     frame: micros_to_frames(relative_offset, context.audio_sample_rate),
                     gain: event.gain * (f32::from(event.velocity.min(0x7f)) / 127.0),
@@ -595,6 +600,37 @@ fn run_pattern(
             return PatternRunResult::Finished;
         }
         pass_start_row = 0;
+    }
+}
+
+fn audio_dsp_graph(song: &Song) -> DspGraphSpec {
+    DspGraphSpec {
+        track_chains: song
+            .mixer
+            .tracks
+            .iter()
+            .filter(|track| !track.effects.is_empty())
+            .map(|track| TrackDspChainSpec {
+                track_id: track.track.0,
+                devices: track.effects.iter().map(audio_dsp_device).collect(),
+            })
+            .collect(),
+        master: song
+            .mixer
+            .master_effects
+            .iter()
+            .map(audio_dsp_device)
+            .collect(),
+    }
+}
+
+fn audio_dsp_device(device: &EffectDevice) -> DspDeviceSpec {
+    DspDeviceSpec {
+        bypassed: device.bypassed,
+        kind: match device.kind {
+            EffectDeviceKind::Gain { gain } => AudioDspDeviceKind::Gain { gain },
+            EffectDeviceKind::Pan { pan } => AudioDspDeviceKind::Pan { pan },
+        },
     }
 }
 
@@ -1069,6 +1105,7 @@ mod tests {
                     gain,
                     pan,
                     pitch_ratio,
+                    ..
                 } => Some((*sample_id, *frame, *gain, *pan, *pitch_ratio)),
                 RealtimeAudioCommand::StopVoice { .. }
                 | RealtimeAudioCommand::AllNotesOff { .. } => None,

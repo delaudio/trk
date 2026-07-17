@@ -19,13 +19,14 @@ use persistence::{load_project, save_project};
 use playback_runtime::apply_sample_playback_settings;
 use playback_runtime::{PlaybackRuntime, PlaybackUpdate};
 use salieri_audio::{
-    encode_audio, prepare_realtime_sample, render_sampler_events, AudioConfig, AudioExportFormat,
-    OfflineRenderSpec, OfflineSamplerEvent, OfflineSamplerSample,
+    encode_audio, prepare_realtime_sample, render_sampler_events_with_dsp, AudioConfig,
+    AudioExportFormat, DspDeviceKind as AudioDspDeviceKind, DspDeviceSpec, DspGraphSpec,
+    OfflineRenderSpec, OfflineSamplerEvent, OfflineSamplerSample, TrackDspChainSpec,
 };
 use salieri_core::{
     row_duration_micros, sampler_events, AutomationTarget, CellField, Cursor, Direction,
-    InstrumentId, NoteEvent, PatternCell, SampleEnvelope, SamplePlaybackMode,
-    SamplePlaybackSettings, Song, TrackerCommand,
+    EffectDevice, EffectDeviceKind, InstrumentId, NoteEvent, PatternCell, SampleEnvelope,
+    SamplePlaybackMode, SamplePlaybackSettings, Song, TrackerCommand,
 };
 use salieri_midi::{list_output_ports, MidiMessage, MidiOutput, MidiOutputPort, MidirMidiOutput};
 use salieri_sampler::{Sample, WaveformBucket, WaveformOverview};
@@ -776,13 +777,14 @@ fn render_audio_export(
         0
     };
 
-    render_sampler_events(
+    render_sampler_events_with_dsp(
         &samples,
         &events,
         OfflineRenderSpec {
             frames,
             ..spec_base
         },
+        &audio_dsp_graph(song),
     )
     .context("failed to render sampler audio events")
 }
@@ -799,6 +801,7 @@ fn pattern_export_events(
     Ok(sampler_events(song, pattern)
         .into_iter()
         .map(|event| OfflineSamplerEvent {
+            track_id: event.track.0,
             sample_id: event.sample.0,
             frame: micros_to_frames(
                 base_micros.saturating_add(event.position.offset_micros),
@@ -810,6 +813,37 @@ fn pattern_export_events(
             velocity: event.velocity,
         })
         .collect())
+}
+
+fn audio_dsp_graph(song: &Song) -> DspGraphSpec {
+    DspGraphSpec {
+        track_chains: song
+            .mixer
+            .tracks
+            .iter()
+            .filter(|track| !track.effects.is_empty())
+            .map(|track| TrackDspChainSpec {
+                track_id: track.track.0,
+                devices: track.effects.iter().map(audio_dsp_device).collect(),
+            })
+            .collect(),
+        master: song
+            .mixer
+            .master_effects
+            .iter()
+            .map(audio_dsp_device)
+            .collect(),
+    }
+}
+
+fn audio_dsp_device(device: &EffectDevice) -> DspDeviceSpec {
+    DspDeviceSpec {
+        bypassed: device.bypassed,
+        kind: match device.kind {
+            EffectDeviceKind::Gain { gain } => AudioDspDeviceKind::Gain { gain },
+            EffectDeviceKind::Pan { pan } => AudioDspDeviceKind::Pan { pan },
+        },
+    }
 }
 
 fn sequence_export_events(song: &Song, sample_rate: u32) -> Vec<OfflineSamplerEvent> {
@@ -3046,6 +3080,148 @@ impl App {
         }
     }
 
+    fn handle_dsp_command(&mut self, values: &[&str]) {
+        match values {
+            ["master", "clear"] => self.clear_master_dsp_chain(),
+            ["master", "gain", value] => {
+                if let Ok(gain) = value.parse::<f32>() {
+                    self.upsert_master_dsp_device(EffectDevice::gain(1, gain));
+                } else {
+                    self.notify_warning("Usage: :dsp master gain GAIN");
+                }
+            }
+            ["master", "pan", value] => {
+                if let Ok(pan) = value.parse::<f32>() {
+                    self.upsert_master_dsp_device(EffectDevice::pan(2, pan));
+                } else {
+                    self.notify_warning("Usage: :dsp master pan PAN");
+                }
+            }
+            ["track", "clear"] => self.clear_track_dsp_chain(self.cursor.track),
+            ["track", "gain", value] => {
+                if let Ok(gain) = value.parse::<f32>() {
+                    self.upsert_track_dsp_device(self.cursor.track, EffectDevice::gain(1, gain));
+                } else {
+                    self.notify_warning("Usage: :dsp track [TRACK] gain GAIN");
+                }
+            }
+            ["track", "pan", value] => {
+                if let Ok(pan) = value.parse::<f32>() {
+                    self.upsert_track_dsp_device(self.cursor.track, EffectDevice::pan(2, pan));
+                } else {
+                    self.notify_warning("Usage: :dsp track [TRACK] pan PAN");
+                }
+            }
+            ["track", track, "clear"] => {
+                if let Some(track) = parse_track_number(track) {
+                    self.clear_track_dsp_chain(track);
+                } else {
+                    self.notify_warning("Usage: :dsp track [TRACK] clear");
+                }
+            }
+            ["track", track, "gain", value] => {
+                let track = parse_track_number(track);
+                let gain = value.parse::<f32>().ok();
+                if let (Some(track), Some(gain)) = (track, gain) {
+                    self.upsert_track_dsp_device(track, EffectDevice::gain(1, gain));
+                } else {
+                    self.notify_warning("Usage: :dsp track [TRACK] gain GAIN");
+                }
+            }
+            ["track", track, "pan", value] => {
+                let track = parse_track_number(track);
+                let pan = value.parse::<f32>().ok();
+                if let (Some(track), Some(pan)) = (track, pan) {
+                    self.upsert_track_dsp_device(track, EffectDevice::pan(2, pan));
+                } else {
+                    self.notify_warning("Usage: :dsp track [TRACK] pan PAN");
+                }
+            }
+            _ => self.notify_warning(
+                "Usage: :dsp master gain|pan VALUE | :dsp track [TRACK] gain|pan VALUE | :dsp ... clear",
+            ),
+        }
+    }
+
+    fn upsert_master_dsp_device(&mut self, device: EffectDevice) {
+        if !effect_device_is_valid(&device) {
+            self.notify_warning("DSP parameter out of range");
+            return;
+        }
+        let label = format_effect_device(&device);
+        self.mutate_song(|song, _| {
+            upsert_effect_device(&mut song.mixer.master_effects, device.clone());
+        });
+        self.notify_success(format!("Master DSP {label}"));
+    }
+
+    fn upsert_track_dsp_device(&mut self, track_index: usize, device: EffectDevice) {
+        if !effect_device_is_valid(&device) {
+            self.notify_warning("DSP parameter out of range");
+            return;
+        }
+        let label = format_effect_device(&device);
+        let mut track_name = None;
+        let mut updated = false;
+        self.mutate_song(|song, _| {
+            let Some(track) = song.tracks.get(track_index) else {
+                return;
+            };
+            let track_id = track.id;
+            track_name = Some(track.name.clone());
+            song.ensure_mixer_for_tracks();
+            if let Some(mixer) = song
+                .mixer
+                .tracks
+                .iter_mut()
+                .find(|mixer| mixer.track == track_id)
+            {
+                upsert_effect_device(&mut mixer.effects, device.clone());
+                updated = true;
+            }
+        });
+        if updated {
+            self.notify_success(format!(
+                "Track DSP {} {label}",
+                track_name.unwrap_or_else(|| format!("{:02}", track_index + 1))
+            ));
+        } else {
+            self.notify_warning("Track out of range");
+        }
+    }
+
+    fn clear_master_dsp_chain(&mut self) {
+        self.mutate_song(|song, _| {
+            song.mixer.master_effects.clear();
+        });
+        self.notify_success("Master DSP cleared");
+    }
+
+    fn clear_track_dsp_chain(&mut self, track_index: usize) {
+        let mut updated = false;
+        self.mutate_song(|song, _| {
+            let Some(track) = song.tracks.get(track_index) else {
+                return;
+            };
+            let track_id = track.id;
+            song.ensure_mixer_for_tracks();
+            if let Some(mixer) = song
+                .mixer
+                .tracks
+                .iter_mut()
+                .find(|mixer| mixer.track == track_id)
+            {
+                mixer.effects.clear();
+                updated = true;
+            }
+        });
+        if updated {
+            self.notify_success("Track DSP cleared");
+        } else {
+            self.notify_warning("Track out of range");
+        }
+    }
+
     fn execute_command(&mut self) {
         let command = self.command_buffer.trim().to_string();
         self.command_buffer.clear();
@@ -3129,6 +3305,10 @@ impl App {
             "mixer" | "mix" => {
                 let values = parts.collect::<Vec<_>>();
                 self.handle_mixer_command(&values);
+            }
+            "dsp" | "effect-chain" => {
+                let values = parts.collect::<Vec<_>>();
+                self.handle_dsp_command(&values);
             }
             "loop" => match parts.next() {
                 Some("on") => {
@@ -4589,6 +4769,29 @@ fn parse_track_number(value: &str) -> Option<usize> {
         .map(|number| number.saturating_sub(1))
 }
 
+fn upsert_effect_device(chain: &mut Vec<EffectDevice>, device: EffectDevice) {
+    if let Some(existing) = chain.iter_mut().find(|existing| existing.id == device.id) {
+        *existing = device;
+    } else {
+        chain.push(device);
+        chain.sort_by_key(|device| device.id);
+    }
+}
+
+fn effect_device_is_valid(device: &EffectDevice) -> bool {
+    match device.kind {
+        EffectDeviceKind::Gain { gain } => gain.is_finite() && gain >= 0.0,
+        EffectDeviceKind::Pan { pan } => pan.is_finite() && (-1.0..=1.0).contains(&pan),
+    }
+}
+
+fn format_effect_device(device: &EffectDevice) -> String {
+    match device.kind {
+        EffectDeviceKind::Gain { gain } => format!("gain {gain:.3}"),
+        EffectDeviceKind::Pan { pan } => format!("pan {pan:+.3}"),
+    }
+}
+
 fn parse_optional_frame_value(value: &str) -> Option<Option<usize>> {
     match value.to_ascii_lowercase().as_str() {
         "clear" | "none" | "off" => Some(None),
@@ -5959,6 +6162,34 @@ mod tests {
 
         app.handle_key(KeyEvent::new(KeyCode::F(9), KeyModifiers::NONE));
         assert_eq!(app.tui_active_view(), TuiView::Tracks);
+    }
+
+    #[test]
+    fn command_mode_edits_dsp_chains() {
+        let mut app = App::default();
+
+        type_command(&mut app, "dsp track 2 gain 0.500");
+        type_command(&mut app, "dsp track 2 pan -0.250");
+        type_command(&mut app, "dsp master gain 0.800");
+
+        let track_id = app.song.tracks[1].id;
+        let mixer = app.song.track_mixer_for_track(track_id);
+        assert_eq!(mixer.effects.len(), 2);
+        assert_eq!(mixer.effects[0].kind, EffectDeviceKind::Gain { gain: 0.5 });
+        assert_eq!(mixer.effects[1].kind, EffectDeviceKind::Pan { pan: -0.25 });
+        assert_eq!(app.song.mixer.master_effects.len(), 1);
+        assert_eq!(
+            app.song.mixer.master_effects[0].kind,
+            EffectDeviceKind::Gain { gain: 0.8 }
+        );
+        assert!(app.dirty);
+
+        type_command(&mut app, "dsp track 2 clear");
+        type_command(&mut app, "dsp master clear");
+
+        let mixer = app.song.track_mixer_for_track(track_id);
+        assert!(mixer.effects.is_empty());
+        assert!(app.song.mixer.master_effects.is_empty());
     }
 
     #[test]

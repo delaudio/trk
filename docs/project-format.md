@@ -102,6 +102,15 @@ with one default track mixer per song track:
 ```json
 {
   "masterGain": 0.9,
+  "masterEffects": [
+    {
+      "id": 1,
+      "name": "Gain",
+      "bypassed": false,
+      "type": "gain",
+      "gain": 0.8
+    }
+  ],
   "tracks": [
     {
       "track": 1,
@@ -109,12 +118,32 @@ with one default track mixer per song track:
       "pan": -0.25,
       "muted": false,
       "solo": false,
-      "sends": []
+      "sends": [],
+      "effects": [
+        {
+          "id": 1,
+          "name": "Gain",
+          "bypassed": false,
+          "type": "gain",
+          "gain": 0.5
+        },
+        {
+          "id": 2,
+          "name": "Pan",
+          "bypassed": false,
+          "type": "pan",
+          "pan": -0.25
+        }
+      ]
     }
   ],
   "sends": []
 }
 ```
+
+Effect chains are serializable native device references. The initial device set
+is `gain` and `pan`; `bypassed` preserves a device in the chain without
+processing audio.
 
 ## Loading Rules
 
@@ -147,7 +176,7 @@ Loaded projects are rejected when they contain:
 - invalid sample frame windows, loop windows, or envelope values;
 - automation lanes with duplicate targets, missing sample targets, duplicate rows, out-of-bounds rows, or invalid values;
 - pattern cells referencing missing instruments or invalid velocity, gate, volume, or pan values;
-- invalid mixer master gain, missing/duplicate mixer tracks, mixer tracks referencing missing song tracks, or invalid mixer gain/pan;
+- invalid mixer master gain, missing/duplicate mixer tracks, mixer tracks referencing missing song tracks, invalid mixer gain/pan, duplicate effect device ids, or invalid effect parameters;
 - duplicate instrument IDs;
 - empty instrument names;
 - instruments referencing missing samples;

@@ -1243,6 +1243,10 @@ pub enum ValidationError {
     InvalidMixerTrackGain { track_id: TrackId },
     #[error("mixer track {track_id:?} has invalid pan")]
     InvalidMixerTrackPan { track_id: TrackId },
+    #[error("effect chain has duplicate device id {device_id}")]
+    DuplicateEffectDevice { device_id: u32 },
+    #[error("effect device has invalid parameter")]
+    InvalidEffectParameter,
     #[error("sample assignment references missing track {track_id:?}")]
     SampleAssignmentTrackNotFound { track_id: TrackId },
     #[error("sample assignment references missing sample {sample_id:?}")]
@@ -1303,6 +1307,8 @@ pub struct MixerState {
     pub tracks: Vec<TrackMixerState>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sends: Vec<MixerSend>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub master_effects: Vec<EffectDevice>,
 }
 
 impl MixerState {
@@ -1315,6 +1321,7 @@ impl MixerState {
                 .map(|track| TrackMixerState::default_for_track(track.id))
                 .collect(),
             sends: Vec::new(),
+            master_effects: Vec::new(),
         }
     }
 }
@@ -1325,6 +1332,7 @@ impl Default for MixerState {
             master_gain: 1.0,
             tracks: Vec::new(),
             sends: Vec::new(),
+            master_effects: Vec::new(),
         }
     }
 }
@@ -1339,6 +1347,8 @@ pub struct TrackMixerState {
     pub solo: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sends: Vec<TrackSendLevel>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub effects: Vec<EffectDevice>,
 }
 
 impl TrackMixerState {
@@ -1351,8 +1361,48 @@ impl TrackMixerState {
             muted: false,
             solo: false,
             sends: Vec::new(),
+            effects: Vec::new(),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EffectDevice {
+    pub id: u32,
+    pub name: String,
+    pub bypassed: bool,
+    #[serde(flatten)]
+    pub kind: EffectDeviceKind,
+}
+
+impl EffectDevice {
+    #[must_use]
+    pub fn gain(id: u32, gain: f32) -> Self {
+        Self {
+            id,
+            name: "Gain".to_string(),
+            bypassed: false,
+            kind: EffectDeviceKind::Gain { gain },
+        }
+    }
+
+    #[must_use]
+    pub fn pan(id: u32, pan: f32) -> Self {
+        Self {
+            id,
+            name: "Pan".to_string(),
+            bypassed: false,
+            kind: EffectDeviceKind::Pan { pan },
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum EffectDeviceKind {
+    Gain { gain: f32 },
+    Pan { pan: f32 },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -2157,12 +2207,35 @@ fn validate_mixer(mixer: &MixerState, track_ids: &HashSet<TrackId>) -> Result<()
                 track_id: track.track,
             });
         }
+        validate_effect_chain(&track.effects)?;
     }
+    validate_effect_chain(&mixer.master_effects)?;
     for track_id in track_ids {
         if !mixer_tracks.contains(track_id) {
             return Err(ValidationError::MixerTrackMissing {
                 track_id: *track_id,
             });
+        }
+    }
+    Ok(())
+}
+
+fn validate_effect_chain(effects: &[EffectDevice]) -> Result<(), ValidationError> {
+    let mut ids = HashSet::new();
+    for effect in effects {
+        if !ids.insert(effect.id) {
+            return Err(ValidationError::DuplicateEffectDevice {
+                device_id: effect.id,
+            });
+        }
+        match effect.kind {
+            EffectDeviceKind::Gain { gain } if !gain.is_finite() || gain < 0.0 => {
+                return Err(ValidationError::InvalidEffectParameter);
+            }
+            EffectDeviceKind::Pan { pan } if !pan.is_finite() || !(-1.0..=1.0).contains(&pan) => {
+                return Err(ValidationError::InvalidEffectParameter);
+            }
+            EffectDeviceKind::Gain { .. } | EffectDeviceKind::Pan { .. } => {}
         }
     }
     Ok(())
@@ -2389,12 +2462,18 @@ mod tests {
         song.toggle_track_mixer_mute(0).expect("mute");
         song.toggle_track_mixer_solo(0).expect("solo");
         song.set_master_gain(0.8).expect("master");
+        song.mixer.tracks[0]
+            .effects
+            .push(EffectDevice::gain(1, 0.5));
+        song.mixer.master_effects.push(EffectDevice::pan(1, 0.25));
 
         let mixer = song.track_mixer_for_track(song.tracks[0].id);
         assert_eq!(mixer.gain, 0.75);
         assert_eq!(mixer.pan, -0.5);
         assert!(mixer.muted);
         assert!(mixer.solo);
+        assert_eq!(mixer.effects, vec![EffectDevice::gain(1, 0.5)]);
+        assert_eq!(song.mixer.master_effects, vec![EffectDevice::pan(1, 0.25)]);
         assert_eq!(song.mixer.master_gain, 0.8);
         song.validate().expect("valid mixer");
 
@@ -2406,6 +2485,16 @@ mod tests {
             song.set_track_mixer_gain(0, -1.0)
                 .expect_err("invalid gain"),
             EditError::InvalidMixerValue
+        );
+
+        let mut invalid = Song::empty();
+        invalid
+            .mixer
+            .master_effects
+            .push(EffectDevice::gain(1, f32::NAN));
+        assert_eq!(
+            invalid.validate().expect_err("invalid effect"),
+            ValidationError::InvalidEffectParameter
         );
     }
 

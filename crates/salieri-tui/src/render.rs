@@ -1096,6 +1096,7 @@ fn help_lines(mode_label: &str) -> Vec<Line<'static>> {
         Line::from("  :track channel 12   :fx D 20 delay   :fx R 04 retrigger   :fx clear"),
         Line::from("  :cell instrument 01   :cell volume 40   :cell pan 7F   :cell delay 20"),
         Line::from("  :cell effect R 04   :cell FIELD clear"),
+        Line::from("  :dsp track 2 gain 0.5   :dsp master gain 0.8   :dsp track 2 clear"),
         Line::from("  :play pattern   :play sequence [position]   :stop"),
         Line::from(""),
         Line::from(Span::styled(
