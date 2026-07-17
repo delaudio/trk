@@ -3,7 +3,7 @@ use ratatui::{
     prelude::{Color, Frame, Line, Modifier, Span, Style},
     widgets::{Block, Borders, Clear, Paragraph, Wrap},
 };
-use salieri_core::{CellField, Cursor, NoteEvent, Pattern, PatternCell, Song};
+use salieri_core::{CellField, Cursor, NoteEvent, Pattern, PatternCell, SamplePlaybackMode, Song};
 use salieri_sampler::{WaveformBucket, WaveformOverview};
 
 const TRACK_PANEL_WIDTH: u16 = 27;
@@ -401,7 +401,11 @@ fn render_body(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'
         LayoutKind::Large => {
             let chunks = Layout::default()
                 .direction(LayoutDirection::Horizontal)
-                .constraints([Constraint::Length(TRACK_PANEL_WIDTH), Constraint::Min(40)])
+                .constraints([
+                    Constraint::Length(TRACK_PANEL_WIDTH),
+                    Constraint::Min(72),
+                    Constraint::Length(42),
+                ])
                 .split(area);
             let side = Layout::default()
                 .direction(LayoutDirection::Vertical)
@@ -409,7 +413,7 @@ fn render_body(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'
                 .split(chunks[0]);
             render_tracks(frame, side[0], song, state.cursor.track);
             render_sequence(frame, side[1], song, state.sequence_position);
-            render_pattern(frame, chunks[1], song, state);
+            render_pattern_workspace(frame, chunks[1], chunks[2], song, state);
         }
         LayoutKind::Medium => {
             let chunks = Layout::default()
@@ -989,6 +993,381 @@ fn render_sample_browser(
             .wrap(Wrap { trim: true });
         frame.render_widget(preview, columns[1]);
     }
+}
+
+fn render_pattern_workspace(
+    frame: &mut Frame<'_>,
+    pattern_area: Rect,
+    inspector_area: Rect,
+    song: &Song,
+    state: TuiState<'_>,
+) {
+    let main = Layout::default()
+        .direction(LayoutDirection::Vertical)
+        .constraints([Constraint::Min(12), Constraint::Length(10)])
+        .split(pattern_area);
+    render_pattern(frame, main[0], song, state);
+    render_track_properties(frame, main[1], song, state);
+    render_instrument_sidebar(frame, inspector_area, song, state);
+}
+
+fn render_track_properties(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
+    let Some(track) = song.tracks.get(state.cursor.track) else {
+        let empty = Paragraph::new("No track").block(
+            Block::default()
+                .title(" Track Properties ")
+                .borders(Borders::ALL),
+        );
+        frame.render_widget(empty, area);
+        return;
+    };
+    let mixer = song.track_mixer_for_track(track.id);
+    let instrument = song
+        .instrument_for_track(track.id)
+        .map_or("none", |instrument| instrument.name.as_str());
+    let sample = song
+        .sample_for_track(track.id)
+        .map_or("none", |sample| sample.name.as_str());
+    let cell = active_pattern(song, state.pattern_index).and_then(|pattern| {
+        pattern
+            .rows
+            .get(state.cursor.row)
+            .and_then(|row| row.cells.get(state.cursor.track))
+    });
+
+    let block = Block::default().title(" Track Desk ").borders(Borders::ALL);
+    let inner = Rect {
+        x: area.x.saturating_add(1),
+        y: area.y.saturating_add(1),
+        width: area.width.saturating_sub(2),
+        height: area.height.saturating_sub(2),
+    };
+    frame.render_widget(block, area);
+
+    let columns = Layout::default()
+        .direction(LayoutDirection::Horizontal)
+        .constraints([
+            Constraint::Percentage(32),
+            Constraint::Percentage(34),
+            Constraint::Min(24),
+        ])
+        .split(inner);
+
+    let track_flags = format!(
+        "{}{}{}",
+        if track.muted { "M" } else { "-" },
+        if track.solo { "S" } else { "-" },
+        if track.armed { "R" } else { "-" },
+    );
+    let audio_flags = format!(
+        "{}{}",
+        if mixer.muted { "M" } else { "-" },
+        if mixer.solo { "S" } else { "-" },
+    );
+    let track_lines = vec![
+        Line::from(vec![
+            Span::styled(
+                "TRACK ",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                format!("{:02}", state.cursor.track + 1),
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ]),
+        Line::from(format!("Name   {}", truncate(&track.name, 22))),
+        Line::from(format!("Inst   {}", truncate(instrument, 22))),
+        Line::from(format!("Samp {}", truncate(sample, 18))),
+        Line::from(format!("CH{:02} Track {}", track.midi_channel, track_flags)),
+        Line::from(format!("Audio {}", audio_flags)),
+        Line::from(format!("Master {}", format_gain_db(song.mixer.master_gain))),
+    ];
+    frame.render_widget(
+        Paragraph::new(track_lines).wrap(Wrap { trim: true }),
+        columns[0],
+    );
+
+    let mixer_lines = vec![
+        Line::from(Span::styled(
+            "MIXER",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::from(vec![
+            Span::from(format!("Gain {:>7} ", format_gain_db(mixer.gain))),
+            Span::styled(
+                horizontal_meter(mixer.gain, 18),
+                Style::default().fg(Color::Cyan),
+            ),
+        ]),
+        Line::from(vec![
+            Span::from(format!("Pan  {:+.2}  ", mixer.pan)),
+            Span::styled(pan_meter(mixer.pan, 17), Style::default().fg(Color::Yellow)),
+        ]),
+        Line::from(format!(
+            "Sends {:02}   FX {:02}",
+            mixer.sends.len(),
+            mixer.effects.len()
+        )),
+        Line::from(":mixer gain pan"),
+        Line::from(":dsp track clear"),
+    ];
+    frame.render_widget(
+        Paragraph::new(mixer_lines).wrap(Wrap { trim: true }),
+        columns[1],
+    );
+
+    let mut cell_lines = vec![Line::from(vec![
+        Span::styled(
+            "CELL ",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::from(format!("r{:02} {}", state.cursor.row, state.cursor.field)),
+    ])];
+    if let Some(cell) = cell {
+        let [first, second] = format_cell_summary_lines(cell);
+        cell_lines.push(Line::from(first));
+        cell_lines.push(Line::from(second));
+    } else {
+        cell_lines.push(Line::from("empty"));
+    }
+    cell_lines.extend([
+        Line::from(":sample assign"),
+        Line::from(":cell instrument 01"),
+        Line::from("F11 Sampler  F9 Tracks"),
+    ]);
+    frame.render_widget(
+        Paragraph::new(cell_lines).wrap(Wrap { trim: true }),
+        columns[2],
+    );
+}
+
+fn render_instrument_sidebar(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
+    let sections = Layout::default()
+        .direction(LayoutDirection::Vertical)
+        .constraints([
+            Constraint::Length(12),
+            Constraint::Length(10),
+            Constraint::Min(5),
+        ])
+        .split(area);
+    render_instrument_list(frame, sections[0], song, state.cursor.track);
+    render_sample_list(frame, sections[1], song, state.cursor.track);
+    render_selected_track_inspector(frame, sections[2], song, state);
+}
+
+fn render_instrument_list(frame: &mut Frame<'_>, area: Rect, song: &Song, active_track: usize) {
+    let active_instrument = song
+        .tracks
+        .get(active_track)
+        .and_then(|track| song.instrument_for_track(track.id))
+        .map(|instrument| instrument.id);
+    let mut lines = vec![Line::from(vec![
+        Span::styled("#  ", Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            "INSTRUMENT",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+    ])];
+    if song.instruments.is_empty() {
+        lines.push(Line::from("No instruments"));
+    } else {
+        for instrument in song
+            .instruments
+            .iter()
+            .take(area.height.saturating_sub(4) as usize)
+        {
+            let sample_name = instrument
+                .sample
+                .and_then(|sample| song.sample_for_id(sample))
+                .map_or("-", |sample| sample.name.as_str());
+            let marker = if Some(instrument.id) == active_instrument {
+                ">"
+            } else {
+                " "
+            };
+            lines.push(Line::from(format!(
+                "{marker}{:02} {:<16} {}",
+                instrument.id.0,
+                truncate(&instrument.name, 16),
+                truncate(sample_name, 12)
+            )));
+        }
+    }
+    let list = Paragraph::new(lines)
+        .block(
+            Block::default()
+                .title(" Instruments ")
+                .borders(Borders::ALL),
+        )
+        .wrap(Wrap { trim: true });
+    frame.render_widget(list, area);
+}
+
+fn render_sample_list(frame: &mut Frame<'_>, area: Rect, song: &Song, active_track: usize) {
+    let active_sample = song
+        .tracks
+        .get(active_track)
+        .and_then(|track| song.sample_for_track(track.id))
+        .map(|sample| sample.id);
+    let mut lines = vec![Line::from(vec![
+        Span::styled("#  ", Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            "SAMPLE",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+    ])];
+    if song.samples.is_empty() {
+        lines.push(Line::from("No samples loaded"));
+    } else {
+        for sample in song
+            .samples
+            .iter()
+            .take(area.height.saturating_sub(4) as usize)
+        {
+            let marker = if Some(sample.id) == active_sample {
+                ">"
+            } else {
+                " "
+            };
+            lines.push(Line::from(format!(
+                "{marker}{:02} {:<18} root {}",
+                sample.id.0,
+                truncate(&sample.name, 18),
+                sample.root_pitch
+            )));
+        }
+    }
+    let list = Paragraph::new(lines)
+        .block(Block::default().title(" Samples ").borders(Borders::ALL))
+        .wrap(Wrap { trim: true });
+    frame.render_widget(list, area);
+}
+
+fn render_selected_track_inspector(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    song: &Song,
+    state: TuiState<'_>,
+) {
+    let Some(track) = song.tracks.get(state.cursor.track) else {
+        return;
+    };
+    let mixer = song.track_mixer_for_track(track.id);
+    let sample = song.sample_for_track(track.id);
+    let mut lines = vec![
+        Line::from(format!(
+            "Track {:02}: {}",
+            state.cursor.track + 1,
+            track.name
+        )),
+        Line::from(format!(
+            "Gain {}   Pan {:+.2}",
+            format_gain_db(mixer.gain),
+            mixer.pan
+        )),
+        Line::from(format!("MIDI CH{:02}", track.midi_channel)),
+    ];
+    if let Some(sample) = sample {
+        lines.extend([
+            Line::from(format!("Sample: {}", truncate(&sample.name, 24))),
+            Line::from(format!(
+                "Root: {}  Gain: {:.2}",
+                sample.root_pitch, sample.gain
+            )),
+            Line::from(format!(
+                "Window: {}..{}",
+                format_optional_frame(sample.playback.start_frame),
+                format_optional_frame(sample.playback.end_frame)
+            )),
+            Line::from(format!(
+                "Loop: {} {}",
+                match sample.playback.mode {
+                    SamplePlaybackMode::OneShot => "one-shot",
+                    SamplePlaybackMode::Loop => "loop",
+                },
+                format_loop_window(
+                    sample.playback.loop_start_frame,
+                    sample.playback.loop_end_frame
+                )
+            )),
+        ]);
+    } else {
+        lines.push(Line::from("No sample assigned"));
+    }
+    let inspector = Paragraph::new(lines)
+        .block(Block::default().title(" Inspector ").borders(Borders::ALL))
+        .wrap(Wrap { trim: true });
+    frame.render_widget(inspector, area);
+}
+
+fn horizontal_meter(value: f32, width: usize) -> String {
+    if width == 0 {
+        return String::new();
+    }
+    let fill = ((value.max(0.0) / 2.0).min(1.0) * width as f32).round() as usize;
+    format!(
+        "{}{}",
+        "█".repeat(fill),
+        "─".repeat(width.saturating_sub(fill))
+    )
+}
+
+fn pan_meter(pan: f32, width: usize) -> String {
+    if width == 0 {
+        return String::new();
+    }
+    let center = width / 2;
+    let mut chars = vec!['─'; width];
+    chars[center] = '│';
+    let position =
+        (((pan.clamp(-1.0, 1.0) + 1.0) / 2.0) * (width.saturating_sub(1)) as f32).round() as usize;
+    chars[position.min(width - 1)] = '●';
+    chars.into_iter().collect()
+}
+
+fn format_cell_summary_lines(cell: &PatternCell) -> [String; 2] {
+    let note = match cell.note {
+        Some(NoteEvent::Note { pitch }) => format_note(pitch),
+        Some(NoteEvent::NoteOff) => "OFF".to_string(),
+        Some(NoteEvent::NoteCut) => "CUT".to_string(),
+        None => "---".to_string(),
+    };
+    let velocity = cell
+        .velocity
+        .map_or_else(|| "--".to_string(), |value| format!("{value:02X}"));
+    let instrument = cell.instrument.map_or_else(
+        || "--".to_string(),
+        |instrument| format!("{:02X}", instrument.0.min(0xff)),
+    );
+    let volume = cell
+        .volume
+        .map_or_else(|| "--".to_string(), |value| format!("{value:02X}"));
+    let pan = cell
+        .pan
+        .map_or_else(|| "--".to_string(), |value| format!("{value:02X}"));
+    let delay = cell
+        .delay
+        .map_or_else(|| "--".to_string(), |value| format!("{value:02X}"));
+    let command = cell.command.map_or_else(
+        || "---".to_string(),
+        |command| format!("{}{:02X}", command.display_code(), command.value),
+    );
+    [
+        format!("Note {note} Vel {velocity} Inst {instrument}"),
+        format!("Vol {volume} Pan {pan} Dly {delay} FX {command}"),
+    ]
 }
 
 fn render_pattern(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
