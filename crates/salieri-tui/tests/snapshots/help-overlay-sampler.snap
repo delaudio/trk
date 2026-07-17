@@ -1,12 +1,13 @@
 ┌ Salieri Tracker ─────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ BPM 120 | LPB 4 | Pattern 01 | Oct 4 | Row 00 | Play -- | Loop ON | Track 01 | Field NOTE | HELP | STOP | MIDI Discon│
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-┌ Trac┌ Help: Sampler | Tab/Shift+Tab pages ─────────────────────────────────────────────────────────────────────┐─────┐
+┌ Trac┌ Help: Sampler 1/2 | Tab/Shift+Tab pages ─────────────────────────────────────────────────────────────────┐─────┐
 │> 01 │ Basics  |  Editing  |  Sampler  |  MIDI  |  Commands                                                     │     │
 │  02 │  Tab/Right next page   Shift+Tab/Left previous page   Up/Down scroll                                     │- -- │
 │  03 │                                                                                                          │- -- │
 │  04 │Sampler And Instruments                                                                                   │- -- │
 │     │  F11 opens Sampler view   Esc returns to Pattern view                                                    │- -- │
+│     │  In Sampler view: +/- zoom waveform   Left/Right pan   Home/End bounds                                   │- -- │
 │     │  :sample view PATH loads a WAV and shows metadata plus waveform                                          │- -- │
 │     │  :sample browse [DIR] opens the in-app sample browser                                                    │- -- │
 │     │  :sample choose [DIR] opens the configured external chooser                                              │- -- │
@@ -18,10 +19,10 @@
 │     │  TRACK is 1-based; omitted TRACK means the current track                                                 │- -- │
 │     │  :sample assignments lists track=sample mappings                                                         │- -- │
 │     │                                                                                                          │- -- │
-│     │Instrument Column                                                                                         │- -- │
-└─────│  Assigning a sample creates a sample-backed instrument for that track                                    │- -- │
-┌ Sequ│  Cells can override the track default with INST, e.g. :cell instrument 01                                │- -- │
-│  00 │  An empty INST field uses the track instrument or sample assignment                                      │- -- │
+└─────│Instrument Column                                                                                         │- -- │
+┌ Sequ│  Assigning a sample creates a sample-backed instrument for that track                                    │- -- │
+│  00 │  Cells can override the track default with INST, e.g. :cell instrument 01                                │- -- │
+│     │  An empty INST field uses the track instrument or sample assignment                                      │- -- │
 │     │                                                                                                          │- -- │
 │     │Playback Window                                                                                           │- -- │
 │     │  :sample start FRAME|clear   :sample end FRAME|clear                                                     │- -- │
@@ -29,7 +30,6 @@
 │     │  :sample envelope ATTACK DECAY SUSTAIN RELEASE                                                           │- -- │
 │     │  :sample settings shows mode, frame window, loop and envelope                                            │- -- │
 │     │                                                                                                          │- -- │
-│     │Mode: HELP   Close: Esc, q, or ?                                                                          │- -- │
 │     └──────────────────────────────────────────────────────────────────────────────────────────────────────────┘- -- │
 │                         ││ 28   --- -- -- -- -- -- --- --- -- -- -- -- -- --- --- -- -- -- -- -- --- --- -- -- -- -- │
 └─────────────────────────┘└───────────────────────────────────────────────────────────────────────────────────────────┘

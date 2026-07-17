@@ -115,6 +115,9 @@ pub struct SamplerViewState<'a> {
     pub name: &'a str,
     pub source_path: &'a str,
     pub overview: &'a WaveformOverview,
+    pub waveform_start_bucket: usize,
+    pub waveform_end_bucket: usize,
+    pub waveform_zoom: usize,
     pub instrument: Option<&'a str>,
     pub assigned_track: Option<&'a str>,
     pub assigned_track_count: usize,
@@ -265,13 +268,35 @@ pub fn render(frame: &mut Frame<'_>, song: &Song, state: TuiState<'_>) {
 }
 
 pub fn render_waveform_overview(frame: &mut Frame<'_>, area: Rect, overview: &WaveformOverview) {
-    render_waveform_overview_with_glyphs(frame, area, overview, WaveformGlyphs::Unicode);
+    render_waveform_overview_with_window(
+        frame,
+        area,
+        overview,
+        WaveformWindow::full(overview),
+        WaveformGlyphs::Unicode,
+    );
 }
 
 pub fn render_waveform_overview_with_glyphs(
     frame: &mut Frame<'_>,
     area: Rect,
     overview: &WaveformOverview,
+    glyphs: WaveformGlyphs,
+) {
+    render_waveform_overview_with_window(
+        frame,
+        area,
+        overview,
+        WaveformWindow::full(overview),
+        glyphs,
+    );
+}
+
+fn render_waveform_overview_with_window(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    overview: &WaveformOverview,
+    window: WaveformWindow,
     glyphs: WaveformGlyphs,
 ) {
     let block = Block::default().title(" Waveform ").borders(Borders::ALL);
@@ -284,11 +309,29 @@ pub fn render_waveform_overview_with_glyphs(
 
     let lines = waveform_lines(
         overview,
+        window,
         inner.width as usize,
         inner.height as usize,
         glyphs,
     );
     frame.render_widget(Paragraph::new(lines), inner);
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct WaveformWindow {
+    start_bucket: usize,
+    end_bucket: usize,
+    zoom: usize,
+}
+
+impl WaveformWindow {
+    fn full(overview: &WaveformOverview) -> Self {
+        Self {
+            start_bucket: 0,
+            end_bucket: overview.buckets.len(),
+            zoom: 1,
+        }
+    }
 }
 
 fn render_header(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
@@ -693,7 +736,17 @@ fn render_sampler_view(frame: &mut Frame<'_>, area: Rect, sampler: Option<Sample
         )
         .wrap(Wrap { trim: true });
     frame.render_widget(metadata, sections[0]);
-    render_waveform_overview(frame, sections[1], overview);
+    render_waveform_overview_with_window(
+        frame,
+        sections[1],
+        overview,
+        WaveformWindow {
+            start_bucket: sampler.waveform_start_bucket,
+            end_bucket: sampler.waveform_end_bucket,
+            zoom: sampler.waveform_zoom,
+        },
+        WaveformGlyphs::Unicode,
+    );
 }
 
 fn render_sample_browser(
@@ -1054,7 +1107,7 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
         )
     } else if state.active_view == TuiView::Sampler {
         format!(
-            " {} | H Help | Esc Pattern | F7 Sequence | F9 Tracks | F10 Patterns | : Command | Ctrl+S Save | Ctrl+Shift+S Save As | q Quit ",
+            " {} | H Help | Esc Pattern | +/- Zoom | Left/Right Pan | Home/End Wave | b Browse | F7 Sequence | F9 Tracks | F10 Patterns | : Command | Ctrl+S Save | Ctrl+Shift+S Save As | q Quit ",
             state.mode_label
         )
     } else if state.active_view == TuiView::SampleBrowser {
@@ -1222,6 +1275,7 @@ fn help_sampler_lines(mode_label: &str) -> Vec<Line<'static>> {
                 .add_modifier(Modifier::BOLD),
         )),
         Line::from("  F11 opens Sampler view   Esc returns to Pattern view"),
+        Line::from("  In Sampler view: +/- zoom waveform   Left/Right pan   Home/End bounds"),
         Line::from("  :sample view PATH loads a WAV and shows metadata plus waveform"),
         Line::from("  :sample browse [DIR] opens the in-app sample browser"),
         Line::from("  :sample choose [DIR] opens the configured external chooser"),
@@ -1440,6 +1494,7 @@ fn large_overlay_rect(area: Rect) -> Rect {
 
 fn waveform_lines(
     overview: &WaveformOverview,
+    window: WaveformWindow,
     width: usize,
     height: usize,
     glyphs: WaveformGlyphs,
@@ -1449,31 +1504,35 @@ fn waveform_lines(
     }
 
     let show_metadata = height >= 3;
-    let waveform_height = height.saturating_sub(usize::from(show_metadata));
+    let show_ruler = height >= 5;
+    let waveform_height = height
+        .saturating_sub(usize::from(show_metadata))
+        .saturating_sub(usize::from(show_ruler));
+    let window = clamp_waveform_window(overview, window);
     let mut lines = Vec::with_capacity(height);
     if show_metadata {
         lines.push(Line::from(fixed_width(
-            &format!(
-                "{}fr {:.2}s {}Hz {}ch",
-                overview.frames, overview.duration_seconds, overview.sample_rate, overview.channels
-            ),
+            &waveform_metadata_label(overview, window, width),
             width,
         )));
+    }
+    if show_ruler {
+        lines.push(Line::from(waveform_ruler_label(overview, window, width)));
     }
 
     if waveform_height == 0 {
         return lines;
     }
 
-    if overview.buckets.is_empty() {
+    let visible_buckets = &overview.buckets[window.start_bucket..window.end_bucket];
+    if visible_buckets.is_empty() {
         lines.extend(empty_waveform_lines(width, waveform_height));
         return lines;
     }
 
     let subrow_height = waveform_height.saturating_mul(2);
     let mut grid = vec![vec![WaveformCell::default(); width]; waveform_height];
-    for (x, bucket) in (0..width).map(|x| (x, waveform_column_bucket(&overview.buckets, x, width)))
-    {
+    for (x, bucket) in (0..width).map(|x| (x, waveform_column_bucket(visible_buckets, x, width))) {
         let min = sanitize_waveform_value(bucket.min);
         let max = sanitize_waveform_value(bucket.max);
         if min == 0.0 && max == 0.0 {
@@ -1524,6 +1583,135 @@ impl WaveformCell {
             (false, false, true) => glyphs.baseline(),
             (false, false, false) => ' ',
         }
+    }
+}
+
+fn clamp_waveform_window(overview: &WaveformOverview, window: WaveformWindow) -> WaveformWindow {
+    let bucket_count = overview.buckets.len();
+    if bucket_count == 0 {
+        return WaveformWindow {
+            start_bucket: 0,
+            end_bucket: 0,
+            zoom: window.zoom.max(1),
+        };
+    }
+
+    let start = window.start_bucket.min(bucket_count - 1);
+    let end = window.end_bucket.min(bucket_count).max(start + 1);
+    WaveformWindow {
+        start_bucket: start,
+        end_bucket: end,
+        zoom: window.zoom.max(1),
+    }
+}
+
+fn waveform_metadata_label(
+    overview: &WaveformOverview,
+    window: WaveformWindow,
+    width: usize,
+) -> String {
+    let total = format_time(overview.duration_seconds);
+    let start = format_time(bucket_position_time_seconds(
+        overview,
+        window.start_bucket as f32,
+    ));
+    let end = format_time(bucket_position_time_seconds(
+        overview,
+        window.end_bucket as f32,
+    ));
+    if width < 72 {
+        return format!(
+            "{}fr {} | {}-{} z{}x",
+            overview.frames, total, start, end, window.zoom
+        );
+    }
+
+    format!(
+        "{}fr {} {}Hz {}ch | view {}-{} zoom {}x",
+        overview.frames, total, overview.sample_rate, overview.channels, start, end, window.zoom
+    )
+}
+
+fn waveform_ruler_label(
+    overview: &WaveformOverview,
+    window: WaveformWindow,
+    width: usize,
+) -> String {
+    if width == 0 {
+        return String::new();
+    }
+
+    let mut chars = vec![' '; width];
+    overlay_ruler_label(
+        &mut chars,
+        0,
+        &format!(
+            "|{}",
+            format_time(bucket_position_time_seconds(
+                overview,
+                window.start_bucket as f32
+            ))
+        ),
+    );
+    overlay_ruler_label(
+        &mut chars,
+        width / 2,
+        &format!(
+            "|{}",
+            format_time(bucket_position_time_seconds(
+                overview,
+                (window.start_bucket + window.end_bucket) as f32 / 2.0
+            ))
+        ),
+    );
+    overlay_ruler_label(
+        &mut chars,
+        width.saturating_sub(1),
+        &format!(
+            "{}|",
+            format_time(bucket_position_time_seconds(
+                overview,
+                window.end_bucket as f32
+            ))
+        ),
+    );
+    chars.into_iter().collect()
+}
+
+fn overlay_ruler_label(chars: &mut [char], anchor: usize, label: &str) {
+    if chars.is_empty() {
+        return;
+    }
+    let label_width = label.chars().count();
+    let start = if anchor + label_width >= chars.len() {
+        chars.len().saturating_sub(label_width)
+    } else if anchor > 0 {
+        anchor.saturating_sub(label_width / 2)
+    } else {
+        0
+    };
+    for (index, character) in label.chars().enumerate() {
+        if let Some(cell) = chars.get_mut(start + index) {
+            *cell = character;
+        }
+    }
+}
+
+fn bucket_position_time_seconds(overview: &WaveformOverview, bucket: f32) -> f32 {
+    let bucket_count = overview.buckets.len();
+    if bucket_count == 0 {
+        return 0.0;
+    }
+    overview.duration_seconds * (bucket.clamp(0.0, bucket_count as f32) / bucket_count as f32)
+}
+
+fn format_time(seconds: f32) -> String {
+    if seconds < 1.0 {
+        format!("{:.1}ms", seconds.max(0.0) * 1000.0)
+    } else if seconds < 10.0 {
+        format!("{seconds:.3}s")
+    } else {
+        format!("{seconds:.2}s")
     }
 }
 
@@ -1633,7 +1821,13 @@ mod tests {
             max: 1.0,
         }]);
 
-        let lines = waveform_lines(&overview, 1, 4, WaveformGlyphs::Unicode);
+        let lines = waveform_lines(
+            &overview,
+            WaveformWindow::full(&overview),
+            1,
+            4,
+            WaveformGlyphs::Unicode,
+        );
 
         assert_eq!(lines.len(), 4);
         assert!(lines
@@ -1648,7 +1842,13 @@ mod tests {
             max: 0.5,
         }]);
 
-        let lines = waveform_lines(&overview, 8, 2, WaveformGlyphs::Ascii);
+        let lines = waveform_lines(
+            &overview,
+            WaveformWindow::full(&overview),
+            8,
+            2,
+            WaveformGlyphs::Ascii,
+        );
         let rendered = lines.iter().map(line_text).collect::<Vec<_>>().join("\n");
 
         assert!(rendered.contains('#'));
@@ -1659,7 +1859,13 @@ mod tests {
     fn waveform_lines_use_half_block_resolution() {
         let overview = test_waveform(vec![salieri_sampler::WaveformBucket { min: 0.2, max: 0.2 }]);
 
-        let lines = waveform_lines(&overview, 8, 6, WaveformGlyphs::Unicode);
+        let lines = waveform_lines(
+            &overview,
+            WaveformWindow::full(&overview),
+            8,
+            6,
+            WaveformGlyphs::Unicode,
+        );
         let rendered = lines.iter().map(line_text).collect::<Vec<_>>().join("\n");
 
         assert!(rendered.contains('▀') || rendered.contains('▄'));
@@ -1677,7 +1883,13 @@ mod tests {
             salieri_sampler::WaveformBucket { min: 0.0, max: 0.0 },
         ]);
 
-        let lines = waveform_lines(&overview, 2, 6, WaveformGlyphs::Unicode);
+        let lines = waveform_lines(
+            &overview,
+            WaveformWindow::full(&overview),
+            2,
+            6,
+            WaveformGlyphs::Unicode,
+        );
         let rendered = lines.iter().map(line_text).collect::<Vec<_>>().join("\n");
 
         assert!(rendered.contains('█'));
@@ -1863,6 +2075,9 @@ mod tests {
                                 name: "kick.wav",
                                 source_path: "/tmp/samples/kick.wav",
                                 overview: &overview,
+                                waveform_start_bucket: 0,
+                                waveform_end_bucket: overview.buckets.len(),
+                                waveform_zoom: 1,
                                 instrument: None,
                                 assigned_track: None,
                                 assigned_track_count: 0,

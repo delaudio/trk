@@ -49,6 +49,7 @@ use terminal::TerminalGuard;
 const UI_TICK_RATE: Duration = Duration::from_millis(33);
 const NOTIFICATION_TTL: Duration = Duration::from_secs(4);
 const SAMPLE_WAVEFORM_BUCKETS: usize = 2048;
+const SAMPLE_WAVEFORM_MAX_ZOOM: usize = 64;
 const DEFAULT_NOTE_VELOCITY: u8 = 0x7f;
 const UNDO_LIMIT: usize = 100;
 const MIN_BPM: u16 = 1;
@@ -1291,6 +1292,8 @@ struct App {
     midi_clock_follow: bool,
     midi_clock_ticks: u32,
     sample_view: Option<AppSampleView>,
+    sample_waveform_zoom: usize,
+    sample_waveform_offset: usize,
     sample_browser: SampleBrowserConfig,
     pending_sample_browser: Option<SampleBrowserRequest>,
     sample_browser_view: Option<AppSampleBrowserView>,
@@ -1452,6 +1455,8 @@ impl App {
             midi_clock_follow: false,
             midi_clock_ticks: 0,
             sample_view: None,
+            sample_waveform_zoom: 1,
+            sample_waveform_offset: 0,
             sample_browser: config.sample_browser.clone(),
             pending_sample_browser: None,
             sample_browser_view: None,
@@ -1937,7 +1942,7 @@ impl App {
         match key.code {
             KeyCode::Esc => self.mode = AppMode::Normal,
             KeyCode::Char('q') => self.request_quit(false),
-            KeyCode::Char('?') | KeyCode::Char('H') => self.mode = AppMode::Help,
+            KeyCode::Char('?') | KeyCode::Char('H') => self.open_help(),
             KeyCode::Char(':') => {
                 self.command_buffer.clear();
                 self.mode = AppMode::Command;
@@ -1973,7 +1978,7 @@ impl App {
         match key.code {
             KeyCode::Esc => self.mode = AppMode::Normal,
             KeyCode::Char('q') => self.request_quit(false),
-            KeyCode::Char('?') | KeyCode::Char('H') => self.mode = AppMode::Help,
+            KeyCode::Char('?') | KeyCode::Char('H') => self.open_help(),
             KeyCode::Char(':') => {
                 self.command_buffer.clear();
                 self.mode = AppMode::Command;
@@ -2003,7 +2008,7 @@ impl App {
         match key.code {
             KeyCode::Esc => self.mode = AppMode::Normal,
             KeyCode::Char('q') => self.request_quit(false),
-            KeyCode::Char('?') | KeyCode::Char('H') => self.mode = AppMode::Help,
+            KeyCode::Char('?') | KeyCode::Char('H') => self.open_help(),
             KeyCode::Char(':') => {
                 self.command_buffer.clear();
                 self.mode = AppMode::Command;
@@ -2038,7 +2043,7 @@ impl App {
         match key.code {
             KeyCode::Esc => self.mode = AppMode::Normal,
             KeyCode::Char('q') => self.request_quit(false),
-            KeyCode::Char('?') | KeyCode::Char('H') => self.mode = AppMode::Help,
+            KeyCode::Char('?') | KeyCode::Char('H') => self.open_help(),
             KeyCode::Char(':') => {
                 self.command_buffer.clear();
                 self.mode = AppMode::Command;
@@ -2050,6 +2055,12 @@ impl App {
             KeyCode::F(11) => self.mode = AppMode::Normal,
             KeyCode::F(8) => self.stop_playback(),
             KeyCode::Char('b') | KeyCode::Char('B') => self.open_sample_browser_view(None),
+            KeyCode::Char('+') | KeyCode::Char('=') => self.zoom_sample_waveform_in(),
+            KeyCode::Char('-') => self.zoom_sample_waveform_out(),
+            KeyCode::Left | KeyCode::Char('h') => self.pan_sample_waveform(-1),
+            KeyCode::Right | KeyCode::Char('l') => self.pan_sample_waveform(1),
+            KeyCode::Home => self.jump_sample_waveform_start(),
+            KeyCode::End => self.jump_sample_waveform_end(),
             KeyCode::Char(' ') => self.toggle_playback(),
             _ => {}
         }
@@ -2059,7 +2070,7 @@ impl App {
         match key.code {
             KeyCode::Esc => self.mode = AppMode::Sampler,
             KeyCode::Char('q') => self.request_quit(false),
-            KeyCode::Char('?') | KeyCode::Char('H') => self.mode = AppMode::Help,
+            KeyCode::Char('?') | KeyCode::Char('H') => self.open_help(),
             KeyCode::Char(':') => {
                 self.command_buffer.clear();
                 self.mode = AppMode::Command;
@@ -3989,6 +4000,8 @@ impl App {
             Ok(sample_view) => {
                 let name = sample_view.sample.name.clone();
                 self.sample_view = Some(sample_view);
+                self.sample_waveform_zoom = 1;
+                self.sample_waveform_offset = 0;
                 self.mode = AppMode::Sampler;
                 self.notify_success(format!("Sample loaded: {name}"));
             }
@@ -3997,6 +4010,98 @@ impl App {
                 self.notify_error(format!("Sample load failed: {error}"));
             }
         }
+    }
+
+    fn zoom_sample_waveform_in(&mut self) {
+        self.set_sample_waveform_zoom(self.sample_waveform_zoom.saturating_mul(2));
+    }
+
+    fn zoom_sample_waveform_out(&mut self) {
+        self.set_sample_waveform_zoom((self.sample_waveform_zoom / 2).max(1));
+    }
+
+    fn set_sample_waveform_zoom(&mut self, zoom: usize) {
+        let Some(sample) = &self.sample_view else {
+            self.notify_warning("Load a sample before zooming the waveform");
+            return;
+        };
+
+        let bucket_count = sample.overview.buckets.len();
+        if bucket_count == 0 {
+            return;
+        }
+
+        self.sample_waveform_zoom = zoom.clamp(1, SAMPLE_WAVEFORM_MAX_ZOOM);
+        let visible = sample_waveform_visible_buckets(bucket_count, self.sample_waveform_zoom);
+        self.sample_waveform_offset = self
+            .sample_waveform_offset
+            .min(bucket_count.saturating_sub(visible));
+        self.notify_info(self.sample_waveform_status());
+    }
+
+    fn pan_sample_waveform(&mut self, direction: isize) {
+        let Some(sample) = &self.sample_view else {
+            return;
+        };
+        let bucket_count = sample.overview.buckets.len();
+        if bucket_count == 0 {
+            return;
+        }
+
+        let visible = sample_waveform_visible_buckets(bucket_count, self.sample_waveform_zoom);
+        let step = (visible / 4).max(1);
+        self.sample_waveform_offset = self
+            .sample_waveform_offset
+            .saturating_add_signed(direction.saturating_mul(step as isize))
+            .min(bucket_count.saturating_sub(visible));
+        self.notify_info(self.sample_waveform_status());
+    }
+
+    fn jump_sample_waveform_start(&mut self) {
+        self.sample_waveform_offset = 0;
+        self.notify_info(self.sample_waveform_status());
+    }
+
+    fn jump_sample_waveform_end(&mut self) {
+        let Some(sample) = &self.sample_view else {
+            return;
+        };
+        let bucket_count = sample.overview.buckets.len();
+        let visible = sample_waveform_visible_buckets(bucket_count, self.sample_waveform_zoom);
+        self.sample_waveform_offset = bucket_count.saturating_sub(visible);
+        self.notify_info(self.sample_waveform_status());
+    }
+
+    fn sample_waveform_window(&self) -> (usize, usize) {
+        let Some(sample) = &self.sample_view else {
+            return (0, 0);
+        };
+        let bucket_count = sample.overview.buckets.len();
+        if bucket_count == 0 {
+            return (0, 0);
+        }
+        let visible = sample_waveform_visible_buckets(bucket_count, self.sample_waveform_zoom);
+        let start = self
+            .sample_waveform_offset
+            .min(bucket_count.saturating_sub(visible));
+        (start, start.saturating_add(visible).min(bucket_count))
+    }
+
+    fn sample_waveform_status(&self) -> String {
+        let (start, end) = self.sample_waveform_window();
+        let Some(sample) = &self.sample_view else {
+            return "Waveform".to_string();
+        };
+        let bucket_count = sample.overview.buckets.len().max(1);
+        let duration = sample.overview.duration_seconds;
+        let start_seconds = duration * (start as f32 / bucket_count as f32);
+        let end_seconds = duration * (end as f32 / bucket_count as f32);
+        format!(
+            "Waveform {:.1}-{:.1} ms zoom {}x",
+            start_seconds * 1000.0,
+            end_seconds * 1000.0,
+            self.sample_waveform_zoom
+        )
     }
 
     fn request_sample_browser(&mut self, start_dir: Option<PathBuf>) {
@@ -5071,10 +5176,14 @@ impl App {
                     .iter()
                     .find(|instrument| instrument.sample == Some(sample_id))
             });
+            let (waveform_start_bucket, waveform_end_bucket) = self.sample_waveform_window();
             SamplerViewState {
                 name: sample.sample.name.as_str(),
                 source_path: sample.source_path.to_str().unwrap_or("<non-utf8 path>"),
                 overview: &sample.overview,
+                waveform_start_bucket,
+                waveform_end_bucket,
+                waveform_zoom: self.sample_waveform_zoom,
                 instrument: instrument.map(|instrument| instrument.name.as_str()),
                 assigned_track: assigned_tracks.first().map(|track| track.name.as_str()),
                 assigned_track_count: assigned_tracks.len(),
@@ -5129,6 +5238,9 @@ impl App {
                     name: sample.sample.name.as_str(),
                     source_path: sample.source_path.to_str().unwrap_or("<non-utf8 path>"),
                     overview: &sample.overview,
+                    waveform_start_bucket: 0,
+                    waveform_end_bucket: sample.overview.buckets.len(),
+                    waveform_zoom: 1,
                     instrument: None,
                     assigned_track: None,
                     assigned_track_count: 0,
@@ -5318,6 +5430,13 @@ fn format_sample_playback_settings(settings: SamplePlaybackSettings) -> String {
         format_sample_loop(settings),
         format_sample_envelope(settings.envelope)
     )
+}
+
+fn sample_waveform_visible_buckets(bucket_count: usize, zoom: usize) -> usize {
+    if bucket_count == 0 {
+        return 0;
+    }
+    bucket_count.div_ceil(zoom.max(1)).max(1)
 }
 
 fn parse_hex_byte(value: &str) -> Option<u8> {
@@ -7295,6 +7414,32 @@ mod tests {
         assert_eq!(sampler.overview.sample_rate, 44_100);
         assert_eq!(sampler.overview.channels, 1);
         assert_eq!(sampler.overview.frames, 4);
+        assert_eq!(sampler.waveform_zoom, 1);
+        assert_eq!(sampler.waveform_start_bucket, 0);
+        assert_eq!(sampler.waveform_end_bucket, sampler.overview.buckets.len());
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('+'), KeyModifiers::NONE));
+        let sampler = app.tui_sampler_view().expect("sampler view");
+        assert_eq!(sampler.waveform_zoom, 2);
+        assert_eq!(sampler.waveform_start_bucket, 0);
+        assert_eq!(
+            sampler.waveform_end_bucket,
+            sample_waveform_visible_buckets(sampler.overview.buckets.len(), 2)
+        );
+
+        app.handle_key(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
+        let sampler = app.tui_sampler_view().expect("sampler view");
+        assert!(sampler.waveform_start_bucket > 0);
+
+        app.handle_key(KeyEvent::new(KeyCode::End, KeyModifiers::NONE));
+        let sampler = app.tui_sampler_view().expect("sampler view");
+        assert_eq!(sampler.waveform_end_bucket, sampler.overview.buckets.len());
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('-'), KeyModifiers::NONE));
+        let sampler = app.tui_sampler_view().expect("sampler view");
+        assert_eq!(sampler.waveform_zoom, 1);
+        assert_eq!(sampler.waveform_start_bucket, 0);
+        assert_eq!(sampler.waveform_end_bucket, sampler.overview.buckets.len());
     }
 
     #[test]
