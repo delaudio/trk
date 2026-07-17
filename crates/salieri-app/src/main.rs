@@ -16,6 +16,7 @@ use anyhow::{Context, Result};
 use config::{load_config, AppConfig, SampleBrowserConfig};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use persistence::{load_project, save_project};
+use playback_runtime::apply_sample_playback_settings;
 use playback_runtime::{PlaybackRuntime, PlaybackUpdate};
 use salieri_audio::{
     encode_audio, prepare_realtime_sample, render_sampler_events, AudioConfig, AudioExportFormat,
@@ -23,7 +24,7 @@ use salieri_audio::{
 };
 use salieri_core::{
     row_duration_micros, sampler_events, CellField, Cursor, Direction, NoteEvent, PatternCell,
-    Song, TrackerCommand,
+    SampleEnvelope, SamplePlaybackMode, SamplePlaybackSettings, Song, TrackerCommand,
 };
 use salieri_midi::{list_output_ports, MidiMessage, MidiOutput, MidiOutputPort, MidirMidiOutput};
 use salieri_sampler::{Sample, WaveformBucket, WaveformOverview};
@@ -844,7 +845,10 @@ fn load_offline_export_samples(
         .map(|reference| {
             let sample = Sample::load_wav(&reference.path)
                 .with_context(|| format!("failed to load sample {}", reference.path))?;
-            let preview = sample.preview(Default::default());
+            let preview = apply_sample_playback_settings(
+                &sample.preview(Default::default()),
+                reference.playback,
+            );
             Ok(OfflineSamplerSample {
                 sample_id: reference.id.0,
                 buffer: prepare_realtime_sample(&preview, sample_rate, channels),
@@ -2993,9 +2997,58 @@ impl App {
                 Some("assignments") | Some("assigned") | Some("list") => {
                     self.show_sample_assignments();
                 }
+                Some("start") => {
+                    match parts.next().map(parse_optional_frame_value) {
+                        Some(Some(value)) => self.set_loaded_sample_frame_start(value),
+                        Some(None) => self.notify_warning("Usage: :sample start FRAME|clear"),
+                        None => self.show_loaded_sample_settings(),
+                    }
+                }
+                Some("end") => {
+                    match parts.next().map(parse_optional_frame_value) {
+                        Some(Some(value)) => self.set_loaded_sample_frame_end(value),
+                        Some(None) => self.notify_warning("Usage: :sample end FRAME|clear"),
+                        None => self.show_loaded_sample_settings(),
+                    }
+                }
+                Some("loop") => match parts.next() {
+                    Some("off") | Some("none") | Some("clear") => {
+                        self.set_loaded_sample_loop(SamplePlaybackMode::OneShot, None, None);
+                    }
+                    Some("on") => {
+                        let start = parts.next().and_then(|value| value.parse::<usize>().ok());
+                        let end = parts.next().and_then(|value| value.parse::<usize>().ok());
+                        self.set_loaded_sample_loop(SamplePlaybackMode::Loop, start, end);
+                    }
+                    Some(start) => {
+                        let start = start.parse::<usize>().ok();
+                        let end = parts.next().and_then(|value| value.parse::<usize>().ok());
+                        self.set_loaded_sample_loop(SamplePlaybackMode::Loop, start, end);
+                    }
+                    None => self.show_loaded_sample_settings(),
+                },
+                Some("envelope") | Some("env") => {
+                    let envelope = (
+                        parts.next().and_then(|value| value.parse::<f32>().ok()),
+                        parts.next().and_then(|value| value.parse::<f32>().ok()),
+                        parts.next().and_then(|value| value.parse::<f32>().ok()),
+                        parts.next().and_then(|value| value.parse::<f32>().ok()),
+                    );
+                    if let (Some(attack), Some(decay), Some(sustain), Some(release)) = envelope {
+                        self.set_loaded_sample_envelope(SampleEnvelope {
+                            attack_seconds: attack,
+                            decay_seconds: decay,
+                            sustain,
+                            release_seconds: release,
+                        });
+                    } else {
+                        self.notify_warning("Usage: :sample envelope ATTACK DECAY SUSTAIN RELEASE");
+                    }
+                }
+                Some("settings") | Some("info") => self.show_loaded_sample_settings(),
                 None => self.open_sampler_view(),
                 Some(_) => self.notify_warning(
-                    "Usage: :sample view PATH | browse [DIR] | choose [DIR] | assign [TRACK] | replace [TRACK] | unassign [TRACK] | unload | cleanup | assignments",
+                    "Usage: :sample view PATH | assign [TRACK] | start FRAME|clear | end FRAME|clear | loop START END|off | envelope A D S R",
                 ),
             },
             _ => self.notify_warning(format!("Unknown command: {name}")),
@@ -3500,6 +3553,143 @@ impl App {
         self.notify_info(format!("Samples: {assignments}"));
     }
 
+    fn loaded_sample_playback_settings(&self) -> Option<SamplePlaybackSettings> {
+        let sample_view = self.sample_view.as_ref()?;
+        let sample_path = sample_view.source_path.to_string_lossy();
+        Some(
+            self.song
+                .samples
+                .iter()
+                .find(|sample| sample.path == sample_path)
+                .map(|sample| sample.playback)
+                .unwrap_or_default(),
+        )
+    }
+
+    fn store_loaded_sample_playback_settings(&mut self, settings: SamplePlaybackSettings) -> bool {
+        let Some(sample_view) = &self.sample_view else {
+            self.mode = AppMode::Sampler;
+            self.notify_warning("Load a sample before editing playback settings");
+            return false;
+        };
+
+        let sample_name = sample_view.sample.name.clone();
+        let sample_path = sample_view.source_path.to_string_lossy().to_string();
+        self.mutate_song(|song, _| {
+            let sample_id = song.upsert_sample_reference(sample_path, sample_name);
+            song.set_sample_frame_window(sample_id, settings.start_frame, settings.end_frame)
+                .expect("sample frame window was prevalidated");
+            song.set_sample_loop(
+                sample_id,
+                settings.mode,
+                settings.loop_start_frame,
+                settings.loop_end_frame,
+            )
+            .expect("sample loop was prevalidated");
+            song.set_sample_envelope(sample_id, settings.envelope)
+                .expect("sample envelope was prevalidated");
+        });
+        self.mode = AppMode::Sampler;
+        true
+    }
+
+    fn set_loaded_sample_frame_start(&mut self, start_frame: Option<usize>) {
+        let Some(mut settings) = self.loaded_sample_playback_settings() else {
+            self.mode = AppMode::Sampler;
+            self.notify_warning("Load a sample before editing playback settings");
+            return;
+        };
+        settings.start_frame = start_frame;
+        if let Err(message) = validate_sample_playback_settings(settings) {
+            self.notify_warning(message);
+            return;
+        }
+        if self.store_loaded_sample_playback_settings(settings) {
+            self.notify_success(format!(
+                "Sample start {}",
+                format_optional_frame(settings.start_frame)
+            ));
+        }
+    }
+
+    fn set_loaded_sample_frame_end(&mut self, end_frame: Option<usize>) {
+        let Some(mut settings) = self.loaded_sample_playback_settings() else {
+            self.mode = AppMode::Sampler;
+            self.notify_warning("Load a sample before editing playback settings");
+            return;
+        };
+        settings.end_frame = end_frame;
+        if let Err(message) = validate_sample_playback_settings(settings) {
+            self.notify_warning(message);
+            return;
+        }
+        if self.store_loaded_sample_playback_settings(settings) {
+            self.notify_success(format!(
+                "Sample end {}",
+                format_optional_frame(settings.end_frame)
+            ));
+        }
+    }
+
+    fn set_loaded_sample_loop(
+        &mut self,
+        mode: SamplePlaybackMode,
+        loop_start_frame: Option<usize>,
+        loop_end_frame: Option<usize>,
+    ) {
+        let Some(mut settings) = self.loaded_sample_playback_settings() else {
+            self.mode = AppMode::Sampler;
+            self.notify_warning("Load a sample before editing playback settings");
+            return;
+        };
+
+        settings.mode = mode;
+        if mode == SamplePlaybackMode::OneShot {
+            settings.loop_start_frame = None;
+            settings.loop_end_frame = None;
+        } else if loop_start_frame.is_some() || loop_end_frame.is_some() {
+            settings.loop_start_frame = loop_start_frame;
+            settings.loop_end_frame = loop_end_frame;
+        }
+
+        if let Err(message) = validate_sample_playback_settings(settings) {
+            self.notify_warning(message);
+            return;
+        }
+        if self.store_loaded_sample_playback_settings(settings) {
+            self.notify_success(format!("Sample loop {}", format_sample_loop(settings)));
+        }
+    }
+
+    fn set_loaded_sample_envelope(&mut self, envelope: SampleEnvelope) {
+        let Some(mut settings) = self.loaded_sample_playback_settings() else {
+            self.mode = AppMode::Sampler;
+            self.notify_warning("Load a sample before editing playback settings");
+            return;
+        };
+
+        settings.envelope = envelope;
+        if let Err(message) = validate_sample_playback_settings(settings) {
+            self.notify_warning(message);
+            return;
+        }
+        if self.store_loaded_sample_playback_settings(settings) {
+            self.notify_success(format!(
+                "Sample envelope {}",
+                format_sample_envelope(envelope)
+            ));
+        }
+    }
+
+    fn show_loaded_sample_settings(&mut self) {
+        let Some(settings) = self.loaded_sample_playback_settings() else {
+            self.mode = AppMode::Sampler;
+            self.notify_warning("Load a sample before viewing playback settings");
+            return;
+        };
+        self.notify_info(format_sample_playback_settings(settings));
+    }
+
     fn refresh_midi_ports(&mut self) {
         match list_output_ports() {
             Ok(ports) => {
@@ -3879,12 +4069,15 @@ impl App {
     fn tui_sampler_view(&self) -> Option<SamplerViewState<'_>> {
         self.sample_view.as_ref().map(|sample| {
             let sample_path = sample.source_path.to_string_lossy();
-            let sample_id = self
+            let sample_reference = self
                 .song
                 .samples
                 .iter()
-                .find(|reference| reference.path == sample_path.as_ref())
-                .map(|reference| reference.id);
+                .find(|reference| reference.path == sample_path.as_ref());
+            let sample_id = sample_reference.map(|reference| reference.id);
+            let playback = sample_reference
+                .map(|reference| reference.playback)
+                .unwrap_or_default();
             let assigned_tracks = sample_id.map_or_else(Vec::new, |sample_id| {
                 self.song
                     .sample_assignments
@@ -3911,6 +4104,20 @@ impl App {
                 instrument: instrument.map(|instrument| instrument.name.as_str()),
                 assigned_track: assigned_tracks.first().map(|track| track.name.as_str()),
                 assigned_track_count: assigned_tracks.len(),
+                playback_mode: match playback.mode {
+                    SamplePlaybackMode::OneShot => "one-shot",
+                    SamplePlaybackMode::Loop => "loop",
+                },
+                start_frame: playback.start_frame,
+                end_frame: playback.end_frame,
+                loop_start_frame: playback.loop_start_frame,
+                loop_end_frame: playback.loop_end_frame,
+                envelope: (
+                    playback.envelope.attack_seconds,
+                    playback.envelope.decay_seconds,
+                    playback.envelope.sustain,
+                    playback.envelope.release_seconds,
+                ),
             }
         })
     }
@@ -3951,6 +4158,12 @@ impl App {
                     instrument: None,
                     assigned_track: None,
                     assigned_track_count: 0,
+                    playback_mode: "one-shot",
+                    start_frame: None,
+                    end_frame: None,
+                    loop_start_frame: None,
+                    loop_end_frame: None,
+                    envelope: (0.0, 0.0, 1.0, 0.0),
                 }),
                 message: browser.message.as_deref(),
             })
@@ -4005,6 +4218,77 @@ fn parse_track_number(value: &str) -> Option<usize> {
         .parse::<usize>()
         .ok()
         .map(|number| number.saturating_sub(1))
+}
+
+fn parse_optional_frame_value(value: &str) -> Option<Option<usize>> {
+    match value.to_ascii_lowercase().as_str() {
+        "clear" | "none" | "off" => Some(None),
+        _ => value.parse::<usize>().ok().map(Some),
+    }
+}
+
+fn validate_sample_playback_settings(settings: SamplePlaybackSettings) -> Result<(), &'static str> {
+    if let (Some(start), Some(end)) = (settings.start_frame, settings.end_frame) {
+        if start >= end {
+            return Err("Sample start must be before end");
+        }
+    }
+    if settings.mode == SamplePlaybackMode::Loop {
+        match (settings.loop_start_frame, settings.loop_end_frame) {
+            (Some(start), Some(end)) if start < end => {}
+            (Some(_), Some(_)) => return Err("Sample loop start must be before loop end"),
+            _ => return Err("Sample loop requires start and end frames"),
+        }
+    }
+    let envelope = settings.envelope;
+    if !envelope.attack_seconds.is_finite()
+        || envelope.attack_seconds < 0.0
+        || !envelope.decay_seconds.is_finite()
+        || envelope.decay_seconds < 0.0
+        || !envelope.release_seconds.is_finite()
+        || envelope.release_seconds < 0.0
+        || !envelope.sustain.is_finite()
+        || !(0.0..=1.0).contains(&envelope.sustain)
+    {
+        return Err("Sample envelope requires A/D/R >= 0 and sustain between 0 and 1");
+    }
+    Ok(())
+}
+
+fn format_optional_frame(frame: Option<usize>) -> String {
+    frame.map_or_else(|| "clear".to_string(), |frame| frame.to_string())
+}
+
+fn format_sample_loop(settings: SamplePlaybackSettings) -> String {
+    match (
+        settings.mode,
+        settings.loop_start_frame,
+        settings.loop_end_frame,
+    ) {
+        (SamplePlaybackMode::Loop, Some(start), Some(end)) => format!("{start}-{end}"),
+        _ => "off".to_string(),
+    }
+}
+
+fn format_sample_envelope(envelope: SampleEnvelope) -> String {
+    format!(
+        "{:.3}/{:.3}/{:.3}/{:.3}",
+        envelope.attack_seconds, envelope.decay_seconds, envelope.sustain, envelope.release_seconds
+    )
+}
+
+fn format_sample_playback_settings(settings: SamplePlaybackSettings) -> String {
+    format!(
+        "Sample settings: mode={} start={} end={} loop={} env={}",
+        match settings.mode {
+            SamplePlaybackMode::OneShot => "one-shot",
+            SamplePlaybackMode::Loop => "loop",
+        },
+        format_optional_frame(settings.start_frame),
+        format_optional_frame(settings.end_frame),
+        format_sample_loop(settings),
+        format_sample_envelope(settings.envelope)
+    )
 }
 
 fn parse_hex_byte(value: &str) -> Option<u8> {
@@ -5636,6 +5920,64 @@ mod tests {
 
         assert!(app.song.sample_assignment_for_track(track_id).is_none());
         assert!(app.song.instrument_assignment_for_track(track_id).is_none());
+    }
+
+    #[test]
+    fn sampler_commands_edit_playback_settings() {
+        let mut app = App::default();
+        let path = std::env::temp_dir().join(format!(
+            "salieri-sampler-settings-{}.wav",
+            std::process::id()
+        ));
+        std::fs::write(
+            &path,
+            wav_pcm16_bytes(44_100, 1, &[0, i16::MAX, i16::MIN, 16_384]),
+        )
+        .expect("write wav");
+
+        enter_command(&mut app, &format!("sample view {}", path.display()));
+        enter_command(&mut app, "sample start 1");
+        enter_command(&mut app, "sample end 4");
+        enter_command(&mut app, "sample loop 1 3");
+        enter_command(&mut app, "sample envelope 0.010 0.020 0.500 0.030");
+
+        let sample = app
+            .song
+            .samples
+            .iter()
+            .find(|sample| sample.path == path.to_string_lossy())
+            .expect("sample reference");
+        assert_eq!(sample.playback.start_frame, Some(1));
+        assert_eq!(sample.playback.end_frame, Some(4));
+        assert_eq!(sample.playback.mode, SamplePlaybackMode::Loop);
+        assert_eq!(sample.playback.loop_start_frame, Some(1));
+        assert_eq!(sample.playback.loop_end_frame, Some(3));
+        assert_eq!(sample.playback.envelope.sustain, 0.5);
+
+        let sampler = app.tui_sampler_view().expect("sampler view");
+        assert_eq!(sampler.playback_mode, "loop");
+        assert_eq!(sampler.start_frame, Some(1));
+        assert_eq!(sampler.end_frame, Some(4));
+        assert_eq!(sampler.loop_start_frame, Some(1));
+        assert_eq!(sampler.loop_end_frame, Some(3));
+        assert_eq!(sampler.envelope, (0.010, 0.020, 0.500, 0.030));
+
+        enter_command(&mut app, "sample start 9");
+        let sample = app.song.samples.first().expect("sample reference");
+        assert_eq!(sample.playback.start_frame, Some(1));
+        assert!(app
+            .notification
+            .as_ref()
+            .expect("notification")
+            .message
+            .contains("before end"));
+
+        enter_command(&mut app, "sample loop off");
+        let sample = app.song.samples.first().expect("sample reference");
+        assert_eq!(sample.playback.mode, SamplePlaybackMode::OneShot);
+        assert_eq!(sample.playback.loop_start_frame, None);
+        assert_eq!(sample.playback.loop_end_frame, None);
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]

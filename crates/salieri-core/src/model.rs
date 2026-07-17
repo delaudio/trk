@@ -219,6 +219,7 @@ impl Song {
             if !sample.gain.is_finite() || sample.gain < 0.0 {
                 return Err(ValidationError::InvalidSampleGain { sample_index });
             }
+            validate_sample_playback_settings(sample_index, sample.playback)?;
         }
 
         let mut assigned_tracks = HashSet::new();
@@ -615,6 +616,7 @@ impl Song {
             path,
             root_pitch: 60,
             gain: 1.0,
+            playback: SamplePlaybackSettings::default(),
         });
         id
     }
@@ -655,6 +657,78 @@ impl Song {
         let sample = self.upsert_sample_reference(path, name);
         self.assign_sample_to_track(track, sample)?;
         Ok(sample)
+    }
+
+    pub fn set_sample_frame_window(
+        &mut self,
+        sample: SampleId,
+        start_frame: Option<usize>,
+        end_frame: Option<usize>,
+    ) -> Result<(), EditError> {
+        let reference = self
+            .samples
+            .iter_mut()
+            .find(|reference| reference.id == sample)
+            .ok_or(EditError::SampleNotFound { sample_id: sample })?;
+        let mut playback = reference.playback;
+        playback.start_frame = start_frame;
+        playback.end_frame = end_frame;
+        if let Err(ValidationError::InvalidSampleFrameWindow { .. }) =
+            validate_sample_playback_settings(0, playback)
+        {
+            return Err(EditError::InvalidSampleFrameWindow);
+        }
+        reference.playback.start_frame = start_frame;
+        reference.playback.end_frame = end_frame;
+        Ok(())
+    }
+
+    pub fn set_sample_loop(
+        &mut self,
+        sample: SampleId,
+        mode: SamplePlaybackMode,
+        loop_start_frame: Option<usize>,
+        loop_end_frame: Option<usize>,
+    ) -> Result<(), EditError> {
+        let reference = self
+            .samples
+            .iter_mut()
+            .find(|reference| reference.id == sample)
+            .ok_or(EditError::SampleNotFound { sample_id: sample })?;
+        let mut playback = reference.playback;
+        playback.mode = mode;
+        playback.loop_start_frame = loop_start_frame;
+        playback.loop_end_frame = loop_end_frame;
+        if let Err(ValidationError::InvalidSampleLoopWindow { .. }) =
+            validate_sample_playback_settings(0, playback)
+        {
+            return Err(EditError::InvalidSampleLoopWindow);
+        }
+        reference.playback.mode = mode;
+        reference.playback.loop_start_frame = loop_start_frame;
+        reference.playback.loop_end_frame = loop_end_frame;
+        Ok(())
+    }
+
+    pub fn set_sample_envelope(
+        &mut self,
+        sample: SampleId,
+        envelope: SampleEnvelope,
+    ) -> Result<(), EditError> {
+        let reference = self
+            .samples
+            .iter_mut()
+            .find(|reference| reference.id == sample)
+            .ok_or(EditError::SampleNotFound { sample_id: sample })?;
+        let mut playback = reference.playback;
+        playback.envelope = envelope;
+        if let Err(ValidationError::InvalidSampleEnvelope { .. }) =
+            validate_sample_playback_settings(0, playback)
+        {
+            return Err(EditError::InvalidSampleEnvelope);
+        }
+        reference.playback.envelope = envelope;
+        Ok(())
     }
 
     pub fn unassign_sample_from_track(&mut self, track: TrackId) {
@@ -724,6 +798,12 @@ impl Song {
     #[must_use]
     pub fn sample_for_id(&self, sample: SampleId) -> Option<&SampleReference> {
         self.samples.iter().find(|reference| reference.id == sample)
+    }
+
+    pub fn sample_for_id_mut(&mut self, sample: SampleId) -> Option<&mut SampleReference> {
+        self.samples
+            .iter_mut()
+            .find(|reference| reference.id == sample)
     }
 
     #[must_use]
@@ -950,6 +1030,12 @@ pub enum ValidationError {
     InvalidSampleRootPitch { sample_index: usize, root_pitch: u8 },
     #[error("sample {sample_index} has invalid gain")]
     InvalidSampleGain { sample_index: usize },
+    #[error("sample {sample_index} has invalid frame window")]
+    InvalidSampleFrameWindow { sample_index: usize },
+    #[error("sample {sample_index} has invalid loop window")]
+    InvalidSampleLoopWindow { sample_index: usize },
+    #[error("sample {sample_index} has invalid envelope")]
+    InvalidSampleEnvelope { sample_index: usize },
     #[error("sample assignment references missing track {track_id:?}")]
     SampleAssignmentTrackNotFound { track_id: TrackId },
     #[error("sample assignment references missing sample {sample_id:?}")]
@@ -1010,6 +1096,79 @@ pub struct SampleReference {
     pub path: String,
     pub root_pitch: u8,
     pub gain: f32,
+    #[serde(default, skip_serializing_if = "SamplePlaybackSettings::is_default")]
+    pub playback: SamplePlaybackSettings,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum SamplePlaybackMode {
+    #[default]
+    OneShot,
+    Loop,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SampleEnvelope {
+    pub attack_seconds: f32,
+    pub decay_seconds: f32,
+    pub sustain: f32,
+    pub release_seconds: f32,
+}
+
+impl Default for SampleEnvelope {
+    fn default() -> Self {
+        Self {
+            attack_seconds: 0.0,
+            decay_seconds: 0.0,
+            sustain: 1.0,
+            release_seconds: 0.0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SamplePlaybackSettings {
+    pub mode: SamplePlaybackMode,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start_frame: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub end_frame: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub loop_start_frame: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub loop_end_frame: Option<usize>,
+    #[serde(default, skip_serializing_if = "SampleEnvelope::is_default")]
+    pub envelope: SampleEnvelope,
+}
+
+impl Default for SamplePlaybackSettings {
+    fn default() -> Self {
+        Self {
+            mode: SamplePlaybackMode::OneShot,
+            start_frame: None,
+            end_frame: None,
+            loop_start_frame: None,
+            loop_end_frame: None,
+            envelope: SampleEnvelope::default(),
+        }
+    }
+}
+
+impl SampleEnvelope {
+    #[must_use]
+    pub fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
+impl SamplePlaybackSettings {
+    #[must_use]
+    pub fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1237,6 +1396,12 @@ pub enum EditError {
     SampleNotFound { sample_id: SampleId },
     #[error("sample is still assigned: sample id {sample_id:?}")]
     SampleInUse { sample_id: SampleId },
+    #[error("invalid sample frame window")]
+    InvalidSampleFrameWindow,
+    #[error("invalid sample loop window")]
+    InvalidSampleLoopWindow,
+    #[error("invalid sample envelope")]
+    InvalidSampleEnvelope,
     #[error("instrument not found: instrument id {instrument_id:?}")]
     InstrumentNotFound { instrument_id: InstrumentId },
     #[error("name cannot be empty")]
@@ -1432,6 +1597,45 @@ fn clean_name(name: String) -> Result<String, EditError> {
     } else {
         Ok(name)
     }
+}
+
+fn validate_sample_playback_settings(
+    sample_index: usize,
+    settings: SamplePlaybackSettings,
+) -> Result<(), ValidationError> {
+    if let (Some(start_frame), Some(end_frame)) = (settings.start_frame, settings.end_frame) {
+        if start_frame >= end_frame {
+            return Err(ValidationError::InvalidSampleFrameWindow { sample_index });
+        }
+    }
+    match (
+        settings.mode,
+        settings.loop_start_frame,
+        settings.loop_end_frame,
+    ) {
+        (SamplePlaybackMode::Loop, Some(loop_start), Some(loop_end)) if loop_start < loop_end => {}
+        (SamplePlaybackMode::Loop, _, _) => {
+            return Err(ValidationError::InvalidSampleLoopWindow { sample_index });
+        }
+        (_, Some(loop_start), Some(loop_end)) if loop_start < loop_end => {}
+        (_, Some(_), Some(_)) | (_, Some(_), None) | (_, None, Some(_)) => {
+            return Err(ValidationError::InvalidSampleLoopWindow { sample_index });
+        }
+        (_, None, None) => {}
+    }
+    let envelope = settings.envelope;
+    if !envelope.attack_seconds.is_finite()
+        || envelope.attack_seconds < 0.0
+        || !envelope.decay_seconds.is_finite()
+        || envelope.decay_seconds < 0.0
+        || !envelope.release_seconds.is_finite()
+        || envelope.release_seconds < 0.0
+        || !envelope.sustain.is_finite()
+        || !(0.0..=1.0).contains(&envelope.sustain)
+    {
+        return Err(ValidationError::InvalidSampleEnvelope { sample_index });
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -1981,6 +2185,78 @@ mod tests {
         assert_eq!(
             song.sample_for_track(track).expect("sample").path,
             "samples/kick.wav"
+        );
+    }
+
+    #[test]
+    fn sample_playback_settings_validate_and_edit() {
+        let mut song = Song::empty();
+        let sample = song.upsert_sample_reference("samples/kick.wav", "kick.wav");
+
+        song.set_sample_frame_window(sample, Some(10), Some(100))
+            .expect("set frame window");
+        song.set_sample_loop(sample, SamplePlaybackMode::Loop, Some(20), Some(80))
+            .expect("set loop");
+        song.set_sample_envelope(
+            sample,
+            SampleEnvelope {
+                attack_seconds: 0.01,
+                decay_seconds: 0.02,
+                sustain: 0.75,
+                release_seconds: 0.03,
+            },
+        )
+        .expect("set envelope");
+
+        let playback = song.sample_for_id(sample).expect("sample").playback;
+        assert_eq!(playback.start_frame, Some(10));
+        assert_eq!(playback.end_frame, Some(100));
+        assert_eq!(playback.mode, SamplePlaybackMode::Loop);
+        assert_eq!(playback.loop_start_frame, Some(20));
+        assert_eq!(playback.loop_end_frame, Some(80));
+        assert_eq!(playback.envelope.sustain, 0.75);
+        song.validate().expect("valid playback settings");
+
+        assert_eq!(
+            song.set_sample_frame_window(sample, Some(100), Some(10))
+                .expect_err("invalid frame window"),
+            EditError::InvalidSampleFrameWindow
+        );
+        assert_eq!(
+            song.set_sample_loop(sample, SamplePlaybackMode::Loop, Some(80), Some(20))
+                .expect_err("invalid loop window"),
+            EditError::InvalidSampleLoopWindow
+        );
+        assert_eq!(
+            song.set_sample_envelope(
+                sample,
+                SampleEnvelope {
+                    attack_seconds: 0.0,
+                    decay_seconds: 0.0,
+                    sustain: 1.5,
+                    release_seconds: 0.0,
+                },
+            )
+            .expect_err("invalid envelope"),
+            EditError::InvalidSampleEnvelope
+        );
+    }
+
+    #[test]
+    fn validation_rejects_invalid_sample_playback_settings() {
+        let mut song = Song::empty();
+        let sample = song.upsert_sample_reference("samples/kick.wav", "kick.wav");
+
+        song.sample_for_id_mut(sample).expect("sample").playback = SamplePlaybackSettings {
+            mode: SamplePlaybackMode::Loop,
+            loop_start_frame: Some(12),
+            loop_end_frame: None,
+            ..SamplePlaybackSettings::default()
+        };
+
+        assert_eq!(
+            song.validate().expect_err("partial loop is invalid"),
+            ValidationError::InvalidSampleLoopWindow { sample_index: 0 }
         );
     }
 

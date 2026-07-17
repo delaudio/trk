@@ -748,6 +748,74 @@ pub fn prepare_realtime_sample(
     }
 }
 
+#[must_use]
+pub fn slice_preview_buffer(
+    preview: &PreviewBuffer,
+    start_frame: Option<usize>,
+    end_frame: Option<usize>,
+) -> PreviewBuffer {
+    let channels = usize::from(preview.channels).max(1);
+    let start = start_frame.unwrap_or(0).min(preview.frames);
+    let end = end_frame
+        .unwrap_or(preview.frames)
+        .min(preview.frames)
+        .max(start);
+    let start_offset = start.saturating_mul(channels);
+    let end_offset = end.saturating_mul(channels).min(preview.data.len());
+
+    PreviewBuffer {
+        sample_rate: preview.sample_rate,
+        channels: preview.channels,
+        frames: end.saturating_sub(start),
+        data: preview.data[start_offset..end_offset].to_vec(),
+    }
+}
+
+#[must_use]
+pub fn apply_preview_envelope(
+    preview: &PreviewBuffer,
+    attack_frames: usize,
+    decay_frames: usize,
+    sustain: f32,
+    release_frames: usize,
+) -> PreviewBuffer {
+    let channels = usize::from(preview.channels).max(1);
+    let attack_frames = attack_frames.min(preview.frames);
+    let decay_frames = decay_frames.min(preview.frames.saturating_sub(attack_frames));
+    let release_frames = release_frames.min(preview.frames);
+    let sustain = sustain.clamp(0.0, 1.0);
+    let release_start = preview.frames.saturating_sub(release_frames);
+    let mut data = preview.data.clone();
+
+    for frame in 0..preview.frames {
+        let mut gain = if attack_frames > 0 && frame < attack_frames {
+            frame as f32 / attack_frames as f32
+        } else if decay_frames > 0 && frame < attack_frames.saturating_add(decay_frames) {
+            let decay_position = frame.saturating_sub(attack_frames) as f32 / decay_frames as f32;
+            1.0 - decay_position * (1.0 - sustain)
+        } else {
+            sustain
+        };
+        if release_frames > 0 && frame >= release_start {
+            let release_position =
+                frame.saturating_sub(release_start) as f32 / release_frames as f32;
+            gain *= 1.0 - release_position;
+        }
+
+        let offset = frame.saturating_mul(channels);
+        for sample in data.iter_mut().skip(offset).take(channels) {
+            *sample *= gain;
+        }
+    }
+
+    PreviewBuffer {
+        sample_rate: preview.sample_rate,
+        channels: preview.channels,
+        frames: preview.frames,
+        data,
+    }
+}
+
 pub fn render_sampler_preview(
     preview: &PreviewBuffer,
     spec: OfflineRenderSpec,
@@ -1168,6 +1236,40 @@ mod tests {
         assert_eq!(prepared.data[1], 0.25);
         assert_approx_eq(prepared.data[2], 0.5);
         assert_approx_eq(prepared.data[3], 0.5);
+    }
+
+    #[test]
+    fn slices_preview_buffers_by_frame_window() {
+        let preview = PreviewBuffer {
+            sample_rate: 48_000,
+            channels: 2,
+            frames: 4,
+            data: vec![0.0, 0.1, 1.0, 1.1, 2.0, 2.1, 3.0, 3.1],
+        };
+
+        let sliced = slice_preview_buffer(&preview, Some(1), Some(3));
+
+        assert_eq!(sliced.sample_rate, 48_000);
+        assert_eq!(sliced.channels, 2);
+        assert_eq!(sliced.frames, 2);
+        assert_eq!(sliced.data, vec![1.0, 1.1, 2.0, 2.1]);
+    }
+
+    #[test]
+    fn applies_preview_envelope_to_each_frame() {
+        let preview = PreviewBuffer {
+            sample_rate: 4,
+            channels: 1,
+            frames: 4,
+            data: vec![1.0, 1.0, 1.0, 1.0],
+        };
+
+        let enveloped = apply_preview_envelope(&preview, 2, 0, 1.0, 2);
+
+        assert_approx_eq(enveloped.data[0], 0.0);
+        assert_approx_eq(enveloped.data[1], 0.5);
+        assert_approx_eq(enveloped.data[2], 1.0);
+        assert_approx_eq(enveloped.data[3], 0.5);
     }
 
     #[test]

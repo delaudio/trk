@@ -3,8 +3,9 @@ pub mod playback;
 
 pub use model::{
     CellField, Cursor, Direction, EditError, Instrument, InstrumentId, NoteEvent, Pattern,
-    PatternCell, PatternId, PatternRow, SampleId, SampleReference, Song, SongMetadata, Track,
-    TrackId, TrackInstrumentAssignment, TrackSampleAssignment, TrackerCommand, TransportSettings,
+    PatternCell, PatternId, PatternRow, SampleEnvelope, SampleId, SamplePlaybackMode,
+    SamplePlaybackSettings, SampleReference, Song, SongMetadata, Track, TrackId,
+    TrackInstrumentAssignment, TrackSampleAssignment, TrackerCommand, TransportSettings,
     ValidationError,
 };
 pub use playback::{

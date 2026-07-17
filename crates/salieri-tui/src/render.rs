@@ -65,6 +65,12 @@ pub struct SamplerViewState<'a> {
     pub instrument: Option<&'a str>,
     pub assigned_track: Option<&'a str>,
     pub assigned_track_count: usize,
+    pub playback_mode: &'a str,
+    pub start_frame: Option<usize>,
+    pub end_frame: Option<usize>,
+    pub loop_start_frame: Option<usize>,
+    pub loop_end_frame: Option<usize>,
+    pub envelope: (f32, f32, f32, f32),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -565,7 +571,7 @@ fn render_sampler_view(frame: &mut Frame<'_>, area: Rect, sampler: Option<Sample
 
     let sections = Layout::default()
         .direction(LayoutDirection::Vertical)
-        .constraints([Constraint::Length(10), Constraint::Min(5)])
+        .constraints([Constraint::Length(14), Constraint::Min(5)])
         .split(area);
 
     let overview = sampler.overview;
@@ -586,6 +592,20 @@ fn render_sampler_view(frame: &mut Frame<'_>, area: Rect, sampler: Option<Sample
         Line::from(format!("Channels: {}", overview.channels)),
         Line::from(format!("Frames: {}", overview.frames)),
         Line::from(format!("Duration: {:.3} s", overview.duration_seconds)),
+        Line::from(format!(
+            "Window: {}..{}",
+            format_optional_frame(sampler.start_frame),
+            format_optional_frame(sampler.end_frame)
+        )),
+        Line::from(format!(
+            "Loop: {} {}",
+            sampler.playback_mode,
+            format_loop_window(sampler.loop_start_frame, sampler.loop_end_frame)
+        )),
+        Line::from(format!(
+            "Envelope: A {:.3}s  D {:.3}s  S {:.3}  R {:.3}s",
+            sampler.envelope.0, sampler.envelope.1, sampler.envelope.2, sampler.envelope.3
+        )),
     ];
     let metadata = Paragraph::new(lines)
         .block(
@@ -1315,6 +1335,17 @@ fn truncate(value: &str, max_chars: usize) -> String {
     }
 }
 
+fn format_optional_frame(frame: Option<usize>) -> String {
+    frame.map_or_else(|| "-".to_string(), |frame| frame.to_string())
+}
+
+fn format_loop_window(start: Option<usize>, end: Option<usize>) -> String {
+    match (start, end) {
+        (Some(start), Some(end)) => format!("{start}..{end}"),
+        _ => "-".to_string(),
+    }
+}
+
 fn format_note(pitch: u8) -> String {
     const NAMES: [&str; 12] = [
         "C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-",
@@ -1485,6 +1516,12 @@ mod tests {
                                 instrument: None,
                                 assigned_track: None,
                                 assigned_track_count: 0,
+                                playback_mode: "one-shot",
+                                start_frame: None,
+                                end_frame: None,
+                                loop_start_frame: None,
+                                loop_end_frame: None,
+                                envelope: (0.0, 0.0, 1.0, 0.0),
                             }),
                             message: None,
                         }),

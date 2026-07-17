@@ -23,6 +23,33 @@ On load, Salieri normalizes those assignments into sample-backed instruments and
 track instrument assignments. New sample assignment edits keep both the
 compatibility assignment and the instrument assignment in sync.
 
+Each sample reference may include optional playback settings. Omitted playback
+settings default to one-shot playback with no frame window, no loop points, and a
+neutral envelope:
+
+```json
+{
+  "id": 1,
+  "name": "break.wav",
+  "path": "samples/break.wav",
+  "rootPitch": 60,
+  "gain": 1.0,
+  "playback": {
+    "mode": "loop",
+    "startFrame": 1200,
+    "endFrame": 48000,
+    "loopStartFrame": 2400,
+    "loopEndFrame": 12000,
+    "envelope": {
+      "attackSeconds": 0.005,
+      "decaySeconds": 0.04,
+      "sustain": 0.8,
+      "releaseSeconds": 0.08
+    }
+  }
+}
+```
+
 ## Loading Rules
 
 On load, Salieri:
@@ -51,6 +78,7 @@ Loaded projects are rejected when they contain:
 - empty sample names or paths;
 - MIDI channels outside `1..=16`;
 - invalid sample root pitch or gain;
+- invalid sample frame windows, loop windows, or envelope values;
 - duplicate instrument IDs;
 - empty instrument names;
 - instruments referencing missing samples;

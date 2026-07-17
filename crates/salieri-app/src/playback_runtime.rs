@@ -8,12 +8,18 @@ use std::{
     time::{Duration, Instant},
 };
 
-use salieri_audio::{prepare_realtime_sample, AudioConfig, CpalAudioBackend, RealtimeAudioCommand};
-use salieri_core::{pattern_events, row_duration_micros, sampler_events, PlaybackPosition, Song};
+use salieri_audio::{
+    apply_preview_envelope, prepare_realtime_sample, slice_preview_buffer, AudioConfig,
+    CpalAudioBackend, RealtimeAudioCommand,
+};
+use salieri_core::{
+    pattern_events, row_duration_micros, sampler_events, PlaybackPosition, SamplePlaybackSettings,
+    Song,
+};
 use salieri_midi::{
     playback_event_to_midi, FakeMidiOutput, MidiError, MidiMessage, MidiOutput, MidirMidiOutput,
 };
-use salieri_sampler::{PreviewSettings, Sample};
+use salieri_sampler::{PreviewBuffer, PreviewSettings, Sample};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlaybackCursor {
@@ -407,7 +413,10 @@ fn load_realtime_samples(
         .filter(|sample| assigned_samples.contains(&sample.id))
         .filter_map(|reference| match Sample::load_wav(&reference.path) {
             Ok(sample) => {
-                let preview = sample.preview(PreviewSettings::default());
+                let preview = apply_sample_playback_settings(
+                    &sample.preview(PreviewSettings::default()),
+                    reference.playback,
+                );
                 Some((
                     reference.id.0,
                     prepare_realtime_sample(&preview, config.sample_rate, config.channels),
@@ -422,6 +431,30 @@ fn load_realtime_samples(
             }
         })
         .collect()
+}
+
+pub(crate) fn apply_sample_playback_settings(
+    preview: &PreviewBuffer,
+    settings: SamplePlaybackSettings,
+) -> PreviewBuffer {
+    let sliced = slice_preview_buffer(preview, settings.start_frame, settings.end_frame);
+    let sample_rate = sliced.sample_rate as f32;
+    let envelope = settings.envelope;
+    apply_preview_envelope(
+        &sliced,
+        seconds_to_frames(envelope.attack_seconds, sample_rate),
+        seconds_to_frames(envelope.decay_seconds, sample_rate),
+        envelope.sustain,
+        seconds_to_frames(envelope.release_seconds, sample_rate),
+    )
+}
+
+fn seconds_to_frames(seconds: f32, sample_rate: f32) -> usize {
+    if !seconds.is_finite() || seconds <= 0.0 || !sample_rate.is_finite() || sample_rate <= 0.0 {
+        0
+    } else {
+        (seconds * sample_rate).round() as usize
+    }
 }
 
 #[cfg(test)]

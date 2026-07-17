@@ -7,10 +7,10 @@ The sampler work is post-MVP and intentionally lives outside `salieri-core`, `sa
 - WAV loading for 16-bit PCM and 32-bit float RIFF/WAVE files;
 - normalized interleaved `f32` sample buffers;
 - preview buffer generation with basic pitch and volume handling;
-- persistent sample references, sample-backed instruments, and assignment metadata for mapping instruments to tracker tracks;
+- persistent sample references, sample-backed instruments, playback settings, and assignment metadata for mapping instruments to tracker tracks;
 - deterministic waveform overviews for CLI and TUI rendering.
 
-This keeps the MIDI-first runtime intact. Existing pattern playback still emits MIDI, while `salieri-core::sampler_events` defines the data contract the audio layer consumes: track id, sample id/path, note pitch, velocity, gain, pitch ratio, and scheduled position. The playback runtime loads assigned WAV files, prepares them for the default CPAL output format, and routes assigned sample events to realtime audio commands for audible sampler playback.
+This keeps the MIDI-first runtime intact. Existing pattern playback still emits MIDI, while `salieri-core::sampler_events` defines the data contract the audio layer consumes: track id, sample id/path, note pitch, velocity, gain, pitch ratio, and scheduled position. The playback runtime loads assigned WAV files, applies sample start/end and amplitude-envelope settings, prepares them for the default CPAL output format, and routes assigned sample events to realtime audio commands for audible sampler playback.
 
 Users can inspect supported WAV files without opening the tracker UI:
 
@@ -30,6 +30,14 @@ After loading a WAV, assign it to the current track:
 :sample replace 2
 :sample unassign
 :sample unassign 2
+:sample start 1200
+:sample start clear
+:sample end 48000
+:sample end clear
+:sample loop 2400 12000
+:sample loop off
+:sample envelope 0.005 0.040 0.800 0.080
+:sample settings
 :sample unload
 :sample cleanup
 :sample assignments
@@ -39,15 +47,23 @@ Assignments are saved in `.salieri` project files. Loading old projects with dir
 `replace` swaps the sample on a track and removes the previous sample reference when it is no longer used.
 `unload` removes the currently viewed sample reference only when it is unassigned, while `cleanup` prunes all unused sample references.
 
+Playback settings are also saved in `.salieri` project files:
+
+- `start` and `end` set a frame window used by realtime playback and offline audio export;
+- `loop` stores validated loop-point metadata for the sample reference;
+- `envelope` stores attack seconds, decay seconds, sustain level `0..=1`, and release seconds, and is applied to realtime playback and offline audio export;
+- `settings` prints the current settings for the loaded sample.
+
 External sample browsing is optional. See [sample-browser.md](sample-browser.md) for the Yazi/chooser-file workflow and audition helper.
 
 Current limitations:
 
 - realtime sampler output uses the default CPAL output device only;
 - no streaming for large samples;
-- no envelopes, looping, choking, or velocity layers;
+- loop points are persisted and displayed but are not yet rendered as sustained loop playback;
+- no choking, keyzones, or velocity layers;
 - no mixer, effects, level metering, or device selection yet.
 
 Next sampler playback steps:
 
-- add sampler playback controls such as loop points, envelopes, choking, and velocity layers.
+- add sustained loop playback, choking, keyzones, and velocity layers.
