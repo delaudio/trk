@@ -380,7 +380,7 @@ AI-assisted composition lives behind `salieri-ai`. It currently models prompt-sc
 
 ## Interoperability
 
-`salieri-interop` supports a narrow Standard MIDI File format 0 subset for import/export. Tracker module formats such as MOD, XM, IT, S3M, and Renoise XRNS are explicitly unsupported for now and need separate semantic mapping work.
+`salieri-interop` supports a narrow Standard MIDI File format 0 subset for import/export. The next recommended project-import target is an XRNS inspector followed by a minimal XRNS importer. Legacy module formats such as MOD, XM, IT, and S3M remain explicit unsupported formats until a diagnostics/sample-extraction spike defines the acceptable lossy subset.
 
 See [docs/interoperability.md](docs/interoperability.md).
 
