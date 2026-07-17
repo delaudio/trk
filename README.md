@@ -11,7 +11,7 @@ The primary realtime playback path remains MIDI-first for external instruments, 
 - Track, pattern, and sequence management, including rename, duplicate, delete, move, mute/solo, pattern length, and arrangement playback.
 - MIDI output routing with port listing, connection from the TUI, panic/all-notes-off, channel assignment, logging, and MIDI test-note CLI support.
 - Project persistence as JSON `.salieri` files with validation and atomic writes.
-- WAV sample loading, waveform inspection, in-app sample browser, external chooser integration, sample assignment to tracks, replacement, unassignment, unload, and cleanup.
+- WAV sample loading, waveform inspection, in-app sample browser, external chooser integration, sample-backed instruments, track assignment, replacement, unassignment, unload, and cleanup.
 - Realtime sampler playback for assigned WAV samples through the default CPAL output device.
 - Deterministic sampler event contracts for routing assigned samples into audio commands.
 - Offline audio rendering foundations for sampler preview/event buffers and WAV PCM16 encoding.

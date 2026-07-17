@@ -67,10 +67,18 @@ pub fn save_project(path: &Path, song: &Song) -> Result<()> {
 fn migrate_project(project: ProjectFile, path: &Path) -> Result<Song> {
     match project.format_version {
         CURRENT_FORMAT_VERSION => {
-            project.song.validate().with_context(|| {
+            let mut song = project.song;
+            song.ensure_instruments_for_sample_assignments()
+                .with_context(|| {
+                    format!(
+                        "project migration failed while loading {}",
+                        path.display()
+                    )
+                })?;
+            song.validate().with_context(|| {
                 format!("project validation failed while loading {}", path.display())
             })?;
-            Ok(project.song)
+            Ok(song)
         }
         version => bail!(
             "unsupported project format version {version} in {}; current version is {CURRENT_FORMAT_VERSION}",
@@ -129,6 +137,13 @@ mod tests {
         assert_eq!(
             loaded.sample_for_track(track).expect("sample").path,
             "samples/kick.wav"
+        );
+        assert_eq!(
+            loaded
+                .instrument_for_track(track)
+                .expect("instrument")
+                .sample,
+            Some(sample)
         );
     }
 

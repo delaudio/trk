@@ -19,6 +19,10 @@ pub struct PatternId(pub u32);
 #[serde(transparent)]
 pub struct SampleId(pub u32);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct InstrumentId(pub u32);
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Song {
@@ -31,6 +35,10 @@ pub struct Song {
     pub samples: Vec<SampleReference>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sample_assignments: Vec<TrackSampleAssignment>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub instruments: Vec<Instrument>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub track_instrument_assignments: Vec<TrackInstrumentAssignment>,
 }
 
 impl Song {
@@ -70,6 +78,8 @@ impl Song {
             sequence: vec![PatternId(1)],
             samples: Vec::new(),
             sample_assignments: Vec::new(),
+            instruments: Vec::new(),
+            track_instrument_assignments: Vec::new(),
         }
     }
 
@@ -225,6 +235,45 @@ impl Song {
             }
             if !assigned_tracks.insert(assignment.track) {
                 return Err(ValidationError::DuplicateSampleAssignment {
+                    track_id: assignment.track,
+                });
+            }
+        }
+
+        let mut instrument_ids = HashSet::new();
+        for (instrument_index, instrument) in self.instruments.iter().enumerate() {
+            if !instrument_ids.insert(instrument.id) {
+                return Err(ValidationError::DuplicateInstrumentId {
+                    instrument_id: instrument.id,
+                });
+            }
+            if instrument.name.trim().is_empty() {
+                return Err(ValidationError::EmptyInstrumentName { instrument_index });
+            }
+            if let Some(sample) = instrument.sample {
+                if !sample_ids.contains(&sample) {
+                    return Err(ValidationError::InstrumentSampleNotFound {
+                        instrument_id: instrument.id,
+                        sample_id: sample,
+                    });
+                }
+            }
+        }
+
+        let mut instrument_assigned_tracks = HashSet::new();
+        for assignment in &self.track_instrument_assignments {
+            if !track_ids.contains(&assignment.track) {
+                return Err(ValidationError::InstrumentAssignmentTrackNotFound {
+                    track_id: assignment.track,
+                });
+            }
+            if !instrument_ids.contains(&assignment.instrument) {
+                return Err(ValidationError::InstrumentAssignmentInstrumentNotFound {
+                    instrument_id: assignment.instrument,
+                });
+            }
+            if !instrument_assigned_tracks.insert(assignment.track) {
+                return Err(ValidationError::DuplicateInstrumentAssignment {
                     track_id: assignment.track,
                 });
             }
@@ -451,6 +500,9 @@ impl Song {
         if let Some(source_assignment) = self.sample_assignment_for_track(source.id).cloned() {
             self.assign_sample_to_track(id, source_assignment.sample)?;
         }
+        if let Some(source_assignment) = self.instrument_assignment_for_track(source.id).cloned() {
+            self.assign_instrument_to_track(id, source_assignment.instrument)?;
+        }
 
         Ok(id)
     }
@@ -470,6 +522,7 @@ impl Song {
 
         let removed = self.tracks.remove(track_index);
         self.unassign_sample_from_track(removed.id);
+        self.unassign_instrument_from_track(removed.id);
         Ok(removed)
     }
 
@@ -588,6 +641,8 @@ impl Song {
             self.sample_assignments
                 .push(TrackSampleAssignment { track, sample });
         }
+        let instrument = self.upsert_sample_instrument(sample)?;
+        self.assign_instrument_to_track(track, instrument)?;
         Ok(())
     }
 
@@ -605,6 +660,7 @@ impl Song {
     pub fn unassign_sample_from_track(&mut self, track: TrackId) {
         self.sample_assignments
             .retain(|assignment| assignment.track != track);
+        self.unassign_instrument_from_track(track);
     }
 
     pub fn remove_sample_reference(&mut self, sample: SampleId) -> Result<(), EditError> {
@@ -616,14 +672,29 @@ impl Song {
         }
 
         self.samples.retain(|reference| reference.id != sample);
+        self.instruments
+            .retain(|instrument| instrument.sample != Some(sample));
         Ok(())
     }
 
     pub fn prune_unused_sample_references(&mut self) -> usize {
+        let assigned_instruments = self
+            .track_instrument_assignments
+            .iter()
+            .map(|assignment| assignment.instrument)
+            .collect::<HashSet<_>>();
+        self.instruments.retain(|instrument| {
+            instrument.sample.is_none() || assigned_instruments.contains(&instrument.id)
+        });
         let assigned_samples = self
             .sample_assignments
             .iter()
             .map(|assignment| assignment.sample)
+            .chain(
+                self.instruments
+                    .iter()
+                    .filter_map(|instrument| instrument.sample),
+            )
             .collect::<HashSet<_>>();
         let before = self.samples.len();
         self.samples
@@ -636,6 +707,11 @@ impl Song {
         self.sample_assignments
             .iter()
             .any(|assignment| assignment.sample == sample)
+            || self
+                .track_instrument_assignments
+                .iter()
+                .filter_map(|assignment| self.instrument_for_id(assignment.instrument))
+                .any(|instrument| instrument.sample == Some(sample))
     }
 
     #[must_use]
@@ -654,6 +730,105 @@ impl Song {
     pub fn sample_for_track(&self, track: TrackId) -> Option<&SampleReference> {
         self.sample_assignment_for_track(track)
             .and_then(|assignment| self.sample_for_id(assignment.sample))
+            .or_else(|| {
+                self.instrument_for_track(track)
+                    .and_then(|instrument| instrument.sample)
+                    .and_then(|sample| self.sample_for_id(sample))
+            })
+    }
+
+    pub fn upsert_sample_instrument(
+        &mut self,
+        sample: SampleId,
+    ) -> Result<InstrumentId, EditError> {
+        if !self.samples.iter().any(|existing| existing.id == sample) {
+            return Err(EditError::SampleNotFound { sample_id: sample });
+        }
+        if let Some(instrument) = self
+            .instruments
+            .iter()
+            .find(|instrument| instrument.sample == Some(sample))
+        {
+            return Ok(instrument.id);
+        }
+        let sample_name = self.sample_for_id(sample).map_or_else(
+            || format!("Sample {}", sample.0),
+            |sample| sample.name.clone(),
+        );
+        let id = self.next_instrument_id();
+        self.instruments.push(Instrument {
+            id,
+            name: sample_name,
+            sample: Some(sample),
+        });
+        Ok(id)
+    }
+
+    pub fn assign_instrument_to_track(
+        &mut self,
+        track: TrackId,
+        instrument: InstrumentId,
+    ) -> Result<(), EditError> {
+        if !self.tracks.iter().any(|existing| existing.id == track) {
+            return Err(EditError::TrackIdNotFound { track_id: track });
+        }
+        if !self
+            .instruments
+            .iter()
+            .any(|existing| existing.id == instrument)
+        {
+            return Err(EditError::InstrumentNotFound {
+                instrument_id: instrument,
+            });
+        }
+        if let Some(existing) = self
+            .track_instrument_assignments
+            .iter_mut()
+            .find(|assignment| assignment.track == track)
+        {
+            existing.instrument = instrument;
+        } else {
+            self.track_instrument_assignments
+                .push(TrackInstrumentAssignment { track, instrument });
+        }
+        Ok(())
+    }
+
+    pub fn unassign_instrument_from_track(&mut self, track: TrackId) {
+        self.track_instrument_assignments
+            .retain(|assignment| assignment.track != track);
+    }
+
+    #[must_use]
+    pub fn instrument_for_id(&self, instrument: InstrumentId) -> Option<&Instrument> {
+        self.instruments
+            .iter()
+            .find(|reference| reference.id == instrument)
+    }
+
+    #[must_use]
+    pub fn instrument_assignment_for_track(
+        &self,
+        track: TrackId,
+    ) -> Option<&TrackInstrumentAssignment> {
+        self.track_instrument_assignments
+            .iter()
+            .find(|assignment| assignment.track == track)
+    }
+
+    #[must_use]
+    pub fn instrument_for_track(&self, track: TrackId) -> Option<&Instrument> {
+        self.instrument_assignment_for_track(track)
+            .and_then(|assignment| self.instrument_for_id(assignment.instrument))
+    }
+
+    pub fn ensure_instruments_for_sample_assignments(&mut self) -> Result<(), EditError> {
+        let assignments = self.sample_assignments.clone();
+        for assignment in assignments {
+            let instrument = self.upsert_sample_instrument(assignment.sample)?;
+            self.assign_instrument_to_track(assignment.track, instrument)?;
+        }
+        Ok(())
     }
 
     fn next_track_id(&self) -> TrackId {
@@ -687,6 +862,17 @@ impl Song {
             .unwrap_or(0)
             .saturating_add(1);
         SampleId(next)
+    }
+
+    fn next_instrument_id(&self) -> InstrumentId {
+        let next = self
+            .instruments
+            .iter()
+            .map(|instrument| instrument.id.0)
+            .max()
+            .unwrap_or(0)
+            .saturating_add(1);
+        InstrumentId(next)
     }
 }
 
@@ -770,6 +956,21 @@ pub enum ValidationError {
     SampleAssignmentSampleNotFound { sample_id: SampleId },
     #[error("track {track_id:?} has multiple sample assignments")]
     DuplicateSampleAssignment { track_id: TrackId },
+    #[error("duplicate instrument id {instrument_id:?}")]
+    DuplicateInstrumentId { instrument_id: InstrumentId },
+    #[error("instrument {instrument_index} name cannot be empty")]
+    EmptyInstrumentName { instrument_index: usize },
+    #[error("instrument {instrument_id:?} references missing sample {sample_id:?}")]
+    InstrumentSampleNotFound {
+        instrument_id: InstrumentId,
+        sample_id: SampleId,
+    },
+    #[error("instrument assignment references missing track {track_id:?}")]
+    InstrumentAssignmentTrackNotFound { track_id: TrackId },
+    #[error("instrument assignment references missing instrument {instrument_id:?}")]
+    InstrumentAssignmentInstrumentNotFound { instrument_id: InstrumentId },
+    #[error("track {track_id:?} has multiple instrument assignments")]
+    DuplicateInstrumentAssignment { track_id: TrackId },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -816,6 +1017,22 @@ pub struct SampleReference {
 pub struct TrackSampleAssignment {
     pub track: TrackId,
     pub sample: SampleId,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Instrument {
+    pub id: InstrumentId,
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sample: Option<SampleId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrackInstrumentAssignment {
+    pub track: TrackId,
+    pub instrument: InstrumentId,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1020,6 +1237,8 @@ pub enum EditError {
     SampleNotFound { sample_id: SampleId },
     #[error("sample is still assigned: sample id {sample_id:?}")]
     SampleInUse { sample_id: SampleId },
+    #[error("instrument not found: instrument id {instrument_id:?}")]
+    InstrumentNotFound { instrument_id: InstrumentId },
     #[error("name cannot be empty")]
     EmptyName,
 }
@@ -1748,6 +1967,40 @@ mod tests {
     }
 
     #[test]
+    fn sample_assignment_creates_track_instrument_assignment() {
+        let mut song = Song::empty();
+        let track = song.tracks[0].id;
+        let sample = song.upsert_sample_reference("samples/kick.wav", "kick.wav");
+
+        song.assign_sample_to_track(track, sample)
+            .expect("assign sample");
+
+        let instrument = song.instrument_for_track(track).expect("instrument");
+        assert_eq!(instrument.name, "kick.wav");
+        assert_eq!(instrument.sample, Some(sample));
+        assert_eq!(
+            song.sample_for_track(track).expect("sample").path,
+            "samples/kick.wav"
+        );
+    }
+
+    #[test]
+    fn instrument_assignments_can_drive_sample_lookup_without_legacy_assignment() {
+        let mut song = Song::empty();
+        let track = song.tracks[0].id;
+        let sample = song.upsert_sample_reference("samples/kick.wav", "kick.wav");
+        let instrument = song.upsert_sample_instrument(sample).expect("instrument");
+        song.assign_instrument_to_track(track, instrument)
+            .expect("assign instrument");
+
+        assert_eq!(
+            song.sample_for_track(track).expect("sample").path,
+            "samples/kick.wav"
+        );
+        assert!(song.sample_assignment_for_track(track).is_none());
+    }
+
+    #[test]
     fn sample_references_are_removed_only_when_unused() {
         let mut song = Song::empty();
         let assigned = song.upsert_sample_reference("samples/kick.wav", "kick.wav");
@@ -1810,6 +2063,10 @@ mod tests {
 
         assert!(song.sample_assignment_for_track(source_track).is_none());
         assert!(song.sample_assignment_for_track(duplicated_track).is_some());
+        assert!(song.instrument_assignment_for_track(source_track).is_none());
+        assert!(song
+            .instrument_assignment_for_track(duplicated_track)
+            .is_some());
     }
 
     #[test]
@@ -1824,6 +2081,23 @@ mod tests {
             song.validate().expect_err("missing sample"),
             ValidationError::SampleAssignmentSampleNotFound {
                 sample_id: SampleId(99)
+            }
+        );
+    }
+
+    #[test]
+    fn validation_rejects_invalid_instrument_assignments() {
+        let mut song = Song::empty();
+        song.track_instrument_assignments
+            .push(TrackInstrumentAssignment {
+                track: song.tracks[0].id,
+                instrument: InstrumentId(99),
+            });
+
+        assert_eq!(
+            song.validate().expect_err("missing instrument"),
+            ValidationError::InstrumentAssignmentInstrumentNotFound {
+                instrument_id: InstrumentId(99)
             }
         );
     }

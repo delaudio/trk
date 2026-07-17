@@ -62,6 +62,7 @@ pub struct SamplerViewState<'a> {
     pub name: &'a str,
     pub source_path: &'a str,
     pub overview: &'a WaveformOverview,
+    pub instrument: Option<&'a str>,
     pub assigned_track: Option<&'a str>,
     pub assigned_track_count: usize,
 }
@@ -564,7 +565,7 @@ fn render_sampler_view(frame: &mut Frame<'_>, area: Rect, sampler: Option<Sample
 
     let sections = Layout::default()
         .direction(LayoutDirection::Vertical)
-        .constraints([Constraint::Length(9), Constraint::Min(5)])
+        .constraints([Constraint::Length(10), Constraint::Min(5)])
         .split(area);
 
     let overview = sampler.overview;
@@ -576,6 +577,10 @@ fn render_sampler_view(frame: &mut Frame<'_>, area: Rect, sampler: Option<Sample
     let lines = vec![
         Line::from(format!("Name: {}", truncate(sampler.name, 48))),
         Line::from(format!("Path: {}", truncate(sampler.source_path, 72))),
+        Line::from(format!(
+            "Instrument: {}",
+            sampler.instrument.unwrap_or("none")
+        )),
         Line::from(assignment),
         Line::from(format!("Sample rate: {} Hz", overview.sample_rate)),
         Line::from(format!("Channels: {}", overview.channels)),
@@ -1477,6 +1482,7 @@ mod tests {
                                 name: "kick.wav",
                                 source_path: "/tmp/samples/kick.wav",
                                 overview: &overview,
+                                instrument: None,
                                 assigned_track: None,
                                 assigned_track_count: 0,
                             }),

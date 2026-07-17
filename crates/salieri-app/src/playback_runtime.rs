@@ -389,6 +389,14 @@ fn load_realtime_samples(
         .sample_assignments
         .iter()
         .map(|assignment| assignment.sample)
+        .chain(
+            song.track_instrument_assignments
+                .iter()
+                .filter_map(|assignment| {
+                    song.instrument_for_id(assignment.instrument)
+                        .and_then(|instrument| instrument.sample)
+                }),
+        )
         .collect::<HashSet<_>>();
     if assigned_samples.is_empty() {
         return Vec::new();

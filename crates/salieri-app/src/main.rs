@@ -3898,10 +3898,17 @@ impl App {
                     })
                     .collect::<Vec<_>>()
             });
+            let instrument = sample_id.and_then(|sample_id| {
+                self.song
+                    .instruments
+                    .iter()
+                    .find(|instrument| instrument.sample == Some(sample_id))
+            });
             SamplerViewState {
                 name: sample.sample.name.as_str(),
                 source_path: sample.source_path.to_str().unwrap_or("<non-utf8 path>"),
                 overview: &sample.overview,
+                instrument: instrument.map(|instrument| instrument.name.as_str()),
                 assigned_track: assigned_tracks.first().map(|track| track.name.as_str()),
                 assigned_track_count: assigned_tracks.len(),
             }
@@ -3941,6 +3948,7 @@ impl App {
                     name: sample.sample.name.as_str(),
                     source_path: sample.source_path.to_str().unwrap_or("<non-utf8 path>"),
                     overview: &sample.overview,
+                    instrument: None,
                     assigned_track: None,
                     assigned_track_count: 0,
                 }),
@@ -5603,9 +5611,12 @@ mod tests {
         let sample = app.song.sample_for_id(assignment.sample).expect("sample");
         assert_eq!(sample.name, path.file_name().unwrap().to_string_lossy());
         assert_eq!(sample.path, path.to_string_lossy());
+        let instrument = app.song.instrument_for_track(track_id).expect("instrument");
+        assert_eq!(instrument.sample, Some(assignment.sample));
         assert!(app.dirty);
 
         let sampler = app.tui_sampler_view().expect("sampler view");
+        assert_eq!(sampler.instrument, Some(instrument.name.as_str()));
         assert_eq!(
             sampler.assigned_track,
             Some(app.song.tracks[1].name.as_str())
@@ -5624,6 +5635,7 @@ mod tests {
         let _ = std::fs::remove_file(&path);
 
         assert!(app.song.sample_assignment_for_track(track_id).is_none());
+        assert!(app.song.instrument_assignment_for_track(track_id).is_none());
     }
 
     #[test]

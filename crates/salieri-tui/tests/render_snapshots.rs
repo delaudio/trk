@@ -517,6 +517,7 @@ fn snapshots_sampler_view() {
                     name: "break.wav",
                     source_path: "/samples/drums/break.wav",
                     overview: &overview,
+                    instrument: Some("Break"),
                     assigned_track: Some("Drums"),
                     assigned_track_count: 1,
                 }),

@@ -7,7 +7,7 @@ The sampler work is post-MVP and intentionally lives outside `salieri-core`, `sa
 - WAV loading for 16-bit PCM and 32-bit float RIFF/WAVE files;
 - normalized interleaved `f32` sample buffers;
 - preview buffer generation with basic pitch and volume handling;
-- persistent sample references and assignment metadata for mapping samples to tracker tracks;
+- persistent sample references, sample-backed instruments, and assignment metadata for mapping instruments to tracker tracks;
 - deterministic waveform overviews for CLI and TUI rendering.
 
 This keeps the MIDI-first runtime intact. Existing pattern playback still emits MIDI, while `salieri-core::sampler_events` defines the data contract the audio layer consumes: track id, sample id/path, note pitch, velocity, gain, pitch ratio, and scheduled position. The playback runtime loads assigned WAV files, prepares them for the default CPAL output format, and routes assigned sample events to realtime audio commands for audible sampler playback.
@@ -35,7 +35,7 @@ After loading a WAV, assign it to the current track:
 :sample assignments
 ```
 
-Assignments are saved in `.salieri` project files, and the sampler view shows the assigned track for the currently loaded sample.
+Assignments are saved in `.salieri` project files. Loading old projects with direct `sampleAssignments` automatically creates compatible sample-backed instruments, and the sampler view shows the assigned instrument and track for the currently loaded sample.
 `replace` swaps the sample on a track and removes the previous sample reference when it is no longer used.
 `unload` removes the currently viewed sample reference only when it is unassigned, while `cleanup` prunes all unused sample references.
 
