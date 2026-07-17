@@ -16,6 +16,7 @@ ratatui.workspace = true
 salieri-audio = { path = "../salieri-audio" }
 salieri-ai = { path = "../salieri-ai" }
 salieri-core = { path = "../salieri-core" }
+salieri-interop = { path = "../salieri-interop" }
 salieri-midi = { path = "../salieri-midi" }
 salieri-sampler = { path = "../salieri-sampler" }
 salieri-transform = { path = "../salieri-transform" }

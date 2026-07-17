@@ -1,8 +1,13 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    borrow::Cow,
+    collections::{HashMap, HashSet},
+    io::Read,
+};
 
+use flate2::read::DeflateDecoder;
 use salieri_core::{
-    pattern_events, EffectDevice, InstrumentId, NoteEvent, PatternCell, PlaybackEventKind, Song,
-    TrackerCommand,
+    pattern_events, EffectDevice, Instrument, InstrumentId, NoteEvent, PatternCell,
+    PlaybackEventKind, Song, TrackerCommand,
 };
 
 const MTHD: &[u8; 4] = b"MThd";
@@ -783,20 +788,20 @@ pub fn inspect_xrns(bytes: &[u8]) -> XrnsInspection {
         return inspection;
     };
 
-    if song_xml.compression_method != 0 {
-        inspection.diagnostics.push(xrns_diagnostic(
-            XrnsDiagnosticKind::UnsupportedCompression,
-            XrnsDiagnosticSeverity::Error,
-            Some(song_xml.path.clone()),
-            format!(
-                "Song.xml uses unsupported ZIP compression method {}",
-                song_xml.compression_method
-            ),
-        ));
-        return inspection;
-    }
+    let song_xml_data = match zip_entry_data(song_xml) {
+        Ok(data) => data,
+        Err(message) => {
+            inspection.diagnostics.push(xrns_diagnostic(
+                XrnsDiagnosticKind::UnsupportedCompression,
+                XrnsDiagnosticSeverity::Error,
+                Some(song_xml.path.clone()),
+                message,
+            ));
+            return inspection;
+        }
+    };
 
-    match std::str::from_utf8(song_xml.data) {
+    match std::str::from_utf8(&song_xml_data) {
         Ok(xml) => inspect_song_xml(xml, &mut inspection),
         Err(error) => inspection.diagnostics.push(xrns_diagnostic(
             XrnsDiagnosticKind::MalformedSongXml,
@@ -842,14 +847,36 @@ pub fn import_xrns(bytes: &[u8]) -> XrnsImportReport {
     };
     let song_xml = entries
         .iter()
-        .find(|entry| entry.path == "Song.xml" && entry.compression_method == 0)
-        .and_then(|entry| std::str::from_utf8(entry.data).ok());
-    let Some(song_xml) = song_xml else {
+        .find(|entry| entry.path == "Song.xml")
+        .and_then(|entry| zip_entry_data(entry).ok());
+    let Some(song_xml_data) = song_xml else {
+        diagnostics.push(xrns_diagnostic(
+            XrnsDiagnosticKind::UnsupportedCompression,
+            XrnsDiagnosticSeverity::Error,
+            Some("Song.xml".to_string()),
+            "Song.xml could not be decoded from the XRNS archive",
+        ));
         return XrnsImportReport {
             song: None,
             inspection,
             diagnostics,
         };
+    };
+    let song_xml = match std::str::from_utf8(&song_xml_data) {
+        Ok(xml) => xml,
+        Err(error) => {
+            diagnostics.push(xrns_diagnostic(
+                XrnsDiagnosticKind::MalformedSongXml,
+                XrnsDiagnosticSeverity::Error,
+                Some("Song.xml".to_string()),
+                format!("Song.xml is not valid UTF-8: {error}"),
+            ));
+            return XrnsImportReport {
+                song: None,
+                inspection,
+                diagnostics,
+            };
+        }
     };
 
     let Some(model) = parse_xrns_import_model(song_xml, &mut diagnostics) else {
@@ -953,7 +980,10 @@ fn parse_xrns_import_model(
         match event {
             XmlEvent::Start(name) => {
                 let in_pattern = current_pattern.is_some();
-                if name == "Track" && stack_contains(&stack, "Tracks") && !in_pattern {
+                if is_xrns_song_track_container(&name)
+                    && stack_contains(&stack, "Tracks")
+                    && !in_pattern
+                {
                     current_track = Some(XrnsImportTrack::default());
                 } else if name == "Instrument" && stack_contains(&stack, "Instruments") {
                     current_instrument = Some(String::new());
@@ -961,7 +991,7 @@ fn parse_xrns_import_model(
                     current_pattern = Some(XrnsImportPattern::default());
                     current_pattern_track = None;
                     pattern_track_line_counts.clear();
-                } else if name == "Track" && in_pattern {
+                } else if is_xrns_pattern_track_container(&name) && in_pattern {
                     let track = current_pattern_track.map_or(0, |track| track + 1);
                     current_pattern_track = Some(track);
                     if pattern_track_line_counts.len() <= track {
@@ -980,10 +1010,13 @@ fn parse_xrns_import_model(
                 stack.push(name);
             }
             XmlEvent::End(name) => {
-                if name == "Track" && current_line.is_none() {
-                    if current_pattern.is_some() {
-                        current_pattern_track = None;
-                    } else if let Some(track) = current_track.take() {
+                if is_xrns_pattern_track_container(&name)
+                    && current_line.is_none()
+                    && current_pattern.is_some()
+                {
+                    current_pattern_track = None;
+                } else if is_xrns_song_track_container(&name) && current_line.is_none() {
+                    if let Some(track) = current_track.take() {
                         model.tracks.push(track);
                     }
                 } else if name == "Instrument" {
@@ -1004,9 +1037,10 @@ fn parse_xrns_import_model(
                         (current_pattern.take(), current_line.take())
                     {
                         let row = line.row.unwrap_or_else(|| {
-                            let count = pattern_track_line_counts
-                                .get_mut(line.track)
-                                .expect("line counter exists");
+                            if pattern_track_line_counts.len() <= line.track {
+                                pattern_track_line_counts.resize(line.track + 1, 0);
+                            }
+                            let count = &mut pattern_track_line_counts[line.track];
                             let row = *count;
                             *count += 1;
                             row
@@ -1103,6 +1137,14 @@ fn parse_xrns_import_model(
     Some(model)
 }
 
+fn is_xrns_pattern_track_container(name: &str) -> bool {
+    matches!(name, "Track" | "PatternTrack")
+}
+
+fn is_xrns_song_track_container(name: &str) -> bool {
+    matches!(name, "Track" | "SequencerTrack")
+}
+
 fn apply_xrns_line_text(
     current: &str,
     text: &str,
@@ -1173,16 +1215,63 @@ fn build_song_from_xrns_model(
         }
     }
 
-    let mut imported_instruments = HashSet::new();
-    for sample in inspection
-        .sample_payloads
-        .iter()
-        .filter(|sample| sample.supported)
-    {
-        let sample_id = song.upsert_sample_reference(&sample.path, sample_name(&sample.path));
-        if let Ok(instrument) = song.upsert_sample_instrument(sample_id) {
-            imported_instruments.insert(instrument);
+    let mut sample_by_instrument = HashMap::<InstrumentId, _>::new();
+    for sample in &inspection.sample_payloads {
+        let Some(instrument) = sample_payload_instrument_id(&sample.path) else {
+            continue;
+        };
+        if sample.supported {
+            let sample_id = song.upsert_sample_reference(&sample.path, sample_name(&sample.path));
+            sample_by_instrument.insert(instrument, sample_id);
+        } else {
+            diagnostics.push(xrns_diagnostic(
+                XrnsDiagnosticKind::UnsupportedSampleFormat,
+                XrnsDiagnosticSeverity::Warning,
+                Some(sample.path.clone()),
+                format!(
+                    "instrument {:?} references unsupported sample format {}",
+                    instrument, sample.format
+                ),
+            ));
         }
+    }
+    let referenced_instruments = model
+        .patterns
+        .iter()
+        .flat_map(|pattern| &pattern.cells)
+        .filter_map(|cell| cell.cell.instrument)
+        .collect::<HashSet<_>>();
+    let instrument_count = model
+        .instruments
+        .len()
+        .max(
+            referenced_instruments
+                .iter()
+                .map(|id| id.0 as usize + 1)
+                .max()
+                .unwrap_or(0),
+        )
+        .max(
+            sample_by_instrument
+                .keys()
+                .map(|id| id.0 as usize + 1)
+                .max()
+                .unwrap_or(0),
+        );
+    song.instruments.clear();
+    for index in 0..instrument_count {
+        let id = InstrumentId(index as u32);
+        let name = model
+            .instruments
+            .get(index)
+            .filter(|name| !name.trim().is_empty())
+            .cloned()
+            .unwrap_or_else(|| format!("Instrument {index:02}"));
+        song.instruments.push(Instrument {
+            id,
+            name,
+            sample: sample_by_instrument.get(&id).copied(),
+        });
     }
 
     let pattern_count = model.patterns.len().max(1);
@@ -1205,23 +1294,8 @@ fn build_song_from_xrns_model(
             if imported.track >= song.tracks.len() || imported.row >= rows {
                 continue;
             }
-            let mut cell = imported.cell.clone();
-            if let Some(instrument) = cell.instrument {
-                if !imported_instruments.contains(&instrument) {
-                    diagnostics.push(xrns_diagnostic(
-                        XrnsDiagnosticKind::UnsupportedRenoiseFeature,
-                        XrnsDiagnosticSeverity::Warning,
-                        Some(format!("Pattern {index} row {}", imported.row)),
-                        format!(
-                            "instrument {:?} has no supported sample payload",
-                            instrument
-                        ),
-                    ));
-                    cell.instrument = None;
-                }
-            }
             song.pattern_mut(index)?
-                .set_cell(imported.row, imported.track, cell)
+                .set_cell(imported.row, imported.track, imported.cell.clone())
                 .ok()?;
         }
     }
@@ -1413,6 +1487,24 @@ fn parse_zip_entries(bytes: &[u8]) -> Result<Vec<ZipEntryRef<'_>>, String> {
         Err("XRNS ZIP archive has no entries".to_string())
     } else {
         Ok(entries)
+    }
+}
+
+fn zip_entry_data<'a>(entry: &'a ZipEntryRef<'a>) -> Result<Cow<'a, [u8]>, String> {
+    match entry.compression_method {
+        0 => Ok(Cow::Borrowed(entry.data)),
+        8 => {
+            let mut decoder = DeflateDecoder::new(entry.data);
+            let mut decoded = Vec::with_capacity(entry.uncompressed_size as usize);
+            decoder.read_to_end(&mut decoded).map_err(|error| {
+                format!("failed to decompress ZIP entry {}: {error}", entry.path)
+            })?;
+            Ok(Cow::Owned(decoded))
+        }
+        method => Err(format!(
+            "{} uses unsupported ZIP compression method {method}",
+            entry.path
+        )),
     }
 }
 
@@ -1635,6 +1727,19 @@ fn sample_payload(entry: &ZipEntryRef<'_>) -> Option<XrnsSamplePayload> {
         bytes: entry.uncompressed_size,
         supported: extension == "wav",
     })
+}
+
+fn sample_payload_instrument_id(path: &str) -> Option<InstrumentId> {
+    let segment = path
+        .split('/')
+        .find(|segment| segment.starts_with("Instrument"))?;
+    let digits = segment
+        .trim_start_matches("Instrument")
+        .chars()
+        .take_while(char::is_ascii_digit)
+        .collect::<String>();
+    let id = digits.parse::<u32>().ok()?;
+    Some(InstrumentId(id))
 }
 
 fn is_nested_archive_path(path: &str) -> bool {
@@ -2130,7 +2235,7 @@ mod tests {
     }
 
     #[test]
-    fn xrns_inspector_reports_malformed_archive_and_compressed_song_xml() {
+    fn xrns_inspector_reports_malformed_archive_and_unsupported_song_xml_compression() {
         let malformed = inspect_xrns(b"not a zip");
         assert!(!malformed.is_zip);
         assert!(malformed
@@ -2142,13 +2247,39 @@ mod tests {
             path: "Song.xml",
             data: b"",
             flags: 0,
-            compression_method: 8,
+            compression_method: 99,
         }]);
         let inspection = inspect_xrns(&compressed);
         assert!(inspection
             .diagnostics
             .iter()
             .any(|diagnostic| { diagnostic.kind == XrnsDiagnosticKind::UnsupportedCompression }));
+    }
+
+    #[test]
+    fn xrns_import_accepts_deflated_song_xml() {
+        let xml = r#"
+<RenoiseSong>
+  <Tracks><SequencerTrack type="SequencerTrack"><Name>Deflated</Name></SequencerTrack></Tracks>
+  <PatternSequence><SequenceEntry><Pattern>0</Pattern></SequenceEntry></PatternSequence>
+  <Patterns>
+    <Pattern>
+      <NumberOfLines>1</NumberOfLines>
+      <Tracks>
+        <PatternTrack type="PatternTrack">
+          <Line><Index>0</Index><Note>C-4</Note><Volume>7F</Volume></Line>
+        </PatternTrack>
+      </Tracks>
+    </Pattern>
+  </Patterns>
+</RenoiseSong>
+"#;
+        let archive = xrns_archive([xrns_deflated_entry("Song.xml", xml.as_bytes())]);
+        let report = import_xrns(&archive);
+        let song = report.song.expect("deflated Song.xml imports");
+
+        assert_eq!(song.tracks[0].name, "Deflated");
+        assert_eq!(song.patterns[0].rows.len(), 1);
     }
 
     #[test]
@@ -2172,7 +2303,7 @@ mod tests {
             <Index>0</Index>
             <Note>C-4</Note>
             <Velocity>100</Velocity>
-            <Instrument>1</Instrument>
+            <Instrument>0</Instrument>
             <Volume>64</Volume>
             <Pan>127</Pan>
             <Delay>32</Delay>
@@ -2214,7 +2345,7 @@ mod tests {
         let cell = song.patterns[0].cell(0, 0).expect("cell");
         assert_eq!(cell.note, Some(NoteEvent::Note { pitch: 60 }));
         assert_eq!(cell.velocity, Some(100));
-        assert_eq!(cell.instrument, Some(InstrumentId(1)));
+        assert_eq!(cell.instrument, Some(InstrumentId(0)));
         assert_eq!(cell.volume, Some(64));
         assert_eq!(cell.pan, Some(127));
         assert_eq!(cell.delay, Some(32));
@@ -2258,7 +2389,7 @@ mod tests {
         song.validate().expect("valid lossy song");
         let cell = song.patterns[0].cell(1, 0).expect("cell");
         assert_eq!(cell.note, Some(NoteEvent::Note { pitch: 72 }));
-        assert_eq!(cell.instrument, None);
+        assert_eq!(cell.instrument, Some(InstrumentId(1)));
         assert_eq!(
             cell.command,
             Some(TrackerCommand {
@@ -2272,7 +2403,7 @@ mod tests {
             .any(|diagnostic| diagnostic.kind == XrnsDiagnosticKind::UnsupportedSampleFormat));
         assert!(report.diagnostics.iter().any(|diagnostic| {
             diagnostic.kind == XrnsDiagnosticKind::UnsupportedRenoiseFeature
-                && diagnostic.message.contains("instrument")
+                && diagnostic.message.contains("Comb Filter")
         }));
         assert!(report
             .diagnostics
@@ -2321,6 +2452,21 @@ mod tests {
             data,
             flags: 0,
             compression_method: 0,
+        }
+    }
+
+    fn xrns_deflated_entry<'a>(path: &'a str, data: &'a [u8]) -> XrnsTestEntry<'a> {
+        use flate2::{write::DeflateEncoder, Compression};
+        use std::io::Write;
+
+        let mut encoder = DeflateEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(data).expect("write compressed XML");
+        let data = encoder.finish().expect("finish compressed XML");
+        XrnsTestEntry {
+            path,
+            data: Box::leak(data.into_boxed_slice()),
+            flags: 0,
+            compression_method: 8,
         }
     }
 

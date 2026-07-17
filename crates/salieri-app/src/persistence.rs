@@ -211,10 +211,11 @@ mod tests {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/default.salieri");
         let song = load_project(&path).expect("load fixture");
 
-        assert_eq!(song.metadata.title, "Default Fixture");
-        assert_eq!(song.tracks.len(), 4);
-        assert_eq!(song.patterns.len(), 1);
-        assert_eq!(song.sequence, vec![salieri_core::PatternId(1)]);
+        assert_eq!(song.metadata.title, "256COLOR_rep");
+        assert_eq!(song.tracks.len(), 15);
+        assert_eq!(song.patterns.len(), 40);
+        assert_eq!(song.sequence.len(), 40);
+        assert_eq!(song.samples.len(), 20);
     }
 
     fn test_project_path(label: &str) -> PathBuf {

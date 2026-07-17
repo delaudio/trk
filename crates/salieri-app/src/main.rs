@@ -32,6 +32,7 @@ use salieri_core::{
     EffectDevice, EffectDeviceKind, InstrumentId, NoteEvent, PatternCell, SampleEnvelope,
     SamplePlaybackMode, SamplePlaybackSettings, Song, TrackerCommand,
 };
+use salieri_interop::{import_xrns, XrnsDiagnosticSeverity};
 use salieri_midi::{
     list_input_ports, list_output_ports, MidiClockMessage, MidiInput, MidiInputEvent,
     MidiInputPacket, MidiInputPort, MidiMessage, MidiOutput, MidiOutputPort, MidirMidiInput,
@@ -107,6 +108,10 @@ fn run(args: CliArgs) -> Result<()> {
         }
         CliCommand::ExportAudio(export_args) => {
             run_export_audio(export_args)?;
+            return Ok(());
+        }
+        CliCommand::ImportXrns(import_args) => {
+            run_import_xrns(import_args)?;
             return Ok(());
         }
         CliCommand::Run | CliCommand::MidiTest => {}
@@ -303,6 +308,16 @@ impl CliArgs {
                         midi_test,
                     }
                 }
+                "import" => {
+                    return Self {
+                        command: parse_import_command(args),
+                        project_path: None,
+                        config_path,
+                        log_level,
+                        midi_log_path,
+                        midi_test,
+                    }
+                }
                 "--midi-test-output" => {
                     midi_test.output = args.next();
                 }
@@ -418,11 +433,12 @@ enum CliCommand {
     TransformEuclidean(TransformEuclideanArgs),
     SampleInspect(SampleInspectArgs),
     ExportAudio(AudioExportArgs),
+    ImportXrns(ImportXrnsArgs),
 }
 
 fn print_help() {
     println!(
-        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --list-midi-inputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri sample inspect FILE [OPTIONS]\n  salieri export audio INPUT OUTPUT [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --list-midi-inputs            List available MIDI input ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index (default 1)\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Velocity, 0-127 (default 100)\n\nSample inspect options:\n  --format text|json            Output format (default text)\n  --buckets N, --width N        Waveform bucket count (default 64)\n\nAudio export options:\n  --pattern N                   Export 1-based pattern index (default 1)\n  --sequence                    Export the full sequence instead of one pattern\n  --sample-rate HZ              Output sample rate (default 48000)\n  --channels N                  Output channels (default 2)\n\n  --help                        Show this help\n  --version                     Show version"
+        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --list-midi-inputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri sample inspect FILE [OPTIONS]\n  salieri import xrns INPUT OUTPUT\n  salieri export audio INPUT OUTPUT [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --list-midi-inputs            List available MIDI input ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index (default 1)\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Velocity, 0-127 (default 100)\n\nSample inspect options:\n  --format text|json            Output format (default text)\n  --buckets N, --width N        Waveform bucket count (default 64)\n\nImport options:\n  salieri import xrns INPUT OUTPUT imports an XRNS subset and writes a .salieri project\n\nAudio export options:\n  --pattern N                   Export 1-based pattern index (default 1)\n  --sequence                    Export the full sequence instead of one pattern\n  --sample-rate HZ              Output sample rate (default 48000)\n  --channels N                  Output channels (default 2)\n\n  --help                        Show this help\n  --version                     Show version"
     );
 }
 
@@ -446,6 +462,14 @@ fn parse_export_command(args: impl IntoIterator<Item = String>) -> CliCommand {
     let mut args = args.into_iter();
     match args.next().as_deref() {
         Some("audio") => CliCommand::ExportAudio(parse_audio_export_args(args)),
+        _ => CliCommand::Help,
+    }
+}
+
+fn parse_import_command(args: impl IntoIterator<Item = String>) -> CliCommand {
+    let mut args = args.into_iter();
+    match args.next().as_deref() {
+        Some("xrns") => CliCommand::ImportXrns(parse_import_xrns_args(args)),
         _ => CliCommand::Help,
     }
 }
@@ -484,6 +508,12 @@ struct AudioExportArgs {
     sequence: bool,
     sample_rate: u32,
     channels: u16,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+struct ImportXrnsArgs {
+    input_path: Option<PathBuf>,
+    output_path: Option<PathBuf>,
 }
 
 impl Default for SampleInspectArgs {
@@ -640,6 +670,18 @@ fn parse_audio_export_args(args: impl IntoIterator<Item = String>) -> AudioExpor
     parsed
 }
 
+fn parse_import_xrns_args(args: impl IntoIterator<Item = String>) -> ImportXrnsArgs {
+    let mut parsed = ImportXrnsArgs::default();
+    for arg in args {
+        if parsed.input_path.is_none() {
+            parsed.input_path = Some(PathBuf::from(arg));
+        } else if parsed.output_path.is_none() {
+            parsed.output_path = Some(PathBuf::from(arg));
+        }
+    }
+    parsed
+}
+
 fn parse_sample_format(value: &str, target: &mut SampleInspectFormat) {
     match value {
         "text" => *target = SampleInspectFormat::Text,
@@ -765,6 +807,57 @@ fn run_export_audio(args: &AudioExportArgs) -> Result<()> {
         rendered.frames,
         rendered.sample_rate,
         output_path.display()
+    );
+    Ok(())
+}
+
+fn run_import_xrns(args: &ImportXrnsArgs) -> Result<()> {
+    let input_path = args
+        .input_path
+        .as_deref()
+        .context("missing import input path: usage is salieri import xrns INPUT OUTPUT")?;
+    let output_path = args
+        .output_path
+        .as_deref()
+        .context("missing import output path: usage is salieri import xrns INPUT OUTPUT")?;
+    let bytes = fs::read(input_path)
+        .with_context(|| format!("failed to read XRNS import {}", input_path.display()))?;
+    let report = import_xrns(&bytes);
+    for diagnostic in &report.diagnostics {
+        eprintln!(
+            "XRNS {:?}: {}{}",
+            diagnostic.severity,
+            diagnostic.message,
+            diagnostic
+                .location
+                .as_deref()
+                .map_or_else(String::new, |location| format!(" ({location})"))
+        );
+    }
+    if report
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity == XrnsDiagnosticSeverity::Error)
+    {
+        anyhow::bail!("XRNS import failed; project was not written");
+    }
+    let song = report
+        .song
+        .context("XRNS import produced no project; project was not written")?;
+    let track_count = song.tracks.len();
+    let pattern_count = song.patterns.len();
+    let sequence_len = song.sequence.len();
+    let sample_count = song.samples.len();
+    save_project(output_path, &song)?;
+
+    println!(
+        "Imported {} to {}: {} tracks, {} patterns, {} sequence entries, {} samples",
+        input_path.display(),
+        output_path.display(),
+        track_count,
+        pattern_count,
+        sequence_len,
+        sample_count
     );
     Ok(())
 }
@@ -5777,6 +5870,29 @@ mod tests {
                     path: Some(PathBuf::from("kick.wav")),
                     format: SampleInspectFormat::Json,
                     buckets: 8,
+                }),
+                project_path: None,
+                config_path: None,
+                log_level: None,
+                midi_log_path: None,
+                midi_test: MidiTestArgs::default(),
+            }
+        );
+    }
+
+    #[test]
+    fn cli_parses_xrns_import_options() {
+        assert_eq!(
+            CliArgs::parse([
+                "import".to_string(),
+                "xrns".to_string(),
+                "input.xrns".to_string(),
+                "output.salieri".to_string(),
+            ]),
+            CliArgs {
+                command: CliCommand::ImportXrns(ImportXrnsArgs {
+                    input_path: Some(PathBuf::from("input.xrns")),
+                    output_path: Some(PathBuf::from("output.salieri")),
                 }),
                 project_path: None,
                 config_path: None,

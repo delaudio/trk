@@ -11,10 +11,16 @@ Current MIDI file support is intentionally narrow:
 
 Current XRNS support is library-level and intentionally lossy:
 
-- inspect XRNS ZIP archives, locate root `Song.xml`, enumerate sample payloads, and report track, pattern, instrument, sample, and device metadata;
+- inspect XRNS ZIP archives, locate root stored-or-deflated `Song.xml`, enumerate sample payloads, and report track, pattern, instrument, sample, and device metadata;
 - import a constrained XML subset into a validated `.salieri` `Song`;
-- map track names, pattern row counts, sequence order, note/velocity/instrument/volume/pan/delay cells, the first effect command, supported WAV sample payloads, mixer gain/pan, and recognized native gain/pan devices;
+- map track names, pattern row counts, sequence order, note/velocity/instrument/volume/pan/delay cells, the first effect command, instrument IDs, supported WAV sample payloads, mixer gain/pan, and recognized native gain/pan devices;
 - report unsupported samples, devices, extra effect columns, unknown effect commands, quantized timing, malformed archives/XML, nested/encrypted archives, and validation failures as structured diagnostics.
+
+The CLI can write the supported subset directly to a Salieri project:
+
+```bash
+salieri import xrns input.xrns output.salieri
+```
 
 Round-trip expectations:
 
@@ -61,7 +67,7 @@ The importer must be explicit about loss. It should return an import report with
 
 Accept initially:
 
-- ZIP container with `Song.xml` at archive root;
+- ZIP container with stored or deflated `Song.xml` at archive root;
 - pattern lines with note columns that can map to Salieri note, velocity, instrument, volume, pan, and delay fields;
 - at most one effect command mapped to Salieri's first `TrackerCommand` per cell;
 - pattern sequence/order that can map to Salieri sequence entries;

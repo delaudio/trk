@@ -19,7 +19,7 @@ The primary realtime playback path remains MIDI-first for external instruments, 
 - Pattern automation lanes with stepped sample-gain automation observed by realtime playback and offline audio export.
 - Deterministic sampler event contracts for routing assigned samples into audio commands.
 - Offline audio rendering foundations for sampler preview/event buffers and WAV PCM16 encoding.
-- Standard MIDI File format 0 import/export for the supported subset.
+- Standard MIDI File format 0 import/export and lossy XRNS import for the supported subsets.
 - Deterministic generative transform CLI, currently Euclidean rhythm generation.
 - AI-assisted composition boundary with reviewable proposals and explicit apply semantics; no provider contacts external services implicitly.
 
@@ -396,7 +396,11 @@ AI-assisted composition lives behind `salieri-ai` and is available in the TUI th
 
 ## Interoperability
 
-`salieri-interop` supports a narrow Standard MIDI File format 0 subset for import/export, plus library-level XRNS inspection and a minimal lossy XRNS importer for the constrained subset documented below. Legacy module formats such as MOD, XM, IT, and S3M remain explicit unsupported song-import formats; the current probe is limited to metadata/effect diagnostics and MOD sample extraction.
+`salieri-interop` supports a narrow Standard MIDI File format 0 subset for import/export, plus XRNS inspection and a minimal lossy XRNS importer for the constrained subset documented below. Legacy module formats such as MOD, XM, IT, and S3M remain explicit unsupported song-import formats; the current probe is limited to metadata/effect diagnostics and MOD sample extraction.
+
+```bash
+salieri import xrns input.xrns output.salieri
+```
 
 See [docs/interoperability.md](docs/interoperability.md).
 
