@@ -1,3 +1,4 @@
+mod command;
 mod config;
 mod persistence;
 mod playback_runtime;
@@ -14,6 +15,10 @@ use std::{
 };
 
 use anyhow::{Context, Result};
+use command::{
+    BrowserCommand, CommandDomain, FocusTarget, LoopCommand, PlayCommand, SalieriCommand,
+    ViewCommand,
+};
 use config::{load_config, AppConfig, ProjectBrowserConfig, SampleBrowserConfig};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use persistence::{load_project, save_project};
@@ -3968,90 +3973,53 @@ impl App {
         self.command_buffer.clear();
         self.mode = AppMode::Normal;
 
-        let mut parts = command.split_whitespace();
-        let Some(name) = parts.next() else {
-            return;
-        };
+        if let Err(error) = command::dispatch(self, &command) {
+            self.notify_warning(error.to_string());
+        }
+    }
 
-        match name {
-            "h" | "help" => {
-                self.open_help();
-            }
-            "t" | "tracker" | "layout" | "normal" => {
-                self.open_tracker_view();
-            }
-            "p" | "patterns" => {
-                self.open_patterns_view();
-            }
-            "se" | "sequence-view" => {
-                self.open_sequence_view();
-            }
-            "tr" | "tracks" => {
-                self.open_tracks_view();
-            }
-            "sa" | "sam" | "samples" => {
-                self.open_sampler_view();
-            }
-            "sb" | "sample-browser" => {
-                let path = parts.collect::<Vec<_>>().join(" ");
-                self.open_sample_browser_view(if path.is_empty() {
-                    None
-                } else {
-                    Some(PathBuf::from(path))
-                });
-            }
-            "o" | "open" | "projects" | "project-browser" => {
-                let path = parts.collect::<Vec<_>>().join(" ");
-                self.open_project_browser_view(if path.is_empty() {
-                    None
-                } else {
-                    Some(PathBuf::from(path))
-                });
-            }
-            "f" | "focus" => match parts.next() {
-                Some("t" | "tracker" | "layout" | "normal") | None => self.open_tracker_view(),
-                Some("p" | "patterns" | "pattern-manager") => self.open_patterns_view(),
-                Some("se" | "sequence" | "sequence-view") => self.open_sequence_view(),
-                Some("tr" | "tracks") => self.open_tracks_view(),
-                Some("sa" | "sampler" | "samples") => self.open_sampler_view(),
-                Some("sb" | "browser" | "sample-browser") => self.open_sample_browser_view(None),
-                Some("o" | "open" | "pr" | "projects" | "project-browser") => {
-                    self.open_project_browser_view(None)
-                }
-                Some(_) => {
-                    self.notify_warning("Usage: :focus [t|p|se|tr|sa|sb|pr]");
-                }
+    fn execute_typed_command(&mut self, parsed: SalieriCommand) {
+        match parsed {
+            SalieriCommand::Help => self.open_help(),
+            SalieriCommand::View(view) => match view {
+                ViewCommand::Tracker => self.open_tracker_view(),
+                ViewCommand::Patterns => self.open_patterns_view(),
+                ViewCommand::Sequence => self.open_sequence_view(),
+                ViewCommand::Tracks => self.open_tracks_view(),
+                ViewCommand::Sampler => self.open_sampler_view(),
             },
-            "q" | "quit" => {
-                self.request_quit(false);
-            }
-            "q!" | "quit!" => {
-                self.force_quit();
-            }
-            "w" | "write" | "save" => {
-                let path = parts.collect::<Vec<_>>().join(" ");
-                let result = if path.is_empty() {
-                    self.save()
-                } else {
-                    self.save_as(PathBuf::from(path))
+            SalieriCommand::Browse { browser, path } => match browser {
+                BrowserCommand::Samples => self.open_sample_browser_view(path),
+                BrowserCommand::Projects => self.open_project_browser_view(path),
+            },
+            SalieriCommand::Focus(target) => match target {
+                FocusTarget::Tracker => self.open_tracker_view(),
+                FocusTarget::Patterns => self.open_patterns_view(),
+                FocusTarget::Sequence => self.open_sequence_view(),
+                FocusTarget::Tracks => self.open_tracks_view(),
+                FocusTarget::Sampler => self.open_sampler_view(),
+                FocusTarget::SampleBrowser => self.open_sample_browser_view(None),
+                FocusTarget::ProjectBrowser => self.open_project_browser_view(None),
+            },
+            SalieriCommand::Quit { force: false } => self.request_quit(false),
+            SalieriCommand::Quit { force: true } => self.force_quit(),
+            SalieriCommand::Write(path) => {
+                let result = match path {
+                    Some(path) => self.save_as(path),
+                    None => self.save(),
                 };
                 if let Err(error) = result {
                     tracing::error!(?error, "failed to save project");
                     self.notify_error(format!("Save failed: {error}"));
                 }
             }
-            "saveas" | "writeas" => {
-                let path = parts.collect::<Vec<_>>().join(" ");
-                if !path.is_empty() {
-                    if let Err(error) = self.save_as(PathBuf::from(path)) {
-                        tracing::error!(?error, "failed to save project");
-                        self.notify_error(format!("Save failed: {error}"));
-                    }
-                } else {
-                    self.notify_warning("Usage: :saveas PATH");
+            SalieriCommand::SaveAs(path) => {
+                if let Err(error) = self.save_as(path) {
+                    tracing::error!(?error, "failed to save project");
+                    self.notify_error(format!("Save failed: {error}"));
                 }
             }
-            "wq" => {
+            SalieriCommand::WriteQuit => {
                 if let Err(error) = self.save() {
                     tracing::error!(?error, "failed to save project");
                     self.notify_error(format!("Save failed: {error}"));
@@ -4060,232 +4028,228 @@ impl App {
                 self.stop_playback();
                 self.should_quit = true;
             }
-            "bpm" => {
-                if let Some(value) = parts.next().and_then(|value| value.parse::<u16>().ok()) {
-                    self.set_bpm(value);
-                    self.notify_success(format!("BPM set to {value}"));
-                } else {
-                    self.notify_warning("Usage: :bpm 140");
-                }
+            SalieriCommand::SetBpm(value) => {
+                self.set_bpm(value);
+                self.notify_success(format!("BPM set to {value}"));
             }
-            "lpb" => {
-                if let Some(value) = parts.next().and_then(|value| value.parse::<u8>().ok()) {
-                    self.set_lpb(value);
-                    self.notify_success(format!("LPB set to {value}"));
-                } else {
-                    self.notify_warning("Usage: :lpb 4");
-                }
+            SalieriCommand::SetLinesPerBeat(value) => {
+                self.set_lpb(value);
+                self.notify_success(format!("LPB set to {value}"));
             }
-            "fx" | "effect" => {
-                let values = parts.collect::<Vec<_>>();
-                self.handle_fx_command(&values);
-            }
-            "cell" => {
-                let values = parts.collect::<Vec<_>>();
-                self.handle_cell_command(&values);
-            }
-            "automation" | "auto" => {
-                let values = parts.collect::<Vec<_>>();
-                self.handle_automation_command(&values);
-            }
-            "mixer" | "mix" => {
-                let values = parts.collect::<Vec<_>>();
-                self.handle_mixer_command(&values);
-            }
-            "dsp" | "effect-chain" => {
-                let values = parts.collect::<Vec<_>>();
-                self.handle_dsp_command(&values);
-            }
-            "ai" => {
-                let values = parts.collect::<Vec<_>>();
-                self.handle_ai_command(&values);
-            }
-            "loop" => match parts.next() {
-                Some("on") => {
+            SalieriCommand::Domain {
+                domain:
+                    domain @ (CommandDomain::Fx
+                    | CommandDomain::Cell
+                    | CommandDomain::Automation
+                    | CommandDomain::Mixer
+                    | CommandDomain::Dsp
+                    | CommandDomain::Ai
+                    | CommandDomain::MidiInput),
+                arguments,
+            } => self.handle_typed_domain(domain, &arguments),
+            SalieriCommand::Loop(command) => match command {
+                LoopCommand::On => {
                     self.loop_pattern = true;
                     self.notify_info("Pattern loop ON");
                 }
-                Some("off") => {
+                LoopCommand::Off => {
                     self.loop_pattern = false;
                     self.notify_info("Pattern loop OFF");
                 }
-                Some("toggle") | None => self.toggle_loop(),
-                Some(_) => self.notify_warning("Usage: :loop [on|off|toggle]"),
+                LoopCommand::Toggle => self.toggle_loop(),
             },
-            "midi" => match parts.next() {
-                Some("outputs") | Some("settings") | Some("ports") => self.open_midi_settings(),
-                Some("connect") => {
-                    if let Some(port_index) =
-                        parts.next().and_then(|value| value.parse::<usize>().ok())
-                    {
-                        self.connect_midi(port_index);
-                    } else {
-                        self.notify_warning("Usage: :midi connect PORT_INDEX");
+            SalieriCommand::Domain {
+                domain: CommandDomain::Midi,
+                arguments,
+            } => {
+                let mut parts = arguments.iter().map(String::as_str);
+                match parts.next() {
+                    Some("outputs") | Some("settings") | Some("ports") => self.open_midi_settings(),
+                    Some("connect") => {
+                        if let Some(port_index) =
+                            parts.next().and_then(|value| value.parse::<usize>().ok())
+                        {
+                            self.connect_midi(port_index);
+                        } else {
+                            self.notify_warning("Usage: :midi connect PORT_INDEX");
+                        }
+                    }
+                    Some("disconnect") => self.disconnect_midi(),
+                    Some("panic") => self.panic_midi(),
+                    None | Some(_) => {
+                        self.notify_warning("Usage: :midi outputs|connect|disconnect|panic")
                     }
                 }
-                Some("disconnect") => self.disconnect_midi(),
-                Some("panic") => self.panic_midi(),
-                None | Some(_) => {
-                    self.notify_warning("Usage: :midi outputs|connect|disconnect|panic")
-                }
-            },
-            "midi-input" | "midi-in" => {
-                let values = parts.collect::<Vec<_>>();
-                self.handle_midi_input_command(&values);
             }
-            "play" => match parts.next() {
-                Some("sequence") | Some("seq") => {
-                    let start_sequence_index = parts
-                        .next()
-                        .and_then(|value| value.parse::<usize>().ok())
-                        .unwrap_or(0);
-                    self.start_sequence_playback_at(start_sequence_index);
-                }
-                Some("pattern") | Some("pat") | None => self.start_playback(),
-                Some(_) => self.notify_warning("Usage: :play [pattern|sequence [position]]"),
+            SalieriCommand::Play(command) => match command {
+                PlayCommand::Sequence { position } => self.start_sequence_playback_at(position),
+                PlayCommand::Pattern => self.start_playback(),
             },
-            "stop" => self.stop_playback(),
-            "track" => match parts.next() {
-                Some("new") => self.create_track(),
-                Some("duplicate") | Some("dup") => {
-                    let track_index = parts
-                        .next()
-                        .and_then(|value| value.parse::<usize>().ok())
-                        .map_or(self.cursor.track, |value| value.saturating_sub(1));
-                    self.duplicate_track(track_index);
-                }
-                Some("delete") | Some("del") => {
-                    let track_index = parts
-                        .next()
-                        .and_then(|value| value.parse::<usize>().ok())
-                        .map_or(self.cursor.track, |value| value.saturating_sub(1));
-                    self.request_delete_track(track_index);
-                }
-                Some("move") | Some("mv") => {
-                    let from = parts
-                        .next()
-                        .and_then(|value| value.parse::<usize>().ok())
-                        .map_or(self.cursor.track, |value| value.saturating_sub(1));
-                    let to = parts
-                        .next()
-                        .and_then(|value| value.parse::<usize>().ok())
-                        .map(|value| value.saturating_sub(1));
-                    if let Some(to) = to {
-                        self.move_track(from, to);
-                    } else {
-                        self.notify_warning("Usage: :track move FROM TO");
+            SalieriCommand::Stop => self.stop_playback(),
+            SalieriCommand::Domain {
+                domain: CommandDomain::Track,
+                arguments,
+            } => {
+                let mut parts = arguments.iter().map(String::as_str);
+                match parts.next() {
+                    Some("new") => self.create_track(),
+                    Some("duplicate") | Some("dup") => {
+                        let track_index = parts
+                            .next()
+                            .and_then(|value| value.parse::<usize>().ok())
+                            .map_or(self.cursor.track, |value| value.saturating_sub(1));
+                        self.duplicate_track(track_index);
                     }
-                }
-                Some("mute") => {
-                    let track_index = parts
-                        .next()
-                        .and_then(|value| value.parse::<usize>().ok())
-                        .map_or(self.cursor.track, |value| value.saturating_sub(1));
-                    self.toggle_track_mute(track_index);
-                }
-                Some("solo") => {
-                    let track_index = parts
-                        .next()
-                        .and_then(|value| value.parse::<usize>().ok())
-                        .map_or(self.cursor.track, |value| value.saturating_sub(1));
-                    self.toggle_track_solo(track_index);
-                }
-                Some("rename") => {
-                    let values = parts.collect::<Vec<_>>();
-                    if let Some((track_index, name)) =
-                        parse_optional_numbered_name(&values, self.cursor.track)
-                    {
-                        self.rename_track(track_index, name);
+                    Some("delete") | Some("del") => {
+                        let track_index = parts
+                            .next()
+                            .and_then(|value| value.parse::<usize>().ok())
+                            .map_or(self.cursor.track, |value| value.saturating_sub(1));
+                        self.request_delete_track(track_index);
                     }
-                }
-                Some("channel") | Some("ch") => {
-                    let first = parts.next().and_then(|value| value.parse::<u8>().ok());
-                    let second = parts.next().and_then(|value| value.parse::<u8>().ok());
-                    match (first, second) {
-                        (Some(channel), None) => {
-                            self.set_track_midi_channel(self.cursor.track, channel);
+                    Some("move") | Some("mv") => {
+                        let from = parts
+                            .next()
+                            .and_then(|value| value.parse::<usize>().ok())
+                            .map_or(self.cursor.track, |value| value.saturating_sub(1));
+                        let to = parts
+                            .next()
+                            .and_then(|value| value.parse::<usize>().ok())
+                            .map(|value| value.saturating_sub(1));
+                        if let Some(to) = to {
+                            self.move_track(from, to);
+                        } else {
+                            self.notify_warning("Usage: :track move FROM TO");
                         }
-                        (Some(track_number), Some(channel)) => {
-                            self.set_track_midi_channel(
-                                usize::from(track_number.saturating_sub(1)),
-                                channel,
-                            );
+                    }
+                    Some("mute") => {
+                        let track_index = parts
+                            .next()
+                            .and_then(|value| value.parse::<usize>().ok())
+                            .map_or(self.cursor.track, |value| value.saturating_sub(1));
+                        self.toggle_track_mute(track_index);
+                    }
+                    Some("solo") => {
+                        let track_index = parts
+                            .next()
+                            .and_then(|value| value.parse::<usize>().ok())
+                            .map_or(self.cursor.track, |value| value.saturating_sub(1));
+                        self.toggle_track_solo(track_index);
+                    }
+                    Some("rename") => {
+                        let values = parts.collect::<Vec<_>>();
+                        if let Some((track_index, name)) =
+                            parse_optional_numbered_name(&values, self.cursor.track)
+                        {
+                            self.rename_track(track_index, name);
                         }
-                        _ => {}
+                    }
+                    Some("channel") | Some("ch") => {
+                        let first = parts.next().and_then(|value| value.parse::<u8>().ok());
+                        let second = parts.next().and_then(|value| value.parse::<u8>().ok());
+                        match (first, second) {
+                            (Some(channel), None) => {
+                                self.set_track_midi_channel(self.cursor.track, channel);
+                            }
+                            (Some(track_number), Some(channel)) => {
+                                self.set_track_midi_channel(
+                                    usize::from(track_number.saturating_sub(1)),
+                                    channel,
+                                );
+                            }
+                            _ => {}
+                        }
+                    }
+                    None | Some(_) => self.notify_warning(
+                        "Usage: :track new|duplicate|delete|move|mute|solo|rename|channel",
+                    ),
+                }
+            }
+            SalieriCommand::Domain {
+                domain: CommandDomain::Pattern,
+                arguments,
+            } => {
+                let mut parts = arguments.iter().map(String::as_str);
+                match parts.next() {
+                    Some("new") => self.create_pattern(),
+                    Some("duplicate") | Some("dup") => self.duplicate_current_pattern(),
+                    Some("delete") | Some("del") => self.request_delete_current_pattern(),
+                    Some("length") | Some("len") => {
+                        if let Some(row_count) =
+                            parts.next().and_then(|value| value.parse::<usize>().ok())
+                        {
+                            self.resize_current_pattern(row_count);
+                        }
+                    }
+                    Some("rename") => {
+                        let name = parts.collect::<Vec<_>>().join(" ");
+                        self.rename_current_pattern(name);
+                    }
+                    Some("next") => self.select_pattern(self.pattern_index.saturating_add(1)),
+                    Some("prev") => self.select_pattern(self.pattern_index.saturating_sub(1)),
+                    Some(value) => {
+                        if let Ok(pattern_number) = value.parse::<usize>() {
+                            self.select_pattern(pattern_number.saturating_sub(1));
+                        }
+                    }
+                    None => {}
+                }
+            }
+            SalieriCommand::Domain {
+                domain: CommandDomain::Sequence,
+                arguments,
+            } => {
+                let mut parts = arguments.iter().map(String::as_str);
+                match parts.next() {
+                    Some("add") => {
+                        let pattern_index = parts
+                            .next()
+                            .and_then(|value| value.parse::<usize>().ok())
+                            .map_or(self.pattern_index, |value| value.saturating_sub(1));
+                        self.add_sequence_pattern(pattern_index);
+                    }
+                    Some("remove") | Some("rm") => {
+                        if let Some(position) =
+                            parts.next().and_then(|value| value.parse::<usize>().ok())
+                        {
+                            self.remove_sequence_position(position);
+                        }
+                    }
+                    Some("duplicate") | Some("dup") => {
+                        if let Some(position) =
+                            parts.next().and_then(|value| value.parse::<usize>().ok())
+                        {
+                            self.duplicate_sequence_position(position);
+                        }
+                    }
+                    Some("set") => {
+                        let position = parts.next().and_then(|value| value.parse::<usize>().ok());
+                        let pattern_index = parts
+                            .next()
+                            .and_then(|value| value.parse::<usize>().ok())
+                            .map(|value| value.saturating_sub(1));
+                        if let (Some(position), Some(pattern_index)) = (position, pattern_index) {
+                            self.set_sequence_pattern(position, pattern_index);
+                        }
+                    }
+                    Some("move") | Some("mv") => {
+                        let from = parts.next().and_then(|value| value.parse::<usize>().ok());
+                        let to = parts.next().and_then(|value| value.parse::<usize>().ok());
+                        if let (Some(from), Some(to)) = (from, to) {
+                            self.move_sequence_position(from, to);
+                        }
+                    }
+                    None | Some(_) => {
+                        self.notify_warning("Usage: :sequence add|remove|duplicate|set|move")
                     }
                 }
-                None | Some(_) => self.notify_warning(
-                    "Usage: :track new|duplicate|delete|move|mute|solo|rename|channel",
-                ),
-            },
-            "pattern" => match parts.next() {
-                Some("new") => self.create_pattern(),
-                Some("duplicate") | Some("dup") => self.duplicate_current_pattern(),
-                Some("delete") | Some("del") => self.request_delete_current_pattern(),
-                Some("length") | Some("len") => {
-                    if let Some(row_count) =
-                        parts.next().and_then(|value| value.parse::<usize>().ok())
-                    {
-                        self.resize_current_pattern(row_count);
-                    }
-                }
-                Some("rename") => {
-                    let name = parts.collect::<Vec<_>>().join(" ");
-                    self.rename_current_pattern(name);
-                }
-                Some("next") => self.select_pattern(self.pattern_index.saturating_add(1)),
-                Some("prev") => self.select_pattern(self.pattern_index.saturating_sub(1)),
-                Some(value) => {
-                    if let Ok(pattern_number) = value.parse::<usize>() {
-                        self.select_pattern(pattern_number.saturating_sub(1));
-                    }
-                }
-                None => {}
-            },
-            "sequence" | "seq" => match parts.next() {
-                Some("add") => {
-                    let pattern_index = parts
-                        .next()
-                        .and_then(|value| value.parse::<usize>().ok())
-                        .map_or(self.pattern_index, |value| value.saturating_sub(1));
-                    self.add_sequence_pattern(pattern_index);
-                }
-                Some("remove") | Some("rm") => {
-                    if let Some(position) =
-                        parts.next().and_then(|value| value.parse::<usize>().ok())
-                    {
-                        self.remove_sequence_position(position);
-                    }
-                }
-                Some("duplicate") | Some("dup") => {
-                    if let Some(position) =
-                        parts.next().and_then(|value| value.parse::<usize>().ok())
-                    {
-                        self.duplicate_sequence_position(position);
-                    }
-                }
-                Some("set") => {
-                    let position = parts.next().and_then(|value| value.parse::<usize>().ok());
-                    let pattern_index = parts
-                        .next()
-                        .and_then(|value| value.parse::<usize>().ok())
-                        .map(|value| value.saturating_sub(1));
-                    if let (Some(position), Some(pattern_index)) = (position, pattern_index) {
-                        self.set_sequence_pattern(position, pattern_index);
-                    }
-                }
-                Some("move") | Some("mv") => {
-                    let from = parts.next().and_then(|value| value.parse::<usize>().ok());
-                    let to = parts.next().and_then(|value| value.parse::<usize>().ok());
-                    if let (Some(from), Some(to)) = (from, to) {
-                        self.move_sequence_position(from, to);
-                    }
-                }
-                None | Some(_) => {
-                    self.notify_warning("Usage: :sequence add|remove|duplicate|set|move")
-                }
-            },
-            "sample" | "sampler" => match parts.next() {
+            }
+            SalieriCommand::Domain {
+                domain: CommandDomain::Sample,
+                arguments,
+            } => {
+                let mut parts = arguments.iter().map(String::as_str);
+                match parts.next() {
                 Some("view") | Some("inspect") | Some("load") => {
                     let path = parts.collect::<Vec<_>>().join(" ");
                     if path.is_empty() {
@@ -4393,8 +4357,22 @@ impl App {
                 Some(_) => self.notify_warning(
                     "Usage: :sample view PATH | assign [TRACK] | start FRAME|clear | end FRAME|clear | loop START END|off | envelope A D S R",
                 ),
-            },
-            _ => self.notify_warning(format!("Unknown command: {name}")),
+                }
+            }
+        }
+    }
+
+    fn handle_typed_domain(&mut self, domain: CommandDomain, arguments: &[String]) {
+        let values = command_arguments(arguments);
+        match domain {
+            CommandDomain::Fx => self.handle_fx_command(&values),
+            CommandDomain::Cell => self.handle_cell_command(&values),
+            CommandDomain::Automation => self.handle_automation_command(&values),
+            CommandDomain::Mixer => self.handle_mixer_command(&values),
+            CommandDomain::Dsp => self.handle_dsp_command(&values),
+            CommandDomain::Ai => self.handle_ai_command(&values),
+            CommandDomain::MidiInput => self.handle_midi_input_command(&values),
+            _ => unreachable!("domain handled by dedicated executor"),
         }
     }
 
@@ -6162,6 +6140,15 @@ impl App {
     }
 }
 
+impl command::CommandExecutor for App {
+    type Error = std::convert::Infallible;
+
+    fn execute(&mut self, command: SalieriCommand) -> Result<(), Self::Error> {
+        self.execute_typed_command(command);
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AppMode {
     Normal,
@@ -6195,6 +6182,10 @@ impl AppMode {
             AppMode::ProjectBrowser => "PROJECTS",
         }
     }
+}
+
+fn command_arguments(arguments: &[String]) -> Vec<&str> {
+    arguments.iter().map(String::as_str).collect()
 }
 
 fn parse_optional_numbered_name(values: &[&str], default_index: usize) -> Option<(usize, String)> {
