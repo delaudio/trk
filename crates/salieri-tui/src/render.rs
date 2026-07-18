@@ -1725,7 +1725,7 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
         )
     } else {
         format!(
-            " {}{} | H Help | F4 MIDI | F7 Sequence | F9 Tracks | F10 Patterns | F11 Sampler | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern | A/Y/R Seq | {{/}} Track | : Command | i Edit | V Select | Ctrl+S Save | Ctrl+Shift+S Save As | q Quit ",
+            " {}{} | H Help | Focus :t/:p/:se/:tr/:sa/:sb | F4 MIDI | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern | A/Y/R Seq | {{/}} Track | : Command | i Edit | V Select | Ctrl+S Save | q Quit ",
             state.mode_label,
             if state.selection.is_some() { " SEL" } else { "" }
         )
@@ -1816,6 +1816,7 @@ fn help_basics_lines(mode_label: &str) -> Vec<Line<'static>> {
         Line::from(
             "  F7 Sequence View   F9 Track View   F10 Pattern View   F11 Sampler View",
         ),
+        Line::from("  :t Tracker   :p Patterns   :se Sequence   :tr Tracks   :sa Sampler   :sb Browser"),
         Line::from("  Esc returns from focused views"),
         Line::from("  :play pattern from start   :play sequence arrangement"),
         Line::from("  Ctrl+S Save   Ctrl+Shift+S Save As   Ctrl+Z Undo   Ctrl+Y Redo   Ctrl+Arrows BPM/LPB"),
@@ -1960,6 +1961,10 @@ fn help_command_lines(mode_label: &str) -> Vec<Line<'static>> {
         Line::from("  r rename track   c channel"),
         Line::from("  Del delete track   M mute   S solo"),
         Line::from("  :write [path]   :saveas path   :quit   :q!   :wq   :bpm 140   :lpb 4"),
+        Line::from(
+            "  Panel focus: :t tracker   :p patterns   :se sequence   :tr tracks   :sa sampler",
+        ),
+        Line::from("  :sb [DIR] sample browser   :focus [t|p|se|tr|sa|sb]   :layout multi-panel"),
         Line::from("  Dirty quit asks: [Y]es save, [N]o quit, [C]ancel"),
         Line::from("  :track new   :track duplicate 2   :track delete 2   :track move 2 3"),
         Line::from("  :track mute 2   :track solo 2   :track rename Acid Bass"),

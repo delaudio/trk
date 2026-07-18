@@ -3553,6 +3553,40 @@ impl App {
             "h" | "help" => {
                 self.open_help();
             }
+            "t" | "tracker" | "layout" | "normal" => {
+                self.open_tracker_view();
+            }
+            "p" | "patterns" => {
+                self.open_patterns_view();
+            }
+            "se" | "sequence-view" => {
+                self.open_sequence_view();
+            }
+            "tr" | "tracks" => {
+                self.open_tracks_view();
+            }
+            "sa" | "sam" | "samples" => {
+                self.open_sampler_view();
+            }
+            "sb" | "sample-browser" => {
+                let path = parts.collect::<Vec<_>>().join(" ");
+                self.open_sample_browser_view(if path.is_empty() {
+                    None
+                } else {
+                    Some(PathBuf::from(path))
+                });
+            }
+            "f" | "focus" => match parts.next() {
+                Some("t" | "tracker" | "layout" | "normal") | None => self.open_tracker_view(),
+                Some("p" | "patterns" | "pattern-manager") => self.open_patterns_view(),
+                Some("se" | "sequence" | "sequence-view") => self.open_sequence_view(),
+                Some("tr" | "tracks") => self.open_tracks_view(),
+                Some("sa" | "sampler" | "samples") => self.open_sampler_view(),
+                Some("sb" | "browser" | "sample-browser") => self.open_sample_browser_view(None),
+                Some(_) => {
+                    self.notify_warning("Usage: :focus [t|p|se|tr|sa|sb]");
+                }
+            },
             "q" | "quit" => {
                 self.request_quit(false);
             }
@@ -4072,6 +4106,11 @@ impl App {
             _ => HelpTab::Basics,
         };
         self.mode = AppMode::Help;
+    }
+
+    fn open_tracker_view(&mut self) {
+        self.mode = AppMode::Normal;
+        self.notify_info("Tracker editor");
     }
 
     fn open_sequence_view(&mut self) {
@@ -8752,6 +8791,66 @@ mod tests {
             app.notification.as_ref().map(|n| n.message.as_str()),
             Some("Track channel set to 12")
         );
+    }
+
+    #[test]
+    fn command_mode_panel_aliases_focus_views_and_restore_tracker_layout() {
+        let mut app = App::default();
+
+        enter_command(&mut app, "p");
+        assert_eq!(app.mode, AppMode::Patterns);
+        assert_eq!(app.tui_active_view(), TuiView::Patterns);
+
+        enter_command(&mut app, "se");
+        assert_eq!(app.mode, AppMode::Sequence);
+        assert_eq!(app.tui_active_view(), TuiView::Sequence);
+
+        enter_command(&mut app, "tr");
+        assert_eq!(app.mode, AppMode::Tracks);
+        assert_eq!(app.tui_active_view(), TuiView::Tracks);
+
+        enter_command(&mut app, "sa");
+        assert_eq!(app.mode, AppMode::Sampler);
+        assert_eq!(app.tui_active_view(), TuiView::Sampler);
+
+        enter_command(&mut app, "t");
+        assert_eq!(app.mode, AppMode::Normal);
+        assert_eq!(app.tui_active_view(), TuiView::Pattern);
+
+        enter_command(&mut app, "focus p");
+        assert_eq!(app.mode, AppMode::Patterns);
+        enter_command(&mut app, "layout");
+        assert_eq!(app.mode, AppMode::Normal);
+    }
+
+    #[test]
+    fn command_mode_sample_browser_alias_accepts_optional_directory() {
+        let mut app = App::default();
+
+        enter_command(&mut app, "sb fixtures");
+
+        assert_eq!(app.mode, AppMode::SampleBrowser);
+        assert_eq!(app.tui_active_view(), TuiView::SampleBrowser);
+        assert_eq!(
+            app.sample_browser_view
+                .as_ref()
+                .map(|browser| browser.current_dir.as_path()),
+            Some(Path::new("fixtures"))
+        );
+    }
+
+    #[test]
+    fn panel_aliases_do_not_fire_while_editing_text_or_cells() {
+        let mut app = App {
+            mode: AppMode::Edit,
+            ..App::default()
+        };
+
+        app.handle_key(KeyEvent::new(KeyCode::Char(':'), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Char('p'), KeyModifiers::NONE));
+
+        assert_eq!(app.mode, AppMode::Edit);
+        assert_eq!(app.tui_active_view(), TuiView::Pattern);
     }
 
     #[test]
