@@ -33,4 +33,4 @@
 │     └──────────────────────────────────────────────────────────────────────────────────────────────────────────┘     │
 │                         ││                      :dsp track clear                                ││                   │
 └─────────────────────────┘└──────────────────────────────────────────────────────────────────────┘└───────────────────┘
- HELP | H Help | Focus :t/:p/:se/:tr/:sa/:sb | F4 MIDI | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X 
+ HELP | H Help | Focus :t/:p/:se/:tr/:sa/:sb/:o | F4 MIDI | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P

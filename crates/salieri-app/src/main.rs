@@ -4,6 +4,7 @@ mod playback_runtime;
 mod terminal;
 
 use std::{
+    collections::HashSet,
     fs::{self, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
@@ -13,7 +14,7 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use config::{load_config, AppConfig, SampleBrowserConfig};
+use config::{load_config, AppConfig, ProjectBrowserConfig, SampleBrowserConfig};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use persistence::{load_project, save_project};
 use playback_runtime::{apply_sample_playback_settings, resolve_sample_path};
@@ -42,9 +43,11 @@ use salieri_sampler::{Sample, WaveformBucket, WaveformOverview};
 use salieri_transform::{apply_euclidean, EuclideanRhythm};
 use salieri_tui::{
     render, HelpTab, MidiPortView, MidiSettingsState, NotificationKind, NotificationView,
+    ProjectBrowserEntryKind, ProjectBrowserEntryView, ProjectBrowserViewState,
     SampleBrowserEntryKind, SampleBrowserEntryView, SampleBrowserViewState, SamplerViewState,
     SelectionRect, TuiState, TuiView,
 };
+use serde::{Deserialize, Serialize};
 use terminal::TerminalGuard;
 
 const UI_TICK_RATE: Duration = Duration::from_millis(33);
@@ -53,6 +56,7 @@ const SAMPLE_WAVEFORM_BUCKETS: usize = 2048;
 const SAMPLE_WAVEFORM_MAX_ZOOM: usize = 64;
 const DEFAULT_NOTE_VELOCITY: u8 = 0x7f;
 const UNDO_LIMIT: usize = 100;
+const MAX_RECENT_PROJECTS: usize = 12;
 const MIN_BPM: u16 = 1;
 const MAX_BPM: u16 = 999;
 const MIN_LPB: u8 = 1;
@@ -148,6 +152,8 @@ fn run(args: CliArgs) -> Result<()> {
             let notification = app.tui_notification();
             let sample_browser_entries = app.tui_sample_browser_entries();
             let sample_browser = app.tui_sample_browser_view(&sample_browser_entries);
+            let project_browser_entries = app.tui_project_browser_entries();
+            let project_browser = app.tui_project_browser_view(&project_browser_entries);
             let midi_status = app.tui_midi_status();
             render(
                 frame,
@@ -177,6 +183,7 @@ fn run(args: CliArgs) -> Result<()> {
                     midi_settings,
                     sampler_view: app.tui_sampler_view(),
                     sample_browser,
+                    project_browser,
                 },
             );
         })?;
@@ -1228,6 +1235,184 @@ fn sample_browser_kind_rank(kind: SampleBrowserEntryKind) -> u8 {
     }
 }
 
+fn read_project_browser_entries(
+    current_dir: &Path,
+    recent_projects: &[PathBuf],
+) -> Result<Vec<AppProjectBrowserEntry>> {
+    let mut entries = Vec::new();
+    let mut seen_projects = HashSet::new();
+
+    for path in recent_projects {
+        let key = project_path_key(path);
+        if seen_projects.insert(key) {
+            entries.push(project_browser_project_entry(
+                path.clone(),
+                ProjectBrowserEntryKind::RecentProject,
+            ));
+        }
+    }
+
+    let mut discovered = fs::read_dir(current_dir)
+        .with_context(|| format!("failed to read project directory {}", current_dir.display()))?
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let path = entry.path();
+            let file_type = entry.file_type().ok()?;
+            let name = entry.file_name().to_string_lossy().to_string();
+            if file_type.is_dir() {
+                Some(AppProjectBrowserEntry {
+                    path,
+                    name,
+                    kind: ProjectBrowserEntryKind::Directory,
+                    detail: "Press Enter to open directory".to_string(),
+                })
+            } else if file_type.is_file() && is_salieri_project_path(&path) {
+                let key = project_path_key(&path);
+                seen_projects
+                    .insert(key)
+                    .then(|| project_browser_project_entry(path, ProjectBrowserEntryKind::Project))
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+
+    discovered.sort_by(|left, right| {
+        project_browser_kind_rank(left.kind)
+            .cmp(&project_browser_kind_rank(right.kind))
+            .then_with(|| left.name.to_lowercase().cmp(&right.name.to_lowercase()))
+    });
+    entries.extend(discovered);
+    Ok(entries)
+}
+
+fn project_browser_project_entry(
+    path: PathBuf,
+    preferred_kind: ProjectBrowserEntryKind,
+) -> AppProjectBrowserEntry {
+    let name = path
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_else(|| path.display().to_string());
+
+    if !path.exists() {
+        return AppProjectBrowserEntry {
+            path,
+            name,
+            kind: ProjectBrowserEntryKind::MissingProject,
+            detail: "Missing: file is no longer at this path".to_string(),
+        };
+    }
+
+    match load_project(&path) {
+        Ok(song) => {
+            let modified = project_modified_label(&path);
+            AppProjectBrowserEntry {
+                path,
+                name,
+                kind: preferred_kind,
+                detail: format!(
+                    "{} | {} tracks | {} patterns | {} sequence slots | {}",
+                    song.metadata.title,
+                    song.tracks.len(),
+                    song.patterns.len(),
+                    song.sequence.len(),
+                    modified
+                ),
+            }
+        }
+        Err(error) => AppProjectBrowserEntry {
+            path,
+            name,
+            kind: ProjectBrowserEntryKind::InvalidProject,
+            detail: format!("Invalid project: {error}"),
+        },
+    }
+}
+
+fn project_browser_kind_rank(kind: ProjectBrowserEntryKind) -> u8 {
+    match kind {
+        ProjectBrowserEntryKind::RecentProject
+        | ProjectBrowserEntryKind::MissingProject
+        | ProjectBrowserEntryKind::InvalidProject => 0,
+        ProjectBrowserEntryKind::Directory => 1,
+        ProjectBrowserEntryKind::Project => 2,
+    }
+}
+
+fn is_salieri_project_path(path: &Path) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("salieri"))
+}
+
+fn project_modified_label(path: &Path) -> String {
+    fs::metadata(path)
+        .and_then(|metadata| metadata.modified())
+        .ok()
+        .and_then(|modified| modified.duration_since(UNIX_EPOCH).ok())
+        .map_or_else(
+            || "modified unknown".to_string(),
+            |duration| format!("modified unix {}", duration.as_secs()),
+        )
+}
+
+fn project_path_key(path: &Path) -> String {
+    path.canonicalize()
+        .unwrap_or_else(|_| path.to_path_buf())
+        .to_string_lossy()
+        .to_lowercase()
+}
+
+fn project_browser_recent_file(config: &ProjectBrowserConfig) -> Option<PathBuf> {
+    config
+        .recent_file
+        .clone()
+        .or_else(default_recent_projects_path)
+}
+
+fn default_recent_projects_path() -> Option<PathBuf> {
+    std::env::var_os("HOME").map(PathBuf::from).map(|home| {
+        home.join(".config")
+            .join("salieri")
+            .join("recent-projects.json")
+    })
+}
+
+fn load_recent_projects(path: Option<&Path>) -> Vec<PathBuf> {
+    let Some(path) = path else {
+        return Vec::new();
+    };
+    if !path.exists() {
+        return Vec::new();
+    }
+
+    fs::read_to_string(path)
+        .ok()
+        .and_then(|contents| serde_json::from_str::<RecentProjectsFile>(&contents).ok())
+        .map(|file| file.projects)
+        .unwrap_or_default()
+}
+
+fn save_recent_projects(path: Option<&Path>, projects: &[PathBuf]) -> Result<()> {
+    let Some(path) = path else {
+        return Ok(());
+    };
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).with_context(|| {
+            format!(
+                "failed to create recent project directory {}",
+                parent.display()
+            )
+        })?;
+    }
+    let contents = serde_json::to_string_pretty(&RecentProjectsFile {
+        projects: projects.to_vec(),
+    })?;
+    fs::write(path, contents)
+        .with_context(|| format!("failed to write recent projects {}", path.display()))
+}
+
 fn is_supported_sample_path(path: &Path) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
@@ -1394,6 +1579,10 @@ struct App {
     sample_browser: SampleBrowserConfig,
     pending_sample_browser: Option<SampleBrowserRequest>,
     sample_browser_view: Option<AppSampleBrowserView>,
+    project_browser: ProjectBrowserConfig,
+    recent_project_file: Option<PathBuf>,
+    recent_projects: Vec<PathBuf>,
+    project_browser_view: Option<AppProjectBrowserView>,
     pending_ai_proposal: Option<PendingAiProposal>,
     dirty: bool,
     should_quit: bool,
@@ -1439,6 +1628,15 @@ enum Dialog {
         pattern_index: usize,
         message: String,
     },
+    OpenProjectDirty {
+        path: PathBuf,
+        message: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct RecentProjectsFile {
+    projects: Vec<PathBuf>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1469,6 +1667,22 @@ struct AppSampleBrowserEntry {
     path: PathBuf,
     name: String,
     kind: SampleBrowserEntryKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct AppProjectBrowserView {
+    current_dir: PathBuf,
+    entries: Vec<AppProjectBrowserEntry>,
+    cursor: usize,
+    message: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct AppProjectBrowserEntry {
+    path: PathBuf,
+    name: String,
+    kind: ProjectBrowserEntryKind,
+    detail: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1510,6 +1724,9 @@ impl App {
         let song = Song::empty();
         let default_midi_output = config.midi.default_output.trim().to_string();
         let default_midi_input = config.midi.default_input.trim().to_string();
+        let project_browser = config.project_browser.clone();
+        let recent_project_file = project_browser_recent_file(&project_browser);
+        let recent_projects = load_recent_projects(recent_project_file.as_deref());
         let midi_status = if default_midi_output.is_empty() {
             "MIDI Disconnected".to_string()
         } else {
@@ -1557,6 +1774,10 @@ impl App {
             sample_browser: config.sample_browser.clone(),
             pending_sample_browser: None,
             sample_browser_view: None,
+            project_browser,
+            recent_project_file,
+            recent_projects,
+            project_browser_view: None,
             pending_ai_proposal: None,
             dirty: false,
             should_quit: false,
@@ -1603,6 +1824,7 @@ impl App {
             AppMode::Patterns => self.handle_patterns_key(key),
             AppMode::Sampler => self.handle_sampler_key(key),
             AppMode::SampleBrowser => self.handle_sample_browser_key(key),
+            AppMode::ProjectBrowser => self.handle_project_browser_key(key),
         }
     }
 
@@ -2008,13 +2230,20 @@ impl App {
                     self.mode = AppMode::Normal;
                     self.delete_pattern(pattern_index);
                 }
+                Some(Dialog::OpenProjectDirty { path, .. }) => {
+                    self.dialog = None;
+                    self.open_project_file(path);
+                }
                 None => self.mode = AppMode::Normal,
             },
             KeyCode::Char('n') | KeyCode::Char('N') => match self.dialog {
                 Some(Dialog::QuitDirty) => self.force_quit(),
-                Some(Dialog::DeleteTrack { .. } | Dialog::DeletePattern { .. }) | None => {
-                    self.cancel_dialog();
-                }
+                Some(
+                    Dialog::DeleteTrack { .. }
+                    | Dialog::DeletePattern { .. }
+                    | Dialog::OpenProjectDirty { .. },
+                )
+                | None => self.cancel_dialog(),
             },
             KeyCode::Char('c') | KeyCode::Char('C') | KeyCode::Esc => {
                 self.cancel_dialog();
@@ -2187,6 +2416,30 @@ impl App {
             KeyCode::Enter | KeyCode::Right | KeyCode::Char('l') => {
                 self.select_sample_browser_entry()
             }
+            _ => {}
+        }
+    }
+
+    fn handle_project_browser_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Esc => self.mode = AppMode::Normal,
+            KeyCode::Char('q') => self.request_quit(false),
+            KeyCode::Char('?') | KeyCode::Char('H') => self.open_help(),
+            KeyCode::Char(':') => {
+                self.command_buffer.clear();
+                self.mode = AppMode::Command;
+            }
+            KeyCode::Up | KeyCode::Char('k') => self.move_project_browser_cursor(-1),
+            KeyCode::Down | KeyCode::Char('j') => self.move_project_browser_cursor(1),
+            KeyCode::PageUp => self.move_project_browser_cursor(-10),
+            KeyCode::PageDown => self.move_project_browser_cursor(10),
+            KeyCode::Backspace | KeyCode::Left | KeyCode::Char('h') => {
+                self.project_browser_parent()
+            }
+            KeyCode::Enter | KeyCode::Right | KeyCode::Char('l') => {
+                self.select_project_browser_entry()
+            }
+            KeyCode::Char('r') | KeyCode::Char('R') => self.refresh_project_browser_view(),
             _ => {}
         }
     }
@@ -3576,6 +3829,14 @@ impl App {
                     Some(PathBuf::from(path))
                 });
             }
+            "o" | "open" | "projects" | "project-browser" => {
+                let path = parts.collect::<Vec<_>>().join(" ");
+                self.open_project_browser_view(if path.is_empty() {
+                    None
+                } else {
+                    Some(PathBuf::from(path))
+                });
+            }
             "f" | "focus" => match parts.next() {
                 Some("t" | "tracker" | "layout" | "normal") | None => self.open_tracker_view(),
                 Some("p" | "patterns" | "pattern-manager") => self.open_patterns_view(),
@@ -3583,8 +3844,11 @@ impl App {
                 Some("tr" | "tracks") => self.open_tracks_view(),
                 Some("sa" | "sampler" | "samples") => self.open_sampler_view(),
                 Some("sb" | "browser" | "sample-browser") => self.open_sample_browser_view(None),
+                Some("o" | "open" | "pr" | "projects" | "project-browser") => {
+                    self.open_project_browser_view(None)
+                }
                 Some(_) => {
-                    self.notify_warning("Usage: :focus [t|p|se|tr|sa|sb]");
+                    self.notify_warning("Usage: :focus [t|p|se|tr|sa|sb|pr]");
                 }
             },
             "q" | "quit" => {
@@ -3981,8 +4245,15 @@ impl App {
     }
 
     fn cancel_dialog(&mut self) {
+        let return_to_project_browser =
+            matches!(self.dialog, Some(Dialog::OpenProjectDirty { .. }))
+                && self.project_browser_view.is_some();
         self.dialog = None;
-        self.mode = AppMode::Normal;
+        self.mode = if return_to_project_browser {
+            AppMode::ProjectBrowser
+        } else {
+            AppMode::Normal
+        };
         self.notify_info("Cancelled");
     }
 
@@ -4100,6 +4371,7 @@ impl App {
         self.help_scroll = 0;
         self.help_tab = match self.mode {
             AppMode::Sampler | AppMode::SampleBrowser => HelpTab::Sampler,
+            AppMode::ProjectBrowser => HelpTab::Commands,
             AppMode::MidiSettings => HelpTab::Midi,
             AppMode::Command => HelpTab::Commands,
             AppMode::Edit => HelpTab::Editing,
@@ -4422,6 +4694,187 @@ impl App {
                 self.mode = AppMode::Sampler;
                 self.notify_error(format!("Sample browser failed: {error}"));
             }
+        }
+    }
+
+    fn open_project_browser_view(&mut self, start_dir: Option<PathBuf>) {
+        let current_dir = start_dir
+            .or_else(|| {
+                self.project_path
+                    .as_deref()
+                    .and_then(Path::parent)
+                    .map(Path::to_path_buf)
+            })
+            .or_else(|| self.project_browser.start_dir.clone())
+            .or_else(|| std::env::current_dir().ok())
+            .unwrap_or_else(|| PathBuf::from("."));
+        let current_dir = if current_dir.is_file() {
+            current_dir
+                .parent()
+                .map_or_else(|| PathBuf::from("."), Path::to_path_buf)
+        } else {
+            current_dir
+        };
+
+        self.project_browser_view = Some(AppProjectBrowserView {
+            current_dir,
+            entries: Vec::new(),
+            cursor: 0,
+            message: None,
+        });
+        self.refresh_project_browser_view();
+        self.mode = AppMode::ProjectBrowser;
+    }
+
+    fn refresh_project_browser_view(&mut self) {
+        let Some(browser) = &self.project_browser_view else {
+            return;
+        };
+        let current_dir = browser.current_dir.clone();
+        let cursor = browser.cursor;
+
+        match read_project_browser_entries(&current_dir, &self.recent_projects) {
+            Ok(entries) => {
+                let message = if entries.is_empty() {
+                    Some("No .salieri projects found".to_string())
+                } else {
+                    Some("Enter opens a project, Backspace goes to parent".to_string())
+                };
+                self.project_browser_view = Some(AppProjectBrowserView {
+                    current_dir,
+                    cursor: cursor.min(entries.len().saturating_sub(1)),
+                    entries,
+                    message,
+                });
+            }
+            Err(error) => {
+                self.project_browser_view = Some(AppProjectBrowserView {
+                    current_dir,
+                    entries: Vec::new(),
+                    cursor: 0,
+                    message: Some(format!("Failed to read projects: {error}")),
+                });
+            }
+        }
+    }
+
+    fn move_project_browser_cursor(&mut self, delta: isize) {
+        let Some(browser) = &mut self.project_browser_view else {
+            return;
+        };
+        if browser.entries.is_empty() {
+            return;
+        }
+
+        let max = browser.entries.len() - 1;
+        browser.cursor = browser.cursor.saturating_add_signed(delta).min(max);
+    }
+
+    fn project_browser_parent(&mut self) {
+        let Some(browser) = &mut self.project_browser_view else {
+            return;
+        };
+        let Some(parent) = browser.current_dir.parent().map(Path::to_path_buf) else {
+            return;
+        };
+        browser.current_dir = parent;
+        browser.cursor = 0;
+        self.refresh_project_browser_view();
+    }
+
+    fn select_project_browser_entry(&mut self) {
+        let Some(browser) = &self.project_browser_view else {
+            return;
+        };
+        let Some(entry) = browser.entries.get(browser.cursor).cloned() else {
+            self.notify_warning("No project selected");
+            return;
+        };
+
+        match entry.kind {
+            ProjectBrowserEntryKind::Directory => {
+                if let Some(browser) = &mut self.project_browser_view {
+                    browser.current_dir = entry.path;
+                    browser.cursor = 0;
+                }
+                self.refresh_project_browser_view();
+            }
+            ProjectBrowserEntryKind::Project | ProjectBrowserEntryKind::RecentProject => {
+                self.request_open_project_file(entry.path);
+            }
+            ProjectBrowserEntryKind::MissingProject | ProjectBrowserEntryKind::InvalidProject => {
+                if let Some(browser) = &mut self.project_browser_view {
+                    browser.message = Some(entry.detail);
+                }
+                self.notify_warning("Project cannot be opened");
+            }
+        }
+    }
+
+    fn request_open_project_file(&mut self, path: PathBuf) {
+        if self.dirty {
+            let message = format!(
+                "Open {} and discard unsaved changes?",
+                path.file_name()
+                    .map(|name| name.to_string_lossy().to_string())
+                    .unwrap_or_else(|| path.display().to_string())
+            );
+            self.dialog = Some(Dialog::OpenProjectDirty { path, message });
+            self.mode = AppMode::Dialog;
+            self.notify_warning("Unsaved changes");
+        } else {
+            self.open_project_file(path);
+        }
+    }
+
+    fn open_project_file(&mut self, path: PathBuf) {
+        match load_project(&path) {
+            Ok(song) => {
+                self.playback.stop();
+                self.song = song;
+                self.clean_song = self.song.clone();
+                self.project_path = Some(path.clone());
+                self.pattern_index = 0;
+                self.cursor = Cursor::new();
+                self.row_offset = 0;
+                self.selection_anchor = None;
+                self.undo_stack.clear();
+                self.redo_stack.clear();
+                self.is_playing = false;
+                self.playhead_row = None;
+                self.sequence_position = None;
+                self.sequence_cursor = 0;
+                self.project_browser_view = None;
+                self.clamp_cursor();
+                self.clamp_sequence_cursor();
+                self.refresh_dirty();
+                self.mode = AppMode::Normal;
+                self.record_recent_project(path.clone());
+                self.notify_success(format!("Project opened: {}", path.display()));
+            }
+            Err(error) => {
+                if let Some(browser) = &mut self.project_browser_view {
+                    browser.message = Some(format!("Project open failed: {error}"));
+                    self.mode = AppMode::ProjectBrowser;
+                } else {
+                    self.mode = AppMode::Normal;
+                }
+                self.notify_error(format!("Project open failed: {error}"));
+            }
+        }
+    }
+
+    fn record_recent_project(&mut self, path: PathBuf) {
+        let path = path.canonicalize().unwrap_or(path);
+        let key = project_path_key(&path);
+        self.recent_projects
+            .retain(|candidate| project_path_key(candidate) != key);
+        self.recent_projects.insert(0, path);
+        self.recent_projects.truncate(MAX_RECENT_PROJECTS);
+        if let Err(error) =
+            save_recent_projects(self.recent_project_file.as_deref(), &self.recent_projects)
+        {
+            self.notify_warning(format!("Recent projects not saved: {error}"));
         }
     }
 
@@ -5105,9 +5558,10 @@ impl App {
 
     fn save_as(&mut self, path: PathBuf) -> Result<()> {
         save_project(&path, &self.song)?;
-        self.project_path = Some(path);
+        self.project_path = Some(path.clone());
         self.clean_song = self.song.clone();
         self.refresh_dirty();
+        self.record_recent_project(path);
         self.notify_success("Project saved");
         Ok(())
     }
@@ -5163,6 +5617,7 @@ impl App {
             AppMode::Patterns => TuiView::Patterns,
             AppMode::Sampler => TuiView::Sampler,
             AppMode::SampleBrowser => TuiView::SampleBrowser,
+            AppMode::ProjectBrowser => TuiView::ProjectBrowser,
             AppMode::Normal
             | AppMode::Edit
             | AppMode::Command
@@ -5223,6 +5678,7 @@ impl App {
         match &self.dialog {
             Some(Dialog::DeleteTrack { message, .. }) => Some(message.as_str()),
             Some(Dialog::DeletePattern { message, .. }) => Some(message.as_str()),
+            Some(Dialog::OpenProjectDirty { message, .. }) => Some(message.as_str()),
             Some(Dialog::QuitDirty) | None => None,
         }
     }
@@ -5421,6 +5877,41 @@ impl App {
                 message: browser.message.as_deref(),
             })
     }
+
+    fn tui_project_browser_entries(&self) -> Vec<ProjectBrowserEntryView<'_>> {
+        self.project_browser_view
+            .as_ref()
+            .map(|browser| {
+                browser
+                    .entries
+                    .iter()
+                    .map(|entry| ProjectBrowserEntryView {
+                        name: entry.name.as_str(),
+                        path: entry.path.to_str().unwrap_or("<non-utf8 path>"),
+                        kind: entry.kind,
+                        detail: entry.detail.as_str(),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    fn tui_project_browser_view<'a>(
+        &'a self,
+        entries: &'a [ProjectBrowserEntryView<'a>],
+    ) -> Option<ProjectBrowserViewState<'a>> {
+        self.project_browser_view
+            .as_ref()
+            .map(|browser| ProjectBrowserViewState {
+                current_dir: browser
+                    .current_dir
+                    .to_str()
+                    .unwrap_or("<non-utf8 directory>"),
+                entries,
+                selected: browser.cursor,
+                message: browser.message.as_deref(),
+            })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -5436,6 +5927,7 @@ enum AppMode {
     Patterns,
     Sampler,
     SampleBrowser,
+    ProjectBrowser,
 }
 
 impl AppMode {
@@ -5452,6 +5944,7 @@ impl AppMode {
             AppMode::Patterns => "PATTERNS",
             AppMode::Sampler => "SAMPLER",
             AppMode::SampleBrowser => "SAMPLES",
+            AppMode::ProjectBrowser => "PROJECTS",
         }
     }
 }
@@ -7900,6 +8393,170 @@ mod tests {
 
         let _ = std::fs::remove_file(&text_path);
         let _ = std::fs::remove_dir(&dir);
+    }
+
+    #[test]
+    fn project_browser_discovers_projects_and_persists_recent_projects() {
+        let dir = std::env::temp_dir().join(format!(
+            "salieri-project-browser-discovery-{}",
+            std::process::id()
+        ));
+        let recent_file = dir.join("recent-projects.json");
+        let project_path = dir.join("valid.salieri");
+        let missing_path = dir.join("missing.salieri");
+        let invalid_path = dir.join("invalid.salieri");
+        std::fs::create_dir_all(&dir).expect("create project dir");
+        let mut song = Song::empty();
+        song.metadata.title = "Discovery Test".to_string();
+        save_project(&project_path, &song).expect("save project");
+        std::fs::write(&invalid_path, "not json").expect("write invalid project");
+
+        save_recent_projects(
+            Some(&recent_file),
+            &[project_path.clone(), missing_path.clone()],
+        )
+        .expect("save recents");
+        let recent_projects = load_recent_projects(Some(&recent_file));
+
+        let entries =
+            read_project_browser_entries(&dir, &recent_projects).expect("discover projects");
+
+        assert_eq!(
+            recent_projects,
+            vec![project_path.clone(), missing_path.clone()]
+        );
+        assert_eq!(entries[0].kind, ProjectBrowserEntryKind::RecentProject);
+        assert_eq!(entries[0].name, "valid.salieri");
+        assert!(entries[0].detail.contains("Discovery Test"));
+        assert_eq!(entries[1].kind, ProjectBrowserEntryKind::MissingProject);
+        assert_eq!(entries[1].name, "missing.salieri");
+        assert!(entries.iter().any(|entry| entry.name == "invalid.salieri"
+            && entry.kind == ProjectBrowserEntryKind::InvalidProject));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn project_browser_opens_valid_project_and_records_recent() {
+        let dir = std::env::temp_dir().join(format!(
+            "salieri-project-browser-open-{}",
+            std::process::id()
+        ));
+        let recent_file = dir.join("recent-projects.json");
+        let project_path = dir.join("opened.salieri");
+        std::fs::create_dir_all(&dir).expect("create project dir");
+        let mut song = Song::empty();
+        song.metadata.title = "Opened Project".to_string();
+        song.transport.bpm = 137;
+        save_project(&project_path, &song).expect("save project");
+        let mut app = App::new(AppConfig {
+            project_browser: ProjectBrowserConfig {
+                start_dir: Some(dir.clone()),
+                recent_file: Some(recent_file.clone()),
+            },
+            ..AppConfig::default()
+        });
+
+        enter_command(&mut app, "open");
+        assert_eq!(app.mode, AppMode::ProjectBrowser);
+        assert_eq!(app.tui_active_view(), TuiView::ProjectBrowser);
+
+        app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+
+        assert_eq!(app.mode, AppMode::Normal);
+        assert_eq!(app.song.metadata.title, "Opened Project");
+        assert_eq!(app.song.transport.bpm, 137);
+        assert_eq!(app.project_path, Some(project_path.clone()));
+        assert!(!app.dirty);
+        assert_eq!(
+            load_recent_projects(Some(&recent_file)).first(),
+            Some(&project_path.canonicalize().expect("canonical project"))
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn project_browser_requires_confirmation_before_discarding_dirty_song() {
+        let dir = std::env::temp_dir().join(format!(
+            "salieri-project-browser-dirty-{}",
+            std::process::id()
+        ));
+        let recent_file = dir.join("recent-projects.json");
+        let project_path = dir.join("target.salieri");
+        std::fs::create_dir_all(&dir).expect("create project dir");
+        let mut target = Song::empty();
+        target.transport.bpm = 155;
+        save_project(&project_path, &target).expect("save project");
+        let mut app = App::new(AppConfig {
+            project_browser: ProjectBrowserConfig {
+                start_dir: Some(dir.clone()),
+                recent_file: Some(recent_file),
+            },
+            ..AppConfig::default()
+        });
+        app.set_bpm(130);
+
+        enter_command(&mut app, "projects");
+        app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+
+        assert_eq!(app.mode, AppMode::Dialog);
+        assert_eq!(app.song.transport.bpm, 130);
+        assert!(app.delete_confirmation_message().is_some());
+
+        app.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+
+        assert_eq!(app.mode, AppMode::ProjectBrowser);
+        assert_eq!(app.song.transport.bpm, 130);
+
+        app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE));
+
+        assert_eq!(app.mode, AppMode::Normal);
+        assert_eq!(app.song.transport.bpm, 155);
+        assert!(!app.dirty);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn project_browser_reports_invalid_projects_without_mutating_active_song() {
+        let dir = std::env::temp_dir().join(format!(
+            "salieri-project-browser-invalid-{}",
+            std::process::id()
+        ));
+        let recent_file = dir.join("recent-projects.json");
+        let invalid_path = dir.join("invalid.salieri");
+        std::fs::create_dir_all(&dir).expect("create project dir");
+        std::fs::write(&invalid_path, "not json").expect("write invalid project");
+        let mut app = App::new(AppConfig {
+            project_browser: ProjectBrowserConfig {
+                start_dir: Some(dir.clone()),
+                recent_file: Some(recent_file),
+            },
+            ..AppConfig::default()
+        });
+        app.set_bpm(131);
+        app.clean_song = app.song.clone();
+        app.refresh_dirty();
+
+        enter_command(&mut app, "open");
+        let entries = app.tui_project_browser_entries();
+        assert_eq!(entries[0].kind, ProjectBrowserEntryKind::InvalidProject);
+
+        app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+
+        assert_eq!(app.mode, AppMode::ProjectBrowser);
+        assert_eq!(app.song.transport.bpm, 131);
+        assert!(!app.dirty);
+        assert_eq!(
+            app.notification
+                .as_ref()
+                .map(|value| value.message.as_str()),
+            Some("Project cannot be opened")
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

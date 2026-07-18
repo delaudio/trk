@@ -46,6 +46,7 @@ pub struct TuiState<'a> {
     pub midi_settings: Option<MidiSettingsState<'a>>,
     pub sampler_view: Option<SamplerViewState<'a>>,
     pub sample_browser: Option<SampleBrowserViewState<'a>>,
+    pub project_browser: Option<ProjectBrowserViewState<'a>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,6 +57,7 @@ pub enum TuiView {
     Patterns,
     Sampler,
     SampleBrowser,
+    ProjectBrowser,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -149,6 +151,31 @@ pub enum SampleBrowserEntryKind {
     Directory,
     SupportedSample,
     UnsupportedFile,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ProjectBrowserViewState<'a> {
+    pub current_dir: &'a str,
+    pub entries: &'a [ProjectBrowserEntryView<'a>],
+    pub selected: usize,
+    pub message: Option<&'a str>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ProjectBrowserEntryView<'a> {
+    pub name: &'a str,
+    pub path: &'a str,
+    pub kind: ProjectBrowserEntryKind,
+    pub detail: &'a str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProjectBrowserEntryKind {
+    Directory,
+    RecentProject,
+    Project,
+    MissingProject,
+    InvalidProject,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -394,6 +421,10 @@ fn render_body(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'
     }
     if state.active_view == TuiView::SampleBrowser {
         render_sample_browser(frame, area, state.sample_browser);
+        return;
+    }
+    if state.active_view == TuiView::ProjectBrowser {
+        render_project_browser(frame, area, state.project_browser);
         return;
     }
 
@@ -1071,6 +1102,127 @@ fn render_sample_browser(
     }
 }
 
+fn render_project_browser(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    browser: Option<ProjectBrowserViewState<'_>>,
+) {
+    let Some(browser) = browser else {
+        let empty = Paragraph::new("Project browser unavailable").block(
+            Block::default()
+                .title(" Project Browser ")
+                .borders(Borders::ALL),
+        );
+        frame.render_widget(empty, area);
+        return;
+    };
+
+    let columns = Layout::default()
+        .direction(LayoutDirection::Horizontal)
+        .constraints([Constraint::Percentage(48), Constraint::Percentage(52)])
+        .split(area);
+    let left = Layout::default()
+        .direction(LayoutDirection::Vertical)
+        .constraints([Constraint::Length(3), Constraint::Min(5)])
+        .split(columns[0]);
+
+    let path = Paragraph::new(truncate(
+        browser.current_dir,
+        columns[0].width.saturating_sub(4) as usize,
+    ))
+    .block(Block::default().title(" Directory ").borders(Borders::ALL));
+    frame.render_widget(path, left[0]);
+
+    let visible_rows = left[1].height.saturating_sub(2) as usize;
+    let selected = browser
+        .selected
+        .min(browser.entries.len().saturating_sub(1));
+    let start = selected.saturating_sub(visible_rows.saturating_sub(1));
+    let mut lines = Vec::new();
+
+    if browser.entries.is_empty() {
+        lines.push(Line::from("No projects"));
+    } else {
+        for (index, entry) in browser
+            .entries
+            .iter()
+            .enumerate()
+            .skip(start)
+            .take(visible_rows)
+        {
+            let marker = if index == selected { ">" } else { " " };
+            let icon = match entry.kind {
+                ProjectBrowserEntryKind::Directory => "[D]",
+                ProjectBrowserEntryKind::RecentProject => "[R]",
+                ProjectBrowserEntryKind::Project => "[S]",
+                ProjectBrowserEntryKind::MissingProject => "[!]",
+                ProjectBrowserEntryKind::InvalidProject => "[X]",
+            };
+            let style = if index == selected {
+                Style::default()
+                    .fg(Color::Black)
+                    .bg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                match entry.kind {
+                    ProjectBrowserEntryKind::Directory => Style::default().fg(Color::Cyan),
+                    ProjectBrowserEntryKind::RecentProject => Style::default().fg(Color::Green),
+                    ProjectBrowserEntryKind::Project => Style::default().fg(Color::White),
+                    ProjectBrowserEntryKind::MissingProject
+                    | ProjectBrowserEntryKind::InvalidProject => Style::default().fg(Color::Red),
+                }
+            };
+            lines.push(Line::from(Span::styled(
+                format!("{marker} {icon} {}", truncate(entry.name, 42)),
+                style,
+            )));
+        }
+    }
+
+    let list = Paragraph::new(lines)
+        .block(Block::default().title(" Projects ").borders(Borders::ALL))
+        .wrap(Wrap { trim: false });
+    frame.render_widget(list, left[1]);
+
+    let mut detail_lines = Vec::new();
+    if let Some(entry) = browser.entries.get(selected) {
+        detail_lines.push(Line::from(vec![
+            Span::styled("Name ", Style::default().fg(Color::Yellow)),
+            Span::raw(entry.name.to_string()),
+        ]));
+        detail_lines.push(Line::from(vec![
+            Span::styled("Type ", Style::default().fg(Color::Yellow)),
+            Span::raw(match entry.kind {
+                ProjectBrowserEntryKind::Directory => "directory",
+                ProjectBrowserEntryKind::RecentProject => "recent project",
+                ProjectBrowserEntryKind::Project => "project",
+                ProjectBrowserEntryKind::MissingProject => "missing project",
+                ProjectBrowserEntryKind::InvalidProject => "invalid project",
+            }),
+        ]));
+        detail_lines.push(Line::from(vec![
+            Span::styled("Path ", Style::default().fg(Color::Yellow)),
+            Span::raw(entry.path.to_string()),
+        ]));
+        detail_lines.push(Line::from(""));
+        detail_lines.push(Line::from(entry.detail.to_string()));
+    } else {
+        detail_lines.push(Line::from(browser.message.unwrap_or("No project selected")));
+    }
+    if let Some(message) = browser.message {
+        detail_lines.push(Line::from(""));
+        detail_lines.push(Line::from(Span::styled(
+            message.to_string(),
+            Style::default().fg(Color::Yellow),
+        )));
+    }
+
+    let details = Paragraph::new(detail_lines)
+        .block(Block::default().title(" Details ").borders(Borders::ALL))
+        .wrap(Wrap { trim: true });
+    frame.render_widget(details, columns[1]);
+}
+
 fn render_pattern_workspace(
     frame: &mut Frame<'_>,
     pattern_area: Rect,
@@ -1723,9 +1875,14 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
             " {} | H Help | Esc Sampler | Up/Down Select | Enter Load/Open | Backspace Parent | : Command | q Quit ",
             state.mode_label
         )
+    } else if state.active_view == TuiView::ProjectBrowser {
+        format!(
+            " {} | H Help | Esc Tracker | Up/Down Select | Enter Open | Backspace Parent | r Refresh | : Command | q Quit ",
+            state.mode_label
+        )
     } else {
         format!(
-            " {}{} | H Help | Focus :t/:p/:se/:tr/:sa/:sb | F4 MIDI | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern | A/Y/R Seq | {{/}} Track | : Command | i Edit | V Select | Ctrl+S Save | q Quit ",
+            " {}{} | H Help | Focus :t/:p/:se/:tr/:sa/:sb/:o | F4 MIDI | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern | A/Y/R Seq | {{/}} Track | : Command | i Edit | V Select | Ctrl+S Save | q Quit ",
             state.mode_label,
             if state.selection.is_some() { " SEL" } else { "" }
         )
@@ -2069,11 +2226,7 @@ fn render_delete_confirmation(frame: &mut Frame<'_>, area: Rect, message: &str) 
         Line::from("[Y]es   [N]o   [Esc] Cancel"),
     ];
     let paragraph = Paragraph::new(lines)
-        .block(
-            Block::default()
-                .title(" Confirm Delete ")
-                .borders(Borders::ALL),
-        )
+        .block(Block::default().title(" Confirm ").borders(Borders::ALL))
         .style(Style::default().fg(Color::White));
     frame.render_widget(Clear, overlay);
     frame.render_widget(paragraph, overlay);
@@ -2544,6 +2697,7 @@ mod tests {
                         midi_settings: None,
                         sampler_view: None,
                         sample_browser: None,
+                        project_browser: None,
                     },
                 );
             })
@@ -2666,6 +2820,7 @@ mod tests {
                         midi_settings: None,
                         sampler_view: None,
                         sample_browser: None,
+                        project_browser: None,
                     },
                 );
             })
@@ -2760,6 +2915,7 @@ mod tests {
                             }),
                             message: None,
                         }),
+                        project_browser: None,
                     },
                 );
             })
@@ -2768,6 +2924,73 @@ mod tests {
         let rendered = terminal.backend().to_string();
         assert!(rendered.contains("kick.wav"));
         assert!(rendered.contains("Sample Metadata"));
+    }
+
+    #[test]
+    fn renders_project_browser_view() {
+        let song = Song::empty();
+        let entries = [
+            ProjectBrowserEntryView {
+                name: "songs",
+                path: "/tmp/songs",
+                kind: ProjectBrowserEntryKind::Directory,
+                detail: "Press Enter to open directory",
+            },
+            ProjectBrowserEntryView {
+                name: "set.salieri",
+                path: "/tmp/songs/set.salieri",
+                kind: ProjectBrowserEntryKind::Project,
+                detail: "Set | 4 tracks | 2 patterns | 2 sequence slots | modified unknown",
+            },
+        ];
+        let backend = TestBackend::new(100, 28);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+
+        terminal
+            .draw(|frame| {
+                render(
+                    frame,
+                    &song,
+                    TuiState {
+                        cursor: Cursor::new(),
+                        row_offset: 0,
+                        pattern_index: 0,
+                        active_view: TuiView::ProjectBrowser,
+                        selection: None,
+                        mode_label: "PROJECTS",
+                        octave: 4,
+                        dirty: false,
+                        show_line_numbers_hex: false,
+                        command_line: None,
+                        notification: None,
+                        show_help: false,
+                        help_scroll: 0,
+                        help_tab: HelpTab::Basics,
+                        is_playing: false,
+                        loop_pattern: true,
+                        playhead_row: None,
+                        midi_status: "MIDI Disconnected",
+                        sequence_position: None,
+                        quit_confirmation: false,
+                        delete_confirmation: None,
+                        midi_settings: None,
+                        sampler_view: None,
+                        sample_browser: None,
+                        project_browser: Some(ProjectBrowserViewState {
+                            current_dir: "/tmp/songs",
+                            entries: &entries,
+                            selected: 1,
+                            message: Some("Enter opens a project"),
+                        }),
+                    },
+                );
+            })
+            .expect("draw");
+
+        let rendered = terminal.backend().to_string();
+        assert!(rendered.contains("Projects"));
+        assert!(rendered.contains("set.salieri"));
+        assert!(rendered.contains("2 patterns"));
     }
 
     #[test]
@@ -2806,6 +3029,7 @@ mod tests {
                         midi_settings: None,
                         sampler_view: None,
                         sample_browser: None,
+                        project_browser: None,
                     },
                 );
             })
@@ -2860,6 +3084,7 @@ mod tests {
                         midi_settings: None,
                         sampler_view: None,
                         sample_browser: None,
+                        project_browser: None,
                     },
                 );
             })
@@ -2914,6 +3139,7 @@ mod tests {
                         midi_settings: None,
                         sampler_view: None,
                         sample_browser: None,
+                        project_browser: None,
                     },
                 );
             })
@@ -2976,6 +3202,7 @@ mod tests {
                         midi_settings: None,
                         sampler_view: None,
                         sample_browser: None,
+                        project_browser: None,
                     },
                 );
             })
@@ -3031,6 +3258,7 @@ mod tests {
                         midi_settings: None,
                         sampler_view: None,
                         sample_browser: None,
+                        project_browser: None,
                     },
                 );
             })
@@ -3086,6 +3314,7 @@ mod tests {
                         midi_settings: None,
                         sampler_view: None,
                         sample_browser: None,
+                        project_browser: None,
                     },
                 );
             })
@@ -3139,6 +3368,7 @@ mod tests {
                         midi_settings: None,
                         sampler_view: None,
                         sample_browser: None,
+                        project_browser: None,
                     },
                 );
             })
@@ -3192,6 +3422,7 @@ mod tests {
                         midi_settings: None,
                         sampler_view: None,
                         sample_browser: None,
+                        project_browser: None,
                     },
                 );
             })
@@ -3205,7 +3436,7 @@ mod tests {
             .map(|cell| cell.symbol())
             .collect::<String>();
 
-        assert!(rendered.contains("Confirm Delete"));
+        assert!(rendered.contains("Confirm"));
         assert!(rendered.contains("Delete track 02 Bass?"));
     }
 
@@ -3259,6 +3490,7 @@ mod tests {
                         }),
                         sampler_view: None,
                         sample_browser: None,
+                        project_browser: None,
                     },
                 );
             })

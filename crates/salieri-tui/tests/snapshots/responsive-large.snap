@@ -29,4 +29,4 @@
 │                         ││Master +0.0dB         :mixer gain pan         F11 Sampler  F9 Tracks  ││MIDI CH10                              │
 │                         ││                      :dsp track clear                                ││No sample assigned                     │
 └─────────────────────────┘└──────────────────────────────────────────────────────────────────────┘└───────────────────────────────────────┘
- NORMAL | H Help | Focus :t/:p/:se/:tr/:sa/:sb | F4 MIDI | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern | A/Y/R Se
+ NORMAL | H Help | Focus :t/:p/:se/:tr/:sa/:sb/:o | F4 MIDI | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern | A/Y/R

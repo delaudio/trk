@@ -13,6 +13,7 @@ pub struct AppConfig {
     pub ui: UiConfig,
     pub midi: MidiConfig,
     pub sample_browser: SampleBrowserConfig,
+    pub project_browser: ProjectBrowserConfig,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -62,6 +63,13 @@ pub struct MidiConfig {
 pub struct SampleBrowserConfig {
     pub chooser_command: Option<String>,
     pub start_dir: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize)]
+#[serde(default)]
+pub struct ProjectBrowserConfig {
+    pub start_dir: Option<PathBuf>,
+    pub recent_file: Option<PathBuf>,
 }
 
 pub fn load_config(path: Option<&Path>) -> Result<AppConfig> {
@@ -125,6 +133,10 @@ log_file = "salieri-midi.log"
 [sample_browser]
 chooser_command = 'YAZI_CONFIG_HOME="$HOME/.config/yazi-readonly" yazi --chooser-file "$SALIERI_CHOOSER_FILE" "$SALIERI_SAMPLE_START_DIR"'
 start_dir = "~/Samples"
+
+[project_browser]
+start_dir = "~/Music/Salieri"
+recent_file = "recent-projects.json"
 "#,
         )
         .expect("write config");
@@ -153,6 +165,14 @@ start_dir = "~/Samples"
         assert_eq!(
             config.sample_browser.start_dir,
             Some(PathBuf::from("~/Samples"))
+        );
+        assert_eq!(
+            config.project_browser.start_dir,
+            Some(PathBuf::from("~/Music/Salieri"))
+        );
+        assert_eq!(
+            config.project_browser.recent_file,
+            Some(PathBuf::from("recent-projects.json"))
         );
     }
 }
