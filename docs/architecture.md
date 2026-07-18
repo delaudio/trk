@@ -2,6 +2,8 @@
 
 Salieri is split into workspace crates so the musical model stays independent from terminal and MIDI backends.
 
+The measured module audit, target shape, and ordered refactor work are maintained in the [Architecture Quality Roadmap](architecture-roadmap.md).
+
 ## Crates
 
 - `salieri-audio`: post-MVP audio thread lifecycle, backend abstraction, realtime command boundary, and offline audio export primitives. It must not depend on Ratatui or project serialization.
