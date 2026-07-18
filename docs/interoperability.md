@@ -20,7 +20,10 @@ The CLI can write the supported subset directly to a Salieri project:
 
 ```bash
 salieri import xrns input.xrns output.salieri
+salieri import xrns input.xrns output.salieri --sample-dir fixtures/local/samples/demo --sample-path-prefix samples/demo
 ```
+
+`--sample-dir` extracts supported WAV payloads from the XRNS archive and rewrites imported sample references to the stored path prefix. This is intended for local demo libraries and manual parity checks; third-party Renoise demo songs and samples should stay under ignored local folders unless their license explicitly allows redistribution.
 
 Round-trip expectations:
 

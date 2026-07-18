@@ -4,7 +4,7 @@ mod playback_runtime;
 mod terminal;
 
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     fs::{self, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
@@ -33,7 +33,10 @@ use salieri_core::{
     EffectDevice, EffectDeviceKind, InstrumentId, NoteEvent, PatternCell, SampleEnvelope,
     SamplePlaybackMode, SamplePlaybackSettings, Song, TrackerCommand,
 };
-use salieri_interop::{import_xrns, XrnsDiagnosticSeverity};
+use salieri_interop::{
+    extract_xrns_sample_payloads, import_xrns, import_xrns_with_sample_paths,
+    XrnsDiagnosticSeverity,
+};
 use salieri_midi::{
     list_input_ports, list_output_ports, MidiClockMessage, MidiInput, MidiInputEvent,
     MidiInputPacket, MidiInputPort, MidiMessage, MidiOutput, MidiOutputPort, MidirMidiInput,
@@ -446,7 +449,7 @@ enum CliCommand {
 
 fn print_help() {
     println!(
-        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --list-midi-inputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri sample inspect FILE [OPTIONS]\n  salieri import xrns INPUT OUTPUT\n  salieri export audio INPUT OUTPUT [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --list-midi-inputs            List available MIDI input ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index (default 1)\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Velocity, 0-127 (default 100)\n\nSample inspect options:\n  --format text|json            Output format (default text)\n  --buckets N, --width N        Waveform bucket count (default 64)\n\nImport options:\n  salieri import xrns INPUT OUTPUT imports an XRNS subset and writes a .salieri project\n\nAudio export options:\n  --pattern N                   Export 1-based pattern index (default 1)\n  --sequence                    Export the full sequence instead of one pattern\n  --sample-rate HZ              Output sample rate (default 48000)\n  --channels N                  Output channels (default 2)\n\n  --help                        Show this help\n  --version                     Show version"
+        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --list-midi-inputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri sample inspect FILE [OPTIONS]\n  salieri import xrns INPUT OUTPUT [OPTIONS]\n  salieri export audio INPUT OUTPUT [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --list-midi-inputs            List available MIDI input ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index (default 1)\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Velocity, 0-127 (default 100)\n\nSample inspect options:\n  --format text|json            Output format (default text)\n  --buckets N, --width N        Waveform bucket count (default 64)\n\nImport options:\n  salieri import xrns INPUT OUTPUT imports an XRNS subset and writes a .salieri project\n  --sample-dir DIR              Extract supported XRNS WAV payloads into DIR\n  --sample-path-prefix PREFIX   Store extracted sample paths with PREFIX in the project\n  --convert-samples-to-wav      Convert FLAC/OGG/AIF payloads to WAV with ffmpeg\n\nAudio export options:\n  --pattern N                   Export 1-based pattern index (default 1)\n  --sequence                    Export the full sequence instead of one pattern\n  --sample-rate HZ              Output sample rate (default 48000)\n  --channels N                  Output channels (default 2)\n\n  --help                        Show this help\n  --version                     Show version"
     );
 }
 
@@ -522,6 +525,9 @@ struct AudioExportArgs {
 struct ImportXrnsArgs {
     input_path: Option<PathBuf>,
     output_path: Option<PathBuf>,
+    sample_dir: Option<PathBuf>,
+    sample_path_prefix: Option<String>,
+    convert_samples_to_wav: bool,
 }
 
 impl Default for SampleInspectArgs {
@@ -680,11 +686,30 @@ fn parse_audio_export_args(args: impl IntoIterator<Item = String>) -> AudioExpor
 
 fn parse_import_xrns_args(args: impl IntoIterator<Item = String>) -> ImportXrnsArgs {
     let mut parsed = ImportXrnsArgs::default();
-    for arg in args {
-        if parsed.input_path.is_none() {
-            parsed.input_path = Some(PathBuf::from(arg));
-        } else if parsed.output_path.is_none() {
-            parsed.output_path = Some(PathBuf::from(arg));
+    let mut args = args.into_iter();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--sample-dir" => {
+                if let Some(path) = args.next() {
+                    parsed.sample_dir = Some(PathBuf::from(path));
+                }
+            }
+            "--sample-path-prefix" => {
+                if let Some(prefix) = args.next() {
+                    parsed.sample_path_prefix = Some(prefix);
+                }
+            }
+            "--convert-samples-to-wav" => parsed.convert_samples_to_wav = true,
+            _ if arg.starts_with("--sample-dir=") => {
+                parsed.sample_dir = Some(PathBuf::from(arg.trim_start_matches("--sample-dir=")));
+            }
+            _ if arg.starts_with("--sample-path-prefix=") => {
+                parsed.sample_path_prefix =
+                    Some(arg.trim_start_matches("--sample-path-prefix=").to_string());
+            }
+            _ if parsed.input_path.is_none() => parsed.input_path = Some(PathBuf::from(arg)),
+            _ if parsed.output_path.is_none() => parsed.output_path = Some(PathBuf::from(arg)),
+            _ => {}
         }
     }
     parsed
@@ -830,7 +855,21 @@ fn run_import_xrns(args: &ImportXrnsArgs) -> Result<()> {
         .context("missing import output path: usage is salieri import xrns INPUT OUTPUT")?;
     let bytes = fs::read(input_path)
         .with_context(|| format!("failed to read XRNS import {}", input_path.display()))?;
-    let report = import_xrns(&bytes);
+    let exported_sample_paths = if let Some(sample_dir) = &args.sample_dir {
+        let prefix = args
+            .sample_path_prefix
+            .as_deref()
+            .map(str::to_string)
+            .unwrap_or_else(|| sample_dir.to_string_lossy().to_string());
+        extract_xrns_samples_for_project(&bytes, sample_dir, &prefix, args.convert_samples_to_wav)?
+    } else {
+        HashMap::new()
+    };
+    let report = if exported_sample_paths.is_empty() {
+        import_xrns(&bytes)
+    } else {
+        import_xrns_with_sample_paths(&bytes, &exported_sample_paths)
+    };
     for diagnostic in &report.diagnostics {
         eprintln!(
             "XRNS {:?}: {}{}",
@@ -852,6 +891,7 @@ fn run_import_xrns(args: &ImportXrnsArgs) -> Result<()> {
     let song = report
         .song
         .context("XRNS import produced no project; project was not written")?;
+    let extracted_sample_count = exported_sample_paths.len();
     let track_count = song.tracks.len();
     let pattern_count = song.patterns.len();
     let sequence_len = song.sequence.len();
@@ -859,15 +899,138 @@ fn run_import_xrns(args: &ImportXrnsArgs) -> Result<()> {
     save_project(output_path, &song)?;
 
     println!(
-        "Imported {} to {}: {} tracks, {} patterns, {} sequence entries, {} samples",
+        "Imported {} to {}: {} tracks, {} patterns, {} sequence entries, {} samples, {} extracted sample files",
         input_path.display(),
         output_path.display(),
         track_count,
         pattern_count,
         sequence_len,
-        sample_count
+        sample_count,
+        extracted_sample_count
     );
     Ok(())
+}
+
+fn extract_xrns_samples_for_project(
+    xrns_bytes: &[u8],
+    sample_dir: &Path,
+    sample_path_prefix: &str,
+    convert_to_wav: bool,
+) -> Result<HashMap<String, String>> {
+    let samples = extract_xrns_sample_payloads(xrns_bytes).map_err(anyhow::Error::msg)?;
+    fs::create_dir_all(sample_dir)
+        .with_context(|| format!("failed to create sample directory {}", sample_dir.display()))?;
+
+    let mut used_names = HashSet::new();
+    let mut exported_paths = HashMap::new();
+    for sample in samples {
+        if !sample.supported && !convert_to_wav {
+            continue;
+        }
+        let file_name = unique_sample_file_name(&sample.source_path, &mut used_names);
+        let output_path = sample_dir.join(&file_name);
+        if sample.supported {
+            fs::write(&output_path, &sample.bytes).with_context(|| {
+                format!("failed to write extracted sample {}", output_path.display())
+            })?;
+        } else {
+            convert_sample_payload_to_wav(
+                &sample.source_path,
+                &sample.format,
+                &sample.bytes,
+                &output_path,
+            )?;
+        }
+        exported_paths.insert(
+            sample.source_path,
+            prefixed_sample_path(sample_path_prefix, &file_name),
+        );
+    }
+
+    Ok(exported_paths)
+}
+
+fn convert_sample_payload_to_wav(
+    source_path: &str,
+    format: &str,
+    bytes: &[u8],
+    output_path: &Path,
+) -> Result<()> {
+    let temp_input = output_path.with_extension(format!("salieri-import.{format}"));
+    fs::write(&temp_input, bytes)
+        .with_context(|| format!("failed to write temporary sample {}", temp_input.display()))?;
+    let conversion = ProcessCommand::new("ffmpeg")
+        .args(["-v", "error", "-y", "-i"])
+        .arg(&temp_input)
+        .arg(output_path)
+        .output()
+        .with_context(|| "failed to run ffmpeg for XRNS sample conversion")?;
+    let _ = fs::remove_file(&temp_input);
+    if !conversion.status.success() {
+        let stderr = String::from_utf8_lossy(&conversion.stderr);
+        anyhow::bail!("failed to convert XRNS sample {source_path} to WAV: {stderr}");
+    }
+    Ok(())
+}
+
+fn prefixed_sample_path(prefix: &str, file_name: &str) -> String {
+    let prefix = prefix.trim_end_matches('/');
+    if prefix.is_empty() {
+        file_name.to_string()
+    } else {
+        format!("{prefix}/{file_name}")
+    }
+}
+
+fn unique_sample_file_name(source_path: &str, used_names: &mut HashSet<String>) -> String {
+    let mut base = sample_file_stem(source_path);
+    if base.is_empty() {
+        base = "sample".to_string();
+    }
+
+    let mut candidate = format!("{base}.wav");
+    let mut suffix = 2_usize;
+    while used_names.contains(&candidate) {
+        candidate = format!("{base}-{suffix}.wav");
+        suffix += 1;
+    }
+    used_names.insert(candidate.clone());
+    candidate
+}
+
+fn sample_file_stem(source_path: &str) -> String {
+    let mut parts = source_path
+        .split('/')
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>();
+    let file_stem = parts
+        .pop()
+        .and_then(|file| file.rsplit_once('.').map(|(stem, _)| stem).or(Some(file)))
+        .unwrap_or("sample");
+    let instrument = parts
+        .iter()
+        .rev()
+        .find(|part| part.to_ascii_lowercase().starts_with("instrument"));
+    let raw = instrument.map_or_else(
+        || file_stem.to_string(),
+        |instrument| format!("{instrument}-{file_stem}"),
+    );
+    sanitize_file_stem(&raw)
+}
+
+fn sanitize_file_stem(value: &str) -> String {
+    let mut output = String::new();
+    let mut previous_dash = false;
+    for character in value.chars().flat_map(char::to_lowercase) {
+        if character.is_ascii_alphanumeric() {
+            output.push(character);
+            previous_dash = false;
+        } else if !previous_dash {
+            output.push('-');
+            previous_dash = true;
+        }
+    }
+    output.trim_matches('-').to_string()
 }
 
 fn inspect_sample(args: &SampleInspectArgs) -> Result<SampleInspection> {
@@ -6568,6 +6731,9 @@ mod tests {
                 command: CliCommand::ImportXrns(ImportXrnsArgs {
                     input_path: Some(PathBuf::from("input.xrns")),
                     output_path: Some(PathBuf::from("output.salieri")),
+                    sample_dir: None,
+                    sample_path_prefix: None,
+                    convert_samples_to_wav: false,
                 }),
                 project_path: None,
                 config_path: None,
@@ -6575,6 +6741,72 @@ mod tests {
                 midi_log_path: None,
                 midi_test: MidiTestArgs::default(),
             }
+        );
+    }
+
+    #[test]
+    fn cli_parses_xrns_sample_extraction_options() {
+        assert_eq!(
+            CliArgs::parse([
+                "import".to_string(),
+                "xrns".to_string(),
+                "input.xrns".to_string(),
+                "output.salieri".to_string(),
+                "--sample-dir".to_string(),
+                "fixtures/local/samples/demo".to_string(),
+                "--sample-path-prefix=samples/demo".to_string(),
+            ]),
+            CliArgs {
+                command: CliCommand::ImportXrns(ImportXrnsArgs {
+                    input_path: Some(PathBuf::from("input.xrns")),
+                    output_path: Some(PathBuf::from("output.salieri")),
+                    sample_dir: Some(PathBuf::from("fixtures/local/samples/demo")),
+                    sample_path_prefix: Some("samples/demo".to_string()),
+                    convert_samples_to_wav: false,
+                }),
+                project_path: None,
+                config_path: None,
+                log_level: None,
+                midi_log_path: None,
+                midi_test: MidiTestArgs::default(),
+            }
+        );
+    }
+
+    #[test]
+    fn cli_parses_xrns_sample_conversion_option() {
+        assert_eq!(
+            parse_import_xrns_args([
+                "input.xrns".to_string(),
+                "output.salieri".to_string(),
+                "--sample-dir=samples".to_string(),
+                "--convert-samples-to-wav".to_string(),
+            ]),
+            ImportXrnsArgs {
+                input_path: Some(PathBuf::from("input.xrns")),
+                output_path: Some(PathBuf::from("output.salieri")),
+                sample_dir: Some(PathBuf::from("samples")),
+                sample_path_prefix: None,
+                convert_samples_to_wav: true,
+            }
+        );
+    }
+
+    #[test]
+    fn xrns_sample_export_names_are_stable_and_unique() {
+        let mut used = HashSet::new();
+
+        assert_eq!(
+            unique_sample_file_name("SampleData/Instrument02/Sample00.wav", &mut used),
+            "instrument02-sample00.wav"
+        );
+        assert_eq!(
+            unique_sample_file_name("SampleData/Instrument02/Sample00.wav", &mut used),
+            "instrument02-sample00-2.wav"
+        );
+        assert_eq!(
+            unique_sample_file_name("SampleData/Foley Hit!.wav", &mut used),
+            "foley-hit.wav"
         );
     }
 

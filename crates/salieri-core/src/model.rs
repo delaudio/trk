@@ -2080,7 +2080,7 @@ fn default_track_name(index: usize) -> String {
 fn default_midi_channel(index: usize) -> u8 {
     match index {
         0 => 10,
-        _ => index as u8,
+        _ => (((index - 1) % 16) + 1) as u8,
     }
 }
 
@@ -2380,6 +2380,22 @@ mod tests {
                 .iter()
                 .all(|row| row.cells.len() == song.tracks.len())
         }));
+    }
+
+    #[test]
+    fn default_midi_channels_wrap_after_sixteen_tracks() {
+        let mut song = Song::empty();
+        while song.tracks.len() < 24 {
+            song.create_track();
+        }
+
+        assert!(song.validate().is_ok());
+        assert!(song
+            .tracks
+            .iter()
+            .all(|track| (1..=16).contains(&track.midi_channel)));
+        assert_eq!(song.tracks[16].midi_channel, 16);
+        assert_eq!(song.tracks[17].midi_channel, 1);
     }
 
     #[test]

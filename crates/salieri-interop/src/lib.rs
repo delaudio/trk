@@ -135,6 +135,14 @@ pub struct XrnsImportReport {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XrnsExtractedSample {
+    pub source_path: String,
+    pub format: String,
+    pub supported: bool,
+    pub bytes: Vec<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct XrnsArchiveEntry {
     pub path: String,
     pub compressed_size: u32,
@@ -816,6 +824,13 @@ pub fn inspect_xrns(bytes: &[u8]) -> XrnsInspection {
 
 #[must_use]
 pub fn import_xrns(bytes: &[u8]) -> XrnsImportReport {
+    import_xrns_with_sample_paths(bytes, &HashMap::new())
+}
+
+pub fn import_xrns_with_sample_paths(
+    bytes: &[u8],
+    sample_path_overrides: &HashMap<String, String>,
+) -> XrnsImportReport {
     let inspection = inspect_xrns(bytes);
     let mut diagnostics = inspection.diagnostics.clone();
     if diagnostics
@@ -887,7 +902,8 @@ pub fn import_xrns(bytes: &[u8]) -> XrnsImportReport {
         };
     };
 
-    let song = build_song_from_xrns_model(&model, &inspection, &mut diagnostics);
+    let song =
+        build_song_from_xrns_model(&model, &inspection, sample_path_overrides, &mut diagnostics);
     let song = match song {
         Some(song) => match song.validate() {
             Ok(()) => Some(song),
@@ -909,6 +925,25 @@ pub fn import_xrns(bytes: &[u8]) -> XrnsImportReport {
         inspection,
         diagnostics,
     }
+}
+
+pub fn extract_xrns_sample_payloads(bytes: &[u8]) -> Result<Vec<XrnsExtractedSample>, String> {
+    let entries = parse_zip_entries(bytes)?;
+    let mut samples = Vec::new();
+    for entry in entries {
+        let Some(payload) = sample_payload(&entry) else {
+            continue;
+        };
+        let source_path = entry.path.clone();
+        let data = zip_entry_data(&entry)?;
+        samples.push(XrnsExtractedSample {
+            source_path,
+            format: payload.format,
+            supported: payload.supported,
+            bytes: data.into_owned(),
+        });
+    }
+    Ok(samples)
 }
 
 #[derive(Debug, Clone, Default)]
@@ -1199,6 +1234,7 @@ fn apply_xrns_line_text(
 fn build_song_from_xrns_model(
     model: &XrnsImportModel,
     inspection: &XrnsInspection,
+    sample_path_overrides: &HashMap<String, String>,
     diagnostics: &mut Vec<XrnsDiagnostic>,
 ) -> Option<Song> {
     let mut song = Song::empty();
@@ -1242,8 +1278,11 @@ fn build_song_from_xrns_model(
         let Some(instrument) = sample_payload_instrument_id(&sample.path) else {
             continue;
         };
-        if sample.supported {
-            let sample_id = song.upsert_sample_reference(&sample.path, sample_name(&sample.path));
+        if sample.supported || sample_path_overrides.contains_key(&sample.path) {
+            let sample_path = sample_path_overrides
+                .get(&sample.path)
+                .map_or(sample.path.as_str(), String::as_str);
+            let sample_id = song.upsert_sample_reference(sample_path, sample_name(&sample.path));
             sample_by_instrument.insert(instrument, sample_id);
         } else {
             diagnostics.push(xrns_diagnostic(
@@ -2328,6 +2367,32 @@ mod tests {
 
         assert_eq!(song.tracks[0].name, "Deflated");
         assert_eq!(song.patterns[0].rows.len(), 1);
+    }
+
+    #[test]
+    fn extracts_supported_xrns_wav_sample_payloads() {
+        let archive = xrns_archive([
+            xrns_entry("Song.xml", b"<RenoiseSong />"),
+            xrns_entry("SampleData/Instrument00/Sample00.wav", b"RIFF....WAVE"),
+            xrns_entry("SampleData/Instrument01/Sample00.flac", b"fLaC"),
+        ]);
+
+        let samples = extract_xrns_sample_payloads(&archive).expect("extract samples");
+
+        assert_eq!(samples.len(), 2);
+        assert_eq!(
+            samples[0].source_path,
+            "SampleData/Instrument00/Sample00.wav"
+        );
+        assert_eq!(samples[0].format, "wav");
+        assert!(samples[0].supported);
+        assert_eq!(samples[0].bytes, b"RIFF....WAVE");
+        assert_eq!(
+            samples[1].source_path,
+            "SampleData/Instrument01/Sample00.flac"
+        );
+        assert_eq!(samples[1].format, "flac");
+        assert!(!samples[1].supported);
     }
 
     #[test]

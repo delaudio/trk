@@ -400,6 +400,7 @@ AI-assisted composition lives behind `salieri-ai` and is available in the TUI th
 
 ```bash
 salieri import xrns input.xrns output.salieri
+salieri import xrns input.xrns output.salieri --sample-dir fixtures/local/samples/demo --sample-path-prefix samples/demo
 ```
 
 See [docs/interoperability.md](docs/interoperability.md).
