@@ -917,6 +917,8 @@ struct XrnsImportModel {
     patterns: Vec<XrnsImportPattern>,
     instruments: Vec<String>,
     sequence: Vec<usize>,
+    bpm: Option<u16>,
+    lines_per_beat: Option<u8>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -1129,6 +1131,20 @@ fn parse_xrns_import_model(
                     if let Ok(pattern) = text.parse::<usize>() {
                         model.sequence.push(pattern);
                     }
+                } else if matches!(current, "BeatsPerMin" | "BeatsPerMinute" | "BPM") {
+                    model.bpm = text
+                        .trim()
+                        .parse::<u16>()
+                        .ok()
+                        .filter(|bpm| *bpm > 0)
+                        .or(model.bpm);
+                } else if matches!(current, "LinesPerBeat" | "LPB") {
+                    model.lines_per_beat = text
+                        .trim()
+                        .parse::<u8>()
+                        .ok()
+                        .filter(|lines_per_beat| *lines_per_beat > 0)
+                        .or(model.lines_per_beat);
                 }
             }
         }
@@ -1157,11 +1173,11 @@ fn apply_xrns_line_text(
         "Note" => line.cell.note = parse_xrns_note(text),
         "Velocity" => line.cell.velocity = parse_u8_value(text),
         "Instrument" => {
-            line.cell.instrument = parse_u32_value(text).map(InstrumentId);
+            line.cell.instrument = parse_xrns_hex_u32_value(text).map(InstrumentId);
         }
-        "Volume" => line.cell.volume = parse_u8_value(text).map(|value| value.min(127)),
-        "Pan" | "Panning" => line.cell.pan = parse_u8_value(text).map(|value| value.min(127)),
-        "Delay" => line.cell.delay = parse_u8_value(text),
+        "Volume" => line.cell.volume = parse_xrns_note_column_level(text),
+        "Pan" | "Panning" => line.cell.pan = parse_xrns_note_column_level(text),
+        "Delay" => line.cell.delay = parse_xrns_hex_u8_value(text),
         "Code" | "Command" => {
             line.effect_code = text
                 .as_bytes()
@@ -1169,7 +1185,7 @@ fn apply_xrns_line_text(
                 .copied()
                 .map(|byte| byte.to_ascii_uppercase());
         }
-        "Value" => line.effect_value = parse_u8_value(text),
+        "Value" => line.effect_value = parse_xrns_hex_u8_value(text),
         "SourceTick" | "SourceTime" => diagnostics.push(xrns_diagnostic(
             XrnsDiagnosticKind::TimingQuantized,
             XrnsDiagnosticSeverity::Warning,
@@ -1186,6 +1202,12 @@ fn build_song_from_xrns_model(
     diagnostics: &mut Vec<XrnsDiagnostic>,
 ) -> Option<Song> {
     let mut song = Song::empty();
+    if let Some(bpm) = model.bpm {
+        song.transport.bpm = bpm;
+    }
+    if let Some(lines_per_beat) = model.lines_per_beat {
+        song.transport.lines_per_beat = lines_per_beat;
+    }
     let track_count = model.tracks.len().max(1);
     while song.tracks.len() < track_count {
         song.create_track();
@@ -1388,6 +1410,32 @@ fn parse_u32_value(value: &str) -> Option<u32> {
         .parse::<u32>()
         .ok()
         .or_else(|| u32::from_str_radix(value.trim_start_matches("0x"), 16).ok())
+}
+
+fn parse_xrns_hex_u8_value(value: &str) -> Option<u8> {
+    parse_xrns_hex_u32_value(value).and_then(|value| u8::try_from(value).ok())
+}
+
+fn parse_xrns_hex_u32_value(value: &str) -> Option<u32> {
+    let value = value.trim();
+    if value.is_empty() || matches!(value, ".." | "---") {
+        return None;
+    }
+    let value = value
+        .strip_prefix("0x")
+        .or_else(|| value.strip_prefix("0X"))
+        .unwrap_or(value);
+    u32::from_str_radix(value, 16).ok()
+}
+
+fn parse_xrns_note_column_level(value: &str) -> Option<u8> {
+    let value = parse_xrns_hex_u32_value(value)?;
+    match value {
+        0x00..=0x7f => Some(value as u8),
+        0x80 => Some(0x7f),
+        0xff => None,
+        _ => None,
+    }
 }
 
 fn parse_float(value: &str) -> Option<f32> {
@@ -2286,6 +2334,7 @@ mod tests {
     fn imports_minimal_xrns_subset_to_valid_song() {
         let xml = r#"
 <RenoiseSong>
+  <GlobalSongData><BeatsPerMin>172</BeatsPerMin><LinesPerBeat>8</LinesPerBeat></GlobalSongData>
   <Tracks>
     <Track><Name>Drums</Name><Gain>0.75</Gain><Pan>-0.25</Pan><Device>Gainer</Device></Track>
     <Track><Name>Bass</Name></Track>
@@ -2303,11 +2352,11 @@ mod tests {
             <Index>0</Index>
             <Note>C-4</Note>
             <Velocity>100</Velocity>
-            <Instrument>0</Instrument>
-            <Volume>64</Volume>
-            <Pan>127</Pan>
-            <Delay>32</Delay>
-            <Effect><Code>R</Code><Value>4</Value></Effect>
+            <Instrument>00</Instrument>
+            <Volume>40</Volume>
+            <Pan>7F</Pan>
+            <Delay>20</Delay>
+            <Effect><Code>R</Code><Value>04</Value></Effect>
           </Line>
         </Track>
       </Tracks>
@@ -2326,6 +2375,8 @@ mod tests {
         let song = report.song.expect("imported song");
 
         song.validate().expect("valid song");
+        assert_eq!(song.transport.bpm, 172);
+        assert_eq!(song.transport.lines_per_beat, 8);
         assert_eq!(song.tracks.len(), 2);
         assert_eq!(song.tracks[0].name, "Drums");
         assert_eq!(song.track_mixer_for_track(song.tracks[0].id).gain, 0.75);
@@ -2352,6 +2403,44 @@ mod tests {
         assert_eq!(cell.command, Some(TrackerCommand::retrigger(4)));
         assert_eq!(song.samples.len(), 1);
         assert_eq!(song.instruments.len(), 1);
+    }
+
+    #[test]
+    fn xrns_import_reads_note_column_values_as_renoise_hex_strings() {
+        let xml = r#"
+<RenoiseSong>
+  <Tracks><Track><Name>Drums</Name></Track></Tracks>
+  <Patterns>
+    <Pattern>
+      <NumberOfLines>4</NumberOfLines>
+      <Tracks>
+        <Track>
+          <Line>
+            <Index>0</Index>
+            <Note>C-4</Note>
+            <Instrument>10</Instrument>
+            <Volume>80</Volume>
+            <Pan>40</Pan>
+            <Delay>0A</Delay>
+            <Effect><Code>D</Code><Value>10</Value></Effect>
+          </Line>
+        </Track>
+      </Tracks>
+    </Pattern>
+  </Patterns>
+</RenoiseSong>
+"#;
+        let archive = xrns_archive([xrns_entry("Song.xml", xml.as_bytes())]);
+
+        let report = import_xrns(&archive);
+        let song = report.song.expect("imported song");
+        let cell = song.patterns[0].cell(0, 0).expect("cell");
+
+        assert_eq!(cell.instrument, Some(InstrumentId(16)));
+        assert_eq!(cell.volume, Some(127));
+        assert_eq!(cell.pan, Some(64));
+        assert_eq!(cell.delay, Some(10));
+        assert_eq!(cell.command, Some(TrackerCommand::delay(16)));
     }
 
     #[test]

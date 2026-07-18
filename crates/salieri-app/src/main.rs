@@ -4866,6 +4866,12 @@ impl App {
                     self.is_playing = true;
                     self.pattern_index = position.pattern_index;
                     self.sequence_position = position.sequence_index;
+                    if let Some(sequence_position) = position.sequence_index.or_else(|| {
+                        self.sequence_position_for_pattern_index(position.pattern_index)
+                    }) {
+                        self.sequence_cursor =
+                            sequence_position.min(self.song.sequence.len().saturating_sub(1));
+                    }
                     self.playhead_row = Some(position.position.row);
                 }
                 PlaybackUpdate::Stopped => {
@@ -5090,12 +5096,25 @@ impl App {
     }
 
     fn tui_sequence_position(&self) -> Option<usize> {
+        if self.is_playing {
+            return self
+                .sequence_position
+                .or_else(|| self.sequence_position_for_pattern_index(self.pattern_index));
+        }
         self.sequence_position.or_else(|| {
             (!self.song.sequence.is_empty()).then_some(
                 self.sequence_cursor
                     .min(self.song.sequence.len().saturating_sub(1)),
             )
         })
+    }
+
+    fn sequence_position_for_pattern_index(&self, pattern_index: usize) -> Option<usize> {
+        let pattern_id = self.song.pattern(pattern_index)?.id;
+        self.song
+            .sequence
+            .iter()
+            .position(|sequence_pattern| *sequence_pattern == pattern_id)
     }
 
     fn tui_active_view(&self) -> TuiView {
@@ -8177,6 +8196,21 @@ mod tests {
         app.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
         assert_eq!(app.mode, AppMode::Normal);
         assert_eq!(app.tui_active_view(), TuiView::Pattern);
+    }
+
+    #[test]
+    fn sequence_panel_tracks_automatic_pattern_playback() {
+        let mut app = App::default();
+        type_command(&mut app, "pattern new");
+        app.add_sequence_pattern(1);
+
+        app.is_playing = true;
+        app.pattern_index = 1;
+        app.sequence_position = None;
+        app.sequence_cursor = 0;
+
+        assert_eq!(app.tui_sequence_position(), Some(1));
+        assert_eq!(app.sequence_cursor, 0);
     }
 
     #[test]
