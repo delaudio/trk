@@ -439,6 +439,29 @@ fn layout_kind(width: u16) -> LayoutKind {
     }
 }
 
+fn list_inner_height(area: Rect) -> usize {
+    area.height.saturating_sub(2).into()
+}
+
+fn centered_scroll_offset(total_items: usize, active_index: usize, visible_items: usize) -> usize {
+    if visible_items == 0 || total_items <= visible_items {
+        return 0;
+    }
+
+    active_index
+        .min(total_items.saturating_sub(1))
+        .saturating_sub(visible_items / 2)
+        .min(total_items.saturating_sub(visible_items))
+}
+
+fn ranged_title(label: &str, start: usize, end: usize, total: usize) -> String {
+    if total > 0 && (start > 0 || end < total) {
+        format!(" {label} {}-{} / {total} ", start + 1, end)
+    } else {
+        format!(" {label} ")
+    }
+}
+
 fn render_medium_side(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
     let side = Layout::default()
         .direction(LayoutDirection::Vertical)
@@ -449,10 +472,15 @@ fn render_medium_side(frame: &mut Frame<'_>, area: Rect, song: &Song, state: Tui
 }
 
 fn render_tracks(frame: &mut Frame<'_>, area: Rect, song: &Song, active_track: usize) {
+    let visible_items = list_inner_height(area);
+    let start = centered_scroll_offset(song.tracks.len(), active_track, visible_items);
+    let end = start.saturating_add(visible_items).min(song.tracks.len());
     let lines = song
         .tracks
         .iter()
         .enumerate()
+        .skip(start)
+        .take(end.saturating_sub(start))
         .map(|(index, track)| {
             let is_active = index == active_track;
             let marker = if is_active { ">" } else { " " };
@@ -482,8 +510,11 @@ fn render_tracks(frame: &mut Frame<'_>, area: Rect, song: &Song, active_track: u
         })
         .collect::<Vec<_>>();
 
-    let tracks =
-        Paragraph::new(lines).block(Block::default().title(" Tracks ").borders(Borders::ALL));
+    let tracks = Paragraph::new(lines).block(
+        Block::default()
+            .title(ranged_title("Tracks", start, end, song.tracks.len()))
+            .borders(Borders::ALL),
+    );
     frame.render_widget(tracks, area);
 }
 
@@ -493,10 +524,16 @@ fn render_sequence(
     song: &Song,
     active_sequence_position: Option<usize>,
 ) {
+    let visible_items = list_inner_height(area);
+    let active_index = active_sequence_position.unwrap_or(0);
+    let start = centered_scroll_offset(song.sequence.len(), active_index, visible_items);
+    let end = start.saturating_add(visible_items).min(song.sequence.len());
     let lines = song
         .sequence
         .iter()
         .enumerate()
+        .skip(start)
+        .take(end.saturating_sub(start))
         .map(|(index, pattern_id)| {
             let name = song
                 .patterns
@@ -512,8 +549,11 @@ fn render_sequence(
         })
         .collect::<Vec<_>>();
 
-    let sequence =
-        Paragraph::new(lines).block(Block::default().title(" Sequence ").borders(Borders::ALL));
+    let sequence = Paragraph::new(lines).block(
+        Block::default()
+            .title(ranged_title("Sequence", start, end, song.sequence.len()))
+            .borders(Borders::ALL),
+    );
     frame.render_widget(sequence, area);
 }
 
@@ -536,7 +576,20 @@ fn render_sequence_editor(
     if song.sequence.is_empty() {
         lines.push(Line::from("No sequence positions"));
     } else {
-        for (index, pattern_id) in song.sequence.iter().enumerate() {
+        let footer_lines = 4;
+        let visible_items = list_inner_height(area)
+            .saturating_sub(1)
+            .saturating_sub(footer_lines);
+        let active_index = active_sequence_position.unwrap_or(0);
+        let start = centered_scroll_offset(song.sequence.len(), active_index, visible_items);
+        let end = start.saturating_add(visible_items).min(song.sequence.len());
+        for (index, pattern_id) in song
+            .sequence
+            .iter()
+            .enumerate()
+            .skip(start)
+            .take(end.saturating_sub(start))
+        {
             let pattern = song
                 .patterns
                 .iter()
@@ -572,10 +625,19 @@ fn render_sequence_editor(
         Line::from("</> move position   Enter play from position   Esc pattern view"),
     ]);
 
+    let active_index = active_sequence_position.unwrap_or(0);
+    let visible_items = list_inner_height(area).saturating_sub(5);
+    let start = centered_scroll_offset(song.sequence.len(), active_index, visible_items);
+    let end = start.saturating_add(visible_items).min(song.sequence.len());
     let sequence = Paragraph::new(lines)
         .block(
             Block::default()
-                .title(" Sequence Editor ")
+                .title(ranged_title(
+                    "Sequence Editor",
+                    start,
+                    end,
+                    song.sequence.len(),
+                ))
                 .borders(Borders::ALL),
         )
         .wrap(Wrap { trim: true });
@@ -798,7 +860,20 @@ fn render_pattern_manager(frame: &mut Frame<'_>, area: Rect, song: &Song, active
         ),
     ])];
 
-    for (index, pattern) in song.patterns.iter().enumerate() {
+    let footer_lines = 4;
+    let visible_items = list_inner_height(area)
+        .saturating_sub(1)
+        .saturating_sub(footer_lines);
+    let start = centered_scroll_offset(song.patterns.len(), active_pattern, visible_items);
+    let end = start.saturating_add(visible_items).min(song.patterns.len());
+
+    for (index, pattern) in song
+        .patterns
+        .iter()
+        .enumerate()
+        .skip(start)
+        .take(end.saturating_sub(start))
+    {
         let marker = if index == active_pattern { ">" } else { " " };
         let line = format!(
             "{marker}{:02}  {:<24} {:>4}",
@@ -828,7 +903,12 @@ fn render_pattern_manager(frame: &mut Frame<'_>, area: Rect, song: &Song, active
     let patterns = Paragraph::new(lines)
         .block(
             Block::default()
-                .title(" Pattern Manager ")
+                .title(ranged_title(
+                    "Pattern Manager",
+                    start,
+                    end,
+                    song.patterns.len(),
+                ))
                 .borders(Borders::ALL),
         )
         .wrap(Wrap { trim: true });
@@ -2478,6 +2558,63 @@ mod tests {
     }
 
     #[test]
+    fn sequence_panel_scrolls_to_active_position() {
+        let song = long_sequence_song(40);
+        let backend = TestBackend::new(32, 8);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+
+        terminal
+            .draw(|frame| {
+                render_sequence(frame, Rect::new(0, 0, 32, 8), &song, Some(30));
+            })
+            .expect("draw");
+
+        let rendered = terminal_buffer_text(&terminal);
+
+        assert!(rendered.contains("Sequence 28-33 / 40"));
+        assert!(rendered.contains("> 30 Pattern 31"));
+        assert!(!rendered.contains(" 00 Pattern 01"));
+    }
+
+    #[test]
+    fn tracks_panel_scrolls_to_active_track() {
+        let song = long_track_song(30);
+        let backend = TestBackend::new(32, 8);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+
+        terminal
+            .draw(|frame| {
+                render_tracks(frame, Rect::new(0, 0, 32, 8), &song, 20);
+            })
+            .expect("draw");
+
+        let rendered = terminal_buffer_text(&terminal);
+
+        assert!(rendered.contains("Tracks 18-23 / 30"));
+        assert!(rendered.contains("> 21 Track 21"));
+        assert!(!rendered.contains(" 01 Track 01"));
+    }
+
+    #[test]
+    fn pattern_manager_scrolls_to_active_pattern() {
+        let song = long_sequence_song(40);
+        let backend = TestBackend::new(48, 10);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+
+        terminal
+            .draw(|frame| {
+                render_pattern_manager(frame, Rect::new(0, 0, 48, 10), &song, 30);
+            })
+            .expect("draw");
+
+        let rendered = terminal_buffer_text(&terminal);
+
+        assert!(rendered.contains("Pattern Manager 30-32 / 40"));
+        assert!(rendered.contains(">31  Pattern 31"));
+        assert!(!rendered.contains(" 01  Pattern 01"));
+    }
+
+    #[test]
     fn renders_tracker_cell_subcolumns() {
         let mut song = Song::empty();
         let pattern = song.current_pattern_mut().expect("pattern");
@@ -3144,6 +3281,44 @@ mod tests {
             duration_seconds: 1.0,
             buckets,
         }
+    }
+
+    fn long_sequence_song(count: usize) -> Song {
+        let mut song = Song::empty();
+        song.sequence.clear();
+        for index in 0..count {
+            let pattern_id = if index == 0 {
+                song.patterns[0].id
+            } else {
+                song.create_pattern(64)
+            };
+            song.rename_pattern(index, format!("Pattern {:02}", index + 1))
+                .expect("rename pattern");
+            song.sequence.push(pattern_id);
+        }
+        song
+    }
+
+    fn long_track_song(count: usize) -> Song {
+        let mut song = Song::empty();
+        while song.tracks.len() < count {
+            song.create_track();
+        }
+        for index in 0..song.tracks.len() {
+            song.rename_track(index, format!("Track {:02}", index + 1))
+                .expect("rename track");
+        }
+        song
+    }
+
+    fn terminal_buffer_text(terminal: &Terminal<TestBackend>) -> String {
+        terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>()
     }
 
     fn line_text(line: &Line<'_>) -> String {
