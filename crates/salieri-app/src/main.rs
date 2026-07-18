@@ -44,8 +44,8 @@ use salieri_transform::{apply_euclidean, EuclideanRhythm};
 use salieri_tui::{
     render, HelpTab, MidiPortView, MidiSettingsState, NotificationKind, NotificationView,
     ProjectBrowserEntryKind, ProjectBrowserEntryView, ProjectBrowserViewState,
-    SampleBrowserEntryKind, SampleBrowserEntryView, SampleBrowserViewState, SamplerViewState,
-    SelectionRect, TuiState, TuiView,
+    SampleBrowserEntryKind, SampleBrowserEntryView, SampleBrowserViewState, SamplerEnvelopeField,
+    SamplerViewState, SelectionRect, TuiState, TuiView,
 };
 use serde::{Deserialize, Serialize};
 use terminal::TerminalGuard;
@@ -57,6 +57,7 @@ const SAMPLE_WAVEFORM_MAX_ZOOM: usize = 64;
 const DEFAULT_NOTE_VELOCITY: u8 = 0x7f;
 const UNDO_LIMIT: usize = 100;
 const MAX_RECENT_PROJECTS: usize = 12;
+const MAX_SAMPLER_ENVELOPE_SECONDS: f32 = 60.0;
 const MIN_BPM: u16 = 1;
 const MAX_BPM: u16 = 999;
 const MIN_LPB: u8 = 1;
@@ -1576,6 +1577,7 @@ struct App {
     sample_view: Option<AppSampleView>,
     sample_waveform_zoom: usize,
     sample_waveform_offset: usize,
+    sampler_envelope_field: SamplerEnvelopeField,
     sample_browser: SampleBrowserConfig,
     pending_sample_browser: Option<SampleBrowserRequest>,
     sample_browser_view: Option<AppSampleBrowserView>,
@@ -1771,6 +1773,7 @@ impl App {
             sample_view: None,
             sample_waveform_zoom: 1,
             sample_waveform_offset: 0,
+            sampler_envelope_field: SamplerEnvelopeField::Attack,
             sample_browser: config.sample_browser.clone(),
             pending_sample_browser: None,
             sample_browser_view: None,
@@ -2388,6 +2391,12 @@ impl App {
             KeyCode::F(11) => self.mode = AppMode::Normal,
             KeyCode::F(8) => self.stop_playback(),
             KeyCode::Char('b') | KeyCode::Char('B') => self.open_sample_browser_view(None),
+            KeyCode::Tab => self.next_sampler_envelope_field(),
+            KeyCode::BackTab => self.previous_sampler_envelope_field(),
+            KeyCode::Char('[') => self.adjust_selected_sampler_envelope(-1.0, false),
+            KeyCode::Char(']') => self.adjust_selected_sampler_envelope(1.0, false),
+            KeyCode::Char('{') => self.adjust_selected_sampler_envelope(-1.0, true),
+            KeyCode::Char('}') => self.adjust_selected_sampler_envelope(1.0, true),
             KeyCode::Char('+') | KeyCode::Char('=') => self.zoom_sample_waveform_in(),
             KeyCode::Char('-') => self.zoom_sample_waveform_out(),
             KeyCode::Left | KeyCode::Char('h') => self.pan_sample_waveform(-1),
@@ -5153,6 +5162,81 @@ impl App {
         }
     }
 
+    fn next_sampler_envelope_field(&mut self) {
+        self.sampler_envelope_field = match self.sampler_envelope_field {
+            SamplerEnvelopeField::Attack => SamplerEnvelopeField::Decay,
+            SamplerEnvelopeField::Decay => SamplerEnvelopeField::Sustain,
+            SamplerEnvelopeField::Sustain => SamplerEnvelopeField::Release,
+            SamplerEnvelopeField::Release => SamplerEnvelopeField::Attack,
+        };
+        self.notify_info(format!(
+            "Envelope {}",
+            sampler_envelope_field_label(self.sampler_envelope_field)
+        ));
+    }
+
+    fn previous_sampler_envelope_field(&mut self) {
+        self.sampler_envelope_field = match self.sampler_envelope_field {
+            SamplerEnvelopeField::Attack => SamplerEnvelopeField::Release,
+            SamplerEnvelopeField::Decay => SamplerEnvelopeField::Attack,
+            SamplerEnvelopeField::Sustain => SamplerEnvelopeField::Decay,
+            SamplerEnvelopeField::Release => SamplerEnvelopeField::Sustain,
+        };
+        self.notify_info(format!(
+            "Envelope {}",
+            sampler_envelope_field_label(self.sampler_envelope_field)
+        ));
+    }
+
+    fn adjust_selected_sampler_envelope(&mut self, direction: f32, coarse: bool) {
+        let Some(mut settings) = self.loaded_sample_playback_settings() else {
+            self.mode = AppMode::Sampler;
+            self.notify_warning("Load a sample before editing playback settings");
+            return;
+        };
+
+        let field = self.sampler_envelope_field;
+        let envelope = &mut settings.envelope;
+        let value = match field {
+            SamplerEnvelopeField::Attack => {
+                envelope.attack_seconds =
+                    adjust_sampler_envelope_seconds(envelope.attack_seconds, direction, coarse);
+                envelope.attack_seconds
+            }
+            SamplerEnvelopeField::Decay => {
+                envelope.decay_seconds =
+                    adjust_sampler_envelope_seconds(envelope.decay_seconds, direction, coarse);
+                envelope.decay_seconds
+            }
+            SamplerEnvelopeField::Sustain => {
+                envelope.sustain = adjust_sampler_sustain(envelope.sustain, direction, coarse);
+                envelope.sustain
+            }
+            SamplerEnvelopeField::Release => {
+                envelope.release_seconds =
+                    adjust_sampler_envelope_seconds(envelope.release_seconds, direction, coarse);
+                envelope.release_seconds
+            }
+        };
+
+        if let Err(message) = validate_sample_playback_settings(settings) {
+            self.notify_warning(message);
+            return;
+        }
+        if self.store_loaded_sample_playback_settings(settings) {
+            self.notify_success(format!(
+                "{} {:.3}{}",
+                sampler_envelope_field_label(field),
+                value,
+                if field == SamplerEnvelopeField::Sustain {
+                    ""
+                } else {
+                    "s"
+                }
+            ));
+        }
+    }
+
     fn show_loaded_sample_settings(&mut self) {
         let Some(settings) = self.loaded_sample_playback_settings() else {
             self.mode = AppMode::Sampler;
@@ -5824,6 +5908,7 @@ impl App {
                     playback.envelope.sustain,
                     playback.envelope.release_seconds,
                 ),
+                selected_envelope: self.sampler_envelope_field,
             }
         })
     }
@@ -5873,6 +5958,7 @@ impl App {
                     loop_start_frame: None,
                     loop_end_frame: None,
                     envelope: (0.0, 0.0, 1.0, 0.0),
+                    selected_envelope: SamplerEnvelopeField::Attack,
                 }),
                 message: browser.message.as_deref(),
             })
@@ -6090,6 +6176,29 @@ fn format_sample_playback_settings(settings: SamplePlaybackSettings) -> String {
         format_sample_loop(settings),
         format_sample_envelope(settings.envelope)
     )
+}
+
+fn sampler_envelope_field_label(field: SamplerEnvelopeField) -> &'static str {
+    match field {
+        SamplerEnvelopeField::Attack => "Attack",
+        SamplerEnvelopeField::Decay => "Decay",
+        SamplerEnvelopeField::Sustain => "Sustain",
+        SamplerEnvelopeField::Release => "Release",
+    }
+}
+
+fn adjust_sampler_envelope_seconds(value: f32, direction: f32, coarse: bool) -> f32 {
+    let step = if coarse { 0.050 } else { 0.005 };
+    round_sampler_control((value + direction * step).clamp(0.0, MAX_SAMPLER_ENVELOPE_SECONDS))
+}
+
+fn adjust_sampler_sustain(value: f32, direction: f32, coarse: bool) -> f32 {
+    let step = if coarse { 0.10 } else { 0.05 };
+    round_sampler_control((value + direction * step).clamp(0.0, 1.0))
+}
+
+fn round_sampler_control(value: f32) -> f32 {
+    (value * 1000.0).round() / 1000.0
 }
 
 fn sample_waveform_visible_buckets(bucket_count: usize, zoom: usize) -> usize {
@@ -8225,6 +8334,50 @@ mod tests {
         assert_eq!(sample.playback.mode, SamplePlaybackMode::OneShot);
         assert_eq!(sample.playback.loop_start_frame, None);
         assert_eq!(sample.playback.loop_end_frame, None);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn sampler_view_keyboard_controls_edit_envelope() {
+        let mut app = App::default();
+        let path = std::env::temp_dir().join(format!(
+            "salieri-sampler-envelope-{}.wav",
+            std::process::id()
+        ));
+        std::fs::write(
+            &path,
+            wav_pcm16_bytes(44_100, 1, &[0, i16::MAX, i16::MIN, 16_384]),
+        )
+        .expect("write wav");
+
+        enter_command(&mut app, &format!("sample view {}", path.display()));
+
+        app.handle_key(KeyEvent::new(KeyCode::Char(']'), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Char('}'), KeyModifiers::SHIFT));
+        app.handle_key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Char('['), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Char(']'), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT));
+
+        let sample = app
+            .song
+            .samples
+            .iter()
+            .find(|sample| sample.path == path.to_string_lossy())
+            .expect("sample reference");
+        assert_eq!(sample.playback.envelope.attack_seconds, 0.005);
+        assert_eq!(sample.playback.envelope.decay_seconds, 0.050);
+        assert_eq!(sample.playback.envelope.sustain, 0.950);
+        assert_eq!(sample.playback.envelope.release_seconds, 0.005);
+        assert_eq!(app.sampler_envelope_field, SamplerEnvelopeField::Sustain);
+        assert!(app.dirty);
+
+        let sampler = app.tui_sampler_view().expect("sampler view");
+        assert_eq!(sampler.selected_envelope, SamplerEnvelopeField::Sustain);
+        assert_eq!(sampler.envelope, (0.005, 0.050, 0.950, 0.005));
+
         let _ = std::fs::remove_file(&path);
     }
 

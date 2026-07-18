@@ -129,6 +129,15 @@ pub struct SamplerViewState<'a> {
     pub loop_start_frame: Option<usize>,
     pub loop_end_frame: Option<usize>,
     pub envelope: (f32, f32, f32, f32),
+    pub selected_envelope: SamplerEnvelopeField,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SamplerEnvelopeField {
+    Attack,
+    Decay,
+    Sustain,
+    Release,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -965,7 +974,7 @@ fn render_sampler_view(frame: &mut Frame<'_>, area: Rect, sampler: Option<Sample
         (Some(track), count) => format!("Assigned: {track} (+{})", count.saturating_sub(1)),
         (None, _) => "Assigned: none".to_string(),
     };
-    let lines = vec![
+    let mut lines = vec![
         Line::from(format!("Name: {}", truncate(sampler.name, 48))),
         Line::from(format!("Path: {}", truncate(sampler.source_path, 72))),
         Line::from(format!(
@@ -987,11 +996,8 @@ fn render_sampler_view(frame: &mut Frame<'_>, area: Rect, sampler: Option<Sample
             sampler.playback_mode,
             format_loop_window(sampler.loop_start_frame, sampler.loop_end_frame)
         )),
-        Line::from(format!(
-            "Envelope: A {:.3}s  D {:.3}s  S {:.3}  R {:.3}s",
-            sampler.envelope.0, sampler.envelope.1, sampler.envelope.2, sampler.envelope.3
-        )),
     ];
+    lines.push(render_sampler_envelope_controls(sampler));
     let metadata = Paragraph::new(lines)
         .block(
             Block::default()
@@ -1011,6 +1017,53 @@ fn render_sampler_view(frame: &mut Frame<'_>, area: Rect, sampler: Option<Sample
         },
         WaveformGlyphs::Unicode,
     );
+}
+
+fn render_sampler_envelope_controls(sampler: SamplerViewState<'_>) -> Line<'static> {
+    Line::from(vec![
+        Span::raw("Envelope: "),
+        sampler_envelope_span(
+            SamplerEnvelopeField::Attack,
+            sampler.selected_envelope,
+            format!("A {:.3}s", sampler.envelope.0),
+        ),
+        Span::raw("  "),
+        sampler_envelope_span(
+            SamplerEnvelopeField::Decay,
+            sampler.selected_envelope,
+            format!("D {:.3}s", sampler.envelope.1),
+        ),
+        Span::raw("  "),
+        sampler_envelope_span(
+            SamplerEnvelopeField::Sustain,
+            sampler.selected_envelope,
+            format!("S {:.3}", sampler.envelope.2),
+        ),
+        Span::raw("  "),
+        sampler_envelope_span(
+            SamplerEnvelopeField::Release,
+            sampler.selected_envelope,
+            format!("R {:.3}s", sampler.envelope.3),
+        ),
+    ])
+}
+
+fn sampler_envelope_span(
+    field: SamplerEnvelopeField,
+    selected: SamplerEnvelopeField,
+    text: String,
+) -> Span<'static> {
+    if field == selected {
+        Span::styled(
+            format!("[{text}]"),
+            Style::default()
+                .fg(Color::Black)
+                .bg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )
+    } else {
+        Span::styled(format!(" {text} "), Style::default().fg(Color::White))
+    }
 }
 
 fn render_sample_browser(
@@ -1867,7 +1920,7 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
         )
     } else if state.active_view == TuiView::Sampler {
         format!(
-            " {} | H Help | Esc Pattern | +/- Zoom | Left/Right Pan | Home/End Wave | b Browse | F7 Sequence | F9 Tracks | F10 Patterns | : Command | Ctrl+S Save | Ctrl+Shift+S Save As | q Quit ",
+            " {} | H Help | Esc Pattern | Tab ADSR | [/]/{{/}} Adjust | +/- Zoom | Left/Right Pan | b Browse | F7 Sequence | F9 Tracks | F10 Patterns | : Command | Ctrl+S Save | q Quit ",
             state.mode_label
         )
     } else if state.active_view == TuiView::SampleBrowser {
@@ -2042,6 +2095,7 @@ fn help_sampler_lines(mode_label: &str) -> Vec<Line<'static>> {
         )),
         Line::from("  F11 opens Sampler view   Esc returns to Pattern view"),
         Line::from("  In Sampler view: +/- zoom waveform   Left/Right pan   Home/End bounds"),
+        Line::from("  Tab/Shift+Tab selects A/D/S/R   [/]/{/} adjusts selected envelope field"),
         Line::from("  :sample view PATH loads a WAV and shows metadata plus waveform"),
         Line::from("  :sample browse [DIR] opens the in-app sample browser"),
         Line::from("  :sample choose [DIR] opens the configured external chooser"),
@@ -2912,6 +2966,7 @@ mod tests {
                                 loop_start_frame: None,
                                 loop_end_frame: None,
                                 envelope: (0.0, 0.0, 1.0, 0.0),
+                                selected_envelope: SamplerEnvelopeField::Attack,
                             }),
                             message: None,
                         }),

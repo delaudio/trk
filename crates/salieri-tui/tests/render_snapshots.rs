@@ -598,6 +598,7 @@ fn snapshots_sampler_view() {
                     loop_start_frame: Some(100),
                     loop_end_frame: Some(900),
                     envelope: (0.010, 0.050, 0.750, 0.100),
+                    selected_envelope: salieri_tui::SamplerEnvelopeField::Attack,
                 }),
                 sample_browser: None,
                 project_browser: None,
