@@ -34,6 +34,41 @@ The playback runtime owns timing and MIDI emission. The TUI polls playback updat
 
 Detailed timing assumptions and jitter test limits are tracked in [timing.md](timing.md).
 
+## Dependency Direction And Ownership
+
+Internal crate dependencies point toward stable domain data and away from application and presentation concerns. The allowed graph is:
+
+```text
+salieri-app -> salieri-ai, salieri-audio, salieri-core, salieri-interop,
+               salieri-midi, salieri-sampler, salieri-transform, salieri-tui
+salieri-tui -> salieri-core, salieri-sampler
+salieri-audio -> salieri-sampler -> salieri-core
+salieri-ai -> salieri-core
+salieri-interop -> salieri-core
+salieri-midi -> salieri-core
+salieri-transform -> salieri-core
+salieri-core -> (none)
+```
+
+The machine-readable policy and concise ownership statements live in `config/crate-dependency-policy.json`. Run `python3 scripts/check_crate_dependencies.py` locally; CI runs the same check against structured `cargo metadata` output. Every workspace crate must have a policy entry, and adding an internal dependency that is not explicitly allowed fails the check.
+
+Ownership of cross-cutting responsibilities is split as follows:
+
+| Responsibility | Owner | Boundary |
+| --- | --- | --- |
+| Serializable song data and validation | `salieri-core` | Plain domain data; no filesystem, backend, or UI types |
+| Native project persistence | `salieri-app` | File loading, migration orchestration, and atomic writes |
+| External format serialization | `salieri-interop` | Imports/exports domain data through `salieri-core` |
+| Playback semantics | `salieri-core` | Deterministic transport math and scheduled events |
+| Realtime coordination | `salieri-app` | Threads, lifecycle, routing, and status propagation |
+| Audio and MIDI I/O | `salieri-audio`, `salieri-midi` | Backend-specific processing at the workspace edge |
+| UI state and input | `salieri-app` | Mutable application/view state and input dispatch |
+| Rendering | `salieri-tui` | Immutable inputs and presentation only |
+| Background tasks | `salieri-app` | Task lifecycle and cancellation until a dedicated runtime boundary exists |
+| External integrations | `salieri-ai`, `salieri-interop`, `salieri-midi`, `salieri-audio` | Provider or protocol details stay out of core and TUI |
+
+New feature issues should name the owning crate and any required dependency edges. Put musical invariants and serializable state in core; deterministic transformations in transform; format adapters in interop; protocol and device adapters in MIDI/audio; pure rendering in TUI; and coordination, filesystem access, configuration, or user interaction in app. A feature that does not fit these rules should update the ownership decision before introducing a new edge.
+
 ## Persistence
 
 Project files use JSON with a `formatVersion` field and a serialized `Song`. File writes are atomic through a temporary file followed by rename.

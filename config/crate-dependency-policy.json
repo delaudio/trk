@@ -1,0 +1,47 @@
+{
+  "salieri-ai": {
+    "allowedDependencies": ["salieri-core"],
+    "owns": "Provider-neutral, reviewable AI proposals and transformations"
+  },
+  "salieri-app": {
+    "allowedDependencies": [
+      "salieri-ai",
+      "salieri-audio",
+      "salieri-core",
+      "salieri-interop",
+      "salieri-midi",
+      "salieri-sampler",
+      "salieri-transform",
+      "salieri-tui"
+    ],
+    "owns": "CLI, configuration, persistence, runtime coordination, input, and app state"
+  },
+  "salieri-audio": {
+    "allowedDependencies": ["salieri-sampler"],
+    "owns": "Realtime audio backends, DSP, offline rendering, and audio export"
+  },
+  "salieri-core": {
+    "allowedDependencies": [],
+    "owns": "Serializable music model, validation, transport math, and playback events"
+  },
+  "salieri-interop": {
+    "allowedDependencies": ["salieri-core"],
+    "owns": "External music format import, export, and diagnostics"
+  },
+  "salieri-midi": {
+    "allowedDependencies": ["salieri-core"],
+    "owns": "MIDI protocol conversion and input/output adapters"
+  },
+  "salieri-sampler": {
+    "allowedDependencies": ["salieri-core"],
+    "owns": "Sample decoding, inspection, preview, and assignment workflows"
+  },
+  "salieri-transform": {
+    "allowedDependencies": ["salieri-core"],
+    "owns": "Deterministic, side-effect-free musical transformations"
+  },
+  "salieri-tui": {
+    "allowedDependencies": ["salieri-core", "salieri-sampler"],
+    "owns": "Ratatui rendering and presentation-only view contracts"
+  }
+}

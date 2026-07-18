@@ -38,6 +38,11 @@ jobs:
           scripts/test-rust-file-sizes.sh
           scripts/check-rust-file-sizes.sh
 
+      - name: Check crate dependency boundaries
+        run: |
+          python3 scripts/test_check_crate_dependencies.py
+          python3 scripts/check_crate_dependencies.py
+
       - name: Test
         run: cargo test --all-targets --all-features
 
