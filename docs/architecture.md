@@ -46,3 +46,20 @@ The first format version is intentionally close to the internal model. Future mi
 - MIDI byte conversion and fake output behavior belong in `salieri-midi`.
 - Rendering smoke/snapshot-style tests belong in `salieri-tui`.
 - CLI, config, persistence, input mapping, undo/redo, and playback runtime coordination belong in `salieri-app`.
+
+## Rust Module Size Budgets
+
+Run `scripts/check-rust-file-sizes.sh` locally before adding substantial Rust code. The check reports the largest source files and applies per-domain soft and hard limits from `config/rust-file-size-budgets.tsv`:
+
+| Domain | Soft limit | Hard limit |
+| --- | ---: | ---: |
+| Application | 600 | 1,000 |
+| TUI | 500 | 800 |
+| Core | 500 | 800 |
+| Audio | 500 | 800 |
+| Interop | 500 | 800 |
+| Other workspace crates | 500 | 800 |
+
+Crossing a soft limit produces a warning so a module split can be planned. Crossing a hard limit fails CI. Existing oversized files are capped at their recorded line counts in `config/rust-file-size-baseline.tsv`; they may shrink but may not grow. Each baseline exception must link to a tracking issue, and obsolete entries fail the check after their file is removed.
+
+A new hard-limit exception requires a documented tracking issue and an explicit baseline entry. Prefer splitting the module instead: the exception is a visible, temporary debt record rather than a higher default limit.

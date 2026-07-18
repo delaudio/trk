@@ -1,0 +1,7 @@
+# domain<TAB>path-prefix<TAB>soft-limit<TAB>hard-limit
+application	crates/salieri-app/	600	1000
+tui	crates/salieri-tui/	500	800
+core	crates/salieri-core/	500	800
+audio	crates/salieri-audio/	500	800
+interop	crates/salieri-interop/	500	800
+workspace	crates/	500	800
