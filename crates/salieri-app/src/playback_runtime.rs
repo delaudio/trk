@@ -433,6 +433,18 @@ fn load_realtime_samples(
                         .and_then(|instrument| instrument.sample)
                 }),
         )
+        .chain(
+            song.patterns
+                .iter()
+                .flat_map(|pattern| &pattern.rows)
+                .flat_map(|row| &row.cells)
+                .filter_map(|cell| {
+                    cell.instrument.and_then(|instrument| {
+                        song.instrument_for_id(instrument)
+                            .and_then(|instrument| instrument.sample)
+                    })
+                }),
+        )
         .collect::<HashSet<_>>();
     if assigned_samples.is_empty() {
         return Vec::new();
@@ -1222,6 +1234,40 @@ mod tests {
         );
         let _ = std::fs::remove_file(&sample_path);
         let _ = std::fs::remove_dir(&dir);
+
+        assert_eq!(samples.len(), 1);
+        assert_eq!(samples[0].0, sample.0);
+        assert!(update_rx.try_iter().collect::<Vec<_>>().is_empty());
+    }
+
+    #[test]
+    fn realtime_sample_loader_prepares_cell_instrument_samples() {
+        let path = std::env::temp_dir().join(format!(
+            "salieri-realtime-cell-instrument-{}.wav",
+            std::process::id()
+        ));
+        write_test_wav(&path, 44_100, 1, &[0, i16::MAX, i16::MIN, 16_384]);
+        let mut song = Song::empty();
+        let sample = song.upsert_sample_reference(path.to_string_lossy(), "hit.wav");
+        let instrument = song.upsert_sample_instrument(sample).expect("instrument");
+        song.current_pattern_mut()
+            .expect("pattern")
+            .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x7f)
+            .expect("set note");
+        song.current_pattern_mut().expect("pattern").rows[0].cells[0].instrument = Some(instrument);
+        let (update_tx, update_rx) = mpsc::channel();
+
+        let samples = load_realtime_samples(
+            &song,
+            AudioConfig {
+                sample_rate: 48_000,
+                channels: 2,
+                buffer_frames: 256,
+            },
+            &update_tx,
+            None,
+        );
+        let _ = std::fs::remove_file(&path);
 
         assert_eq!(samples.len(), 1);
         assert_eq!(samples[0].0, sample.0);
