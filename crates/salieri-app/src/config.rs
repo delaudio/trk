@@ -1,23 +1,34 @@
 use std::{
-    fs,
+    env, fmt, fs,
     path::{Path, PathBuf},
 };
 
-use anyhow::{Context, Result};
 use serde::Deserialize;
 
+mod preferences;
+
+pub use preferences::{
+    AudioPreferences, DisplayMode, KeymapConfig, ThemeConfig, UiConfig, WorkspaceConfig,
+};
+
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct AppConfig {
     pub keyboard: KeyboardConfig,
+    pub keymap: KeymapConfig,
     pub ui: UiConfig,
+    pub theme: ThemeConfig,
+    pub audio: AudioPreferences,
     pub midi: MidiConfig,
     pub sample_browser: SampleBrowserConfig,
     pub project_browser: ProjectBrowserConfig,
+    pub workspace: WorkspaceConfig,
+    #[serde(skip)]
+    pub metadata: ConfigMetadata,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct KeyboardConfig {
     pub vim_navigation: bool,
     pub edit_step: usize,
@@ -34,24 +45,8 @@ impl Default for KeyboardConfig {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(default)]
-pub struct UiConfig {
-    pub show_line_numbers_hex: bool,
-    pub follow_playhead: bool,
-}
-
-impl Default for UiConfig {
-    fn default() -> Self {
-        Self {
-            show_line_numbers_hex: false,
-            follow_playhead: true,
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct MidiConfig {
     pub default_output: String,
     pub default_input: String,
@@ -59,71 +54,338 @@ pub struct MidiConfig {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct SampleBrowserConfig {
     pub chooser_command: Option<String>,
     pub start_dir: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct ProjectBrowserConfig {
     pub start_dir: Option<PathBuf>,
     pub recent_file: Option<PathBuf>,
 }
 
-pub fn load_config(path: Option<&Path>) -> Result<AppConfig> {
-    let Some(path) = path.map(Path::to_path_buf).or_else(default_config_path) else {
-        return Ok(AppConfig::default());
-    };
+impl ProjectBrowserConfig {
+    pub fn recent_file(&self) -> Option<PathBuf> {
+        self.recent_file.clone().or_else(|| {
+            env::var_os("HOME").map(PathBuf::from).map(|home| {
+                home.join(".config")
+                    .join("salieri")
+                    .join("recent-projects.json")
+            })
+        })
+    }
+}
 
-    if !path.exists() {
-        return Ok(AppConfig::default());
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ConfigOverrides {
+    pub midi_log_file: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LoadedConfig {
+    config: AppConfig,
+}
+
+impl LoadedConfig {
+    pub fn config(&self) -> &AppConfig {
+        &self.config
     }
 
-    let contents = fs::read_to_string(&path)
-        .with_context(|| format!("failed to read config {}", path.display()))?;
-    toml::from_str(&contents).with_context(|| format!("failed to parse config {}", path.display()))
+    pub fn metadata(&self) -> &ConfigMetadata {
+        &self.config.metadata
+    }
+
+    pub fn into_config(self) -> AppConfig {
+        self.config
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConfigMetadata {
+    pub source: ConfigSource,
+    pub keymap_profile: String,
+    pub theme_name: String,
+    pub display_mode: DisplayMode,
+}
+
+impl Default for ConfigMetadata {
+    fn default() -> Self {
+        Self {
+            source: ConfigSource::Defaults,
+            keymap_profile: "tracker".to_string(),
+            theme_name: "default".to_string(),
+            display_mode: DisplayMode::Adaptive,
+        }
+    }
+}
+
+impl ConfigMetadata {
+    fn new(source: ConfigSource, config: &AppConfig) -> Self {
+        Self {
+            source,
+            keymap_profile: config.keymap.profile.clone(),
+            theme_name: config.theme.name.clone(),
+            display_mode: config.ui.display_mode,
+        }
+    }
+
+    pub fn summary(&self) -> String {
+        format!(
+            "{} | keymap={} | theme={} | display={}",
+            self.source, self.keymap_profile, self.theme_name, self.display_mode
+        )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConfigSource {
+    Defaults,
+    File(PathBuf),
+}
+
+impl fmt::Display for ConfigSource {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Defaults => formatter.write_str("built-in defaults"),
+            Self::File(path) => write!(formatter, "config {}", path.display()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConfigDiagnostic {
+    pub field: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConfigValidationErrors {
+    pub diagnostics: Vec<ConfigDiagnostic>,
+}
+
+impl fmt::Display for ConfigValidationErrors {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(
+            formatter,
+            "configuration has {} error(s):",
+            self.diagnostics.len()
+        )?;
+        for diagnostic in &self.diagnostics {
+            writeln!(formatter, "- {}: {}", diagnostic.field, diagnostic.message)?;
+        }
+        Ok(())
+    }
+}
+
+impl std::error::Error for ConfigValidationErrors {}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ConfigLoadError {
+    #[error("failed to read config {path}: {source}")]
+    Read {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("failed to parse config {path}: {source}")]
+    Parse {
+        path: PathBuf,
+        #[source]
+        source: toml::de::Error,
+    },
+    #[error(transparent)]
+    Validation(#[from] ConfigValidationErrors),
+}
+
+pub fn load_config(
+    path: Option<&Path>,
+    overrides: ConfigOverrides,
+) -> Result<LoadedConfig, ConfigLoadError> {
+    let resolved_path = path.map(Path::to_path_buf).or_else(default_config_path);
+    let (mut config, source) = match resolved_path {
+        Some(path) if path.exists() => {
+            let contents = fs::read_to_string(&path).map_err(|source| ConfigLoadError::Read {
+                path: path.clone(),
+                source,
+            })?;
+            let config = toml::from_str(&contents).map_err(|source| ConfigLoadError::Parse {
+                path: path.clone(),
+                source,
+            })?;
+            (config, ConfigSource::File(path))
+        }
+        Some(_) | None => (AppConfig::default(), ConfigSource::Defaults),
+    };
+
+    apply_overrides(&mut config, overrides);
+    validate(&config)?;
+    config.metadata = ConfigMetadata::new(source, &config);
+    Ok(LoadedConfig { config })
+}
+
+fn apply_overrides(config: &mut AppConfig, overrides: ConfigOverrides) {
+    if let Some(path) = overrides.midi_log_file {
+        config.midi.log_file = Some(path);
+    }
+}
+
+fn validate(config: &AppConfig) -> Result<(), ConfigValidationErrors> {
+    let mut diagnostics = Vec::new();
+    check_range(
+        &mut diagnostics,
+        "keyboard.edit_step",
+        config.keyboard.edit_step,
+        1,
+        64,
+    );
+    check_range(
+        &mut diagnostics,
+        "keyboard.default_octave",
+        usize::from(config.keyboard.default_octave),
+        0,
+        9,
+    );
+    check_non_empty(&mut diagnostics, "keymap.profile", &config.keymap.profile);
+    check_non_empty(&mut diagnostics, "theme.name", &config.theme.name);
+    check_range(
+        &mut diagnostics,
+        "audio.sample_rate",
+        config.audio.sample_rate as usize,
+        8_000,
+        384_000,
+    );
+    check_range(
+        &mut diagnostics,
+        "audio.channels",
+        usize::from(config.audio.channels),
+        1,
+        8,
+    );
+    check_range(
+        &mut diagnostics,
+        "workspace.recent_project_limit",
+        config.workspace.recent_project_limit,
+        1,
+        100,
+    );
+    if let Some(command) = &config.sample_browser.chooser_command {
+        check_non_empty(&mut diagnostics, "sample_browser.chooser_command", command);
+    }
+    for (key, command) in &config.keymap.bindings {
+        if key.trim().is_empty() || command.trim().is_empty() {
+            diagnostics.push(ConfigDiagnostic {
+                field: format!("keymap.bindings.{key}"),
+                message: "key and command must both be non-empty".to_string(),
+            });
+        }
+    }
+
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(ConfigValidationErrors { diagnostics })
+    }
+}
+
+fn check_non_empty(diagnostics: &mut Vec<ConfigDiagnostic>, field: &str, value: &str) {
+    if value.trim().is_empty() {
+        diagnostics.push(ConfigDiagnostic {
+            field: field.to_string(),
+            message: "must not be empty".to_string(),
+        });
+    }
+}
+
+fn check_range(
+    diagnostics: &mut Vec<ConfigDiagnostic>,
+    field: &str,
+    value: usize,
+    minimum: usize,
+    maximum: usize,
+) {
+    if !(minimum..=maximum).contains(&value) {
+        diagnostics.push(ConfigDiagnostic {
+            field: field.to_string(),
+            message: format!("must be between {minimum} and {maximum}; got {value}"),
+        });
+    }
 }
 
 fn default_config_path() -> Option<PathBuf> {
-    std::env::var_os("HOME")
+    default_config_path_for(env::var_os("XDG_CONFIG_HOME"), env::var_os("HOME"))
+}
+
+fn default_config_path_for(
+    xdg_config_home: Option<std::ffi::OsString>,
+    home: Option<std::ffi::OsString>,
+) -> Option<PathBuf> {
+    xdg_config_home
+        .filter(|path| !path.is_empty())
         .map(PathBuf::from)
-        .map(|home| home.join(".config").join("salieri").join("config.toml"))
+        .or_else(|| home.map(PathBuf::from).map(|path| path.join(".config")))
+        .map(|root| root.join("salieri").join("config.toml"))
 }
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
     use super::*;
 
-    #[test]
-    fn missing_config_uses_defaults() {
-        let path = std::env::temp_dir().join(format!(
-            "salieri-missing-config-{}.toml",
-            std::process::id()
-        ));
+    static NEXT_FILE: AtomicUsize = AtomicUsize::new(0);
 
-        let config = load_config(Some(&path)).expect("default config");
+    struct TestFile(PathBuf);
 
-        assert_eq!(config, AppConfig::default());
+    impl TestFile {
+        fn new(name: &str, contents: &str) -> Self {
+            let path = env::temp_dir().join(format!(
+                "salieri-config-{name}-{}-{}.toml",
+                std::process::id(),
+                NEXT_FILE.fetch_add(1, Ordering::Relaxed)
+            ));
+            fs::write(&path, contents).expect("write config");
+            Self(path)
+        }
+    }
+
+    impl Drop for TestFile {
+        fn drop(&mut self) {
+            let _ = fs::remove_file(&self.0);
+        }
     }
 
     #[test]
-    fn loads_partial_config_over_defaults() {
-        let path = std::env::temp_dir().join(format!(
-            "salieri-partial-config-{}.toml",
-            std::process::id()
-        ));
-        fs::write(
-            &path,
+    fn missing_config_uses_defaults() {
+        let path = env::temp_dir().join("salieri-definitely-missing-config.toml");
+        let loaded = load_config(Some(&path), ConfigOverrides::default()).expect("defaults");
+
+        assert_eq!(loaded.config(), &AppConfig::default());
+        assert_eq!(loaded.metadata().source, ConfigSource::Defaults);
+    }
+
+    #[test]
+    fn loads_partial_config_over_defaults_and_exposes_metadata() {
+        let file = TestFile::new(
+            "partial",
             r#"
 [keyboard]
 vim_navigation = false
 edit_step = 4
 default_octave = 5
 
+[keymap]
+profile = "studio"
+bindings = { "ctrl+p" = "play pattern" }
+
 [ui]
 follow_playhead = false
+display_mode = "compact"
+
+[theme]
+name = "high-contrast"
 
 [midi]
 default_output = "IAC Driver"
@@ -131,48 +393,113 @@ default_input = "IAC Driver"
 log_file = "salieri-midi.log"
 
 [sample_browser]
-chooser_command = 'YAZI_CONFIG_HOME="$HOME/.config/yazi-readonly" yazi --chooser-file "$SALIERI_CHOOSER_FILE" "$SALIERI_SAMPLE_START_DIR"'
+chooser_command = "yazi"
 start_dir = "~/Samples"
 
 [project_browser]
 start_dir = "~/Music/Salieri"
 recent_file = "recent-projects.json"
 "#,
-        )
-        .expect("write config");
+        );
 
-        let config = load_config(Some(&path)).expect("load config");
-        let _ = fs::remove_file(&path);
-
+        let loaded = load_config(Some(&file.0), ConfigOverrides::default()).expect("load config");
+        let config = loaded.config();
         assert!(!config.keyboard.vim_navigation);
         assert_eq!(config.keyboard.edit_step, 4);
-        assert_eq!(config.keyboard.default_octave, 5);
         assert!(!config.ui.follow_playhead);
         assert!(!config.ui.show_line_numbers_hex);
+        assert_eq!(config.audio, AudioPreferences::default());
         assert_eq!(config.midi.default_output, "IAC Driver");
-        assert_eq!(config.midi.default_input, "IAC Driver");
-        assert_eq!(
-            config.midi.log_file,
-            Some(PathBuf::from("salieri-midi.log"))
-        );
-        assert_eq!(
-            config.sample_browser.chooser_command,
-            Some(
-                r#"YAZI_CONFIG_HOME="$HOME/.config/yazi-readonly" yazi --chooser-file "$SALIERI_CHOOSER_FILE" "$SALIERI_SAMPLE_START_DIR""#
-                    .to_string()
-            )
-        );
         assert_eq!(
             config.sample_browser.start_dir,
             Some(PathBuf::from("~/Samples"))
         );
+        assert_eq!(loaded.metadata().source, ConfigSource::File(file.0.clone()));
+        assert_eq!(loaded.metadata().keymap_profile, "studio");
+        assert_eq!(loaded.metadata().theme_name, "high-contrast");
+        assert_eq!(loaded.metadata().display_mode, DisplayMode::Compact);
+    }
+
+    #[test]
+    fn cli_overrides_win_over_user_config() {
+        let file = TestFile::new("override", "[midi]\nlog_file = 'user.log'\n");
+        let loaded = load_config(
+            Some(&file.0),
+            ConfigOverrides {
+                midi_log_file: Some(PathBuf::from("cli.log")),
+            },
+        )
+        .expect("load config");
+
         assert_eq!(
-            config.project_browser.start_dir,
-            Some(PathBuf::from("~/Music/Salieri"))
+            loaded.config().midi.log_file,
+            Some(PathBuf::from("cli.log"))
+        );
+    }
+
+    #[test]
+    fn validation_reports_all_actionable_errors() {
+        let file = TestFile::new(
+            "invalid",
+            r#"
+[keyboard]
+edit_step = 0
+default_octave = 12
+[keymap]
+profile = " "
+[theme]
+name = ""
+[audio]
+sample_rate = 1000
+channels = 0
+[workspace]
+recent_project_limit = 0
+"#,
+        );
+
+        let error = load_config(Some(&file.0), ConfigOverrides::default()).expect_err("invalid");
+        let ConfigLoadError::Validation(error) = error else {
+            panic!("expected validation error");
+        };
+        assert_eq!(error.diagnostics.len(), 7);
+        let rendered = error.to_string();
+        assert!(rendered.contains("keyboard.edit_step"));
+        assert!(rendered.contains("audio.sample_rate"));
+        assert!(rendered.contains("workspace.recent_project_limit"));
+    }
+
+    #[test]
+    fn unknown_fields_are_rejected_with_parse_context() {
+        let file = TestFile::new("unknown", "[keyboard]\ntyop = true\n");
+        let error = load_config(Some(&file.0), ConfigOverrides::default()).expect_err("invalid");
+
+        assert!(matches!(error, ConfigLoadError::Parse { .. }));
+        assert!(error.to_string().contains("unknown field `tyop`"));
+    }
+
+    #[test]
+    fn metadata_summary_is_ready_for_help_and_status_views() {
+        let file = TestFile::new("metadata", "[theme]\nname = 'night'\n");
+        let loaded = load_config(Some(&file.0), ConfigOverrides::default()).expect("load config");
+
+        assert_eq!(
+            loaded.metadata().summary(),
+            format!(
+                "config {} | keymap=tracker | theme=night | display=adaptive",
+                file.0.display()
+            )
+        );
+    }
+
+    #[test]
+    fn config_path_prefers_xdg_then_home() {
+        assert_eq!(
+            default_config_path_for(Some("/xdg".into()), Some("/home/me".into())),
+            Some(PathBuf::from("/xdg/salieri/config.toml"))
         );
         assert_eq!(
-            config.project_browser.recent_file,
-            Some(PathBuf::from("recent-projects.json"))
+            default_config_path_for(None, Some("/home/me".into())),
+            Some(PathBuf::from("/home/me/.config/salieri/config.toml"))
         );
     }
 }

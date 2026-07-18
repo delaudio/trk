@@ -128,6 +128,9 @@ Run Salieri with the included IAC config:
 salieri --config config/iac-driver.toml --midi-log salieri-midi.log
 ```
 
+See [Configuration](docs/configuration.md) for lookup precedence, all preference
+sections, validation rules, and the `:config` status command.
+
 Or copy the relevant settings into `~/.config/salieri/config.toml`:
 
 ```toml
