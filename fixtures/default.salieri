@@ -58863,7 +58863,7 @@
       {
         "id": 2,
         "name": "instrument02.wav",
-        "path": "fixtures/samples/256color/instrument02.wav",
+        "path": "samples/256color/instrument02.wav",
         "rootPitch": 60,
         "gain": 1,
         "playback": {
@@ -58883,7 +58883,7 @@
       {
         "id": 3,
         "name": "instrument03.wav",
-        "path": "fixtures/samples/256color/instrument03.wav",
+        "path": "samples/256color/instrument03.wav",
         "rootPitch": 60,
         "gain": 1,
         "playback": {
@@ -58903,7 +58903,7 @@
       {
         "id": 4,
         "name": "instrument04.wav",
-        "path": "fixtures/samples/256color/instrument04.wav",
+        "path": "samples/256color/instrument04.wav",
         "rootPitch": 60,
         "gain": 1,
         "playback": {
@@ -58923,7 +58923,7 @@
       {
         "id": 5,
         "name": "instrument05.wav",
-        "path": "fixtures/samples/256color/instrument05.wav",
+        "path": "samples/256color/instrument05.wav",
         "rootPitch": 60,
         "gain": 1,
         "playback": {
@@ -58943,7 +58943,7 @@
       {
         "id": 6,
         "name": "instrument06.wav",
-        "path": "fixtures/samples/256color/instrument06.wav",
+        "path": "samples/256color/instrument06.wav",
         "rootPitch": 60,
         "gain": 1,
         "playback": {
@@ -58963,7 +58963,7 @@
       {
         "id": 7,
         "name": "instrument07.wav",
-        "path": "fixtures/samples/256color/instrument07.wav",
+        "path": "samples/256color/instrument07.wav",
         "rootPitch": 60,
         "gain": 1,
         "playback": {
@@ -58983,7 +58983,7 @@
       {
         "id": 8,
         "name": "instrument08.wav",
-        "path": "fixtures/samples/256color/instrument08.wav",
+        "path": "samples/256color/instrument08.wav",
         "rootPitch": 60,
         "gain": 1,
         "playback": {
@@ -59003,7 +59003,7 @@
       {
         "id": 9,
         "name": "instrument09.wav",
-        "path": "fixtures/samples/256color/instrument09.wav",
+        "path": "samples/256color/instrument09.wav",
         "rootPitch": 60,
         "gain": 1,
         "playback": {
@@ -59023,7 +59023,7 @@
       {
         "id": 10,
         "name": "instrument10.wav",
-        "path": "fixtures/samples/256color/instrument10.wav",
+        "path": "samples/256color/instrument10.wav",
         "rootPitch": 60,
         "gain": 1,
         "playback": {
@@ -59043,7 +59043,7 @@
       {
         "id": 11,
         "name": "instrument11.wav",
-        "path": "fixtures/samples/256color/instrument11.wav",
+        "path": "samples/256color/instrument11.wav",
         "rootPitch": 60,
         "gain": 1,
         "playback": {
@@ -59063,7 +59063,7 @@
       {
         "id": 12,
         "name": "instrument12.wav",
-        "path": "fixtures/samples/256color/instrument12.wav",
+        "path": "samples/256color/instrument12.wav",
         "rootPitch": 60,
         "gain": 1,
         "playback": {
@@ -59083,7 +59083,7 @@
       {
         "id": 13,
         "name": "instrument13.wav",
-        "path": "fixtures/samples/256color/instrument13.wav",
+        "path": "samples/256color/instrument13.wav",
         "rootPitch": 60,
         "gain": 1,
         "playback": {
@@ -59103,7 +59103,7 @@
       {
         "id": 14,
         "name": "instrument14.wav",
-        "path": "fixtures/samples/256color/instrument14.wav",
+        "path": "samples/256color/instrument14.wav",
         "rootPitch": 60,
         "gain": 1,
         "playback": {
@@ -59123,7 +59123,7 @@
       {
         "id": 15,
         "name": "instrument15.wav",
-        "path": "fixtures/samples/256color/instrument15.wav",
+        "path": "samples/256color/instrument15.wav",
         "rootPitch": 60,
         "gain": 1,
         "playback": {
@@ -59143,7 +59143,7 @@
       {
         "id": 16,
         "name": "instrument16.wav",
-        "path": "fixtures/samples/256color/instrument16.wav",
+        "path": "samples/256color/instrument16.wav",
         "rootPitch": 60,
         "gain": 1,
         "playback": {
@@ -59163,7 +59163,7 @@
       {
         "id": 17,
         "name": "instrument17.wav",
-        "path": "fixtures/samples/256color/instrument17.wav",
+        "path": "samples/256color/instrument17.wav",
         "rootPitch": 60,
         "gain": 1,
         "playback": {
@@ -59183,7 +59183,7 @@
       {
         "id": 18,
         "name": "instrument18.wav",
-        "path": "fixtures/samples/256color/instrument18.wav",
+        "path": "samples/256color/instrument18.wav",
         "rootPitch": 60,
         "gain": 1,
         "playback": {
@@ -59203,7 +59203,7 @@
       {
         "id": 19,
         "name": "instrument19.wav",
-        "path": "fixtures/samples/256color/instrument19.wav",
+        "path": "samples/256color/instrument19.wav",
         "rootPitch": 60,
         "gain": 1,
         "playback": {
@@ -59223,7 +59223,7 @@
       {
         "id": 20,
         "name": "instrument20.wav",
-        "path": "fixtures/samples/256color/instrument20.wav",
+        "path": "samples/256color/instrument20.wav",
         "rootPitch": 60,
         "gain": 1,
         "playback": {
@@ -59243,7 +59243,7 @@
       {
         "id": 21,
         "name": "instrument21.wav",
-        "path": "fixtures/samples/256color/instrument21.wav",
+        "path": "samples/256color/instrument21.wav",
         "rootPitch": 60,
         "gain": 1,
         "playback": {

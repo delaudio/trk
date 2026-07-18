@@ -16,7 +16,7 @@ use anyhow::{Context, Result};
 use config::{load_config, AppConfig, SampleBrowserConfig};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use persistence::{load_project, save_project};
-use playback_runtime::apply_sample_playback_settings;
+use playback_runtime::{apply_sample_playback_settings, resolve_sample_path};
 use playback_runtime::{PlaybackRuntime, PlaybackUpdate};
 use salieri_ai::{
     apply_proposal, preview_proposal, AiPatternRequest, AiProposal, AiProposalProvider,
@@ -796,7 +796,7 @@ fn run_export_audio(args: &AudioExportArgs) -> Result<()> {
         .as_deref()
         .context("missing export output path: usage is salieri export audio INPUT OUTPUT")?;
     let song = load_project(input_path)?;
-    let rendered = render_audio_export(&song, args)?;
+    let rendered = render_audio_export(&song, args, input_path.parent())?;
     let bytes = encode_audio(&rendered, AudioExportFormat::WavPcm16)
         .context("failed to encode WAV PCM16 audio")?;
     write_bytes_atomically(output_path, &bytes)
@@ -877,6 +877,7 @@ fn inspect_sample(args: &SampleInspectArgs) -> Result<SampleInspection> {
 fn render_audio_export(
     song: &Song,
     args: &AudioExportArgs,
+    sample_base_dir: Option<&Path>,
 ) -> Result<salieri_audio::RenderedAudio> {
     let spec_base = OfflineRenderSpec {
         sample_rate: args.sample_rate,
@@ -891,7 +892,8 @@ fn render_audio_export(
         }
         pattern_export_events(song, args.pattern - 1, 0, args.sample_rate)?
     };
-    let samples = load_offline_export_samples(song, args.sample_rate, args.channels)?;
+    let samples =
+        load_offline_export_samples(song, args.sample_rate, args.channels, sample_base_dir)?;
     let frames = if events.is_empty() {
         export_duration_frames(song, args, args.sample_rate)?
     } else {
@@ -996,12 +998,14 @@ fn load_offline_export_samples(
     song: &Song,
     sample_rate: u32,
     channels: u16,
+    sample_base_dir: Option<&Path>,
 ) -> Result<Vec<OfflineSamplerSample>> {
     song.samples
         .iter()
         .map(|reference| {
-            let sample = Sample::load_wav(&reference.path)
-                .with_context(|| format!("failed to load sample {}", reference.path))?;
+            let path = resolve_sample_path(&reference.path, sample_base_dir);
+            let sample = Sample::load_wav(&path)
+                .with_context(|| format!("failed to load sample {}", path.display()))?;
             let preview = apply_sample_playback_settings(
                 &sample.preview(Default::default()),
                 reference.playback,
@@ -1573,6 +1577,13 @@ impl App {
             project_path: Some(path.to_path_buf()),
             ..Self::new(config)
         })
+    }
+
+    fn sample_base_dir(&self) -> Option<PathBuf> {
+        self.project_path
+            .as_deref()
+            .and_then(Path::parent)
+            .map(Path::to_path_buf)
     }
 
     fn handle_key(&mut self, key: KeyEvent) {
@@ -3966,6 +3977,7 @@ impl App {
         self.sequence_position = None;
         self.playback.start_pattern_from(
             self.song.clone(),
+            self.sample_base_dir(),
             self.pattern_index,
             0,
             self.loop_pattern,
@@ -3984,6 +3996,7 @@ impl App {
         self.sequence_position = None;
         self.playback.start_pattern_from(
             self.song.clone(),
+            self.sample_base_dir(),
             self.pattern_index,
             self.cursor.row,
             self.loop_pattern,
@@ -4016,8 +4029,11 @@ impl App {
         self.is_playing = true;
         self.playhead_row = Some(0);
         self.sequence_position = Some(start_sequence_index);
-        self.playback
-            .start_sequence(self.song.clone(), start_sequence_index);
+        self.playback.start_sequence(
+            self.song.clone(),
+            self.sample_base_dir(),
+            start_sequence_index,
+        );
         self.notify_info(format!("Playing sequence from {start_sequence_index}"));
     }
 

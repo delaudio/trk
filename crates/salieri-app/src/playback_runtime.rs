@@ -2,7 +2,7 @@ use std::{
     collections::HashSet,
     fs::{File, OpenOptions},
     io::Write,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, TryRecvError},
     thread::{self, JoinHandle},
     time::{Duration, Instant},
@@ -44,12 +44,14 @@ pub enum PlaybackUpdate {
 enum PlaybackCommand {
     StartPattern {
         song: Song,
+        sample_base_dir: Option<PathBuf>,
         pattern_index: usize,
         start_row: usize,
         loop_pattern: bool,
     },
     StartSequence {
         song: Song,
+        sample_base_dir: Option<PathBuf>,
         start_sequence_index: usize,
     },
     ConnectMidi {
@@ -83,21 +85,29 @@ impl PlaybackRuntime {
     pub fn start_pattern_from(
         &self,
         song: Song,
+        sample_base_dir: Option<PathBuf>,
         pattern_index: usize,
         start_row: usize,
         loop_pattern: bool,
     ) {
         let _ = self.command_tx.send(PlaybackCommand::StartPattern {
             song,
+            sample_base_dir,
             pattern_index,
             start_row,
             loop_pattern,
         });
     }
 
-    pub fn start_sequence(&self, song: Song, start_sequence_index: usize) {
+    pub fn start_sequence(
+        &self,
+        song: Song,
+        sample_base_dir: Option<PathBuf>,
+        start_sequence_index: usize,
+    ) {
         let _ = self.command_tx.send(PlaybackCommand::StartSequence {
             song,
+            sample_base_dir,
             start_sequence_index,
         });
     }
@@ -162,12 +172,17 @@ fn playback_thread(
         match command {
             PlaybackCommand::StartPattern {
                 song,
+                sample_base_dir,
                 pattern_index,
                 start_row,
                 loop_pattern,
             } => {
-                let mut audio_output =
-                    PlaybackAudioOutput::for_song(&song, AudioConfig::default(), &update_tx);
+                let mut audio_output = PlaybackAudioOutput::for_song(
+                    &song,
+                    AudioConfig::default(),
+                    &update_tx,
+                    sample_base_dir.as_deref(),
+                );
                 let audio_sample_rate = audio_output.sample_rate();
                 let mut context = PlaybackRunContext {
                     command_rx: &command_rx,
@@ -197,10 +212,15 @@ fn playback_thread(
             }
             PlaybackCommand::StartSequence {
                 song,
+                sample_base_dir,
                 start_sequence_index,
             } => {
-                let mut audio_output =
-                    PlaybackAudioOutput::for_song(&song, AudioConfig::default(), &update_tx);
+                let mut audio_output = PlaybackAudioOutput::for_song(
+                    &song,
+                    AudioConfig::default(),
+                    &update_tx,
+                    sample_base_dir.as_deref(),
+                );
                 let audio_sample_rate = audio_output.sample_rate();
                 let mut context = PlaybackRunContext {
                     command_rx: &command_rx,
@@ -333,8 +353,13 @@ impl PlaybackAudioOutput {
         Self::Disabled { sample_rate }
     }
 
-    fn for_song(song: &Song, config: AudioConfig, update_tx: &Sender<PlaybackUpdate>) -> Self {
-        let samples = load_realtime_samples(song, config, update_tx);
+    fn for_song(
+        song: &Song,
+        config: AudioConfig,
+        update_tx: &Sender<PlaybackUpdate>,
+        sample_base_dir: Option<&Path>,
+    ) -> Self {
+        let samples = load_realtime_samples(song, config, update_tx, sample_base_dir);
         if samples.is_empty() {
             return Self::disabled(config.sample_rate);
         }
@@ -394,6 +419,7 @@ fn load_realtime_samples(
     song: &Song,
     config: AudioConfig,
     update_tx: &Sender<PlaybackUpdate>,
+    sample_base_dir: Option<&Path>,
 ) -> Vec<(u32, salieri_sampler::PreviewBuffer)> {
     let assigned_samples = song
         .sample_assignments
@@ -415,26 +441,40 @@ fn load_realtime_samples(
     song.samples
         .iter()
         .filter(|sample| assigned_samples.contains(&sample.id))
-        .filter_map(|reference| match Sample::load_wav(&reference.path) {
-            Ok(sample) => {
-                let preview = apply_sample_playback_settings(
-                    &sample.preview(PreviewSettings::default()),
-                    reference.playback,
-                );
-                Some((
-                    reference.id.0,
-                    prepare_realtime_sample(&preview, config.sample_rate, config.channels),
-                ))
-            }
-            Err(error) => {
-                let _ = update_tx.send(PlaybackUpdate::AudioError(format!(
-                    "Sample audio load failed for {}: {error}",
-                    reference.path
-                )));
-                None
+        .filter_map(|reference| {
+            let path = resolve_sample_path(&reference.path, sample_base_dir);
+            match Sample::load_wav(&path) {
+                Ok(sample) => {
+                    let preview = apply_sample_playback_settings(
+                        &sample.preview(PreviewSettings::default()),
+                        reference.playback,
+                    );
+                    Some((
+                        reference.id.0,
+                        prepare_realtime_sample(&preview, config.sample_rate, config.channels),
+                    ))
+                }
+                Err(error) => {
+                    let _ = update_tx.send(PlaybackUpdate::AudioError(format!(
+                        "Sample audio load failed for {}: {error}",
+                        path.display()
+                    )));
+                    None
+                }
             }
         })
         .collect()
+}
+
+pub(crate) fn resolve_sample_path(
+    path: impl AsRef<Path>,
+    sample_base_dir: Option<&Path>,
+) -> PathBuf {
+    let path = path.as_ref();
+    if path.is_absolute() {
+        return path.to_path_buf();
+    }
+    sample_base_dir.map_or_else(|| path.to_path_buf(), |base_dir| base_dir.join(path))
 }
 
 pub(crate) fn apply_sample_playback_settings(
@@ -999,7 +1039,7 @@ mod tests {
             .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x7f)
             .expect("set note");
 
-        runtime.start_pattern_from(song, 0, 0, true);
+        runtime.start_pattern_from(song, None, 0, 0, true);
 
         let deadline = Instant::now() + Duration::from_millis(250);
         let mut saw_position = false;
@@ -1038,7 +1078,7 @@ mod tests {
         let mut song = Song::empty();
         speed_up_transport(&mut song);
 
-        runtime.start_pattern_from(song, 0, 4, true);
+        runtime.start_pattern_from(song, None, 0, 4, true);
 
         let deadline = Instant::now() + Duration::from_millis(250);
         let mut first_position = None;
@@ -1061,7 +1101,7 @@ mod tests {
         let mut song = Song::empty();
         speed_up_transport(&mut song);
 
-        runtime.start_pattern_from(song, 0, 0, false);
+        runtime.start_pattern_from(song, None, 0, 0, false);
 
         let deadline = Instant::now() + Duration::from_millis(250);
         let mut saw_stop = false;
@@ -1144,6 +1184,7 @@ mod tests {
                 buffer_frames: 256,
             },
             &update_tx,
+            None,
         );
         let _ = std::fs::remove_file(&path);
 
@@ -1152,6 +1193,38 @@ mod tests {
         assert_eq!(samples[0].1.sample_rate, 48_000);
         assert_eq!(samples[0].1.channels, 2);
         assert!(samples[0].1.frames >= 4);
+        assert!(update_rx.try_iter().collect::<Vec<_>>().is_empty());
+    }
+
+    #[test]
+    fn realtime_sample_loader_resolves_paths_from_project_directory() {
+        let dir =
+            std::env::temp_dir().join(format!("salieri-realtime-relative-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        let sample_path = dir.join("hit.wav");
+        write_test_wav(&sample_path, 44_100, 1, &[0, i16::MAX, i16::MIN, 16_384]);
+        let mut song = Song::empty();
+        let track = song.tracks[0].id;
+        let sample = song.upsert_sample_reference("hit.wav", "hit.wav");
+        song.assign_sample_to_track(track, sample)
+            .expect("assign sample");
+        let (update_tx, update_rx) = mpsc::channel();
+
+        let samples = load_realtime_samples(
+            &song,
+            AudioConfig {
+                sample_rate: 48_000,
+                channels: 2,
+                buffer_frames: 256,
+            },
+            &update_tx,
+            Some(&dir),
+        );
+        let _ = std::fs::remove_file(&sample_path);
+        let _ = std::fs::remove_dir(&dir);
+
+        assert_eq!(samples.len(), 1);
+        assert_eq!(samples[0].0, sample.0);
         assert!(update_rx.try_iter().collect::<Vec<_>>().is_empty());
     }
 
@@ -1196,7 +1269,7 @@ mod tests {
         song.push_sequence_pattern(second_pattern_id)
             .expect("add second pattern to sequence");
 
-        runtime.start_sequence(song, 1);
+        runtime.start_sequence(song, None, 1);
 
         let deadline = Instant::now() + Duration::from_millis(250);
         let mut first_sequence_index = None;
@@ -1221,7 +1294,7 @@ mod tests {
         song.transport.lines_per_beat = 4;
         let expected = Duration::from_micros(row_duration_micros(&song.transport));
 
-        runtime.start_pattern_from(song, 0, 0, true);
+        runtime.start_pattern_from(song, None, 0, 0, true);
 
         let positions = collect_position_times(&runtime, 6, Duration::from_millis(500));
         runtime.stop();
@@ -1259,7 +1332,7 @@ mod tests {
         song.transport.lines_per_beat = 4;
         let row_duration = Duration::from_micros(row_duration_micros(&song.transport));
 
-        runtime.start_pattern_from(song, 0, 0, true);
+        runtime.start_pattern_from(song, None, 0, 0, true);
         thread::sleep(row_duration.saturating_mul(5) + Duration::from_millis(30));
 
         let positions = collect_position_times(&runtime, 16, Duration::from_millis(100));
@@ -1283,7 +1356,7 @@ mod tests {
             .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x7f)
             .expect("set note");
 
-        runtime.start_pattern_from(song, 0, 0, true);
+        runtime.start_pattern_from(song, None, 0, 0, true);
 
         let deadline = Instant::now() + Duration::from_millis(250);
         while Instant::now() < deadline {
