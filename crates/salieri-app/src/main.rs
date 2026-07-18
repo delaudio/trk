@@ -19,7 +19,7 @@ use command::{
     BrowserCommand, CommandDomain, FocusTarget, LoopCommand, PlayCommand, SalieriCommand,
     ViewCommand,
 };
-use config::{load_config, AppConfig, ProjectBrowserConfig, SampleBrowserConfig};
+use config::{load_config, AppConfig, ConfigOverrides, ProjectBrowserConfig, SampleBrowserConfig};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use persistence::{load_project, save_project};
 use playback_runtime::{apply_sample_playback_settings, resolve_sample_path};
@@ -64,7 +64,6 @@ const SAMPLE_WAVEFORM_BUCKETS: usize = 2048;
 const SAMPLE_WAVEFORM_MAX_ZOOM: usize = 64;
 const DEFAULT_NOTE_VELOCITY: u8 = 0x7f;
 const UNDO_LIMIT: usize = 100;
-const MAX_RECENT_PROJECTS: usize = 12;
 const MAX_SAMPLER_ENVELOPE_SECONDS: f32 = 60.0;
 const MIN_BPM: u16 = 1;
 const MAX_BPM: u16 = 999;
@@ -130,14 +129,18 @@ fn run(args: CliArgs) -> Result<()> {
         CliCommand::Run | CliCommand::MidiTest => {}
     }
 
-    let mut config = load_config(args.config_path.as_deref())?;
-    if let Some(midi_log_path) = args.midi_log_path {
-        config.midi.log_file = Some(midi_log_path);
-    }
+    let loaded_config = load_config(
+        args.config_path.as_deref(),
+        ConfigOverrides {
+            midi_log_file: args.midi_log_path,
+        },
+    )?;
+    tracing::debug!(config = %loaded_config.metadata().summary(), "configuration resolved");
     if args.command == CliCommand::MidiTest {
-        run_midi_test(&config, &args.midi_test)?;
+        run_midi_test(loaded_config.config(), &args.midi_test)?;
         return Ok(());
     }
+    let config = loaded_config.into_config();
 
     let project_path = args.project_path;
     let mut app = match &project_path {
@@ -1533,21 +1536,6 @@ fn project_path_key(path: &Path) -> String {
         .to_lowercase()
 }
 
-fn project_browser_recent_file(config: &ProjectBrowserConfig) -> Option<PathBuf> {
-    config
-        .recent_file
-        .clone()
-        .or_else(default_recent_projects_path)
-}
-
-fn default_recent_projects_path() -> Option<PathBuf> {
-    std::env::var_os("HOME").map(PathBuf::from).map(|home| {
-        home.join(".config")
-            .join("salieri")
-            .join("recent-projects.json")
-    })
-}
-
 fn load_recent_projects(path: Option<&Path>) -> Vec<PathBuf> {
     let Some(path) = path else {
         return Vec::new();
@@ -1752,6 +1740,8 @@ struct App {
     project_browser: ProjectBrowserConfig,
     recent_project_file: Option<PathBuf>,
     recent_projects: Vec<PathBuf>,
+    recent_project_limit: usize,
+    config_metadata: config::ConfigMetadata,
     project_browser_view: Option<AppProjectBrowserView>,
     pending_ai_proposal: Option<PendingAiProposal>,
     dirty: bool,
@@ -1895,7 +1885,7 @@ impl App {
         let default_midi_output = config.midi.default_output.trim().to_string();
         let default_midi_input = config.midi.default_input.trim().to_string();
         let project_browser = config.project_browser.clone();
-        let recent_project_file = project_browser_recent_file(&project_browser);
+        let recent_project_file = project_browser.recent_file();
         let recent_projects = load_recent_projects(recent_project_file.as_deref());
         let midi_status = if default_midi_output.is_empty() {
             "MIDI Disconnected".to_string()
@@ -1948,6 +1938,8 @@ impl App {
             project_browser,
             recent_project_file,
             recent_projects,
+            recent_project_limit: config.workspace.recent_project_limit,
+            config_metadata: config.metadata.clone(),
             project_browser_view: None,
             pending_ai_proposal: None,
             dirty: false,
@@ -3981,6 +3973,7 @@ impl App {
     fn execute_typed_command(&mut self, parsed: SalieriCommand) {
         match parsed {
             SalieriCommand::Help => self.open_help(),
+            SalieriCommand::Config => self.notify_info(self.config_metadata.summary()),
             SalieriCommand::View(view) => match view {
                 ViewCommand::Tracker => self.open_tracker_view(),
                 ViewCommand::Patterns => self.open_patterns_view(),
@@ -5019,7 +5012,7 @@ impl App {
         self.recent_projects
             .retain(|candidate| project_path_key(candidate) != key);
         self.recent_projects.insert(0, path);
-        self.recent_projects.truncate(MAX_RECENT_PROJECTS);
+        self.recent_projects.truncate(self.recent_project_limit);
         if let Err(error) =
             save_recent_projects(self.recent_project_file.as_deref(), &self.recent_projects)
         {

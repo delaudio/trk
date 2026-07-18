@@ -3,6 +3,7 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SalieriCommand {
     Help,
+    Config,
     View(ViewCommand),
     Browse {
         browser: BrowserCommand,
@@ -137,6 +138,7 @@ impl SalieriCommand {
 
         let command = match name {
             "h" | "help" => Self::Help,
+            "config" => Self::Config,
             "t" | "tracker" | "layout" | "normal" => Self::View(ViewCommand::Tracker),
             "p" | "patterns" => Self::View(ViewCommand::Patterns),
             "se" | "sequence-view" => Self::View(ViewCommand::Sequence),
@@ -279,6 +281,10 @@ mod tests {
 
     #[test]
     fn parses_stable_view_and_browser_aliases() {
+        assert_eq!(
+            SalieriCommand::parse("config"),
+            Ok(Some(SalieriCommand::Config))
+        );
         for alias in ["t", "tracker", "layout", "normal"] {
             assert_eq!(
                 SalieriCommand::parse(alias),
