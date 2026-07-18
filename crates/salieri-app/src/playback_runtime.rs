@@ -192,20 +192,8 @@ fn playback_thread(
                     audio_output: &mut audio_output,
                     audio_sample_rate,
                 };
-                let result = run_pattern(
-                    &song,
-                    pattern_index,
-                    start_row,
-                    None,
-                    loop_pattern,
-                    &mut context,
-                );
-                if matches!(result, PatternRunResult::Finished) {
-                    let _ = send_all_notes_off_logged(&mut output, &mut midi_logger);
-                    send_all_audio_notes_off(&mut audio_output);
-                    let _ = update_tx.send(PlaybackUpdate::Stopped);
-                }
-                next_command = result.into_command();
+                next_command =
+                    run_pattern_chain(&song, pattern_index, start_row, loop_pattern, &mut context);
                 if matches!(next_command, Some(PlaybackCommand::Shutdown)) {
                     break;
                 }
@@ -284,15 +272,6 @@ enum PatternRunResult {
     Finished,
     Stopped,
     Command(Box<PlaybackCommand>),
-}
-
-impl PatternRunResult {
-    fn into_command(self) -> Option<PlaybackCommand> {
-        match self {
-            Self::Command(command) => Some(*command),
-            Self::Finished | Self::Stopped => None,
-        }
-    }
 }
 
 enum PlaybackOutput {
@@ -652,6 +631,48 @@ fn run_pattern(
             return PatternRunResult::Finished;
         }
         pass_start_row = 0;
+    }
+}
+
+fn run_pattern_chain(
+    song: &Song,
+    start_pattern_index: usize,
+    start_row: usize,
+    loop_patterns: bool,
+    context: &mut PlaybackRunContext<'_>,
+) -> Option<PlaybackCommand> {
+    if song.patterns.is_empty() {
+        let _ = context.update_tx.send(PlaybackUpdate::Stopped);
+        return None;
+    }
+
+    let mut pattern_index = start_pattern_index.min(song.patterns.len().saturating_sub(1));
+    let mut first_pass = true;
+
+    loop {
+        let pattern_start_row = if first_pass { start_row } else { 0 };
+        first_pass = false;
+
+        match run_pattern(song, pattern_index, pattern_start_row, None, false, context) {
+            PatternRunResult::Finished => {}
+            PatternRunResult::Stopped => return None,
+            PatternRunResult::Command(command) => return Some(*command),
+        }
+
+        let next_pattern_index = pattern_index.saturating_add(1);
+        if next_pattern_index < song.patterns.len() {
+            pattern_index = next_pattern_index;
+            continue;
+        }
+
+        if loop_patterns {
+            pattern_index = 0;
+        } else {
+            let _ = send_all_notes_off_logged(context.output, context.midi_logger);
+            send_all_audio_notes_off(context.audio_output);
+            let _ = context.update_tx.send(PlaybackUpdate::Stopped);
+            return None;
+        }
     }
 }
 
@@ -1041,6 +1062,38 @@ mod tests {
         (next_command, sent, updates)
     }
 
+    fn run_pattern_chain_with_recording(
+        song: &Song,
+        start_pattern_index: usize,
+        loop_patterns: bool,
+    ) -> (
+        Option<PlaybackCommand>,
+        Vec<MidiMessage>,
+        Vec<PlaybackUpdate>,
+    ) {
+        let messages = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let (_command_tx, command_rx) = mpsc::channel();
+        let (update_tx, update_rx) = mpsc::channel();
+        let mut output = PlaybackOutput::recording(messages.clone());
+        let mut midi_logger = MidiLogger::new(None, &update_tx);
+        let mut audio_output = PlaybackAudioOutput::disabled(AudioConfig::default().sample_rate);
+        let audio_sample_rate = audio_output.sample_rate();
+        let mut context = PlaybackRunContext {
+            command_rx: &command_rx,
+            update_tx: &update_tx,
+            output: &mut output,
+            midi_logger: &mut midi_logger,
+            audio_output: &mut audio_output,
+            audio_sample_rate,
+        };
+
+        let next_command =
+            run_pattern_chain(song, start_pattern_index, 0, loop_patterns, &mut context);
+        let sent = messages.lock().expect("recorded MIDI messages").clone();
+        let updates = update_rx.try_iter().collect();
+        (next_command, sent, updates)
+    }
+
     #[test]
     fn runtime_emits_positions_and_stops() {
         let runtime = PlaybackRuntime::spawn(None);
@@ -1330,6 +1383,45 @@ mod tests {
         runtime.stop();
 
         assert_eq!(first_sequence_index, Some(1));
+    }
+
+    #[test]
+    fn pattern_playback_advances_to_next_pattern_before_stopping() {
+        let mut song = Song::empty();
+        speed_up_transport(&mut song);
+        song.current_pattern_mut()
+            .expect("pattern")
+            .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x64)
+            .expect("set first pattern note");
+        let second_pattern_id = song.create_pattern(64);
+        let second_pattern_index = song
+            .patterns
+            .iter()
+            .position(|pattern| pattern.id == second_pattern_id)
+            .expect("second pattern");
+        song.pattern_mut(second_pattern_index)
+            .expect("second pattern")
+            .set_note(0, 0, NoteEvent::Note { pitch: 72 }, 0x50)
+            .expect("set second pattern note");
+
+        let (next_command, sent, updates) = run_pattern_chain_with_recording(&song, 0, false);
+
+        assert!(next_command.is_none());
+        assert!(sent.contains(&MidiMessage::note_on(10, 60, 0x64)));
+        assert!(sent.contains(&MidiMessage::note_on(10, 72, 0x50)));
+        assert!(updates.iter().any(|update| {
+            matches!(
+                update,
+                PlaybackUpdate::Position(PlaybackCursor {
+                    pattern_index: 1,
+                    position: PlaybackPosition { row: 0, .. },
+                    ..
+                })
+            )
+        }));
+        assert!(updates
+            .iter()
+            .any(|update| matches!(update, PlaybackUpdate::Stopped)));
     }
 
     #[test]
