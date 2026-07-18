@@ -211,7 +211,7 @@ F4              MIDI settings
 F7              Sequence view
 F9              Tracks view
 F10             Patterns view
-F11             Sampler view
+Ctrl+J          Sampler view
 :               Command mode
 ```
 
@@ -367,7 +367,7 @@ Salieri can inspect and load WAV samples, render waveform overviews, and persist
 Inside the tracker:
 
 ```text
-F11                         Open sampler view
+Ctrl+J                      Open sampler view
 :sample view PATH           Load a WAV reference for waveform inspection
 :sample browse [DIR]        Open the in-app sample browser
 :sample choose [DIR]        Launch a configured external chooser

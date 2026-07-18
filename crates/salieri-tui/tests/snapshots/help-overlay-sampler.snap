@@ -6,7 +6,7 @@
 │  02 │  Tab/Right next page   Shift+Tab/Left previous page   Up/Down scroll                                     │     │
 │  03 │                                                                                                          │     │
 │  04 │Sampler And Instruments                                                                                   │     │
-│     │  F11 opens Sampler view   Esc returns to Pattern view                                                    │     │
+│     │  Ctrl+J opens Sampler view   Esc returns to Pattern view                                                 │     │
 │     │  In Sampler view: +/- zoom waveform   Left/Right pan   Home/End bounds                                   │     │
 │     │  Tab/Shift+Tab selects A/D/S/R   [/]/{/} adjusts selected envelope field                                 │     │
 │     │  :sample view PATH loads a WAV and shows metadata plus waveform                                          │     │

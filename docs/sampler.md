@@ -19,7 +19,7 @@ salieri sample inspect path/to/sample.wav --format text --buckets 64
 salieri sample inspect path/to/sample.wav --format json --width 32
 ```
 
-Inside the tracker, `:sample view PATH` loads a WAV reference into the sampler view and renders its metadata and waveform preview. `F11` opens the sampler view even when no sample is loaded. `:sample browse [DIR]` opens the in-app sample browser; `:sample choose [DIR]` uses a configured external chooser.
+Inside the tracker, `:sample view PATH` loads a WAV reference into the sampler view and renders its metadata and waveform preview. `Ctrl+J` opens the sampler view even when no sample is loaded. `:sample browse [DIR]` opens the in-app sample browser; `:sample choose [DIR]` uses a configured external chooser.
 
 After loading a WAV, assign it to the current track:
 

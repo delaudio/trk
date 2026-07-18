@@ -1422,7 +1422,7 @@ fn render_track_properties(frame: &mut Frame<'_>, area: Rect, song: &Song, state
     cell_lines.extend([
         Line::from(":sample assign"),
         Line::from(":cell instrument 01"),
-        Line::from("F11 Sampler  F9 Tracks"),
+        Line::from("C-j Sampler  F9 Tracks"),
     ]);
     frame.render_widget(
         Paragraph::new(cell_lines).wrap(Wrap { trim: true }),
@@ -2023,9 +2023,7 @@ fn help_basics_lines(mode_label: &str) -> Vec<Line<'static>> {
         )),
         Line::from("  ?/H Help   :h/:help Help   q Quit   Space Play/Stop   Shift+Space Start"),
         Line::from("  Enter Play Row   Shift+Enter Play Sequence From Cursor   L Loop   F8 Stop"),
-        Line::from(
-            "  F7 Sequence View   F9 Track View   F10 Pattern View   F11 Sampler View",
-        ),
+        Line::from("  F7 Sequence View   F9 Track View   F10 Pattern View   Ctrl+J Sampler View"),
         Line::from("  :t Tracker   :p Patterns   :se Sequence   :tr Tracks   :sa Sampler   :sb Browser"),
         Line::from("  Esc returns from focused views"),
         Line::from("  :play pattern from start   :play sequence arrangement"),
@@ -2093,7 +2091,7 @@ fn help_sampler_lines(mode_label: &str) -> Vec<Line<'static>> {
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
         )),
-        Line::from("  F11 opens Sampler view   Esc returns to Pattern view"),
+        Line::from("  Ctrl+J opens Sampler view   Esc returns to Pattern view"),
         Line::from("  In Sampler view: +/- zoom waveform   Left/Right pan   Home/End bounds"),
         Line::from("  Tab/Shift+Tab selects A/D/S/R   [/]/{/} adjusts selected envelope field"),
         Line::from("  :sample view PATH loads a WAV and shows metadata plus waveform"),

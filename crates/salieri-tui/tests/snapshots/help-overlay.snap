@@ -8,7 +8,7 @@
 │  04 │Global                                                                                                    │     │
 │     │  ?/H Help   :h/:help Help   q Quit   Space Play/Stop   Shift+Space Start                                 │     │
 │     │  Enter Play Row   Shift+Enter Play Sequence From Cursor   L Loop   F8 Stop                               │     │
-│     │  F7 Sequence View   F9 Track View   F10 Pattern View   F11 Sampler View                                  │     │
+│     │  F7 Sequence View   F9 Track View   F10 Pattern View   Ctrl+J Sampler View                               │     │
 │     │  :t Tracker   :p Patterns   :se Sequence   :tr Tracks   :sa Sampler   :sb Browser                        │     │
 │     │  Esc returns from focused views                                                                          │     │
 │     │  :play pattern from start   :play sequence arrangement                                                   │     │

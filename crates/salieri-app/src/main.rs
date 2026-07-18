@@ -1850,6 +1850,10 @@ impl App {
                 }
                 true
             }
+            KeyCode::Char('j') | KeyCode::Char('J') | KeyCode::Char('\n') => {
+                self.open_sampler_view();
+                true
+            }
             KeyCode::Char('t') | KeyCode::Char('T') => {
                 self.create_track();
                 true
@@ -1964,10 +1968,6 @@ impl App {
             }
             KeyCode::F(10) => {
                 self.open_patterns_view();
-                return;
-            }
-            KeyCode::F(11) => {
-                self.open_sampler_view();
                 return;
             }
             KeyCode::F(6) => {
@@ -2388,7 +2388,6 @@ impl App {
             KeyCode::F(7) => self.open_sequence_view(),
             KeyCode::F(9) => self.open_tracks_view(),
             KeyCode::F(10) => self.open_patterns_view(),
-            KeyCode::F(11) => self.mode = AppMode::Normal,
             KeyCode::F(8) => self.stop_playback(),
             KeyCode::Char('b') | KeyCode::Char('B') => self.open_sample_browser_view(None),
             KeyCode::Tab => self.next_sampler_envelope_field(),
@@ -8184,7 +8183,7 @@ mod tests {
     fn sampler_view_opens_without_sample_and_loads_wav_from_command() {
         let mut app = App::default();
 
-        app.handle_key(KeyEvent::new(KeyCode::F(11), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::CONTROL));
         assert_eq!(app.mode, AppMode::Sampler);
         assert_eq!(app.tui_active_view(), TuiView::Sampler);
         assert!(app.tui_sampler_view().is_none());
