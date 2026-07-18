@@ -2,3 +2,5 @@
 /salieri-midi.log
 /untitled.salieri
 /fixtures/local/
+__pycache__/
+*.py[cod]
