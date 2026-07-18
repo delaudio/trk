@@ -2397,40 +2397,7 @@ mod tests {
 
     #[test]
     fn imports_minimal_xrns_subset_to_valid_song() {
-        let xml = r#"
-<RenoiseSong>
-  <GlobalSongData><BeatsPerMin>172</BeatsPerMin><LinesPerBeat>8</LinesPerBeat></GlobalSongData>
-  <Tracks>
-    <Track><Name>Drums</Name><Gain>0.75</Gain><Pan>-0.25</Pan><Device>Gainer</Device></Track>
-    <Track><Name>Bass</Name></Track>
-  </Tracks>
-  <PatternSequence>
-    <SequenceEntry><Pattern>0</Pattern></SequenceEntry>
-    <SequenceEntry><Pattern>1</Pattern></SequenceEntry>
-  </PatternSequence>
-  <Patterns>
-    <Pattern>
-      <NumberOfLines>8</NumberOfLines>
-      <Tracks>
-        <Track>
-          <Line>
-            <Index>0</Index>
-            <Note>C-4</Note>
-            <Velocity>100</Velocity>
-            <Instrument>00</Instrument>
-            <Volume>40</Volume>
-            <Pan>7F</Pan>
-            <Delay>20</Delay>
-            <Effect><Code>R</Code><Value>04</Value></Effect>
-          </Line>
-        </Track>
-      </Tracks>
-    </Pattern>
-    <Pattern><NumberOfLines>4</NumberOfLines></Pattern>
-  </Patterns>
-  <Instruments><Instrument><Name>Kick</Name></Instrument></Instruments>
-</RenoiseSong>
-"#;
+        let xml = include_str!("../../../fixtures/xrns/minimal-song.xml");
         let archive = xrns_archive([
             xrns_entry("Song.xml", xml.as_bytes()),
             xrns_entry("SampleData/Instrument00/Sample00.wav", b"RIFF....WAVE"),

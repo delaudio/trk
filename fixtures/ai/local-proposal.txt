@@ -1,0 +1,7 @@
+summary=Local deterministic pattern sketch with 6 edits
+set-note pattern=0 row=2 track=1 pitch=55 velocity=96
+set-note pattern=0 row=4 track=1 pitch=58 velocity=96
+set-note pattern=0 row=6 track=1 pitch=48 velocity=96
+set-note pattern=0 row=10 track=1 pitch=51 velocity=96
+set-note pattern=0 row=11 track=1 pitch=51 velocity=96
+set-note pattern=0 row=14 track=1 pitch=55 velocity=96

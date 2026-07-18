@@ -101,7 +101,11 @@ fn temp_path_for(path: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use salieri_core::NoteEvent;
+    use salieri_core::{
+        AutomationTarget, EffectDevice, NoteEvent, SampleEnvelope, SamplePlaybackMode,
+    };
+    use serde_json::Value;
+    use std::collections::BTreeSet;
 
     #[test]
     fn saves_and_loads_project_file() {
@@ -216,6 +220,150 @@ mod tests {
         assert_eq!(song.patterns.len(), 40);
         assert_eq!(song.sequence.len(), 40);
         assert_eq!(song.samples.len(), 20);
+    }
+
+    #[test]
+    fn foundations_fixture_preserves_project_contracts() {
+        let song = foundations_fixture_song();
+        let project = ProjectFile::new(song.clone());
+        let actual: Value = serde_json::from_str(
+            &serde_json::to_string(&project).expect("serialize fixture value"),
+        )
+        .expect("parse serialized fixture value");
+        let path = fixture_path("projects/foundations.salieri");
+
+        if std::env::var_os("UPDATE_SALIERI_FIXTURES").is_some() {
+            fs::create_dir_all(path.parent().expect("fixture parent")).expect("create fixtures");
+            let mut contents = serde_json::to_string_pretty(&project).expect("serialize fixture");
+            contents.push('\n');
+            fs::write(&path, contents).expect("write fixture");
+        }
+
+        let expected: Value =
+            serde_json::from_str(&fs::read_to_string(&path).expect("read foundations fixture"))
+                .expect("parse foundations fixture");
+        let mut differences = Vec::new();
+        collect_json_differences(&expected, &actual, "$", &mut differences);
+        assert!(
+            differences.is_empty(),
+            "project fixture mismatch:\n{}",
+            differences.join("\n")
+        );
+
+        let loaded = load_project(&path).expect("load foundations fixture");
+        assert_eq!(loaded, song);
+    }
+
+    fn foundations_fixture_song() -> Song {
+        let mut song = Song::empty();
+        song.metadata.title = "Foundations Fixture".to_string();
+        song.metadata.author = Some("Salieri Tests".to_string());
+        song.transport.bpm = 132;
+        song.transport.lines_per_beat = 8;
+        song.delete_track(3).expect("delete track");
+        song.delete_track(2).expect("delete track");
+        song.resize_pattern(0, 8).expect("resize pattern");
+
+        song.current_pattern_mut()
+            .expect("pattern")
+            .set_note(0, 0, NoteEvent::Note { pitch: 48 }, 100)
+            .expect("set note");
+        song.current_pattern_mut()
+            .expect("pattern")
+            .set_note_event(4, 0, NoteEvent::NoteOff, None)
+            .expect("set note off");
+
+        let sample = song.upsert_sample_reference("samples/bass.wav", "bass.wav");
+        song.samples[0].root_pitch = 48;
+        song.samples[0].gain = 0.8;
+        song.assign_sample_to_track(song.tracks[0].id, sample)
+            .expect("assign sample");
+        song.set_sample_frame_window(sample, Some(10), Some(1_000))
+            .expect("sample window");
+        song.set_sample_loop(sample, SamplePlaybackMode::Loop, Some(100), Some(900))
+            .expect("sample loop");
+        song.set_sample_envelope(
+            sample,
+            SampleEnvelope {
+                attack_seconds: 0.01,
+                decay_seconds: 0.05,
+                sustain: 0.75,
+                release_seconds: 0.1,
+            },
+        )
+        .expect("sample envelope");
+
+        song.set_track_mixer_gain(0, 0.7).expect("track gain");
+        song.set_track_mixer_pan(0, -0.2).expect("track pan");
+        song.set_master_gain(0.9).expect("master gain");
+        song.mixer.tracks[0]
+            .effects
+            .push(EffectDevice::gain(1, 0.8));
+        song.mixer.master_effects.push(EffectDevice::pan(1, 0.1));
+        song.current_pattern_mut()
+            .expect("pattern")
+            .set_automation_point(AutomationTarget::SampleGain { sample }, 2, 0.5)
+            .expect("automation");
+        song.validate().expect("valid fixture song");
+        song
+    }
+
+    fn collect_json_differences(
+        expected: &Value,
+        actual: &Value,
+        path: &str,
+        differences: &mut Vec<String>,
+    ) {
+        match (expected, actual) {
+            (Value::Object(expected), Value::Object(actual)) => {
+                let keys = expected
+                    .keys()
+                    .chain(actual.keys())
+                    .collect::<BTreeSet<_>>();
+                for key in keys {
+                    let child_path = format!("{path}.{key}");
+                    match (expected.get(key), actual.get(key)) {
+                        (Some(expected), Some(actual)) => {
+                            collect_json_differences(expected, actual, &child_path, differences)
+                        }
+                        (Some(_), None) => {
+                            differences.push(format!("- {child_path}: missing from actual"));
+                        }
+                        (None, Some(value)) => {
+                            differences.push(format!("+ {child_path}: {value}"));
+                        }
+                        (None, None) => {}
+                    }
+                }
+            }
+            (Value::Array(expected), Value::Array(actual)) => {
+                if expected.len() != actual.len() {
+                    differences.push(format!(
+                        "~ {path}.length: expected {}, actual {}",
+                        expected.len(),
+                        actual.len()
+                    ));
+                }
+                for (index, (expected, actual)) in expected.iter().zip(actual.iter()).enumerate() {
+                    collect_json_differences(
+                        expected,
+                        actual,
+                        &format!("{path}[{index}]"),
+                        differences,
+                    );
+                }
+            }
+            _ if expected != actual => {
+                differences.push(format!("~ {path}: expected {expected}, actual {actual}"))
+            }
+            _ => {}
+        }
+    }
+
+    fn fixture_path(relative: &str) -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../fixtures")
+            .join(relative)
     }
 
     fn test_project_path(label: &str) -> PathBuf {
