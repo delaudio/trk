@@ -3,5 +3,5 @@ crates/salieri-app/src/main.rs	9946	#103
 crates/salieri-app/src/playback_runtime.rs	1691	#108
 crates/salieri-audio/src/lib.rs	2047	#109
 crates/salieri-core/src/model.rs	3194	#107
-crates/salieri-interop/src/lib.rs	2646	#111
+crates/salieri-interop/src/lib.rs	2613	#111
 crates/salieri-tui/src/render.rs	3620	#105

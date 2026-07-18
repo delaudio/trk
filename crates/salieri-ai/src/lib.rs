@@ -230,6 +230,7 @@ fn stable_prompt_seed(prompt: &str) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{fmt::Write as _, fs, path::PathBuf};
 
     #[test]
     fn local_provider_generates_deterministic_reviewable_proposals() {
@@ -327,5 +328,66 @@ mod tests {
                 row: 999
             })
         ));
+    }
+
+    #[test]
+    fn local_proposal_matches_golden_fixture() {
+        let song = Song::empty();
+        let request = AiPatternRequest {
+            prompt: "fixture bass variation".to_string(),
+            pattern: 0,
+            track: 1,
+            rows: 16,
+            root_pitch: 48,
+            velocity: 96,
+        };
+        let proposal = LocalDeterministicProvider
+            .propose(&song, &request)
+            .expect("proposal");
+        let actual = render_proposal(&proposal);
+        let path = fixture_path("ai/local-proposal.txt");
+
+        if std::env::var_os("UPDATE_SALIERI_FIXTURES").is_some() {
+            fs::create_dir_all(path.parent().expect("fixture parent")).expect("create fixtures");
+            fs::write(&path, &actual).expect("write fixture");
+        }
+
+        let expected = fs::read_to_string(&path).expect("read AI fixture");
+        assert_eq!(actual, expected, "AI proposal fixture mismatch");
+    }
+
+    fn render_proposal(proposal: &AiProposal) -> String {
+        let mut output = format!("summary={}\n", proposal.summary);
+        for edit in &proposal.edits {
+            match edit {
+                AiEdit::SetNote {
+                    pattern,
+                    row,
+                    track,
+                    pitch,
+                    velocity,
+                } => writeln!(
+                    output,
+                    "set-note pattern={pattern} row={row} track={track} pitch={pitch} velocity={velocity}"
+                )
+                .expect("write proposal fixture"),
+                AiEdit::ClearCell {
+                    pattern,
+                    row,
+                    track,
+                } => writeln!(
+                    output,
+                    "clear-cell pattern={pattern} row={row} track={track}"
+                )
+                .expect("write proposal fixture"),
+            }
+        }
+        output
+    }
+
+    fn fixture_path(relative: &str) -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../fixtures")
+            .join(relative)
     }
 }

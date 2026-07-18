@@ -1,49 +1,19 @@
-use std::{fs, path::PathBuf};
-
-use ratatui::{backend::TestBackend, Terminal};
 use salieri_core::{Cursor, NoteEvent, Song};
 use salieri_sampler::{WaveformBucket, WaveformOverview};
 use salieri_tui::{
-    render, render_waveform_overview, HelpTab, MidiPortView, MidiSettingsState, SamplerViewState,
-    SelectionRect, TuiState, TuiView,
+    HelpTab, MidiPortView, MidiSettingsState, SamplerViewState, SelectionRect, TuiState, TuiView,
+};
+
+mod support;
+use support::{
+    assert_snapshot, render_snapshot, render_waveform_snapshot, test_state, waveform_overview,
 };
 
 #[test]
 fn snapshots_empty_pattern_editor() {
     assert_snapshot(
         "empty-pattern",
-        render_snapshot(
-            Song::empty(),
-            TuiState {
-                cursor: Cursor::new(),
-                row_offset: 0,
-                pattern_index: 0,
-                active_view: TuiView::Pattern,
-                selection: None,
-                mode_label: "NORMAL",
-                octave: 4,
-                dirty: false,
-                show_line_numbers_hex: false,
-                command_line: None,
-                notification: None,
-                show_help: false,
-                help_scroll: 0,
-                help_tab: HelpTab::Basics,
-                is_playing: false,
-                loop_pattern: true,
-                playhead_row: None,
-                midi_status: "MIDI Disconnected",
-                sequence_position: None,
-                quit_confirmation: false,
-                delete_confirmation: None,
-                midi_settings: None,
-                sampler_view: None,
-                sample_browser: None,
-                project_browser: None,
-            },
-            100,
-            28,
-        ),
+        render_snapshot(Song::empty(), test_state(), 100, 28),
     );
 }
 
@@ -75,30 +45,12 @@ fn snapshots_populated_pattern_editor() {
                     field: salieri_core::CellField::Note,
                     digit: 0,
                 },
-                row_offset: 0,
-                pattern_index: 0,
-                active_view: TuiView::Pattern,
-                selection: None,
-                mode_label: "NORMAL",
-                octave: 4,
                 dirty: true,
-                show_line_numbers_hex: false,
-                command_line: None,
-                notification: None,
-                show_help: false,
-                help_scroll: 0,
-                help_tab: HelpTab::Basics,
                 is_playing: true,
-                loop_pattern: true,
                 playhead_row: Some(3),
                 midi_status: "MIDI Connected 0",
                 sequence_position: Some(0),
-                quit_confirmation: false,
-                delete_confirmation: None,
-                midi_settings: None,
-                sampler_view: None,
-                sample_browser: None,
-                project_browser: None,
+                ..test_state()
             },
             100,
             28,
@@ -119,35 +71,13 @@ fn snapshots_cursor_and_selection_state() {
                     field: salieri_core::CellField::Velocity,
                     digit: 1,
                 },
-                row_offset: 0,
-                pattern_index: 0,
-                active_view: TuiView::Pattern,
                 selection: Some(SelectionRect {
                     row_start: 2,
                     row_end: 5,
                     track_start: 0,
                     track_end: 2,
                 }),
-                mode_label: "NORMAL",
-                octave: 4,
-                dirty: false,
-                show_line_numbers_hex: false,
-                command_line: None,
-                notification: None,
-                show_help: false,
-                help_scroll: 0,
-                help_tab: HelpTab::Basics,
-                is_playing: false,
-                loop_pattern: true,
-                playhead_row: None,
-                midi_status: "MIDI Disconnected",
-                sequence_position: None,
-                quit_confirmation: false,
-                delete_confirmation: None,
-                midi_settings: None,
-                sampler_view: None,
-                sample_browser: None,
-                project_browser: None,
+                ..test_state()
             },
             100,
             28,
@@ -162,31 +92,9 @@ fn snapshots_help_overlay() {
         render_snapshot(
             Song::empty(),
             TuiState {
-                cursor: Cursor::new(),
-                row_offset: 0,
-                pattern_index: 0,
-                active_view: TuiView::Pattern,
-                selection: None,
                 mode_label: "HELP",
-                octave: 4,
-                dirty: false,
-                show_line_numbers_hex: false,
-                command_line: None,
-                notification: None,
                 show_help: true,
-                help_scroll: 0,
-                help_tab: HelpTab::Basics,
-                is_playing: false,
-                loop_pattern: true,
-                playhead_row: None,
-                midi_status: "MIDI Disconnected",
-                sequence_position: None,
-                quit_confirmation: false,
-                delete_confirmation: None,
-                midi_settings: None,
-                sampler_view: None,
-                sample_browser: None,
-                project_browser: None,
+                ..test_state()
             },
             120,
             36,
@@ -201,31 +109,10 @@ fn snapshots_help_overlay_sampler_tab() {
         render_snapshot(
             Song::empty(),
             TuiState {
-                cursor: Cursor::new(),
-                row_offset: 0,
-                pattern_index: 0,
-                active_view: TuiView::Pattern,
-                selection: None,
                 mode_label: "HELP",
-                octave: 4,
-                dirty: false,
-                show_line_numbers_hex: false,
-                command_line: None,
-                notification: None,
                 show_help: true,
-                help_scroll: 0,
                 help_tab: HelpTab::Sampler,
-                is_playing: false,
-                loop_pattern: true,
-                playhead_row: None,
-                midi_status: "MIDI Disconnected",
-                sequence_position: None,
-                quit_confirmation: false,
-                delete_confirmation: None,
-                midi_settings: None,
-                sampler_view: None,
-                sample_browser: None,
-                project_browser: None,
+                ..test_state()
             },
             120,
             36,
@@ -251,35 +138,13 @@ fn snapshots_midi_settings_overlay() {
         render_snapshot(
             Song::empty(),
             TuiState {
-                cursor: Cursor::new(),
-                row_offset: 0,
-                pattern_index: 0,
-                active_view: TuiView::Pattern,
-                selection: None,
                 mode_label: "MIDI",
-                octave: 4,
-                dirty: false,
-                show_line_numbers_hex: false,
-                command_line: None,
-                notification: None,
-                show_help: false,
-                help_scroll: 0,
-                help_tab: HelpTab::Basics,
-                is_playing: false,
-                loop_pattern: true,
-                playhead_row: None,
-                midi_status: "MIDI Disconnected",
-                sequence_position: None,
-                quit_confirmation: false,
-                delete_confirmation: None,
                 midi_settings: Some(MidiSettingsState {
                     ports: &ports,
                     selected_port: 1,
                     status: "MIDI Disconnected",
                 }),
-                sampler_view: None,
-                sample_browser: None,
-                project_browser: None,
+                ..test_state()
             },
             100,
             28,
@@ -291,38 +156,7 @@ fn snapshots_midi_settings_overlay() {
 fn snapshots_small_layout() {
     assert_snapshot(
         "responsive-small",
-        render_snapshot(
-            Song::empty(),
-            TuiState {
-                cursor: Cursor::new(),
-                row_offset: 0,
-                pattern_index: 0,
-                active_view: TuiView::Pattern,
-                selection: None,
-                mode_label: "NORMAL",
-                octave: 4,
-                dirty: false,
-                show_line_numbers_hex: false,
-                command_line: None,
-                notification: None,
-                show_help: false,
-                help_scroll: 0,
-                help_tab: HelpTab::Basics,
-                is_playing: false,
-                loop_pattern: true,
-                playhead_row: None,
-                midi_status: "MIDI Disconnected",
-                sequence_position: None,
-                quit_confirmation: false,
-                delete_confirmation: None,
-                midi_settings: None,
-                sampler_view: None,
-                sample_browser: None,
-                project_browser: None,
-            },
-            72,
-            24,
-        ),
+        render_snapshot(Song::empty(), test_state(), 72, 24),
     );
 }
 
@@ -330,38 +164,7 @@ fn snapshots_small_layout() {
 fn snapshots_medium_layout() {
     assert_snapshot(
         "responsive-medium",
-        render_snapshot(
-            Song::empty(),
-            TuiState {
-                cursor: Cursor::new(),
-                row_offset: 0,
-                pattern_index: 0,
-                active_view: TuiView::Pattern,
-                selection: None,
-                mode_label: "NORMAL",
-                octave: 4,
-                dirty: false,
-                show_line_numbers_hex: false,
-                command_line: None,
-                notification: None,
-                show_help: false,
-                help_scroll: 0,
-                help_tab: HelpTab::Basics,
-                is_playing: false,
-                loop_pattern: true,
-                playhead_row: None,
-                midi_status: "MIDI Disconnected",
-                sequence_position: None,
-                quit_confirmation: false,
-                delete_confirmation: None,
-                midi_settings: None,
-                sampler_view: None,
-                sample_browser: None,
-                project_browser: None,
-            },
-            100,
-            28,
-        ),
+        render_snapshot(Song::empty(), test_state(), 100, 28),
     );
 }
 
@@ -369,38 +172,7 @@ fn snapshots_medium_layout() {
 fn snapshots_large_layout() {
     assert_snapshot(
         "responsive-large",
-        render_snapshot(
-            Song::empty(),
-            TuiState {
-                cursor: Cursor::new(),
-                row_offset: 0,
-                pattern_index: 0,
-                active_view: TuiView::Pattern,
-                selection: None,
-                mode_label: "NORMAL",
-                octave: 4,
-                dirty: false,
-                show_line_numbers_hex: false,
-                command_line: None,
-                notification: None,
-                show_help: false,
-                help_scroll: 0,
-                help_tab: HelpTab::Basics,
-                is_playing: false,
-                loop_pattern: true,
-                playhead_row: None,
-                midi_status: "MIDI Disconnected",
-                sequence_position: None,
-                quit_confirmation: false,
-                delete_confirmation: None,
-                midi_settings: None,
-                sampler_view: None,
-                sample_browser: None,
-                project_browser: None,
-            },
-            140,
-            32,
-        ),
+        render_snapshot(Song::empty(), test_state(), 140, 32),
     );
 }
 
@@ -411,31 +183,10 @@ fn snapshots_sequence_view() {
         render_snapshot(
             Song::empty(),
             TuiState {
-                cursor: Cursor::new(),
-                row_offset: 0,
-                pattern_index: 0,
                 active_view: TuiView::Sequence,
-                selection: None,
                 mode_label: "SEQUENCE",
-                octave: 4,
-                dirty: false,
-                show_line_numbers_hex: false,
-                command_line: None,
-                notification: None,
-                show_help: false,
-                help_scroll: 0,
-                help_tab: HelpTab::Basics,
-                is_playing: false,
-                loop_pattern: true,
-                playhead_row: None,
-                midi_status: "MIDI Disconnected",
                 sequence_position: Some(0),
-                quit_confirmation: false,
-                delete_confirmation: None,
-                midi_settings: None,
-                sampler_view: None,
-                sample_browser: None,
-                project_browser: None,
+                ..test_state()
             },
             72,
             24,
@@ -461,30 +212,9 @@ fn snapshots_tracks_view() {
                     track: 1,
                     ..Cursor::new()
                 },
-                row_offset: 0,
-                pattern_index: 0,
                 active_view: TuiView::Tracks,
-                selection: None,
                 mode_label: "TRACKS",
-                octave: 4,
-                dirty: false,
-                show_line_numbers_hex: false,
-                command_line: None,
-                notification: None,
-                show_help: false,
-                help_scroll: 0,
-                help_tab: HelpTab::Basics,
-                is_playing: false,
-                loop_pattern: true,
-                playhead_row: None,
-                midi_status: "MIDI Disconnected",
-                sequence_position: None,
-                quit_confirmation: false,
-                delete_confirmation: None,
-                midi_settings: None,
-                sampler_view: None,
-                sample_browser: None,
-                project_browser: None,
+                ..test_state()
             },
             72,
             24,
@@ -502,31 +232,10 @@ fn snapshots_patterns_view() {
         render_snapshot(
             song,
             TuiState {
-                cursor: Cursor::new(),
-                row_offset: 0,
                 pattern_index: 1,
                 active_view: TuiView::Patterns,
-                selection: None,
                 mode_label: "PATTERNS",
-                octave: 4,
-                dirty: false,
-                show_line_numbers_hex: false,
-                command_line: None,
-                notification: None,
-                show_help: false,
-                help_scroll: 0,
-                help_tab: HelpTab::Basics,
-                is_playing: false,
-                loop_pattern: true,
-                playhead_row: None,
-                midi_status: "MIDI Disconnected",
-                sequence_position: None,
-                quit_confirmation: false,
-                delete_confirmation: None,
-                midi_settings: None,
-                sampler_view: None,
-                sample_browser: None,
-                project_browser: None,
+                ..test_state()
             },
             72,
             24,
@@ -560,28 +269,8 @@ fn snapshots_sampler_view() {
         render_snapshot(
             Song::empty(),
             TuiState {
-                cursor: Cursor::new(),
-                row_offset: 0,
-                pattern_index: 0,
                 active_view: TuiView::Sampler,
-                selection: None,
                 mode_label: "SAMPLER",
-                octave: 4,
-                dirty: false,
-                show_line_numbers_hex: false,
-                command_line: None,
-                notification: None,
-                show_help: false,
-                help_scroll: 0,
-                help_tab: HelpTab::Basics,
-                is_playing: false,
-                loop_pattern: true,
-                playhead_row: None,
-                midi_status: "MIDI Disconnected",
-                sequence_position: None,
-                quit_confirmation: false,
-                delete_confirmation: None,
-                midi_settings: None,
                 sampler_view: Some(SamplerViewState {
                     name: "break.wav",
                     source_path: "/samples/drums/break.wav",
@@ -600,8 +289,7 @@ fn snapshots_sampler_view() {
                     envelope: (0.010, 0.050, 0.750, 0.100),
                     selected_envelope: salieri_tui::SamplerEnvelopeField::Attack,
                 }),
-                sample_browser: None,
-                project_browser: None,
+                ..test_state()
             },
             100,
             28,
@@ -707,70 +395,4 @@ fn snapshots_clipped_looking_waveform() {
             },
         ])),
     );
-}
-
-fn render_snapshot(song: Song, state: TuiState<'_>, width: u16, height: u16) -> String {
-    let backend = TestBackend::new(width, height);
-    let mut terminal = Terminal::new(backend).expect("test terminal");
-
-    terminal
-        .draw(|frame| render(frame, &song, state))
-        .expect("draw");
-
-    let buffer = terminal.backend().buffer();
-    let mut output = String::new();
-    for y in 0..buffer.area.height {
-        for x in 0..buffer.area.width {
-            output.push_str(buffer[(x, y)].symbol());
-        }
-        output.push('\n');
-    }
-    output
-}
-
-fn render_waveform_snapshot(overview: WaveformOverview) -> String {
-    let backend = TestBackend::new(42, 10);
-    let mut terminal = Terminal::new(backend).expect("test terminal");
-
-    terminal
-        .draw(|frame| render_waveform_overview(frame, frame.area(), &overview))
-        .expect("draw");
-
-    let buffer = terminal.backend().buffer();
-    let mut output = String::new();
-    for y in 0..buffer.area.height {
-        for x in 0..buffer.area.width {
-            output.push_str(buffer[(x, y)].symbol());
-        }
-        output.push('\n');
-    }
-    output
-}
-
-fn waveform_overview(buckets: Vec<WaveformBucket>) -> WaveformOverview {
-    WaveformOverview {
-        sample_rate: 44_100,
-        channels: 2,
-        frames: 88_200,
-        duration_seconds: 2.0,
-        buckets,
-    }
-}
-
-fn assert_snapshot(name: &str, actual: String) {
-    let path = snapshot_path(name);
-    if std::env::var_os("UPDATE_SALIERI_SNAPSHOTS").is_some() {
-        fs::write(&path, actual).expect("write snapshot");
-        return;
-    }
-
-    let expected = fs::read_to_string(&path).expect("read snapshot");
-    assert_eq!(actual, expected, "snapshot mismatch for {name}");
-}
-
-fn snapshot_path(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests")
-        .join("snapshots")
-        .join(format!("{name}.snap"))
 }
