@@ -21,12 +21,12 @@
 ┌ Sequence ───────────────┐└──────────────────────────────────────────────────────────────────────┘│                                       │
 │  00 Pattern 01          │┌ Track Desk ──────────────────────────────────────────────────────────┐│                                       │
 │                         ││TRACK 01              MIXER                   CELL r00 NOTE           ││                                       │
-│                         ││Name   Drums          Gain  +0.0dB            Note --- Vel -- Inst -- ││                                       │
-│                         ││Inst   none           █████████─────────      Vol -- Pan -- Dly -- FX │└───────────────────────────────────────┘
-│                         ││Samp none             Pan  +0.00              ---                     │┌ Inspector ────────────────────────────┐
-│                         ││CH10 Track --R        ────────●────────       :sample assign          ││Track 01: Drums                        │
-│                         ││Audio --              Sends 00   FX 00        :cell instrument 01     ││Gain +0.0dB   Pan +0.00                │
-│                         ││Master +0.0dB         :mixer gain pan         C-j Sampler  F9 Tracks  ││MIDI CH10                              │
-│                         ││                      :dsp track clear                                ││No sample assigned                     │
+│                         ││Name   Drums          Gain    +0.0 dB         Note --- Vel -- Inst -- ││                                       │
+│                         ││Inst   none           █████───── auto         Vol -- Pan -- Dly -- FX │└───────────────────────────────────────┘
+│                         ││Samp none             Pan           C         ---                     │┌ Inspector ────────────────────────────┐
+│                         ││CH10 Track --R        ─────●──── auto         :sample assign          ││Track 01: Drums                        │
+│                         ││Audio --              Mst     +0.0 dB         :cell instrument 01     ││Gain    +0.0 dB █████───── auto        │
+│                         ││Mst     +0.0 dB       █████───── auto         C-j Sampler  F9 Tracks  ││Pan           C ─────●──── auto        │
+│                         ││█████───── auto       Sends 00   FX 00                                ││MIDI CH10                              │
 └─────────────────────────┘└──────────────────────────────────────────────────────────────────────┘└───────────────────────────────────────┘
  NORMAL | H Help | Focus :t/:p/:se/:tr/:sa/:sb/:o | F4 MIDI | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern | A/Y/R

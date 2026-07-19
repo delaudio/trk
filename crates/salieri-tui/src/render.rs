@@ -5,7 +5,12 @@ use ratatui::{
     prelude::{Color, Frame, Line, Modifier, Span, Style},
     widgets::{Block, Borders, Clear, Paragraph, Scrollbar, ScrollbarOrientation, Wrap},
 };
-use salieri_core::{CellField, Cursor, NoteEvent, Pattern, PatternCell, SamplePlaybackMode, Song};
+use salieri_core::{
+    mixer_master_gain_descriptor, mixer_track_gain_descriptor, mixer_track_pan_descriptor,
+    native_gain_descriptor, native_pan_descriptor, sample_gain_descriptor, CellField, Cursor,
+    EffectDeviceKind, NoteEvent, ParameterDescriptor, ParameterValue, Pattern, PatternCell,
+    SamplePlaybackMode, Song,
+};
 use salieri_sampler::{WaveformBucket, WaveformOverview};
 
 use crate::ViewportAxis;
@@ -122,6 +127,7 @@ pub struct SamplerViewState<'a> {
     pub name: &'a str,
     pub source_path: &'a str,
     pub overview: &'a WaveformOverview,
+    pub gain: f32,
     pub waveform_start_bucket: usize,
     pub waveform_end_bucket: usize,
     pub waveform_zoom: usize,
@@ -991,6 +997,7 @@ fn render_sampler_view(frame: &mut Frame<'_>, area: Rect, sampler: Option<Sample
         Line::from(format!("Channels: {}", overview.channels)),
         Line::from(format!("Frames: {}", overview.frames)),
         Line::from(format!("Duration: {:.3} s", overview.duration_seconds)),
+        parameter_control_from_f32(sample_gain_descriptor(), sampler.gain),
         Line::from(format!(
             "Window: {}..{}",
             format_optional_frame(sampler.start_frame),
@@ -1379,39 +1386,43 @@ fn render_track_properties(frame: &mut Frame<'_>, area: Rect, song: &Song, state
         Line::from(format!("Samp {}", truncate(sample, 18))),
         Line::from(format!("CH{:02} Track {}", track.midi_channel, track_flags)),
         Line::from(format!("Audio {}", audio_flags)),
-        Line::from(format!("Master {}", format_gain_db(song.mixer.master_gain))),
+        parameter_control_from_f32(mixer_master_gain_descriptor(), song.mixer.master_gain),
     ];
     frame.render_widget(
         Paragraph::new(track_lines).wrap(Wrap { trim: true }),
         columns[0],
     );
 
-    let mixer_lines = vec![
+    let mut mixer_lines = vec![
         Line::from(Span::styled(
             "MIXER",
             Style::default()
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
         )),
-        Line::from(vec![
-            Span::from(format!("Gain {:>7} ", format_gain_db(mixer.gain))),
-            Span::styled(
-                horizontal_meter(mixer.gain, 18),
-                Style::default().fg(Color::Cyan),
-            ),
-        ]),
-        Line::from(vec![
-            Span::from(format!("Pan  {:+.2}  ", mixer.pan)),
-            Span::styled(pan_meter(mixer.pan, 17), Style::default().fg(Color::Yellow)),
-        ]),
+        parameter_control_from_f32(mixer_track_gain_descriptor(), mixer.gain),
+        parameter_control_from_f32(mixer_track_pan_descriptor(), mixer.pan),
+        parameter_control_from_f32(mixer_master_gain_descriptor(), song.mixer.master_gain),
         Line::from(format!(
             "Sends {:02}   FX {:02}",
             mixer.sends.len(),
             mixer.effects.len()
         )),
+    ];
+    for effect in &mixer.effects {
+        match effect.kind {
+            EffectDeviceKind::Gain { gain } => {
+                mixer_lines.push(parameter_control_from_f32(native_gain_descriptor(), gain))
+            }
+            EffectDeviceKind::Pan { pan } => {
+                mixer_lines.push(parameter_control_from_f32(native_pan_descriptor(), pan))
+            }
+        }
+    }
+    mixer_lines.extend([
         Line::from(":mixer gain pan"),
         Line::from(":dsp track clear"),
-    ];
+    ]);
     frame.render_widget(
         Paragraph::new(mixer_lines).wrap(Wrap { trim: true }),
         columns[1],
@@ -1567,20 +1578,15 @@ fn render_selected_track_inspector(
             state.cursor.track + 1,
             track.name
         )),
-        Line::from(format!(
-            "Gain {}   Pan {:+.2}",
-            format_gain_db(mixer.gain),
-            mixer.pan
-        )),
+        parameter_control_from_f32(mixer_track_gain_descriptor(), mixer.gain),
+        parameter_control_from_f32(mixer_track_pan_descriptor(), mixer.pan),
         Line::from(format!("MIDI CH{:02}", track.midi_channel)),
     ];
     if let Some(sample) = sample {
         lines.extend([
             Line::from(format!("Sample: {}", truncate(&sample.name, 24))),
-            Line::from(format!(
-                "Root: {}  Gain: {:.2}",
-                sample.root_pitch, sample.gain
-            )),
+            Line::from(format!("Root: {}", sample.root_pitch)),
+            parameter_control_from_f32(sample_gain_descriptor(), sample.gain),
             Line::from(format!(
                 "Window: {}..{}",
                 format_optional_frame(sample.playback.start_frame),
@@ -1607,16 +1613,80 @@ fn render_selected_track_inspector(
     frame.render_widget(inspector, area);
 }
 
-fn horizontal_meter(value: f32, width: usize) -> String {
-    if width == 0 {
-        return String::new();
+fn parameter_control_from_f32(descriptor: ParameterDescriptor, value: f32) -> Line<'static> {
+    let value = descriptor.value_from_f32(value);
+    parameter_control_line(&descriptor, value)
+}
+
+fn parameter_control_line(
+    descriptor: &ParameterDescriptor,
+    value: ParameterValue,
+) -> Line<'static> {
+    let label = descriptor
+        .short_name
+        .as_deref()
+        .unwrap_or(descriptor.name.as_str());
+    let value_label = if descriptor.validate(&value).is_ok() {
+        descriptor.format_value(&value)
+    } else {
+        format!(
+            "invalid -> {}",
+            descriptor.format_value(&descriptor.clamp(&value))
+        )
+    };
+    Line::from(vec![
+        Span::styled(
+            format!("{:<6}", truncate(label, 6)),
+            Style::default().fg(Color::Yellow),
+        ),
+        Span::styled(
+            format!("{:>9} ", truncate(&value_label, 9)),
+            Style::default().fg(Color::White),
+        ),
+        Span::styled(
+            parameter_meter(descriptor, &value, 10),
+            Style::default().fg(Color::Cyan),
+        ),
+        Span::styled(
+            format!(" {}", parameter_flags_label(descriptor)),
+            Style::default().fg(Color::DarkGray),
+        ),
+    ])
+}
+
+fn parameter_meter(
+    descriptor: &ParameterDescriptor,
+    value: &ParameterValue,
+    width: usize,
+) -> String {
+    if descriptor.flags.bipolar {
+        return pan_meter(value.as_f32().unwrap_or_default(), width);
     }
-    let fill = ((value.max(0.0) / 2.0).min(1.0) * width as f32).round() as usize;
+    match descriptor.plain_to_normalized(value) {
+        Ok(normalized) => normalized_meter(normalized, width),
+        Err(_) => "·".repeat(width),
+    }
+}
+
+fn normalized_meter(normalized: f32, width: usize) -> String {
+    let fill = (normalized.clamp(0.0, 1.0) * width as f32).round() as usize;
     format!(
         "{}{}",
         "█".repeat(fill),
         "─".repeat(width.saturating_sub(fill))
     )
+}
+
+fn parameter_flags_label(descriptor: &ParameterDescriptor) -> &'static str {
+    if descriptor.flags.read_only {
+        "read"
+    } else if descriptor.flags.automatable {
+        "auto"
+    } else if descriptor.flags.modulatable {
+        "mod"
+    } else {
+        "manual"
+    }
 }
 
 fn pan_meter(pan: f32, width: usize) -> String {

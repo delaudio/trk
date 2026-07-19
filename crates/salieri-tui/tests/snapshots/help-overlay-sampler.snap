@@ -25,12 +25,12 @@
 │     │  Cells can override the track default with INST, e.g. :cell instrument 01                                ║─────┘
 │     │  An empty INST field uses the track instrument or sample assignment                                      ║─────┐
 │     │                                                                                                          ║s    │
-│     │Playback Window                                                                                           ║Pan  │
-│     │  :sample start FRAME|clear   :sample end FRAME|clear                                                     ║     │
-│     │  :sample loop START END   :sample loop off                                                               ║     │
-│     │  :sample envelope ATTACK DECAY SUSTAIN RELEASE                                                           ║gned │
+│     │Playback Window                                                                                           ║B    │
+│     │  :sample start FRAME|clear   :sample end FRAME|clear                                                     ║o    │
+│     │  :sample loop START END   :sample loop off                                                               ║C    │
+│     │  :sample envelope ATTACK DECAY SUSTAIN RELEASE                                                           ║o    │
 │     │  :sample settings shows mode, frame window, loop and envelope                                            ║     │
-│     └──────────────────────────────────────────────────────────────────────────────────────────────────────────▼     │
-│                         ││                      :dsp track clear                                ││                   │
+│     └──────────────────────────────────────────────────────────────────────────────────────────────────────────▼gned │
+│                         ││█████───── auto       Sends 00   FX 00                                ││                   │
 └─────────────────────────┘└──────────────────────────────────────────────────────────────────────┘└───────────────────┘
  HELP | H Help | Focus :t/:p/:se/:tr/:sa/:sb/:o | F4 MIDI | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P
