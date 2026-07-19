@@ -8,6 +8,7 @@ mod command;
 mod config;
 mod event_handler;
 mod helpers;
+mod history;
 mod intent_handler;
 mod keymap;
 mod midi_cli;
@@ -51,6 +52,7 @@ use command::{
 };
 use config::{load_config, AppConfig, ConfigOverrides, ProjectBrowserConfig, SampleBrowserConfig};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
+use history::{SongTransaction, TransactionSpec, UndoHistory};
 use keymap::Keymap;
 use persistence::{load_project, save_project};
 use playback_runtime::PlaybackRuntime;
@@ -92,7 +94,6 @@ const NOTIFICATION_TTL: Duration = Duration::from_secs(4);
 const SAMPLE_WAVEFORM_BUCKETS: usize = 2048;
 const SAMPLE_WAVEFORM_MAX_ZOOM: usize = 64;
 const DEFAULT_NOTE_VELOCITY: u8 = 0x7f;
-const UNDO_LIMIT: usize = 100;
 const MAX_SAMPLER_ENVELOPE_SECONDS: f32 = 60.0;
 const MIN_BPM: u16 = 1;
 const MAX_BPM: u16 = 999;
@@ -128,8 +129,7 @@ struct App {
     command_buffer: String,
     clipboard: Option<Clipboard>,
     selection_anchor: Option<SelectionAnchor>,
-    undo_stack: Vec<Song>,
-    redo_stack: Vec<Song>,
+    history: UndoHistory,
     playback: PlaybackRuntime,
     is_playing: bool,
     loop_pattern: bool,

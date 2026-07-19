@@ -37,12 +37,13 @@ impl App {
             self.notify_warning("No pending AI proposal");
             return;
         };
-        let mut result = Ok(Vec::new());
-        self.mutate_song(|song, _| {
-            result = apply_proposal(song, &pending.proposal).map(|preview| preview.touched_cells);
+        let mut touched_cells = Vec::new();
+        let result = self.try_mutate_song(TransactionSpec::new("Apply AI proposal"), |song, _| {
+            touched_cells = apply_proposal(song, &pending.proposal)?.touched_cells;
+            Ok::<(), salieri_ai::AiError>(())
         });
         match result {
-            Ok(touched_cells) => {
+            Ok(_) => {
                 self.pending_ai_proposal = None;
                 self.notify_success(format!(
                     "AI proposal applied to {} cell(s): {}",

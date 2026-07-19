@@ -439,6 +439,7 @@ fn project_browser_opens_valid_project_and_records_recent() {
     assert_eq!(app.song.transport.bpm, 137);
     assert_eq!(app.project_path, Some(project_path.clone()));
     assert!(!app.dirty);
+    assert_eq!(app.history.undo_len(), 0);
     assert_eq!(
         load_recent_projects(Some(&recent_file)).first(),
         Some(&project_path.canonicalize().expect("canonical project"))

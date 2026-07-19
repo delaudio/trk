@@ -3,6 +3,7 @@ use salieri_midi::FakeMidiInput;
 
 mod cli_workflows;
 mod commands_playback;
+mod history_transactions;
 mod navigation_editing;
 mod pattern_commands;
 mod patterns_sequence;

@@ -2,40 +2,63 @@ use super::*;
 
 impl App {
     pub(crate) fn mutate_song(&mut self, mutate: impl FnOnce(&mut Song, Cursor)) {
-        let before = self.song.clone();
-        mutate(&mut self.song, self.cursor);
-        if self.song != before {
-            self.undo_stack.push(before);
-            if self.undo_stack.len() > UNDO_LIMIT {
-                self.undo_stack.remove(0);
-            }
-            self.redo_stack.clear();
+        self.mutate_song_with(TransactionSpec::new("Edit song"), mutate);
+    }
+
+    pub(crate) fn mutate_song_with(
+        &mut self,
+        spec: TransactionSpec,
+        mutate: impl FnOnce(&mut Song, Cursor),
+    ) {
+        let result = self.try_mutate_song(spec, |song, cursor| {
+            mutate(song, cursor);
+            Ok::<(), std::convert::Infallible>(())
+        });
+        debug_assert!(result.is_ok());
+    }
+
+    pub(crate) fn try_mutate_song<E>(
+        &mut self,
+        spec: TransactionSpec,
+        mutate: impl FnOnce(&mut Song, Cursor) -> Result<(), E>,
+    ) -> Result<bool, E> {
+        self.transact_song(spec, |transaction, cursor| {
+            transaction.nested(|nested| mutate(nested.song_mut(), cursor))
+        })
+    }
+
+    pub(crate) fn transact_song<E>(
+        &mut self,
+        spec: TransactionSpec,
+        edit: impl FnOnce(&mut SongTransaction, Cursor) -> Result<(), E>,
+    ) -> Result<bool, E> {
+        let mut transaction = SongTransaction::new(&self.song);
+        edit(&mut transaction, self.cursor)?;
+        let changed = self.history.commit(&mut self.song, transaction, spec);
+        if changed {
             self.refresh_dirty();
             self.clamp_sequence_cursor();
         }
+        Ok(changed)
     }
 
     pub(crate) fn undo(&mut self) {
-        if let Some(previous) = self.undo_stack.pop() {
-            let current = std::mem::replace(&mut self.song, previous);
-            self.redo_stack.push(current);
+        if let Some(label) = self.history.undo(&mut self.song) {
             self.refresh_dirty();
             self.clamp_cursor();
             self.clamp_sequence_cursor();
-            self.notify_info("Undo");
+            self.notify_info(format!("Undo: {label}"));
         } else {
             self.notify_warning("Nothing to undo");
         }
     }
 
     pub(crate) fn redo(&mut self) {
-        if let Some(next) = self.redo_stack.pop() {
-            let current = std::mem::replace(&mut self.song, next);
-            self.undo_stack.push(current);
+        if let Some(label) = self.history.redo(&mut self.song) {
             self.refresh_dirty();
             self.clamp_cursor();
             self.clamp_sequence_cursor();
-            self.notify_info("Redo");
+            self.notify_info(format!("Redo: {label}"));
         } else {
             self.notify_warning("Nothing to redo");
         }

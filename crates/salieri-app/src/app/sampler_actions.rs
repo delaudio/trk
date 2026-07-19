@@ -165,6 +165,17 @@ impl App {
         &mut self,
         settings: SamplePlaybackSettings,
     ) -> bool {
+        self.store_loaded_sample_playback_settings_with(
+            settings,
+            TransactionSpec::new("Edit sampler settings"),
+        )
+    }
+
+    fn store_loaded_sample_playback_settings_with(
+        &mut self,
+        settings: SamplePlaybackSettings,
+        spec: TransactionSpec,
+    ) -> bool {
         let Some(sample_view) = &self.sample_view else {
             self.mode = AppMode::Sampler;
             self.notify_warning("Load a sample before editing playback settings");
@@ -173,7 +184,7 @@ impl App {
 
         let sample_name = sample_view.sample.name.clone();
         let sample_path = sample_view.source_path.to_string_lossy().to_string();
-        self.mutate_song(|song, _| {
+        self.mutate_song_with(spec, |song, _| {
             let sample_id = song.upsert_sample_reference(sample_path, sample_name);
             song.set_sample_frame_window(sample_id, settings.start_frame, settings.end_frame)
                 .expect("sample frame window was prevalidated");
@@ -340,7 +351,13 @@ impl App {
             self.notify_warning(message);
             return;
         }
-        if self.store_loaded_sample_playback_settings(settings) {
+        if self.store_loaded_sample_playback_settings_with(
+            settings,
+            TransactionSpec::merged(
+                "Adjust sampler envelope",
+                format!("sampler.envelope.{field:?}"),
+            ),
+        ) {
             self.notify_success(format!(
                 "{} {:.3}{}",
                 sampler_envelope_field_label(field),

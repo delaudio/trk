@@ -9,6 +9,7 @@ impl Default for App {
 impl App {
     pub(crate) fn new(config: AppConfig) -> Self {
         let song = Song::empty();
+        let history = UndoHistory::new(config.history.undo_limit);
         let keymap = Keymap::from_config(&config.keymap)
             .expect("application configuration keymap was validated");
         let default_midi_output = config.midi.default_output.trim().to_string();
@@ -45,8 +46,7 @@ impl App {
             command_buffer: String::new(),
             clipboard: None,
             selection_anchor: None,
-            undo_stack: Vec::new(),
-            redo_stack: Vec::new(),
+            history,
             playback: PlaybackRuntime::spawn(config.midi.log_file.clone()),
             is_playing: false,
             loop_pattern: true,
