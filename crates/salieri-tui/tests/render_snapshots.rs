@@ -334,6 +334,7 @@ fn snapshots_sampler_view() {
                     name: "break.wav",
                     source_path: "/samples/drums/break.wav",
                     overview: &overview,
+                    gain: 0.85,
                     waveform_start_bucket: 0,
                     waveform_end_bucket: overview.buckets.len(),
                     waveform_zoom: 1,

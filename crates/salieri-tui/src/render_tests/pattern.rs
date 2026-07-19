@@ -202,6 +202,89 @@ fn visible_pattern_tracks_includes_partially_visible_cells() {
 }
 
 #[test]
+fn parameter_controls_use_descriptor_metadata_and_validation() {
+    let pan = parameter_control_from_f32(salieri_core::mixer_track_pan_descriptor(), -0.5);
+    let rendered = line_text(&pan);
+
+    assert!(rendered.contains("Pan"));
+    assert!(rendered.contains("L50"));
+    assert!(rendered.contains("auto"));
+
+    let descriptor = salieri_core::mixer_track_gain_descriptor();
+    let invalid =
+        parameter_control_line(&descriptor, salieri_core::ParameterValue::Float(f32::NAN));
+
+    assert!(line_text(&invalid).contains("invalid"));
+}
+
+#[test]
+fn track_desk_renders_sampler_mixer_and_native_effect_parameters_from_descriptors() {
+    let mut song = Song::empty();
+    let sample = song.upsert_sample_reference("samples/kick.wav", "kick.wav");
+    song.samples
+        .iter_mut()
+        .find(|reference| reference.id == sample)
+        .expect("sample reference")
+        .gain = 0.5;
+    song.assign_sample_to_track(song.tracks[0].id, sample)
+        .expect("assign sample");
+    song.set_track_mixer_gain(0, 0.625).expect("mixer gain");
+    song.set_track_mixer_pan(0, -0.5).expect("mixer pan");
+    song.mixer.tracks[0]
+        .effects
+        .push(salieri_core::EffectDevice::gain(1, 0.75));
+
+    let backend = TestBackend::new(100, 24);
+    let mut terminal = Terminal::new(backend).expect("test terminal");
+
+    terminal
+        .draw(|frame| {
+            let state = TuiState {
+                cursor: Cursor::new(),
+                row_offset: 0,
+                track_offset: 0,
+                pattern_index: 0,
+                active_view: TuiView::Pattern,
+                selection: None,
+                mode_label: "NORMAL",
+                octave: 4,
+                dirty: false,
+                show_line_numbers_hex: false,
+                command_line: None,
+                notification: None,
+                show_help: false,
+                help_scroll: 0,
+                help_tab: HelpTab::Basics,
+                is_playing: false,
+                loop_pattern: true,
+                playhead_row: None,
+                midi_status: "MIDI Disconnected",
+                sequence_position: None,
+                quit_confirmation: false,
+                delete_confirmation: None,
+                midi_settings: None,
+                sampler_view: None,
+                sample_browser: None,
+                project_browser: None,
+            };
+            render_track_properties(frame, Rect::new(0, 0, 100, 12), &song, state);
+            render_selected_track_inspector(frame, Rect::new(0, 12, 100, 12), &song, state);
+        })
+        .expect("draw");
+
+    let rendered = terminal_buffer_text(&terminal);
+    let sample_gain = salieri_core::sample_gain_descriptor();
+    let mixer_gain = salieri_core::mixer_track_gain_descriptor();
+    let mixer_pan = salieri_core::mixer_track_pan_descriptor();
+    let native_gain = salieri_core::native_gain_descriptor();
+
+    assert!(rendered.contains(&sample_gain.format_value(&sample_gain.value_from_f32(0.5))));
+    assert!(rendered.contains(&mixer_gain.format_value(&mixer_gain.value_from_f32(0.625))));
+    assert!(rendered.contains(&mixer_pan.format_value(&mixer_pan.value_from_f32(-0.5))));
+    assert!(rendered.contains(&native_gain.format_value(&native_gain.value_from_f32(0.75))));
+}
+
+#[test]
 fn virtualized_pattern_render_omits_offscreen_rows_and_tracks() {
     let mut song = long_track_song(12);
     song.resize_pattern(0, 4_096).expect("large pattern");
@@ -447,6 +530,7 @@ fn renders_sample_browser_view() {
                             name: "kick.wav",
                             source_path: "/tmp/samples/kick.wav",
                             overview: &overview,
+                            gain: 1.0,
                             waveform_start_bucket: 0,
                             waveform_end_bucket: overview.buckets.len(),
                             waveform_zoom: 1,
