@@ -47,6 +47,23 @@ pub(crate) fn format_effect_device(device: &EffectDevice) -> String {
     }
 }
 
+pub(crate) fn format_parameter_lock_target(target: &ParameterLockTarget) -> String {
+    match target {
+        ParameterLockTarget::Sample { sample } => format!("sample {:?}", sample),
+        ParameterLockTarget::Instrument { instrument } => format!("instrument {:?}", instrument),
+        ParameterLockTarget::TrackMixer { track } => format!("track mixer {:?}", track),
+        ParameterLockTarget::MasterMixer => "master mixer".to_string(),
+        ParameterLockTarget::TrackSend { track, send } => {
+            format!("track {:?} send {send}", track)
+        }
+        ParameterLockTarget::SendBus { send } => format!("send bus {send}"),
+        ParameterLockTarget::TrackEffect { track, device } => {
+            format!("track {:?} device {device}", track)
+        }
+        ParameterLockTarget::MasterEffect { device } => format!("master device {device}"),
+    }
+}
+
 pub(crate) fn format_ai_proposal_summary(
     proposal: &AiProposal,
     touched_cells: &[CellAddress],

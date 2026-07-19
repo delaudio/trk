@@ -539,6 +539,50 @@ fn selection_region_can_be_copied_cut_pasted_and_deleted() {
 }
 
 #[test]
+fn parameter_locks_follow_cell_copy_paste_and_clear() {
+    let mut app = App::default();
+    let sample = app
+        .song
+        .upsert_sample_reference("samples/kick.wav", "kick.wav");
+    let track = app.song.tracks[0].id;
+    app.song
+        .assign_sample_to_track(track, sample)
+        .expect("assign sample");
+    let destination_track = app.song.tracks[1].id;
+    app.song
+        .assign_sample_to_track(destination_track, sample)
+        .expect("assign destination sample");
+    type_command(&mut app, "plock sample-gain 0.500");
+
+    app.handle_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL));
+    app.cursor.row = 2;
+    app.cursor.track = 1;
+    app.handle_key(KeyEvent::new(KeyCode::Char('v'), KeyModifiers::CONTROL));
+
+    let pasted = app
+        .song
+        .current_pattern()
+        .expect("pattern")
+        .cell(2, 1)
+        .expect("cell");
+    assert_eq!(pasted.parameter_locks.len(), 1);
+    assert_eq!(
+        pasted.parameter_locks[0].parameter,
+        ParameterId::from(SAMPLE_GAIN_PARAMETER_ID)
+    );
+
+    type_command(&mut app, "plock sample-gain clear");
+    assert!(app
+        .song
+        .current_pattern()
+        .expect("pattern")
+        .cell(2, 1)
+        .expect("cell")
+        .parameter_locks
+        .is_empty());
+}
+
+#[test]
 fn insert_and_ctrl_delete_edit_pattern_rows() {
     let mut app = App {
         mode: AppMode::Edit,

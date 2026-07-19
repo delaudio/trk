@@ -62,6 +62,7 @@ impl App {
                     domain @ (CommandDomain::Fx
                     | CommandDomain::Cell
                     | CommandDomain::Automation
+                    | CommandDomain::ParameterLock
                     | CommandDomain::Mixer
                     | CommandDomain::Dsp
                     | CommandDomain::Ai
@@ -390,6 +391,7 @@ impl App {
             CommandDomain::Fx => self.handle_fx_command(&values),
             CommandDomain::Cell => self.handle_cell_command(&values),
             CommandDomain::Automation => self.handle_automation_command(&values),
+            CommandDomain::ParameterLock => self.handle_parameter_lock_command(&values),
             CommandDomain::Mixer => self.handle_mixer_command(&values),
             CommandDomain::Dsp => self.handle_dsp_command(&values),
             CommandDomain::Ai => self.handle_ai_command(&values),

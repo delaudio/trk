@@ -32,6 +32,19 @@ Native DSP commands:
 :dsp master clear
 ```
 
+Generic row-scoped parameter locks can also target mixer and native DSP
+parameters without permanently editing the chain:
+
+```text
+:plock mixer gain VALUE
+:plock mixer pan VALUE
+:plock master gain VALUE
+:plock dsp track gain VALUE
+:plock dsp track pan VALUE
+:plock dsp master gain VALUE
+:plock dsp master pan VALUE
+```
+
 `TRACK` is one-based. Without a track number, commands use the current track.
 `GAIN` must be non-negative. `PAN` is `-1.0..=1.0`, where negative is left and
 positive is right.

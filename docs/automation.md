@@ -26,10 +26,32 @@ Semantics:
 
 Current limitations:
 
-- only sample gain can be automated;
+- only sample gain has a full automation lane;
+- generic row-level parameter locks can set or reset sampler gain, track mixer
+  gain/pan, master gain, send gain, and native gain/pan device parameters on the
+  current row through `:plock`;
 - there is no graphical automation editor yet;
-- linear interpolation and generic native-effect parameter locks are future work.
+- linear interpolation is future work.
 
 The native effect catalog in [Native DSP Roadmap](native-dsp-roadmap.md) marks
 which planned parameters must become addressable by generic per-step parameter
 locks before their devices are considered production-ready.
+
+Parameter-lock commands:
+
+```text
+:plock sample-gain VALUE|reset|clear
+:plock mixer gain VALUE|reset|clear
+:plock mixer pan VALUE|reset|clear
+:plock master gain VALUE|reset|clear
+:plock send SEND_ID VALUE|reset|clear
+:plock dsp track gain VALUE|reset|clear
+:plock dsp track pan VALUE|reset|clear
+:plock dsp master gain VALUE|reset|clear
+:plock dsp master pan VALUE|reset|clear
+```
+
+Values are parsed, formatted, and validated by `ParameterDescriptor` metadata.
+Realtime playback and offline export consume the same sampler/mixer row locks;
+native effect locks are emitted as ordered parameter events for the native module
+runtime boundary.

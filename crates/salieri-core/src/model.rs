@@ -7,7 +7,7 @@ use crate::model_validation::{
 };
 use crate::parameters::{
     mixer_master_gain_descriptor, mixer_track_gain_descriptor, mixer_track_pan_descriptor,
-    sample_gain_descriptor,
+    sample_gain_descriptor, ParameterId, ParameterValue,
 };
 
 pub const DEFAULT_BPM: u16 = 120;
@@ -230,6 +230,15 @@ impl Song {
                                 gate,
                             });
                         }
+                    }
+                    for lock in &cell.parameter_locks {
+                        self.validate_parameter_lock(lock).map_err(|_| {
+                            ValidationError::InvalidParameterLockValue {
+                                pattern_index,
+                                row_index,
+                                track_index,
+                            }
+                        })?;
                     }
                 }
             }
@@ -1239,6 +1248,14 @@ pub enum ValidationError {
         track_index: usize,
         pan: u8,
     },
+    #[error(
+        "pattern {pattern_index} row {row_index} track {track_index} has invalid parameter lock value"
+    )]
+    InvalidParameterLockValue {
+        pattern_index: usize,
+        row_index: usize,
+        track_index: usize,
+    },
     #[error("mixer has invalid master gain")]
     InvalidMixerMasterGain,
     #[error("mixer references missing track {track_id:?}")]
@@ -1836,6 +1853,44 @@ pub struct AutomationPoint {
     pub value: f32,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum ParameterLockTarget {
+    Sample { sample: SampleId },
+    Instrument { instrument: InstrumentId },
+    TrackMixer { track: TrackId },
+    MasterMixer,
+    TrackSend { track: TrackId, send: u32 },
+    SendBus { send: u32 },
+    TrackEffect { track: TrackId, device: u32 },
+    MasterEffect { device: u32 },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum ParameterLockAction {
+    Set { value: ParameterValue },
+    Reset,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParameterLock {
+    pub target: ParameterLockTarget,
+    pub parameter: ParameterId,
+    pub action: ParameterLockAction,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParameterLockDiagnostic {
+    pub pattern_index: usize,
+    pub row_index: usize,
+    pub track_index: usize,
+    pub target: ParameterLockTarget,
+    pub parameter: ParameterId,
+    pub message: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum EditError {
     #[error("cell out of bounds: row {row}, track {track}")]
@@ -1886,7 +1941,7 @@ pub enum EditError {
     EmptyName,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PatternRow {
     pub cells: Vec<PatternCell>,
@@ -1900,7 +1955,7 @@ impl PatternRow {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PatternCell {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1919,6 +1974,8 @@ pub struct PatternCell {
     pub gate: Option<u8>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub command: Option<TrackerCommand>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub parameter_locks: Vec<ParameterLock>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -2859,6 +2916,54 @@ mod tests {
                 sample_id: SampleId(99)
             }
         );
+    }
+
+    #[test]
+    fn parameter_locks_validate_known_values_and_preserve_unknowns_with_diagnostics() {
+        let mut song = Song::empty();
+        let sample_id = song.upsert_sample_reference("samples/kick.wav", "kick.wav");
+        let track_id = song.tracks[0].id;
+        song.assign_sample_to_track(track_id, sample_id)
+            .expect("assign sample");
+        let pattern = song.current_pattern_mut().expect("pattern");
+        pattern
+            .set_parameter_lock(
+                0,
+                0,
+                ParameterLock {
+                    target: ParameterLockTarget::Sample { sample: sample_id },
+                    parameter: ParameterId::from(crate::SAMPLE_GAIN_PARAMETER_ID),
+                    action: ParameterLockAction::Set {
+                        value: ParameterValue::Float(0.5),
+                    },
+                },
+            )
+            .expect("set known lock");
+        pattern
+            .set_parameter_lock(
+                0,
+                1,
+                ParameterLock {
+                    target: ParameterLockTarget::TrackEffect {
+                        track: track_id,
+                        device: 99,
+                    },
+                    parameter: ParameterId::from("native.future.parameter"),
+                    action: ParameterLockAction::Set {
+                        value: ParameterValue::Unknown {
+                            value_type: "future".to_string(),
+                            raw: "opaque".to_string(),
+                        },
+                    },
+                },
+            )
+            .expect("set unknown lock");
+
+        song.validate().expect("unknown lock remains loadable");
+        let diagnostics = song.parameter_lock_diagnostics();
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].row_index, 0);
+        assert_eq!(diagnostics[0].track_index, 1);
     }
 
     #[test]

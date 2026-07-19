@@ -1,6 +1,8 @@
 use crate::{
-    AutomationTarget, NoteEvent, Pattern, PatternCell, SampleId, SampleReference, Song, TrackId,
-    TrackerCommand, TransportSettings,
+    parameter_locks::parameter_lock_f32_at, AutomationTarget, NoteEvent, ParameterLockTarget,
+    Pattern, PatternCell, SampleId, SampleReference, Song, TrackId, TrackerCommand,
+    TransportSettings, MIXER_MASTER_GAIN_PARAMETER_ID, MIXER_TRACK_GAIN_PARAMETER_ID,
+    MIXER_TRACK_PAN_PARAMETER_ID, SAMPLE_GAIN_PARAMETER_ID,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -154,13 +156,40 @@ pub fn sampler_events(song: &Song, pattern: &Pattern) -> Vec<SamplerPlaybackEven
             let position = apply_cell_delay(position, row_duration, cell);
             let velocity = cell.velocity.unwrap_or(0x7f).min(0x7f);
             let cell_gain = cell.volume.map_or(1.0, |volume| f32::from(volume) / 127.0);
-            let gain = pattern.automation_value_at(
+            let sample_gain = pattern.automation_value_at(
                 AutomationTarget::SampleGain { sample: sample.id },
                 row_index,
                 sample.gain,
-            ) * cell_gain
-                * mixer.gain
-                * song.mixer.master_gain;
+            );
+            let sample_gain = parameter_lock_f32_at(
+                pattern,
+                row_index,
+                ParameterLockTarget::Sample { sample: sample.id },
+                SAMPLE_GAIN_PARAMETER_ID,
+                sample_gain,
+            );
+            let mixer_gain = parameter_lock_f32_at(
+                pattern,
+                row_index,
+                ParameterLockTarget::TrackMixer { track: track.id },
+                MIXER_TRACK_GAIN_PARAMETER_ID,
+                mixer.gain,
+            );
+            let mixer_pan = parameter_lock_f32_at(
+                pattern,
+                row_index,
+                ParameterLockTarget::TrackMixer { track: track.id },
+                MIXER_TRACK_PAN_PARAMETER_ID,
+                mixer.pan,
+            );
+            let master_gain = parameter_lock_f32_at(
+                pattern,
+                row_index,
+                ParameterLockTarget::MasterMixer,
+                MIXER_MASTER_GAIN_PARAMETER_ID,
+                song.mixer.master_gain,
+            );
+            let gain = sample_gain * cell_gain * mixer_gain * master_gain;
             let trigger = SamplerPlaybackEvent {
                 position,
                 track: track.id,
@@ -169,7 +198,7 @@ pub fn sampler_events(song: &Song, pattern: &Pattern) -> Vec<SamplerPlaybackEven
                 pitch,
                 velocity,
                 gain,
-                pan: cell.pan.map_or(mixer.pan, pan_u7_to_float),
+                pan: cell.pan.map_or(mixer_pan, pan_u7_to_float),
                 pitch_ratio: pitch_ratio(pitch, sample.root_pitch),
             };
             events.push(trigger.clone());
@@ -333,6 +362,7 @@ fn note_off(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{ParameterId, ParameterLockAction, ParameterValue};
     use crate::{PatternId, TrackId};
 
     #[test]
@@ -619,6 +649,55 @@ mod tests {
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].gain, 0.125);
         assert_eq!(events[0].pan, 0.75);
+    }
+
+    #[test]
+    fn sampler_events_apply_same_row_sample_and_mixer_parameter_locks() {
+        let mut song = Song::empty();
+        let sample_id = song.upsert_sample_reference("samples/kick.wav", "kick.wav");
+        let track_id = song.tracks[0].id;
+        song.samples[0].gain = 1.0;
+        song.set_track_mixer_gain(0, 1.0).expect("track gain");
+        song.set_track_mixer_pan(0, 0.0).expect("track pan");
+        song.set_master_gain(1.0).expect("master gain");
+        song.assign_sample_to_track(track_id, sample_id)
+            .expect("assign sample");
+        let pattern = song.current_pattern_mut().expect("pattern");
+        pattern
+            .set_note(4, 0, NoteEvent::Note { pitch: 48 }, 0x7f)
+            .expect("set note");
+        pattern
+            .set_parameter_lock(
+                4,
+                0,
+                crate::ParameterLock {
+                    target: ParameterLockTarget::Sample { sample: sample_id },
+                    parameter: ParameterId::from(SAMPLE_GAIN_PARAMETER_ID),
+                    action: ParameterLockAction::Set {
+                        value: ParameterValue::Float(0.5),
+                    },
+                },
+            )
+            .expect("sample lock");
+        pattern
+            .set_parameter_lock(
+                4,
+                1,
+                crate::ParameterLock {
+                    target: ParameterLockTarget::TrackMixer { track: track_id },
+                    parameter: ParameterId::from(MIXER_TRACK_PAN_PARAMETER_ID),
+                    action: ParameterLockAction::Set {
+                        value: ParameterValue::Bipolar(-0.25),
+                    },
+                },
+            )
+            .expect("mixer lock");
+
+        let events = sampler_events(&song, song.current_pattern().expect("pattern"));
+
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].gain, 0.5);
+        assert_eq!(events[0].pan, -0.25);
     }
 
     #[test]

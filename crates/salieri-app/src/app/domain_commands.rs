@@ -249,6 +249,170 @@ impl App {
         }
     }
 
+    pub(crate) fn handle_parameter_lock_command(&mut self, values: &[&str]) {
+        let Some(edit) = self.parse_parameter_lock_edit(values) else {
+            self.notify_warning(
+                "Usage: :plock sample-gain|mixer gain|mixer pan|master gain|send SEND|dsp track gain|pan VALUE|reset|clear",
+            );
+            return;
+        };
+        match edit {
+            ParameterLockEdit::Set { lock, descriptor } => {
+                self.set_current_parameter_lock(lock, descriptor.as_ref());
+            }
+            ParameterLockEdit::Clear { target, parameter } => {
+                self.clear_current_parameter_lock(target, parameter);
+            }
+        }
+    }
+
+    fn parse_parameter_lock_edit(&self, values: &[&str]) -> Option<ParameterLockEdit> {
+        match values {
+            ["sample-gain", action] => {
+                let track = self.song.tracks.get(self.cursor.track)?;
+                let sample = self.song.sample_for_track(track.id)?;
+                parameter_lock_edit(
+                    ParameterLockTarget::Sample { sample: sample.id },
+                    SAMPLE_GAIN_PARAMETER_ID,
+                    sample_gain_descriptor(),
+                    action,
+                )
+            }
+            ["mixer", "gain", action] => {
+                let track = self.song.tracks.get(self.cursor.track)?;
+                parameter_lock_edit(
+                    ParameterLockTarget::TrackMixer { track: track.id },
+                    MIXER_TRACK_GAIN_PARAMETER_ID,
+                    mixer_track_gain_descriptor(),
+                    action,
+                )
+            }
+            ["mixer", "pan", action] => {
+                let track = self.song.tracks.get(self.cursor.track)?;
+                parameter_lock_edit(
+                    ParameterLockTarget::TrackMixer { track: track.id },
+                    MIXER_TRACK_PAN_PARAMETER_ID,
+                    mixer_track_pan_descriptor(),
+                    action,
+                )
+            }
+            ["master", "gain", action] => parameter_lock_edit(
+                ParameterLockTarget::MasterMixer,
+                MIXER_MASTER_GAIN_PARAMETER_ID,
+                mixer_master_gain_descriptor(),
+                action,
+            ),
+            ["send", send, action] => {
+                let track = self.song.tracks.get(self.cursor.track)?;
+                let send = send.parse::<u32>().ok()?;
+                parameter_lock_edit(
+                    ParameterLockTarget::TrackSend {
+                        track: track.id,
+                        send,
+                    },
+                    MIXER_SEND_GAIN_PARAMETER_ID,
+                    mixer_send_gain_descriptor(),
+                    action,
+                )
+            }
+            ["dsp", "track", "gain", action] => {
+                let track = self.song.tracks.get(self.cursor.track)?;
+                parameter_lock_edit(
+                    ParameterLockTarget::TrackEffect {
+                        track: track.id,
+                        device: 1,
+                    },
+                    NATIVE_GAIN_PARAMETER_ID,
+                    native_gain_descriptor(),
+                    action,
+                )
+            }
+            ["dsp", "track", "pan", action] => {
+                let track = self.song.tracks.get(self.cursor.track)?;
+                parameter_lock_edit(
+                    ParameterLockTarget::TrackEffect {
+                        track: track.id,
+                        device: 2,
+                    },
+                    NATIVE_PAN_PARAMETER_ID,
+                    native_pan_descriptor(),
+                    action,
+                )
+            }
+            ["dsp", "master", "gain", action] => parameter_lock_edit(
+                ParameterLockTarget::MasterEffect { device: 1 },
+                NATIVE_GAIN_PARAMETER_ID,
+                native_gain_descriptor(),
+                action,
+            ),
+            ["dsp", "master", "pan", action] => parameter_lock_edit(
+                ParameterLockTarget::MasterEffect { device: 2 },
+                NATIVE_PAN_PARAMETER_ID,
+                native_pan_descriptor(),
+                action,
+            ),
+            _ => None,
+        }
+    }
+
+    fn set_current_parameter_lock(
+        &mut self,
+        lock: ParameterLock,
+        descriptor: &ParameterDescriptor,
+    ) {
+        let row = self.cursor.row;
+        let track = self.cursor.track;
+        let label = format_parameter_lock_target(&lock.target);
+        let value_label = match &lock.action {
+            ParameterLockAction::Set { value } => descriptor.format_value(value),
+            ParameterLockAction::Reset => "reset".to_string(),
+        };
+        let result = self.try_mutate_song(
+            TransactionSpec::merged(
+                "Adjust parameter lock",
+                format!("parameter-lock.{row}.{track}.{}", lock.parameter),
+            ),
+            |song, cursor| {
+                song.validate_parameter_lock(&lock)
+                    .map_err(|error| error.to_string())?;
+                if let Some(pattern) = song.current_pattern_mut() {
+                    pattern
+                        .set_parameter_lock(cursor.row, cursor.track, lock)
+                        .map_err(|error| error.to_string())?;
+                }
+                Ok::<(), String>(())
+            },
+        );
+        match result {
+            Ok(_) => self.notify_success(format!(
+                "Parameter lock {label} {} = {value_label}",
+                descriptor.name
+            )),
+            Err(error) => self.notify_warning(format!("Parameter lock failed: {error}")),
+        }
+    }
+
+    fn clear_current_parameter_lock(
+        &mut self,
+        target: ParameterLockTarget,
+        parameter: ParameterId,
+    ) {
+        let label = format_parameter_lock_target(&target);
+        let result = self.try_mutate_song(
+            TransactionSpec::new("Clear parameter lock"),
+            |song, cursor| {
+                if let Some(pattern) = song.current_pattern_mut() {
+                    pattern.clear_parameter_lock(cursor.row, cursor.track, &target, &parameter)?;
+                }
+                Ok::<(), salieri_core::EditError>(())
+            },
+        );
+        match result {
+            Ok(_) => self.notify_success(format!("Parameter lock cleared {label} {parameter}")),
+            Err(error) => self.notify_warning(format!("Parameter lock failed: {error}")),
+        }
+    }
+
     pub(crate) fn handle_mixer_command(&mut self, values: &[&str]) {
         match values {
             ["master", gain] => {
@@ -553,4 +717,54 @@ impl App {
             self.notify_warning("Track out of range");
         }
     }
+}
+
+enum ParameterLockEdit {
+    Set {
+        lock: ParameterLock,
+        descriptor: Box<ParameterDescriptor>,
+    },
+    Clear {
+        target: ParameterLockTarget,
+        parameter: ParameterId,
+    },
+}
+
+fn parameter_lock_edit(
+    target: ParameterLockTarget,
+    parameter: &str,
+    descriptor: ParameterDescriptor,
+    action: &str,
+) -> Option<ParameterLockEdit> {
+    let parameter = ParameterId::from(parameter);
+    match action.to_ascii_lowercase().as_str() {
+        "clear" | "off" | "none" => Some(ParameterLockEdit::Clear { target, parameter }),
+        "reset" => Some(ParameterLockEdit::Set {
+            lock: ParameterLock {
+                target,
+                parameter,
+                action: ParameterLockAction::Reset,
+            },
+            descriptor: Box::new(descriptor),
+        }),
+        _ => parse_parameter_lock_value(&descriptor, action).map(|value| ParameterLockEdit::Set {
+            lock: ParameterLock {
+                target,
+                parameter,
+                action: ParameterLockAction::Set { value },
+            },
+            descriptor: Box::new(descriptor),
+        }),
+    }
+}
+
+fn parse_parameter_lock_value(
+    descriptor: &ParameterDescriptor,
+    input: &str,
+) -> Option<salieri_core::ParameterValue> {
+    descriptor.parse_value(input).ok().or_else(|| {
+        let value = descriptor.value_from_f32(input.parse::<f32>().ok()?);
+        descriptor.validate(&value).ok()?;
+        Some(value)
+    })
 }

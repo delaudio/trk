@@ -77,7 +77,7 @@ sampler events from the lane point row onward:
 
 Pattern cells are backward-compatible. Older cells may contain only `note`,
 `velocity`, `gate`, and `command`; richer tracker cells can also include
-instrument, volume, pan, and delay metadata:
+instrument, volume, pan, delay metadata, and generic parameter locks:
 
 ```json
 {
@@ -87,14 +87,33 @@ instrument, volume, pan, and delay metadata:
   "volume": 64,
   "pan": 127,
   "delay": 32,
-  "command": { "code": 82, "value": 4 }
+  "command": { "code": 82, "value": 4 },
+  "parameterLocks": [
+    {
+      "target": { "type": "sample", "sample": 1 },
+      "parameter": "sample.gain",
+      "action": {
+        "type": "set",
+        "value": { "type": "float", "value": 0.5 }
+      }
+    },
+    {
+      "target": { "type": "trackEffect", "track": 1, "device": 1 },
+      "parameter": "native.gain.gain",
+      "action": { "type": "reset" }
+    }
+  ]
 }
 ```
 
 `instrument` references a sample-backed instrument. `volume` and `pan` use
 MIDI-style `0..127` values for sampler gain and stereo position, while `delay`
 uses `0..255` row fractions. `command` remains the first tracker effect column
-and preserves existing delay/retrigger command compatibility.
+and preserves existing delay/retrigger command compatibility. `parameterLocks`
+are row-scoped, copy with cells, target stable sampler/mixer/send/native-device
+IDs, and store typed `ParameterValue` payloads. Unknown lock targets or
+parameter IDs remain loadable and can be reported as diagnostics; known values
+are validated through the descriptor catalog.
 
 Projects also include mixer state. Omitted mixer state is normalized on load
 with one default track mixer per song track:
@@ -177,6 +196,7 @@ Loaded projects are rejected when they contain:
 - invalid sample frame windows, loop windows, or envelope values;
 - automation lanes with duplicate targets, missing sample targets, duplicate rows, out-of-bounds rows, or invalid values;
 - pattern cells referencing missing instruments or invalid velocity, gate, volume, or pan values;
+- known parameter locks with values outside their descriptor type/range;
 - invalid mixer master gain, missing/duplicate mixer tracks, mixer tracks referencing missing song tracks, invalid mixer gain/pan, duplicate effect device ids, or invalid effect parameters;
 - duplicate instrument IDs;
 - empty instrument names;

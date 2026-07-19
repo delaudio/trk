@@ -1,5 +1,6 @@
 mod effect_parameters;
 mod model_validation;
+mod parameter_locks;
 
 pub mod model;
 pub mod native_module;
@@ -9,7 +10,8 @@ pub mod playback;
 pub use model::{
     AutomationInterpolation, AutomationLane, AutomationPoint, AutomationTarget, CellField, Cursor,
     Direction, EditError, EffectDevice, EffectDeviceKind, Instrument, InstrumentId, MixerSend,
-    MixerState, NoteEvent, Pattern, PatternCell, PatternId, PatternRow, SampleEnvelope, SampleId,
+    MixerState, NoteEvent, ParameterLock, ParameterLockAction, ParameterLockDiagnostic,
+    ParameterLockTarget, Pattern, PatternCell, PatternId, PatternRow, SampleEnvelope, SampleId,
     SamplePlaybackMode, SamplePlaybackSettings, SampleReference, Song, SongMetadata, Track,
     TrackId, TrackInstrumentAssignment, TrackMixerState, TrackSampleAssignment, TrackSendLevel,
     TrackerCommand, TransportSettings, ValidationError,
@@ -20,6 +22,7 @@ pub use native_module::{
     NativeModuleError, NativeModuleId, NativeModuleParameter, NativeModuleRole, NativeModuleState,
     NATIVE_GAIN_MODULE_ID, NATIVE_PAN_MODULE_ID,
 };
+pub use parameter_locks::{parameter_lock_events, ParameterLockEvent};
 pub use parameters::{
     builtin_parameter_descriptor, mixer_master_gain_descriptor, mixer_parameter_descriptors,
     mixer_send_gain_descriptor, mixer_track_gain_descriptor, mixer_track_pan_descriptor,
