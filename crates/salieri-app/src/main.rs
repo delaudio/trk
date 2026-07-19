@@ -1,5 +1,7 @@
+mod app_event;
 mod command;
 mod config;
+mod event_handler;
 mod persistence;
 mod playback_runtime;
 mod terminal;
@@ -15,6 +17,7 @@ use std::{
 };
 
 use anyhow::{Context, Result};
+use app_event::{AppDispatcher, AppEvent, PreparedAiProposal};
 use command::{
     BrowserCommand, CommandDomain, FocusTarget, LoopCommand, PlayCommand, SalieriCommand,
     ViewCommand,
@@ -22,8 +25,8 @@ use command::{
 use config::{load_config, AppConfig, ConfigOverrides, ProjectBrowserConfig, SampleBrowserConfig};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use persistence::{load_project, save_project};
+use playback_runtime::PlaybackRuntime;
 use playback_runtime::{apply_sample_playback_settings, resolve_sample_path};
-use playback_runtime::{PlaybackRuntime, PlaybackUpdate};
 use salieri_ai::{
     apply_proposal, preview_proposal, AiPatternRequest, AiProposal, AiProposalProvider,
     CellAddress, LocalDeterministicProvider,
@@ -157,7 +160,9 @@ fn run(args: CliArgs) -> Result<()> {
         app.drain_playback_updates();
         app.drain_midi_input();
         app.expire_notification();
-        app.keep_active_row_visible(terminal.visible_pattern_rows());
+        app.dispatch_event(AppEvent::ViewportRefresh {
+            visible_rows: terminal.visible_pattern_rows(),
+        });
         terminal.draw(|frame| {
             let midi_ports = app.tui_midi_ports();
             let midi_settings = app.tui_midi_settings(&midi_ports);
@@ -220,16 +225,22 @@ fn run(args: CliArgs) -> Result<()> {
                             Err(error) => app.finish_sample_browser(Err(error)),
                         }
                     }
-                    app.keep_active_row_visible(terminal.visible_pattern_rows());
+                    app.dispatch_event(AppEvent::ViewportRefresh {
+                        visible_rows: terminal.visible_pattern_rows(),
+                    });
                 }
-                Event::Resize(_, _) => app.keep_active_row_visible(terminal.visible_pattern_rows()),
+                Event::Resize(_, _) => app.dispatch_event(AppEvent::ViewportRefresh {
+                    visible_rows: terminal.visible_pattern_rows(),
+                }),
                 _ => {}
             }
         }
 
         if app.last_tick.elapsed() >= UI_TICK_RATE {
             app.last_tick = Instant::now();
-            app.keep_active_row_visible(terminal.visible_pattern_rows());
+            app.dispatch_event(AppEvent::ViewportRefresh {
+                visible_rows: terminal.visible_pattern_rows(),
+            });
         }
     }
 
@@ -1695,6 +1706,7 @@ fn send_logged_midi_message(
 
 #[derive(Debug)]
 struct App {
+    dispatcher: AppDispatcher,
     song: Song,
     clean_song: Song,
     project_path: Option<PathBuf>,
@@ -1743,7 +1755,7 @@ struct App {
     recent_project_limit: usize,
     config_metadata: config::ConfigMetadata,
     project_browser_view: Option<AppProjectBrowserView>,
-    pending_ai_proposal: Option<PendingAiProposal>,
+    pending_ai_proposal: Option<PreparedAiProposal>,
     dirty: bool,
     should_quit: bool,
     dialog: Option<Dialog>,
@@ -1851,12 +1863,6 @@ struct SampleBrowserRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct PendingAiProposal {
-    proposal: AiProposal,
-    touched_cells: Vec<CellAddress>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 enum Clipboard {
     Cell(PatternCell),
     Region(ClipboardRegion),
@@ -1893,6 +1899,7 @@ impl App {
             format!("MIDI Disconnected ({default_midi_output})")
         };
         let mut app = Self {
+            dispatcher: AppDispatcher::default(),
             clean_song: song.clone(),
             song,
             project_path: None,
@@ -1970,7 +1977,7 @@ impl App {
             .map(Path::to_path_buf)
     }
 
-    fn handle_key(&mut self, key: KeyEvent) {
+    fn handle_key_action(&mut self, key: KeyEvent) {
         if self.handle_control_key(key) {
             return;
         }
@@ -3884,9 +3891,16 @@ impl App {
     }
 
     fn create_ai_proposal(&mut self, prompt: String) {
+        let result = self.prepare_ai_proposal(prompt);
+        self.dispatch_event(AppEvent::AiProposalPrepared(result));
+    }
+
+    fn prepare_ai_proposal(
+        &self,
+        prompt: String,
+    ) -> std::result::Result<PreparedAiProposal, String> {
         let Some(pattern) = self.song.pattern(self.pattern_index) else {
-            self.notify_warning("Pattern out of range");
-            return;
+            return Err("Pattern out of range".to_string());
         };
         let request = AiPatternRequest {
             prompt,
@@ -3898,27 +3912,31 @@ impl App {
         };
 
         let provider = LocalDeterministicProvider;
-        let proposal = match provider.propose(&self.song, &request) {
-            Ok(proposal) => proposal,
-            Err(error) => {
-                self.notify_warning(format!("AI proposal failed: {error}"));
-                return;
-            }
-        };
-        let preview = match preview_proposal(&self.song, &proposal) {
-            Ok(preview) => preview,
-            Err(error) => {
-                self.notify_warning(format!("AI preview failed: {error}"));
-                return;
-            }
-        };
-        let touched_cells = preview.touched_cells;
-        let summary = format_ai_proposal_summary(&proposal, &touched_cells);
-        self.pending_ai_proposal = Some(PendingAiProposal {
+        let proposal = provider
+            .propose(&self.song, &request)
+            .map_err(|error| format!("AI proposal failed: {error}"))?;
+        let touched_cells = preview_proposal(&self.song, &proposal)
+            .map_err(|error| format!("AI preview failed: {error}"))?
+            .touched_cells;
+        Ok(PreparedAiProposal {
             proposal,
             touched_cells,
-        });
-        self.notify_info(summary);
+        })
+    }
+
+    fn apply_prepared_ai_proposal(
+        &mut self,
+        result: std::result::Result<PreparedAiProposal, String>,
+    ) {
+        match result {
+            Ok(prepared) => {
+                let summary =
+                    format_ai_proposal_summary(&prepared.proposal, &prepared.touched_cells);
+                self.pending_ai_proposal = Some(prepared);
+                self.notify_info(summary);
+            }
+            Err(error) => self.notify_warning(error),
+        }
     }
 
     fn show_ai_proposal(&mut self) {
@@ -4826,6 +4844,15 @@ impl App {
     }
 
     fn finish_sample_browser(&mut self, result: Result<Option<PathBuf>>) {
+        self.dispatch_event(AppEvent::SampleBrowserFinished(
+            result.map_err(|error| error.to_string()),
+        ));
+    }
+
+    fn apply_sample_browser_result(
+        &mut self,
+        result: std::result::Result<Option<PathBuf>, String>,
+    ) {
         match result {
             Ok(Some(path)) => self.load_sampler_view(path),
             Ok(None) => {
@@ -4970,7 +4997,15 @@ impl App {
     }
 
     fn open_project_file(&mut self, path: PathBuf) {
-        match load_project(&path) {
+        let result = load_project(&path).map_err(|error| error.to_string());
+        self.dispatch_event(AppEvent::ProjectLoaded {
+            path,
+            result: Box::new(result),
+        });
+    }
+
+    fn apply_project_load(&mut self, path: PathBuf, result: std::result::Result<Song, String>) {
+        match result {
             Ok(song) => {
                 self.playback.stop();
                 self.song = song;
@@ -5568,53 +5603,6 @@ impl App {
         self.notify_warning("MIDI panic sent");
     }
 
-    fn drain_playback_updates(&mut self) {
-        while let Some(update) = self.playback.try_recv() {
-            match update {
-                PlaybackUpdate::Position(position) => {
-                    self.is_playing = true;
-                    self.pattern_index = position.pattern_index;
-                    self.sequence_position = position.sequence_index;
-                    if let Some(sequence_position) = position.sequence_index.or_else(|| {
-                        self.sequence_position_for_pattern_index(position.pattern_index)
-                    }) {
-                        self.sequence_cursor =
-                            sequence_position.min(self.song.sequence.len().saturating_sub(1));
-                    }
-                    self.playhead_row = Some(position.position.row);
-                }
-                PlaybackUpdate::Stopped => {
-                    self.is_playing = false;
-                    self.playhead_row = None;
-                    self.sequence_position = None;
-                    self.notify_info("Playback stopped");
-                }
-                PlaybackUpdate::MidiConnected { port_index } => {
-                    self.midi_status = format!("MIDI Connected {port_index}");
-                    self.notify_success(format!("MIDI output connected: {port_index}"));
-                }
-                PlaybackUpdate::MidiDisconnected => {
-                    self.midi_status = "MIDI Disconnected".to_string();
-                    self.notify_info("MIDI output disconnected");
-                }
-                PlaybackUpdate::MidiError(error) => {
-                    self.midi_status = format!("MIDI Error: {error}");
-                    self.is_playing = false;
-                    self.playhead_row = None;
-                    self.sequence_position = None;
-                    self.notify_error(format!("MIDI error: {error}"));
-                }
-                PlaybackUpdate::MidiLogError(error) => {
-                    self.midi_status = format!("MIDI Log Error: {error}");
-                    self.notify_error(format!("MIDI log error: {error}"));
-                }
-                PlaybackUpdate::AudioError(error) => {
-                    self.notify_error(format!("Audio error: {error}"));
-                }
-            }
-        }
-    }
-
     fn drain_midi_input(&mut self) {
         let mut packets = Vec::new();
         if let Some(input) = &mut self.midi_input {
@@ -5623,8 +5611,7 @@ impl App {
                     Ok(Some(packet)) => packets.push(packet),
                     Ok(None) => break,
                     Err(error) => {
-                        self.midi_input_status = format!("MIDI In Error: {error}");
-                        self.notify_error(format!("MIDI input error: {error}"));
+                        self.dispatch_event(AppEvent::MidiInputFailed(error.to_string()));
                         break;
                     }
                 }
@@ -5637,6 +5624,10 @@ impl App {
     }
 
     fn handle_midi_input_packet(&mut self, packet: MidiInputPacket) {
+        self.dispatch_event(AppEvent::MidiInput(packet));
+    }
+
+    fn apply_midi_input_packet(&mut self, packet: MidiInputPacket) {
         match packet.event {
             MidiInputEvent::NoteOn { note, velocity, .. } => {
                 if self.midi_record_armed {
@@ -5898,30 +5889,6 @@ impl App {
             Some(Dialog::OpenProjectDirty { message, .. }) => Some(message.as_str()),
             Some(Dialog::QuitDirty) | None => None,
         }
-    }
-
-    fn notify(&mut self, kind: NotificationKind, message: impl Into<String>) {
-        self.notification = Some(Notification {
-            kind,
-            message: message.into(),
-            expires_at: Instant::now() + NOTIFICATION_TTL,
-        });
-    }
-
-    fn notify_info(&mut self, message: impl Into<String>) {
-        self.notify(NotificationKind::Info, message);
-    }
-
-    fn notify_success(&mut self, message: impl Into<String>) {
-        self.notify(NotificationKind::Success, message);
-    }
-
-    fn notify_warning(&mut self, message: impl Into<String>) {
-        self.notify(NotificationKind::Warning, message);
-    }
-
-    fn notify_error(&mut self, message: impl Into<String>) {
-        self.notify(NotificationKind::Error, message);
     }
 
     fn expire_notification(&mut self) {
