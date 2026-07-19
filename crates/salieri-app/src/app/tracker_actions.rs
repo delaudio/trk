@@ -38,28 +38,34 @@ impl App {
 
     pub(crate) fn insert_note(&mut self, pitch: u8) {
         let pattern_index = self.pattern_index;
-        self.mutate_song(|song, cursor| {
-            let Some(pattern) = song.pattern_mut(pattern_index) else {
-                return;
-            };
-            let _ = pattern.set_note(
-                cursor.row,
-                cursor.track,
-                NoteEvent::Note { pitch },
-                DEFAULT_NOTE_VELOCITY,
-            );
-        });
+        self.mutate_song_with(
+            TransactionSpec::merged("Type note", "tracker.typing"),
+            |song, cursor| {
+                let Some(pattern) = song.pattern_mut(pattern_index) else {
+                    return;
+                };
+                let _ = pattern.set_note(
+                    cursor.row,
+                    cursor.track,
+                    NoteEvent::Note { pitch },
+                    DEFAULT_NOTE_VELOCITY,
+                );
+            },
+        );
         self.advance_after_edit();
     }
 
     pub(crate) fn insert_note_event(&mut self, note: NoteEvent) {
         let pattern_index = self.pattern_index;
-        self.mutate_song(|song, cursor| {
-            let Some(pattern) = song.pattern_mut(pattern_index) else {
-                return;
-            };
-            let _ = pattern.set_note_event(cursor.row, cursor.track, note, None);
-        });
+        self.mutate_song_with(
+            TransactionSpec::merged("Type note", "tracker.typing"),
+            |song, cursor| {
+                let Some(pattern) = song.pattern_mut(pattern_index) else {
+                    return;
+                };
+                let _ = pattern.set_note_event(cursor.row, cursor.track, note, None);
+            },
+        );
         self.advance_after_edit();
     }
 
@@ -67,23 +73,30 @@ impl App {
         let current_digit = self.cursor.digit.min(1);
         let field = self.cursor.field;
         let pattern_index = self.pattern_index;
-        self.mutate_song(|song, cursor| {
-            let Some(pattern) = song.pattern_mut(pattern_index) else {
-                return;
-            };
-            let current_value = pattern
-                .cell(cursor.row, cursor.track)
-                .and_then(|cell| current_cell_hex_value(cell, field))
-                .unwrap_or(0);
-            let next_value = if current_digit == 0 {
-                (digit << 4) | (current_value & 0x0f)
-            } else {
-                (current_value & 0xf0) | digit
-            };
-            if let Some(cell) = pattern.cell_mut(cursor.row, cursor.track) {
-                set_current_cell_hex_value(cell, field, next_value);
-            }
-        });
+        let merge_key = format!(
+            "tracker.hex.{pattern_index}.{}.{}.{}",
+            self.cursor.row, self.cursor.track, field
+        );
+        self.mutate_song_with(
+            TransactionSpec::merged("Enter cell value", merge_key),
+            |song, cursor| {
+                let Some(pattern) = song.pattern_mut(pattern_index) else {
+                    return;
+                };
+                let current_value = pattern
+                    .cell(cursor.row, cursor.track)
+                    .and_then(|cell| current_cell_hex_value(cell, field))
+                    .unwrap_or(0);
+                let next_value = if current_digit == 0 {
+                    (digit << 4) | (current_value & 0x0f)
+                } else {
+                    (current_value & 0xf0) | digit
+                };
+                if let Some(cell) = pattern.cell_mut(cursor.row, cursor.track) {
+                    set_current_cell_hex_value(cell, field, next_value);
+                }
+            },
+        );
 
         if current_digit == 0 {
             self.cursor.digit = 1;

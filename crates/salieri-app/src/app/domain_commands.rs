@@ -193,18 +193,24 @@ impl App {
         let sample_id = sample.id;
         let sample_name = sample.name.clone();
 
-        let mut result = Ok(());
-        self.mutate_song(|song, _| {
-            if let Some(pattern) = song.current_pattern_mut() {
-                result = pattern.set_automation_point(
-                    AutomationTarget::SampleGain { sample: sample_id },
-                    row,
-                    value,
-                );
-            }
-        });
+        let result = self.try_mutate_song(
+            TransactionSpec::merged(
+                "Adjust sample automation",
+                format!("automation.sample-gain.{sample_id:?}.{row}"),
+            ),
+            |song, _| {
+                if let Some(pattern) = song.current_pattern_mut() {
+                    pattern.set_automation_point(
+                        AutomationTarget::SampleGain { sample: sample_id },
+                        row,
+                        value,
+                    )?;
+                }
+                Ok::<(), salieri_core::EditError>(())
+            },
+        );
         match result {
-            Ok(()) => self.notify_success(format!(
+            Ok(_) => self.notify_success(format!(
                 "Sample gain automation {sample_name} row {row:02} = {value:.3}"
             )),
             Err(error) => self.notify_warning(format!("Automation failed: {error}")),
@@ -223,17 +229,20 @@ impl App {
         let sample_id = sample.id;
         let sample_name = sample.name.clone();
 
-        let mut result = Ok(());
-        self.mutate_song(|song, _| {
-            if let Some(pattern) = song.current_pattern_mut() {
-                result = pattern.clear_automation_point(
-                    AutomationTarget::SampleGain { sample: sample_id },
-                    row,
-                );
-            }
-        });
+        let result = self.try_mutate_song(
+            TransactionSpec::new("Clear sample automation"),
+            |song, _| {
+                if let Some(pattern) = song.current_pattern_mut() {
+                    pattern.clear_automation_point(
+                        AutomationTarget::SampleGain { sample: sample_id },
+                        row,
+                    )?;
+                }
+                Ok::<(), salieri_core::EditError>(())
+            },
+        );
         match result {
-            Ok(()) => self.notify_success(format!(
+            Ok(_) => self.notify_success(format!(
                 "Sample gain automation cleared for {sample_name} row {row:02}"
             )),
             Err(error) => self.notify_warning(format!("Automation failed: {error}")),
@@ -309,14 +318,17 @@ impl App {
             .tracks
             .get(track_index)
             .map(|track| track.name.clone());
-        let mut result = Ok(());
-        self.mutate_song(|song, _| {
-            result = song.set_track_mixer_gain(track_index, gain);
-        });
+        let result = self.try_mutate_song(
+            TransactionSpec::merged(
+                "Adjust mixer gain",
+                format!("mixer.track.{track_index}.gain"),
+            ),
+            |song, _| song.set_track_mixer_gain(track_index, gain),
+        );
         match (result, name) {
-            (Ok(()), Some(name)) => self.notify_success(format!("Mixer gain {name} = {gain:.2}")),
+            (Ok(_), Some(name)) => self.notify_success(format!("Mixer gain {name} = {gain:.2}")),
             (Err(error), _) => self.notify_warning(format!("Mixer failed: {error}")),
-            (Ok(()), None) => self.notify_warning("Track out of range"),
+            (Ok(_), None) => self.notify_warning("Track out of range"),
         }
     }
 
@@ -326,14 +338,14 @@ impl App {
             .tracks
             .get(track_index)
             .map(|track| track.name.clone());
-        let mut result = Ok(());
-        self.mutate_song(|song, _| {
-            result = song.set_track_mixer_pan(track_index, pan);
-        });
+        let result = self.try_mutate_song(
+            TransactionSpec::merged("Adjust mixer pan", format!("mixer.track.{track_index}.pan")),
+            |song, _| song.set_track_mixer_pan(track_index, pan),
+        );
         match (result, name) {
-            (Ok(()), Some(name)) => self.notify_success(format!("Mixer pan {name} = {pan:+.2}")),
+            (Ok(_), Some(name)) => self.notify_success(format!("Mixer pan {name} = {pan:+.2}")),
             (Err(error), _) => self.notify_warning(format!("Mixer failed: {error}")),
-            (Ok(()), None) => self.notify_warning("Track out of range"),
+            (Ok(_), None) => self.notify_warning("Track out of range"),
         }
     }
 
@@ -344,24 +356,22 @@ impl App {
             .get(track_index)
             .map(|track| track.name.clone());
         let mut muted = false;
-        let mut result = Ok(());
-        self.mutate_song(|song, _| {
-            result = song.toggle_track_mixer_mute(track_index);
-            if result.is_ok() {
-                muted = song
-                    .tracks
-                    .get(track_index)
-                    .map(|track| song.track_mixer_for_track(track.id).muted)
-                    .unwrap_or(false);
-            }
+        let result = self.try_mutate_song(TransactionSpec::new("Toggle mixer mute"), |song, _| {
+            song.toggle_track_mixer_mute(track_index)?;
+            muted = song
+                .tracks
+                .get(track_index)
+                .map(|track| song.track_mixer_for_track(track.id).muted)
+                .unwrap_or(false);
+            Ok::<(), salieri_core::EditError>(())
         });
         match (result, name) {
-            (Ok(()), Some(name)) => self.notify_success(format!(
+            (Ok(_), Some(name)) => self.notify_success(format!(
                 "Mixer mute {name} {}",
                 if muted { "ON" } else { "OFF" }
             )),
             (Err(error), _) => self.notify_warning(format!("Mixer failed: {error}")),
-            (Ok(()), None) => self.notify_warning("Track out of range"),
+            (Ok(_), None) => self.notify_warning("Track out of range"),
         }
     }
 
@@ -372,34 +382,32 @@ impl App {
             .get(track_index)
             .map(|track| track.name.clone());
         let mut solo = false;
-        let mut result = Ok(());
-        self.mutate_song(|song, _| {
-            result = song.toggle_track_mixer_solo(track_index);
-            if result.is_ok() {
-                solo = song
-                    .tracks
-                    .get(track_index)
-                    .map(|track| song.track_mixer_for_track(track.id).solo)
-                    .unwrap_or(false);
-            }
+        let result = self.try_mutate_song(TransactionSpec::new("Toggle mixer solo"), |song, _| {
+            song.toggle_track_mixer_solo(track_index)?;
+            solo = song
+                .tracks
+                .get(track_index)
+                .map(|track| song.track_mixer_for_track(track.id).solo)
+                .unwrap_or(false);
+            Ok::<(), salieri_core::EditError>(())
         });
         match (result, name) {
-            (Ok(()), Some(name)) => self.notify_success(format!(
+            (Ok(_), Some(name)) => self.notify_success(format!(
                 "Mixer solo {name} {}",
                 if solo { "ON" } else { "OFF" }
             )),
             (Err(error), _) => self.notify_warning(format!("Mixer failed: {error}")),
-            (Ok(()), None) => self.notify_warning("Track out of range"),
+            (Ok(_), None) => self.notify_warning("Track out of range"),
         }
     }
 
     pub(crate) fn set_master_gain(&mut self, gain: f32) {
-        let mut result = Ok(());
-        self.mutate_song(|song, _| {
-            result = song.set_master_gain(gain);
-        });
+        let result = self.try_mutate_song(
+            TransactionSpec::merged("Adjust master gain", "mixer.master.gain"),
+            |song, _| song.set_master_gain(gain),
+        );
         match result {
-            Ok(()) => self.notify_success(format!("Master gain = {gain:.2}")),
+            Ok(_) => self.notify_success(format!("Master gain = {gain:.2}")),
             Err(error) => self.notify_warning(format!("Mixer failed: {error}")),
         }
     }

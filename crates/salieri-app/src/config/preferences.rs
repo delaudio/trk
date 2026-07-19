@@ -83,3 +83,15 @@ impl Default for WorkspaceConfig {
         }
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct HistoryConfig {
+    pub undo_limit: usize,
+}
+
+impl Default for HistoryConfig {
+    fn default() -> Self {
+        Self { undo_limit: 100 }
+    }
+}

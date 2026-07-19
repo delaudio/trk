@@ -63,6 +63,9 @@ recent_file = "~/.config/salieri/recent-projects.json"
 
 [workspace]
 recent_project_limit = 12
+
+[history]
+undo_limit = 100
 ```
 
 Keymap bindings are grouped by application mode and override built-in shortcuts
@@ -83,6 +86,7 @@ validation reports all independent problems found in one pass, including:
 - audio sample rate from 8000 through 384000 Hz;
 - audio channels from 1 through 8;
 - recent project limit from 1 through 100;
+- undo history limit from 1 through 10000 transactions;
 - non-empty sample chooser command when configured.
 
 Inside the TUI, `:config` reports the resolved source, keymap profile, theme, and

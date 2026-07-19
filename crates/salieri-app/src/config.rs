@@ -10,7 +10,9 @@ use crate::keymap;
 mod preferences;
 
 pub use crate::keymap::KeymapConfig;
-pub use preferences::{AudioPreferences, DisplayMode, ThemeConfig, UiConfig, WorkspaceConfig};
+pub use preferences::{
+    AudioPreferences, DisplayMode, HistoryConfig, ThemeConfig, UiConfig, WorkspaceConfig,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -24,6 +26,7 @@ pub struct AppConfig {
     pub sample_browser: SampleBrowserConfig,
     pub project_browser: ProjectBrowserConfig,
     pub workspace: WorkspaceConfig,
+    pub history: HistoryConfig,
     #[serde(skip)]
     pub metadata: ConfigMetadata,
 }
@@ -272,6 +275,13 @@ fn validate(config: &AppConfig) -> Result<(), ConfigValidationErrors> {
         1,
         100,
     );
+    check_range(
+        &mut diagnostics,
+        "history.undo_limit",
+        config.history.undo_limit,
+        1,
+        10_000,
+    );
     if let Some(command) = &config.sample_browser.chooser_command {
         check_non_empty(&mut diagnostics, "sample_browser.chooser_command", command);
     }
@@ -400,6 +410,9 @@ start_dir = "~/Samples"
 [project_browser]
 start_dir = "~/Music/Salieri"
 recent_file = "recent-projects.json"
+
+[history]
+undo_limit = 250
 "#,
         );
 
@@ -411,6 +424,7 @@ recent_file = "recent-projects.json"
         assert!(!config.ui.show_line_numbers_hex);
         assert_eq!(config.audio, AudioPreferences::default());
         assert_eq!(config.midi.default_output, "IAC Driver");
+        assert_eq!(config.history.undo_limit, 250);
         assert_eq!(
             config.sample_browser.start_dir,
             Some(PathBuf::from("~/Samples"))
@@ -505,6 +519,8 @@ sample_rate = 1000
 channels = 0
 [workspace]
 recent_project_limit = 0
+[history]
+undo_limit = 0
 "#,
         );
 
@@ -512,11 +528,12 @@ recent_project_limit = 0
         let ConfigLoadError::Validation(error) = error else {
             panic!("expected validation error");
         };
-        assert_eq!(error.diagnostics.len(), 7);
+        assert_eq!(error.diagnostics.len(), 8);
         let rendered = error.to_string();
         assert!(rendered.contains("keyboard.edit_step"));
         assert!(rendered.contains("audio.sample_rate"));
         assert!(rendered.contains("workspace.recent_project_limit"));
+        assert!(rendered.contains("history.undo_limit"));
     }
 
     #[test]

@@ -161,8 +161,7 @@ impl App {
                 self.cursor = Cursor::new();
                 self.row_offset = 0;
                 self.selection_anchor = None;
-                self.undo_stack.clear();
-                self.redo_stack.clear();
+                self.history.clear();
                 self.is_playing = false;
                 self.playhead_row = None;
                 self.sequence_position = None;

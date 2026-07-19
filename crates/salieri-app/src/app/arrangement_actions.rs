@@ -2,9 +2,12 @@ use super::*;
 
 impl App {
     pub(crate) fn set_bpm(&mut self, bpm: u16) {
-        self.mutate_song(|song, _| {
-            song.transport.bpm = bpm;
-        });
+        self.mutate_song_with(
+            TransactionSpec::merged("Adjust BPM", "transport.bpm"),
+            |song, _| {
+                song.transport.bpm = bpm;
+            },
+        );
     }
 
     pub(crate) fn adjust_bpm(&mut self, delta: i16) {
@@ -15,9 +18,12 @@ impl App {
     }
 
     pub(crate) fn set_lpb(&mut self, lpb: u8) {
-        self.mutate_song(|song, _| {
-            song.transport.lines_per_beat = lpb;
-        });
+        self.mutate_song_with(
+            TransactionSpec::merged("Adjust LPB", "transport.lpb"),
+            |song, _| {
+                song.transport.lines_per_beat = lpb;
+            },
+        );
     }
 
     pub(crate) fn adjust_lpb(&mut self, delta: i8) {
