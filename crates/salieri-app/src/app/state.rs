@@ -217,16 +217,33 @@ impl App {
         self.keep_row_visible(row, visible_rows);
     }
 
-    pub(crate) fn keep_row_visible(&mut self, row: usize, visible_rows: usize) {
-        let visible_rows = visible_rows.max(1);
-        if row < self.row_offset {
-            self.row_offset = row;
-        } else if row >= self.row_offset.saturating_add(visible_rows) {
-            self.row_offset = row.saturating_sub(visible_rows - 1);
-        }
+    pub(crate) fn keep_active_viewport_visible(
+        &mut self,
+        visible_rows: usize,
+        visible_tracks: usize,
+    ) {
+        self.keep_active_row_visible(visible_rows);
+        self.keep_track_visible(self.cursor.track, visible_tracks);
+    }
 
-        let max_offset = self.current_row_count().saturating_sub(visible_rows);
-        self.row_offset = self.row_offset.min(max_offset);
+    pub(crate) fn keep_row_visible(&mut self, row: usize, visible_rows: usize) {
+        let mut viewport = ViewportAxis::with_offset(
+            self.current_row_count(),
+            visible_rows.max(1),
+            self.row_offset,
+        );
+        viewport.keep_visible(row);
+        self.row_offset = viewport.offset();
+    }
+
+    pub(crate) fn keep_track_visible(&mut self, track: usize, visible_tracks: usize) {
+        let mut viewport = ViewportAxis::with_offset(
+            self.song.tracks.len(),
+            visible_tracks.max(1),
+            self.track_offset,
+        );
+        viewport.keep_visible(track);
+        self.track_offset = viewport.offset();
     }
 
     pub(crate) fn current_row_count(&self) -> usize {

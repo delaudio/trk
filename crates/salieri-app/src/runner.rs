@@ -90,6 +90,7 @@ fn run(args: CliArgs) -> Result<()> {
         app.expire_notification();
         app.dispatch_event(AppEvent::Runtime(RuntimeEvent::ViewportRefresh {
             visible_rows: terminal.visible_pattern_rows(),
+            visible_tracks: terminal.visible_pattern_tracks(),
         }));
         terminal.draw(|frame| {
             let midi_ports = app.tui_midi_ports();
@@ -106,6 +107,7 @@ fn run(args: CliArgs) -> Result<()> {
                 TuiState {
                     cursor: app.cursor,
                     row_offset: app.row_offset,
+                    track_offset: app.track_offset,
                     pattern_index: app.pattern_index,
                     active_view: app.tui_active_view(),
                     selection: app.selection_rect(),
@@ -155,12 +157,21 @@ fn run(args: CliArgs) -> Result<()> {
                     }
                     app.dispatch_event(AppEvent::Runtime(RuntimeEvent::ViewportRefresh {
                         visible_rows: terminal.visible_pattern_rows(),
+                        visible_tracks: terminal.visible_pattern_tracks(),
                     }));
                 }
                 Event::Resize(_, _) => {
                     app.dispatch_event(AppEvent::Runtime(RuntimeEvent::ViewportRefresh {
                         visible_rows: terminal.visible_pattern_rows(),
+                        visible_tracks: terminal.visible_pattern_tracks(),
                     }))
+                }
+                Event::Mouse(mouse) => {
+                    app.handle_mouse_wheel(mouse.kind);
+                    app.dispatch_event(AppEvent::Runtime(RuntimeEvent::ViewportRefresh {
+                        visible_rows: terminal.visible_pattern_rows(),
+                        visible_tracks: terminal.visible_pattern_tracks(),
+                    }));
                 }
                 _ => {}
             }
@@ -170,6 +181,7 @@ fn run(args: CliArgs) -> Result<()> {
             app.last_tick = Instant::now();
             app.dispatch_event(AppEvent::Runtime(RuntimeEvent::ViewportRefresh {
                 visible_rows: terminal.visible_pattern_rows(),
+                visible_tracks: terminal.visible_pattern_tracks(),
             }));
         }
     }

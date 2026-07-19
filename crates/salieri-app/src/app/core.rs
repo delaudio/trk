@@ -34,6 +34,7 @@ impl App {
             pattern_index: 0,
             cursor: Cursor::new(),
             row_offset: 0,
+            track_offset: 0,
             mode: AppMode::Normal,
             octave: config.keyboard.default_octave,
             edit_step: config.keyboard.edit_step.max(1),

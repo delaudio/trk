@@ -306,6 +306,56 @@ fn scrolls_to_keep_playhead_visible_while_playing() {
 }
 
 #[test]
+fn scrolls_right_to_keep_active_track_visible() {
+    let mut app = App {
+        cursor: Cursor {
+            track: 3,
+            ..Cursor::new()
+        },
+        ..App::default()
+    };
+
+    app.keep_track_visible(app.cursor.track, 2);
+
+    assert_eq!(app.track_offset, 2);
+}
+
+#[test]
+fn scrolls_left_to_keep_active_track_visible() {
+    let mut app = App {
+        cursor: Cursor {
+            track: 0,
+            ..Cursor::new()
+        },
+        track_offset: 2,
+        ..App::default()
+    };
+
+    app.keep_track_visible(app.cursor.track, 2);
+
+    assert_eq!(app.track_offset, 0);
+}
+
+#[test]
+fn mouse_wheel_moves_tracker_cursor_through_shared_viewport() {
+    let mut app = App::default();
+
+    app.handle_mouse_wheel(MouseEventKind::ScrollDown);
+    app.keep_cursor_visible(2);
+    app.keep_track_visible(app.cursor.track, 4);
+
+    assert_eq!(app.cursor.row, 3);
+    assert_eq!(app.row_offset, 2);
+
+    app.handle_mouse_wheel(MouseEventKind::ScrollUp);
+    app.keep_cursor_visible(2);
+    app.keep_track_visible(app.cursor.track, 4);
+
+    assert_eq!(app.cursor.row, 0);
+    assert_eq!(app.row_offset, 0);
+}
+
+#[test]
 fn tab_and_backtab_move_between_tracks() {
     let mut app = App::default();
 
