@@ -3,12 +3,17 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    native_gain_descriptor, native_pan_descriptor, ParameterDescriptor, ParameterId,
-    ParameterValidationError, ParameterValue,
+    native_balance_descriptor, native_gain_descriptor, native_pan_descriptor,
+    native_phase_invert_left_descriptor, native_phase_invert_right_descriptor,
+    native_width_descriptor, ParameterDescriptor, ParameterId, ParameterValidationError,
+    ParameterValue,
 };
 
 pub const NATIVE_GAIN_MODULE_ID: &str = "native.effect.gain";
 pub const NATIVE_PAN_MODULE_ID: &str = "native.effect.pan";
+pub const NATIVE_BALANCE_MODULE_ID: &str = "native.effect.balance";
+pub const NATIVE_WIDTH_MODULE_ID: &str = "native.effect.width";
+pub const NATIVE_PHASE_MODULE_ID: &str = "native.effect.phase";
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -198,10 +203,52 @@ pub fn native_pan_module_descriptor() -> NativeModuleDescriptor {
 }
 
 #[must_use]
+pub fn native_balance_module_descriptor() -> NativeModuleDescriptor {
+    NativeModuleDescriptor {
+        id: NativeModuleId::from(NATIVE_BALANCE_MODULE_ID),
+        name: "Balance".to_string(),
+        role: NativeModuleRole::Effect,
+        parameters: vec![native_balance_descriptor()],
+        latency_frames: 0,
+        realtime_safe: true,
+    }
+}
+
+#[must_use]
+pub fn native_width_module_descriptor() -> NativeModuleDescriptor {
+    NativeModuleDescriptor {
+        id: NativeModuleId::from(NATIVE_WIDTH_MODULE_ID),
+        name: "Stereo Width".to_string(),
+        role: NativeModuleRole::Effect,
+        parameters: vec![native_width_descriptor()],
+        latency_frames: 0,
+        realtime_safe: true,
+    }
+}
+
+#[must_use]
+pub fn native_phase_module_descriptor() -> NativeModuleDescriptor {
+    NativeModuleDescriptor {
+        id: NativeModuleId::from(NATIVE_PHASE_MODULE_ID),
+        name: "Phase".to_string(),
+        role: NativeModuleRole::Effect,
+        parameters: vec![
+            native_phase_invert_left_descriptor(),
+            native_phase_invert_right_descriptor(),
+        ],
+        latency_frames: 0,
+        realtime_safe: true,
+    }
+}
+
+#[must_use]
 pub fn builtin_native_module_descriptor(id: &NativeModuleId) -> Option<NativeModuleDescriptor> {
     match id.as_str() {
         NATIVE_GAIN_MODULE_ID => Some(native_gain_module_descriptor()),
         NATIVE_PAN_MODULE_ID => Some(native_pan_module_descriptor()),
+        NATIVE_BALANCE_MODULE_ID => Some(native_balance_module_descriptor()),
+        NATIVE_WIDTH_MODULE_ID => Some(native_width_module_descriptor()),
+        NATIVE_PHASE_MODULE_ID => Some(native_phase_module_descriptor()),
         _ => None,
     }
 }
@@ -211,13 +258,20 @@ pub fn builtin_native_effect_descriptors() -> Vec<NativeModuleDescriptor> {
     vec![
         native_gain_module_descriptor(),
         native_pan_module_descriptor(),
+        native_balance_module_descriptor(),
+        native_width_module_descriptor(),
+        native_phase_module_descriptor(),
     ]
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{NATIVE_GAIN_PARAMETER_ID, NATIVE_PAN_PARAMETER_ID};
+    use crate::{
+        NATIVE_GAIN_PARAMETER_ID, NATIVE_PAN_PARAMETER_ID, NATIVE_PHASE_INVERT_LEFT_PARAMETER_ID,
+        NATIVE_PHASE_INVERT_RIGHT_PARAMETER_ID, NATIVE_PHASE_MODULE_ID, NATIVE_WIDTH_MODULE_ID,
+        NATIVE_WIDTH_PARAMETER_ID,
+    };
 
     #[test]
     fn native_module_state_validates_resets_and_preserves_unknown_parameters() {
@@ -284,5 +338,36 @@ mod tests {
 
         assert!(serialized.contains(NATIVE_GAIN_MODULE_ID));
         assert!(serialized.contains(NATIVE_GAIN_PARAMETER_ID));
+    }
+
+    #[test]
+    fn native_utility_module_descriptors_have_defaults_and_serializable_ids() {
+        let width_descriptor = native_width_module_descriptor();
+        let width_state = NativeModuleState::defaults_for(&width_descriptor);
+
+        assert_eq!(
+            width_descriptor.id,
+            NativeModuleId::from(NATIVE_WIDTH_MODULE_ID)
+        );
+        assert_eq!(
+            width_state.parameter_value(&ParameterId::from(NATIVE_WIDTH_PARAMETER_ID)),
+            Some(&ParameterValue::Percentage(1.0))
+        );
+
+        let phase_descriptor = native_phase_module_descriptor();
+        let phase_state = NativeModuleState::defaults_for(&phase_descriptor);
+        let serialized = serde_json::to_string(&phase_state).expect("serialize phase");
+
+        assert_eq!(
+            phase_descriptor.id,
+            NativeModuleId::from(NATIVE_PHASE_MODULE_ID)
+        );
+        assert_eq!(phase_descriptor.parameters.len(), 2);
+        assert_eq!(
+            phase_state.parameter_value(&ParameterId::from(NATIVE_PHASE_INVERT_LEFT_PARAMETER_ID)),
+            Some(&ParameterValue::Bool(false))
+        );
+        assert!(serialized.contains(NATIVE_PHASE_INVERT_LEFT_PARAMETER_ID));
+        assert!(serialized.contains(NATIVE_PHASE_INVERT_RIGHT_PARAMETER_ID));
     }
 }

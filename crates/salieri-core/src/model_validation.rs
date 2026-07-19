@@ -7,8 +7,8 @@ use crate::{
     },
     parameters::{
         mixer_master_gain_descriptor, mixer_send_gain_descriptor, mixer_track_gain_descriptor,
-        mixer_track_pan_descriptor, native_gain_descriptor, native_pan_descriptor,
-        sample_gain_descriptor,
+        mixer_track_pan_descriptor, native_balance_descriptor, native_gain_descriptor,
+        native_pan_descriptor, native_width_descriptor, sample_gain_descriptor,
     },
 };
 
@@ -164,7 +164,21 @@ fn validate_effect_chain(effects: &[EffectDevice]) -> Result<(), ValidationError
             EffectDeviceKind::Pan { pan } if !native_pan_descriptor().validate_f32(pan) => {
                 return Err(ValidationError::InvalidEffectParameter);
             }
-            EffectDeviceKind::Gain { .. } | EffectDeviceKind::Pan { .. } => {}
+            EffectDeviceKind::Balance { balance }
+                if !native_balance_descriptor().validate_f32(balance) =>
+            {
+                return Err(ValidationError::InvalidEffectParameter);
+            }
+            EffectDeviceKind::StereoWidth { width }
+                if !native_width_descriptor().validate_f32(width) =>
+            {
+                return Err(ValidationError::InvalidEffectParameter);
+            }
+            EffectDeviceKind::Gain { .. }
+            | EffectDeviceKind::Pan { .. }
+            | EffectDeviceKind::Balance { .. }
+            | EffectDeviceKind::StereoWidth { .. }
+            | EffectDeviceKind::PhaseInvert { .. } => {}
         }
     }
     Ok(())

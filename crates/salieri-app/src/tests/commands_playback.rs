@@ -186,6 +186,7 @@ fn command_mode_sets_resets_and_clears_parameter_locks() {
     type_command(&mut app, "plock mixer pan -0.500");
     type_command(&mut app, "plock send 1 0.500");
     type_command(&mut app, "plock dsp track gain 0.750");
+    type_command(&mut app, "plock dsp track width 1.500");
 
     let cell = app
         .song
@@ -193,7 +194,7 @@ fn command_mode_sets_resets_and_clears_parameter_locks() {
         .expect("pattern")
         .cell(0, 0)
         .expect("cell");
-    assert_eq!(cell.parameter_locks.len(), 4);
+    assert_eq!(cell.parameter_locks.len(), 5);
     assert_eq!(
         cell.parameter_locks[0].parameter,
         ParameterId::from(SAMPLE_GAIN_PARAMETER_ID)
@@ -209,6 +210,14 @@ fn command_mode_sets_resets_and_clears_parameter_locks() {
     assert_eq!(
         cell.parameter_locks[3].target,
         ParameterLockTarget::TrackEffect { track, device: 1 }
+    );
+    assert_eq!(
+        cell.parameter_locks[4].parameter,
+        ParameterId::from(NATIVE_WIDTH_PARAMETER_ID)
+    );
+    assert_eq!(
+        cell.parameter_locks[4].target,
+        ParameterLockTarget::TrackEffect { track, device: 4 }
     );
 
     type_command(&mut app, "plock sample-gain reset");
@@ -230,7 +239,7 @@ fn command_mode_sets_resets_and_clears_parameter_locks() {
         .expect("pattern")
         .cell(0, 0)
         .expect("cell");
-    assert_eq!(cell.parameter_locks.len(), 3);
+    assert_eq!(cell.parameter_locks.len(), 4);
     assert!(app.dirty);
 
     app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
@@ -240,7 +249,7 @@ fn command_mode_sets_resets_and_clears_parameter_locks() {
         .expect("pattern")
         .cell(0, 0)
         .expect("cell");
-    assert_eq!(cell.parameter_locks.len(), 4);
+    assert_eq!(cell.parameter_locks.len(), 5);
 }
 
 #[test]
@@ -272,17 +281,48 @@ fn command_mode_edits_dsp_chains() {
 
     type_command(&mut app, "dsp track 2 gain 0.500");
     type_command(&mut app, "dsp track 2 pan -0.250");
+    type_command(&mut app, "dsp track 2 balance 0.250");
+    type_command(&mut app, "dsp track 2 width 1.500");
+    type_command(&mut app, "dsp track 2 phase on off");
     type_command(&mut app, "dsp master gain 0.800");
+    type_command(&mut app, "dsp master width 0.750");
+    type_command(&mut app, "dsp master phase false true");
 
     let track_id = app.song.tracks[1].id;
     let mixer = app.song.track_mixer_for_track(track_id);
-    assert_eq!(mixer.effects.len(), 2);
+    assert_eq!(mixer.effects.len(), 5);
     assert_eq!(mixer.effects[0].kind, EffectDeviceKind::Gain { gain: 0.5 });
     assert_eq!(mixer.effects[1].kind, EffectDeviceKind::Pan { pan: -0.25 });
-    assert_eq!(app.song.mixer.master_effects.len(), 1);
+    assert_eq!(
+        mixer.effects[2].kind,
+        EffectDeviceKind::Balance { balance: 0.25 }
+    );
+    assert_eq!(
+        mixer.effects[3].kind,
+        EffectDeviceKind::StereoWidth { width: 1.5 }
+    );
+    assert_eq!(
+        mixer.effects[4].kind,
+        EffectDeviceKind::PhaseInvert {
+            invert_left: true,
+            invert_right: false
+        }
+    );
+    assert_eq!(app.song.mixer.master_effects.len(), 3);
     assert_eq!(
         app.song.mixer.master_effects[0].kind,
         EffectDeviceKind::Gain { gain: 0.8 }
+    );
+    assert_eq!(
+        app.song.mixer.master_effects[1].kind,
+        EffectDeviceKind::StereoWidth { width: 0.75 }
+    );
+    assert_eq!(
+        app.song.mixer.master_effects[2].kind,
+        EffectDeviceKind::PhaseInvert {
+            invert_left: false,
+            invert_right: true
+        }
     );
     assert!(app.dirty);
 

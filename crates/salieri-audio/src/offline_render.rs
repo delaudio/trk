@@ -5,7 +5,8 @@ use salieri_sampler::PreviewBuffer;
 use crate::{
     backend::AudioConfig,
     dsp::{
-        apply_dsp_chain_to_buffer, apply_track_dsp_to_mix_params, pan_gain, DspGraphSpec, MixParams,
+        apply_dsp_chain_to_buffer, apply_dsp_chain_to_frame, apply_dsp_gain_to_aux_sample,
+        pan_gain, track_dsp_chain, validate_dsp_chain, DspDeviceSpec, DspGraphSpec, MixParams,
     },
     errors::AudioExportError,
     shared::{interpolated_sample, validate_sampler_render_sample, validated_pitch_ratio},
@@ -142,16 +143,22 @@ pub fn render_sampler_events_with_dsp(
 
         let level = event.gain.max(0.0) * (f32::from(event.velocity.min(0x7f)) / 127.0);
         let pan = event.pan.clamp(-1.0, 1.0);
-        let params = apply_track_dsp_to_mix_params(
-            MixParams {
-                pitch_ratio,
-                level,
-                pan,
-            },
-            event.track_id,
-            dsp_graph,
-        )?;
-        mix_sample_event(&mut data, frames, channels, sample, output_frame, params);
+        let params = MixParams {
+            pitch_ratio,
+            level,
+            pan,
+        };
+        let track_devices = track_dsp_chain(event.track_id, dsp_graph);
+        validate_dsp_chain(track_devices)?;
+        mix_sample_event(
+            &mut data,
+            frames,
+            channels,
+            sample,
+            output_frame,
+            params,
+            track_devices,
+        );
     }
 
     apply_dsp_chain_to_buffer(&mut data, channels, &dsp_graph.master);
@@ -188,16 +195,35 @@ fn mix_sample_event(
     sample: &PreviewBuffer,
     output_start_frame: usize,
     params: MixParams,
+    track_devices: &[DspDeviceSpec],
 ) {
     let mut source_frame = 0.0_f32;
     let mut output_frame = output_start_frame;
     while output_frame < output_frames && source_frame < sample.frames as f32 {
         let output_offset = output_frame * channels;
-        for channel in 0..channels {
-            output[output_offset + channel] +=
-                interpolated_sample(sample, source_frame, channel, channels)
+        if channels == 1 {
+            let mut frame = [interpolated_sample(sample, source_frame, 0, channels) * params.level];
+            apply_dsp_chain_to_frame(&mut frame, track_devices);
+            output[output_offset] += frame[0];
+        } else {
+            let mut frame = [
+                interpolated_sample(sample, source_frame, 0, channels)
+                    * params.level
+                    * pan_gain(params.pan, 0, channels),
+                interpolated_sample(sample, source_frame, 1, channels)
+                    * params.level
+                    * pan_gain(params.pan, 1, channels),
+            ];
+            apply_dsp_chain_to_frame(&mut frame, track_devices);
+            output[output_offset] += frame[0];
+            output[output_offset + 1] += frame[1];
+            for channel in 2..channels {
+                let sample_value = interpolated_sample(sample, source_frame, channel, channels)
                     * params.level
                     * pan_gain(params.pan, channel, channels);
+                output[output_offset + channel] +=
+                    apply_dsp_gain_to_aux_sample(sample_value, track_devices);
+            }
         }
         source_frame += params.pitch_ratio;
         output_frame += 1;

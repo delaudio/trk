@@ -263,7 +263,11 @@ fn effect_descriptor(
     parameter: &ParameterId,
 ) -> Option<ParameterDescriptor> {
     match effect.kind {
-        EffectDeviceKind::Gain { .. } | EffectDeviceKind::Pan { .. } => effect
+        EffectDeviceKind::Gain { .. }
+        | EffectDeviceKind::Pan { .. }
+        | EffectDeviceKind::Balance { .. }
+        | EffectDeviceKind::StereoWidth { .. }
+        | EffectDeviceKind::PhaseInvert { .. } => effect
             .native_module_descriptor()
             .parameter(parameter)
             .cloned(),

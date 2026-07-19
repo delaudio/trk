@@ -44,6 +44,12 @@ pub(crate) fn format_effect_device(device: &EffectDevice) -> String {
     match device.kind {
         EffectDeviceKind::Gain { gain } => format!("gain {gain:.3}"),
         EffectDeviceKind::Pan { pan } => format!("pan {pan:+.3}"),
+        EffectDeviceKind::Balance { balance } => format!("balance {balance:+.3}"),
+        EffectDeviceKind::StereoWidth { width } => format!("width {width:.3}"),
+        EffectDeviceKind::PhaseInvert {
+            invert_left,
+            invert_right,
+        } => format!("phase L:{} R:{}", invert_left as u8, invert_right as u8),
     }
 }
 
