@@ -143,7 +143,8 @@ with one default track mixer per song track:
 
 Effect chains are serializable native device references. The initial device set
 is `gain` and `pan`; `bypassed` preserves a device in the chain without
-processing audio.
+processing audio. The maintained native device catalog and planned stable device
+IDs live in [Native DSP Roadmap](native-dsp-roadmap.md).
 
 ## Loading Rules
 

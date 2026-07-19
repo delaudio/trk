@@ -28,4 +28,8 @@ Current limitations:
 
 - only sample gain can be automated;
 - there is no graphical automation editor yet;
-- linear interpolation and plugin parameter automation are future work.
+- linear interpolation and generic native-effect parameter locks are future work.
+
+The native effect catalog in [Native DSP Roadmap](native-dsp-roadmap.md) marks
+which planned parameters must become addressable by generic per-step parameter
+locks before their devices are considered production-ready.

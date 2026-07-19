@@ -41,6 +41,8 @@ beside the existing MIDI-level mute/solo controls.
 
 Realtime playback and offline export apply mixer master gain, track gain, audio
 mute/solo, track pan, and native DSP gain/pan chains to sampler-backed tracks.
+The expanded native effect catalog and implementation order are maintained in
+[Native DSP Roadmap](native-dsp-roadmap.md).
 MIDI-only tracks are not captured in audio export and are not affected by audio
 mixer mute/solo or DSP chains.
 
