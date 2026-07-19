@@ -1,22 +1,6 @@
-use std::{collections::BTreeMap, fmt};
+use std::fmt;
 
 use serde::Deserialize;
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct KeymapConfig {
-    pub profile: String,
-    pub bindings: BTreeMap<String, String>,
-}
-
-impl Default for KeymapConfig {
-    fn default() -> Self {
-        Self {
-            profile: "tracker".to_string(),
-            bindings: BTreeMap::new(),
-        }
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(default, deny_unknown_fields)]
