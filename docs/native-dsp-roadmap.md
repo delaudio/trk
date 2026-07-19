@@ -36,7 +36,7 @@ playback, and offline export.
 | Renoise DSP family | Salieri category | Current Salieri status | Planned Salieri coverage | Notes |
 | --- | --- | --- | --- | --- |
 | Gain, gainer, stereo expander, DC/utility, channel tools | Track insert, master, utility | Implemented | #125 native utility audio devices | Native gain, pan, balance, stereo width, and phase invert cover the initial utility-device suite. Mono/channel swap and DC blocking remain future extensions if justified. |
-| EQ and filters | Track insert, sampler-local | Planned | #126 native multimode filter; parametric EQ deferred | A multimode filter should land before full EQ. Sampler-local filter semantics stay coordinated with #121. |
+| EQ and filters | Track insert, sampler-local | Implemented | #126 native multimode filter; parametric EQ deferred | Multimode LP/HP/BP/notch uses a stable state-variable filter. Sampler-local modulation/key tracking remains coordinated with #121. |
 | Delay, multitap delay, repeater | Track insert, send, master | Planned | #127 native delay | First implementation should be stereo delay with tempo sync, feedback, wet/dry, and bounded delay memory. |
 | Reverb | Track insert, send, master | Planned | #128 native reverb | First implementation should be deterministic and bounded; convolution is deferred. |
 | Distortion, cabinet, lo-fi, bit reduction | Track insert, sampler-local | Planned | #129 native drive and degradation effects | Clip/soft-clip and bit/sample-rate reduction are baseline; cabinet/convolution deferred. |
@@ -126,14 +126,30 @@ kernel for later sampler-local processing.
 
 | Device | ID | Placements | Status | Bypass | Wet/dry | Latency | Tail |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Multimode Filter | `native.effect.filter` | track insert, master, sampler-local variant | Planned | passthrough | no | 0 | none |
+| Multimode Filter | `native.effect.filter` | track insert, master, sampler-local variant | Implemented | passthrough | yes | 0 | none |
 
 | Parameter | Type | Range / choices | Default | Step | Unit | Flags |
 | --- | --- | --- | --- | --- | --- | --- |
-| `native.filter.mode` | `Enum` | `low_pass`, `high_pass`, `band_pass`, `notch` | `low_pass` | stepped | none | automatable, stepped |
-| `native.filter.cutoff` | `PlainFloat` | `20.0..=20000.0` | `12000.0` | `0.01` | hertz | automatable, modulatable, logarithmic |
-| `native.filter.resonance` | `PlainFloat` | `0.0..=1.0` | `0.0` | `0.001` | normalized | automatable, modulatable |
-| `native.filter.drive` | `PlainFloat` | `0.0..=2.0` | `0.0` | `0.001` | gain | automatable |
+| `native.filter.mode` | `Enum` | `lowPass`, `highPass`, `bandPass`, `notch` | `lowPass` | stepped | choice | automatable, stepped |
+| `native.filter.cutoffHz` | `FrequencyHertz` | `20.0..=24000.0`, clamped to 45% of sample rate at runtime | `12000.0` | `0.1` | hertz | automatable, logarithmic |
+| `native.filter.resonance` | `NormalizedFloat` | `0.0..=1.0` | `0.25` | `0.001` | normalized | automatable |
+| `native.filter.driveDb` | `Decibels` | `0.0..=24.0` | `0.0` | `0.1` | decibels | automatable |
+| `native.filter.keyTrack` | `Percentage` | `-1.0..=1.0` | `0.0` | `0.001` | percent | automatable, bipolar |
+| `native.filter.envAmount` | `Percentage` | `-1.0..=1.0` | `0.0` | `0.001` | percent | automatable, bipolar |
+| `native.filter.mix` | `Percentage` | `0.0..=1.0` | `1.0` | `0.001` | percent | automatable |
+
+Implementation notes:
+
+- The filter is a topology-preserving state-variable filter with LP, HP, BP,
+  and notch outputs. Resonance maps to a bounded damping range to stay stable at
+  high cutoff and high resonance.
+- Drive is applied before the filter with soft clipping. `mix` performs dry/wet
+  blending after the selected filter output.
+- Realtime module parameter changes use one-pole smoothing for numeric
+  parameters; mode changes are stepped.
+- Track/master processing is implemented in the native DSP graph. `keyTrack`
+  and `envAmount` are serialized/described now, but remain neutral until #121
+  provides sampler-local note/envelope modulation sources.
 
 ### #127 Native Delay
 

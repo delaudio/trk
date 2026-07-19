@@ -252,7 +252,7 @@ impl App {
     pub(crate) fn handle_parameter_lock_command(&mut self, values: &[&str]) {
         let Some(edit) = self.parse_parameter_lock_edit(values) else {
             self.notify_warning(
-                "Usage: :plock sample-gain|mixer gain|mixer pan|master gain|send SEND|dsp track gain|pan|balance|width|phase-left|phase-right VALUE|reset|clear",
+                "Usage: :plock sample-gain|mixer gain|mixer pan|master gain|send SEND|dsp track gain|pan|balance|width|phase-left|phase-right|filter-* VALUE|reset|clear",
             );
             return;
         };
@@ -387,6 +387,66 @@ impl App {
                     action,
                 )
             }
+            ["dsp", "track", "filter-mode", action] => {
+                let track = self.song.tracks.get(self.cursor.track)?;
+                parameter_lock_edit(
+                    ParameterLockTarget::TrackEffect {
+                        track: track.id,
+                        device: 6,
+                    },
+                    NATIVE_FILTER_MODE_PARAMETER_ID,
+                    native_filter_mode_descriptor(),
+                    action,
+                )
+            }
+            ["dsp", "track", "filter-cutoff" | "filter-cutoff-hz", action] => {
+                let track = self.song.tracks.get(self.cursor.track)?;
+                parameter_lock_edit(
+                    ParameterLockTarget::TrackEffect {
+                        track: track.id,
+                        device: 6,
+                    },
+                    NATIVE_FILTER_CUTOFF_PARAMETER_ID,
+                    native_filter_cutoff_descriptor(),
+                    action,
+                )
+            }
+            ["dsp", "track", "filter-resonance" | "filter-res", action] => {
+                let track = self.song.tracks.get(self.cursor.track)?;
+                parameter_lock_edit(
+                    ParameterLockTarget::TrackEffect {
+                        track: track.id,
+                        device: 6,
+                    },
+                    NATIVE_FILTER_RESONANCE_PARAMETER_ID,
+                    native_filter_resonance_descriptor(),
+                    action,
+                )
+            }
+            ["dsp", "track", "filter-drive", action] => {
+                let track = self.song.tracks.get(self.cursor.track)?;
+                parameter_lock_edit(
+                    ParameterLockTarget::TrackEffect {
+                        track: track.id,
+                        device: 6,
+                    },
+                    NATIVE_FILTER_DRIVE_PARAMETER_ID,
+                    native_filter_drive_descriptor(),
+                    action,
+                )
+            }
+            ["dsp", "track", "filter-mix", action] => {
+                let track = self.song.tracks.get(self.cursor.track)?;
+                parameter_lock_edit(
+                    ParameterLockTarget::TrackEffect {
+                        track: track.id,
+                        device: 6,
+                    },
+                    NATIVE_FILTER_MIX_PARAMETER_ID,
+                    native_filter_mix_descriptor(),
+                    action,
+                )
+            }
             ["dsp", "master", "gain", action] => parameter_lock_edit(
                 ParameterLockTarget::MasterEffect { device: 1 },
                 NATIVE_GAIN_PARAMETER_ID,
@@ -425,6 +485,36 @@ impl App {
                 ParameterLockTarget::MasterEffect { device: 5 },
                 NATIVE_PHASE_INVERT_RIGHT_PARAMETER_ID,
                 native_phase_invert_right_descriptor(),
+                action,
+            ),
+            ["dsp", "master", "filter-mode", action] => parameter_lock_edit(
+                ParameterLockTarget::MasterEffect { device: 6 },
+                NATIVE_FILTER_MODE_PARAMETER_ID,
+                native_filter_mode_descriptor(),
+                action,
+            ),
+            ["dsp", "master", "filter-cutoff" | "filter-cutoff-hz", action] => parameter_lock_edit(
+                ParameterLockTarget::MasterEffect { device: 6 },
+                NATIVE_FILTER_CUTOFF_PARAMETER_ID,
+                native_filter_cutoff_descriptor(),
+                action,
+            ),
+            ["dsp", "master", "filter-resonance" | "filter-res", action] => parameter_lock_edit(
+                ParameterLockTarget::MasterEffect { device: 6 },
+                NATIVE_FILTER_RESONANCE_PARAMETER_ID,
+                native_filter_resonance_descriptor(),
+                action,
+            ),
+            ["dsp", "master", "filter-drive", action] => parameter_lock_edit(
+                ParameterLockTarget::MasterEffect { device: 6 },
+                NATIVE_FILTER_DRIVE_PARAMETER_ID,
+                native_filter_drive_descriptor(),
+                action,
+            ),
+            ["dsp", "master", "filter-mix", action] => parameter_lock_edit(
+                ParameterLockTarget::MasterEffect { device: 6 },
+                NATIVE_FILTER_MIX_PARAMETER_ID,
+                native_filter_mix_descriptor(),
                 action,
             ),
             _ => None,
@@ -652,148 +742,6 @@ impl App {
         }
     }
 
-    pub(crate) fn handle_dsp_command(&mut self, values: &[&str]) {
-        match values {
-            ["master", "clear"] => self.clear_master_dsp_chain(),
-            ["master", "gain", value] => {
-                if let Ok(gain) = value.parse::<f32>() {
-                    self.upsert_master_dsp_device(EffectDevice::gain(1, gain));
-                } else {
-                    self.notify_warning("Usage: :dsp master gain GAIN");
-                }
-            }
-            ["master", "pan", value] => {
-                if let Ok(pan) = value.parse::<f32>() {
-                    self.upsert_master_dsp_device(EffectDevice::pan(2, pan));
-                } else {
-                    self.notify_warning("Usage: :dsp master pan PAN");
-                }
-            }
-            ["master", "balance" | "bal", value] => {
-                if let Ok(balance) = value.parse::<f32>() {
-                    self.upsert_master_dsp_device(EffectDevice::balance(3, balance));
-                } else {
-                    self.notify_warning("Usage: :dsp master balance BALANCE");
-                }
-            }
-            ["master", "width" | "stereo-width", value] => {
-                if let Ok(width) = value.parse::<f32>() {
-                    self.upsert_master_dsp_device(EffectDevice::stereo_width(4, width));
-                } else {
-                    self.notify_warning("Usage: :dsp master width WIDTH");
-                }
-            }
-            ["master", "phase", left, right] => {
-                if let (Some(left), Some(right)) = (parse_bool_flag(left), parse_bool_flag(right)) {
-                    self.upsert_master_dsp_device(EffectDevice::phase_invert(5, left, right));
-                } else {
-                    self.notify_warning("Usage: :dsp master phase LEFT RIGHT");
-                }
-            }
-            ["track", "clear"] => self.clear_track_dsp_chain(self.cursor.track),
-            ["track", "gain", value] => {
-                if let Ok(gain) = value.parse::<f32>() {
-                    self.upsert_track_dsp_device(self.cursor.track, EffectDevice::gain(1, gain));
-                } else {
-                    self.notify_warning("Usage: :dsp track [TRACK] gain GAIN");
-                }
-            }
-            ["track", "pan", value] => {
-                if let Ok(pan) = value.parse::<f32>() {
-                    self.upsert_track_dsp_device(self.cursor.track, EffectDevice::pan(2, pan));
-                } else {
-                    self.notify_warning("Usage: :dsp track [TRACK] pan PAN");
-                }
-            }
-            ["track", "balance" | "bal", value] => {
-                if let Ok(balance) = value.parse::<f32>() {
-                    self.upsert_track_dsp_device(
-                        self.cursor.track,
-                        EffectDevice::balance(3, balance),
-                    );
-                } else {
-                    self.notify_warning("Usage: :dsp track [TRACK] balance BALANCE");
-                }
-            }
-            ["track", "width" | "stereo-width", value] => {
-                if let Ok(width) = value.parse::<f32>() {
-                    self.upsert_track_dsp_device(
-                        self.cursor.track,
-                        EffectDevice::stereo_width(4, width),
-                    );
-                } else {
-                    self.notify_warning("Usage: :dsp track [TRACK] width WIDTH");
-                }
-            }
-            ["track", "phase", left, right] => {
-                if let (Some(left), Some(right)) = (parse_bool_flag(left), parse_bool_flag(right)) {
-                    self.upsert_track_dsp_device(
-                        self.cursor.track,
-                        EffectDevice::phase_invert(5, left, right),
-                    );
-                } else {
-                    self.notify_warning("Usage: :dsp track [TRACK] phase LEFT RIGHT");
-                }
-            }
-            ["track", track, "clear"] => {
-                if let Some(track) = parse_track_number(track) {
-                    self.clear_track_dsp_chain(track);
-                } else {
-                    self.notify_warning("Usage: :dsp track [TRACK] clear");
-                }
-            }
-            ["track", track, "gain", value] => {
-                let track = parse_track_number(track);
-                let gain = value.parse::<f32>().ok();
-                if let (Some(track), Some(gain)) = (track, gain) {
-                    self.upsert_track_dsp_device(track, EffectDevice::gain(1, gain));
-                } else {
-                    self.notify_warning("Usage: :dsp track [TRACK] gain GAIN");
-                }
-            }
-            ["track", track, "pan", value] => {
-                let track = parse_track_number(track);
-                let pan = value.parse::<f32>().ok();
-                if let (Some(track), Some(pan)) = (track, pan) {
-                    self.upsert_track_dsp_device(track, EffectDevice::pan(2, pan));
-                } else {
-                    self.notify_warning("Usage: :dsp track [TRACK] pan PAN");
-                }
-            }
-            ["track", track, "balance" | "bal", value] => {
-                let track = parse_track_number(track);
-                let balance = value.parse::<f32>().ok();
-                if let (Some(track), Some(balance)) = (track, balance) {
-                    self.upsert_track_dsp_device(track, EffectDevice::balance(3, balance));
-                } else {
-                    self.notify_warning("Usage: :dsp track [TRACK] balance BALANCE");
-                }
-            }
-            ["track", track, "width" | "stereo-width", value] => {
-                let track = parse_track_number(track);
-                let width = value.parse::<f32>().ok();
-                if let (Some(track), Some(width)) = (track, width) {
-                    self.upsert_track_dsp_device(track, EffectDevice::stereo_width(4, width));
-                } else {
-                    self.notify_warning("Usage: :dsp track [TRACK] width WIDTH");
-                }
-            }
-            ["track", track, "phase", left, right] => {
-                let track = parse_track_number(track);
-                let left = parse_bool_flag(left);
-                let right = parse_bool_flag(right);
-                if let (Some(track), Some(left), Some(right)) = (track, left, right) {
-                    self.upsert_track_dsp_device(track, EffectDevice::phase_invert(5, left, right));
-                } else {
-                    self.notify_warning("Usage: :dsp track [TRACK] phase LEFT RIGHT");
-                }
-            }
-            _ => self.notify_warning(
-                "Usage: :dsp master gain|pan|balance|width VALUE | phase LEFT RIGHT | :dsp track [TRACK] gain|pan|balance|width VALUE | phase LEFT RIGHT | :dsp ... clear",
-            ),
-        }
-    }
-
     pub(crate) fn upsert_master_dsp_device(&mut self, device: EffectDevice) {
         if !effect_device_is_valid(&device) {
             self.notify_warning("DSP parameter out of range");
@@ -922,12 +870,4 @@ fn parse_parameter_lock_value(
         descriptor.validate(&value).ok()?;
         Some(value)
     })
-}
-
-fn parse_bool_flag(input: &str) -> Option<bool> {
-    match input.to_ascii_lowercase().as_str() {
-        "1" | "on" | "true" | "yes" => Some(true),
-        "0" | "off" | "false" | "no" => Some(false),
-        _ => None,
-    }
 }

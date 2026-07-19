@@ -17,7 +17,7 @@ pub use backend::{
     AudioBackend, AudioCommand, AudioConfig, AudioRuntime, AudioUpdate, NullAudioBackend,
 };
 pub use cpal_backend::CpalAudioBackend;
-pub use dsp::{DspDeviceKind, DspDeviceSpec, DspGraphSpec, TrackDspChainSpec};
+pub use dsp::{DspDeviceKind, DspDeviceSpec, DspFilterMode, DspGraphSpec, TrackDspChainSpec};
 pub use errors::{AudioError, AudioExportError};
 pub use export::{encode_audio, supported_audio_export_formats, AudioExportFormat};
 pub use levels::{measure_levels, LevelMeter};
