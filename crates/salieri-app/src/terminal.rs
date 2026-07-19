@@ -72,8 +72,7 @@ impl TerminalGuard {
         pattern_width
             .saturating_sub(2)
             .saturating_sub(ROW_GUTTER_WIDTH)
-            .checked_div(TRACK_CELL_WIDTH)
-            .unwrap_or(0)
+            .div_ceil(TRACK_CELL_WIDTH)
             .max(1) as usize
     }
 
