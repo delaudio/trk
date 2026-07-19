@@ -7,9 +7,10 @@ use ratatui::{
 };
 use salieri_core::{
     mixer_master_gain_descriptor, mixer_track_gain_descriptor, mixer_track_pan_descriptor,
-    native_gain_descriptor, native_pan_descriptor, sample_gain_descriptor, CellField, Cursor,
-    EffectDeviceKind, NoteEvent, ParameterDescriptor, ParameterValue, Pattern, PatternCell,
-    SamplePlaybackMode, Song,
+    native_balance_descriptor, native_gain_descriptor, native_pan_descriptor,
+    native_phase_invert_left_descriptor, native_phase_invert_right_descriptor,
+    native_width_descriptor, sample_gain_descriptor, CellField, Cursor, EffectDeviceKind,
+    NoteEvent, ParameterDescriptor, ParameterValue, Pattern, PatternCell, SamplePlaybackMode, Song,
 };
 use salieri_sampler::{WaveformBucket, WaveformOverview};
 
@@ -1416,6 +1417,26 @@ fn render_track_properties(frame: &mut Frame<'_>, area: Rect, song: &Song, state
             }
             EffectDeviceKind::Pan { pan } => {
                 mixer_lines.push(parameter_control_from_f32(native_pan_descriptor(), pan))
+            }
+            EffectDeviceKind::Balance { balance } => mixer_lines.push(parameter_control_from_f32(
+                native_balance_descriptor(),
+                balance,
+            )),
+            EffectDeviceKind::StereoWidth { width } => {
+                mixer_lines.push(parameter_control_from_f32(native_width_descriptor(), width))
+            }
+            EffectDeviceKind::PhaseInvert {
+                invert_left,
+                invert_right,
+            } => {
+                mixer_lines.push(parameter_control_line(
+                    &native_phase_invert_left_descriptor(),
+                    ParameterValue::Bool(invert_left),
+                ));
+                mixer_lines.push(parameter_control_line(
+                    &native_phase_invert_right_descriptor(),
+                    ParameterValue::Bool(invert_right),
+                ));
             }
         }
     }

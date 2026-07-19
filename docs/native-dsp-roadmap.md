@@ -35,7 +35,7 @@ playback, and offline export.
 
 | Renoise DSP family | Salieri category | Current Salieri status | Planned Salieri coverage | Notes |
 | --- | --- | --- | --- | --- |
-| Gain, gainer, stereo expander, DC/utility, channel tools | Track insert, master, utility | Partial | #125 native utility audio devices | Existing native gain/pan cover the minimum. Width, polarity, mono, and channel swap are planned as utility devices. |
+| Gain, gainer, stereo expander, DC/utility, channel tools | Track insert, master, utility | Implemented | #125 native utility audio devices | Native gain, pan, balance, stereo width, and phase invert cover the initial utility-device suite. Mono/channel swap and DC blocking remain future extensions if justified. |
 | EQ and filters | Track insert, sampler-local | Planned | #126 native multimode filter; parametric EQ deferred | A multimode filter should land before full EQ. Sampler-local filter semantics stay coordinated with #121. |
 | Delay, multitap delay, repeater | Track insert, send, master | Planned | #127 native delay | First implementation should be stereo delay with tempo sync, feedback, wet/dry, and bounded delay memory. |
 | Reverb | Track insert, send, master | Planned | #128 native reverb | First implementation should be deterministic and bounded; convolution is deferred. |
@@ -73,11 +73,18 @@ belong in descriptors.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Gain | `native.effect.gain` | Utility | track insert, master | Implemented | 0 frames | none | deterministic sample scaling |
 | Pan | `native.effect.pan` | Utility | track insert, master | Implemented | 0 frames | none | deterministic stereo balance |
+| Balance | `native.effect.balance` | Utility | track insert, master | Implemented | 0 frames | none | deterministic stereo balance |
+| Stereo Width | `native.effect.width` | Utility | track insert, master | Implemented | 0 frames | none | deterministic mid/side width |
+| Phase Invert | `native.effect.phase` | Utility | track insert, master | Implemented | 0 frames | none | deterministic channel polarity inversion |
 
 | Parameter | Device | Type | Range / choices | Default | Step | Unit | Flags |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `native.gain.gain` | Gain | `PlainFloat` | `0.0..=2.0` | `1.0` | `0.001` | gain | automatable |
 | `native.pan.pan` | Pan | `BipolarFloat` | `-1.0..=1.0` | `0.0` | `0.001` | pan | automatable, bipolar |
+| `native.balance.balance` | Balance | `BipolarFloat` | `-1.0..=1.0` | `0.0` | `0.001` | pan | automatable, bipolar |
+| `native.width.width` | Stereo Width | `Percentage` | `0.0..=2.0` | `1.0` | `0.001` | percent | automatable |
+| `native.phase.invertLeft` | Phase Invert | `Bool` | `false`, `true` | `false` | stepped | choice | automatable, stepped |
+| `native.phase.invertRight` | Phase Invert | `Bool` | `false`, `true` | `false` | stepped | choice | automatable, stepped |
 
 ### #125 Native Utility Audio Devices
 
@@ -86,18 +93,31 @@ more expensive effects land.
 
 | Device | ID | Placements | Status | Bypass | Wet/dry | Latency | Tail |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Stereo Width | `native.effect.stereo_width` | track insert, master | Planned | passthrough | no | 0 | none |
-| Polarity | `native.effect.polarity` | track insert, master | Planned | passthrough | no | 0 | none |
+| Stereo Width | `native.effect.width` | track insert, master | Implemented | passthrough | no | 0 | none |
+| Phase Invert | `native.effect.phase` | track insert, master | Implemented | passthrough | no | 0 | none |
 | Mono | `native.effect.mono` | track insert, master | Planned | passthrough | no | 0 | none |
-| Balance | `native.effect.balance` | track insert, master | Planned | passthrough | no | 0 | none |
+| Balance | `native.effect.balance` | track insert, master | Implemented | passthrough | no | 0 | none |
 
 | Parameter | Device | Type | Range / choices | Default | Step | Unit | Flags |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `native.stereo_width.width` | Stereo Width | `PlainFloat` | `0.0..=2.0` | `1.0` | `0.001` | percent/ratio | automatable |
-| `native.polarity.left_invert` | Polarity | `Bool` | `false`, `true` | `false` | stepped | none | automatable, stepped |
-| `native.polarity.right_invert` | Polarity | `Bool` | `false`, `true` | `false` | stepped | none | automatable, stepped |
+| `native.width.width` | Stereo Width | `Percentage` | `0.0..=2.0` | `1.0` | `0.001` | percent | automatable |
+| `native.phase.invertLeft` | Phase Invert | `Bool` | `false`, `true` | `false` | stepped | choice | automatable, stepped |
+| `native.phase.invertRight` | Phase Invert | `Bool` | `false`, `true` | `false` | stepped | choice | automatable, stepped |
 | `native.mono.mode` | Mono | `Enum` | `sum`, `left`, `right` | `sum` | stepped | none | automatable, stepped |
 | `native.balance.balance` | Balance | `BipolarFloat` | `-1.0..=1.0` | `0.0` | `0.001` | pan | automatable, bipolar |
+
+### Utility Processing Semantics
+
+- Utility devices perform no implicit output clipping. Samples remain `f32`
+  render values after gain, balance, width, and phase processing; later metering,
+  export encoding, or future limiter devices own clipping policy.
+- Invalid non-finite or out-of-range parameters are rejected before processing.
+  Valid silent input remains silent, and utility devices do not allocate, lock,
+  log, or touch the filesystem in realtime processing.
+- Denormal handling is currently by bounded arithmetic only: the utility suite
+  has no feedback state, tails, filters, or accumulators that can generate
+  persistent subnormal feedback. Future stateful devices must define explicit
+  denormal mitigation in their issue scope.
 
 ### #126 Native Multimode Filter
 

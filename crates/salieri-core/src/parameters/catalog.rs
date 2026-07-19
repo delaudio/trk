@@ -10,6 +10,10 @@ pub const MIXER_MASTER_GAIN_PARAMETER_ID: &str = "mixer.master.gain";
 pub const MIXER_SEND_GAIN_PARAMETER_ID: &str = "mixer.send.gain";
 pub const NATIVE_GAIN_PARAMETER_ID: &str = "native.gain.gain";
 pub const NATIVE_PAN_PARAMETER_ID: &str = "native.pan.pan";
+pub const NATIVE_BALANCE_PARAMETER_ID: &str = "native.balance.balance";
+pub const NATIVE_WIDTH_PARAMETER_ID: &str = "native.width.width";
+pub const NATIVE_PHASE_INVERT_LEFT_PARAMETER_ID: &str = "native.phase.invertLeft";
+pub const NATIVE_PHASE_INVERT_RIGHT_PARAMETER_ID: &str = "native.phase.invertRight";
 
 #[must_use]
 pub fn sample_gain_descriptor() -> ParameterDescriptor {
@@ -138,6 +142,68 @@ pub fn native_pan_descriptor() -> ParameterDescriptor {
 }
 
 #[must_use]
+pub fn native_balance_descriptor() -> ParameterDescriptor {
+    continuous_descriptor(ContinuousDescriptorSpec {
+        id: NATIVE_BALANCE_PARAMETER_ID,
+        name: "Balance",
+        short_name: Some("Bal"),
+        value_type: ParameterValueType::BipolarFloat,
+        default: ParameterValue::Bipolar(0.0),
+        min: -1.0,
+        max: 1.0,
+        step: Some(0.001),
+        unit: ParameterUnit::Pan,
+        flags: ParameterFlags::automatable_bipolar(),
+        group: Some("native.balance"),
+        order: 10,
+    })
+}
+
+#[must_use]
+pub fn native_width_descriptor() -> ParameterDescriptor {
+    continuous_descriptor(ContinuousDescriptorSpec {
+        id: NATIVE_WIDTH_PARAMETER_ID,
+        name: "Stereo Width",
+        short_name: Some("Width"),
+        value_type: ParameterValueType::Percentage,
+        default: ParameterValue::Percentage(1.0),
+        min: 0.0,
+        max: 2.0,
+        step: Some(0.001),
+        unit: ParameterUnit::Percent,
+        flags: ParameterFlags::automatable(),
+        group: Some("native.width"),
+        order: 10,
+    })
+}
+
+#[must_use]
+pub fn native_phase_invert_left_descriptor() -> ParameterDescriptor {
+    bool_descriptor(BoolDescriptorSpec {
+        id: NATIVE_PHASE_INVERT_LEFT_PARAMETER_ID,
+        name: "Invert Left",
+        short_name: Some("Inv L"),
+        default: false,
+        flags: ParameterFlags::automatable(),
+        group: Some("native.phase"),
+        order: 10,
+    })
+}
+
+#[must_use]
+pub fn native_phase_invert_right_descriptor() -> ParameterDescriptor {
+    bool_descriptor(BoolDescriptorSpec {
+        id: NATIVE_PHASE_INVERT_RIGHT_PARAMETER_ID,
+        name: "Invert Right",
+        short_name: Some("Inv R"),
+        default: false,
+        flags: ParameterFlags::automatable(),
+        group: Some("native.phase"),
+        order: 20,
+    })
+}
+
+#[must_use]
 pub fn sampler_parameter_descriptors() -> Vec<ParameterDescriptor> {
     vec![sample_gain_descriptor()]
 }
@@ -154,7 +220,14 @@ pub fn mixer_parameter_descriptors() -> Vec<ParameterDescriptor> {
 
 #[must_use]
 pub fn native_effect_parameter_descriptors() -> Vec<ParameterDescriptor> {
-    vec![native_gain_descriptor(), native_pan_descriptor()]
+    vec![
+        native_gain_descriptor(),
+        native_pan_descriptor(),
+        native_balance_descriptor(),
+        native_width_descriptor(),
+        native_phase_invert_left_descriptor(),
+        native_phase_invert_right_descriptor(),
+    ]
 }
 
 #[must_use]
@@ -167,6 +240,10 @@ pub fn builtin_parameter_descriptor(id: &ParameterId) -> Option<ParameterDescrip
         MIXER_SEND_GAIN_PARAMETER_ID => Some(mixer_send_gain_descriptor()),
         NATIVE_GAIN_PARAMETER_ID => Some(native_gain_descriptor()),
         NATIVE_PAN_PARAMETER_ID => Some(native_pan_descriptor()),
+        NATIVE_BALANCE_PARAMETER_ID => Some(native_balance_descriptor()),
+        NATIVE_WIDTH_PARAMETER_ID => Some(native_width_descriptor()),
+        NATIVE_PHASE_INVERT_LEFT_PARAMETER_ID => Some(native_phase_invert_left_descriptor()),
+        NATIVE_PHASE_INVERT_RIGHT_PARAMETER_ID => Some(native_phase_invert_right_descriptor()),
         _ => None,
     }
 }
@@ -199,6 +276,31 @@ pub(crate) fn continuous_descriptor(spec: ContinuousDescriptorSpec<'_>) -> Param
             step: spec.step,
         },
         unit: spec.unit,
+        flags: spec.flags,
+        group: spec.group.map(ParameterGroupId::from),
+        order: spec.order,
+    }
+}
+
+pub(crate) struct BoolDescriptorSpec<'a> {
+    pub(crate) id: &'a str,
+    pub(crate) name: &'a str,
+    pub(crate) short_name: Option<&'a str>,
+    pub(crate) default: bool,
+    pub(crate) flags: ParameterFlags,
+    pub(crate) group: Option<&'a str>,
+    pub(crate) order: u16,
+}
+
+pub(crate) fn bool_descriptor(spec: BoolDescriptorSpec<'_>) -> ParameterDescriptor {
+    ParameterDescriptor {
+        id: ParameterId::from(spec.id),
+        name: spec.name.to_string(),
+        short_name: spec.short_name.map(str::to_string),
+        value_type: ParameterValueType::Boolean,
+        default: ParameterValue::Bool(spec.default),
+        range: ParameterRange::Boolean,
+        unit: ParameterUnit::Choice,
         flags: spec.flags,
         group: spec.group.map(ParameterGroupId::from),
         order: spec.order,

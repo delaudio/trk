@@ -17,6 +17,10 @@ pub struct NativeEffectModuleSpec {
 pub enum NativeEffectParameterValue {
     Gain(f32),
     Pan(f32),
+    Balance(f32),
+    StereoWidth(f32),
+    PhaseInvertLeft(bool),
+    PhaseInvertRight(bool),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -86,6 +90,37 @@ impl NativeEffectModule {
                 *pan = value;
                 Ok(())
             }
+            (DspDeviceKind::Balance { balance }, NativeEffectParameterValue::Balance(value)) => {
+                if !value.is_finite() || !(-1.0..=1.0).contains(&value) {
+                    return Err(AudioExportError::InvalidDspParameter);
+                }
+                *balance = value;
+                Ok(())
+            }
+            (
+                DspDeviceKind::StereoWidth { width },
+                NativeEffectParameterValue::StereoWidth(value),
+            ) => {
+                if !value.is_finite() || !(0.0..=2.0).contains(&value) {
+                    return Err(AudioExportError::InvalidDspParameter);
+                }
+                *width = value;
+                Ok(())
+            }
+            (
+                DspDeviceKind::PhaseInvert { invert_left, .. },
+                NativeEffectParameterValue::PhaseInvertLeft(value),
+            ) => {
+                *invert_left = value;
+                Ok(())
+            }
+            (
+                DspDeviceKind::PhaseInvert { invert_right, .. },
+                NativeEffectParameterValue::PhaseInvertRight(value),
+            ) => {
+                *invert_right = value;
+                Ok(())
+            }
             _ => Err(AudioExportError::InvalidDspParameter),
         }
     }
@@ -122,6 +157,25 @@ impl NativeEffectModule {
                 process_pan(data, channels, pan);
                 Ok(())
             }
+            DspDeviceKind::Balance { balance }
+                if balance.is_finite() && (-1.0..=1.0).contains(&balance) =>
+            {
+                process_pan(data, channels, balance);
+                Ok(())
+            }
+            DspDeviceKind::StereoWidth { width }
+                if width.is_finite() && (0.0..=2.0).contains(&width) =>
+            {
+                process_stereo_width(data, channels, width);
+                Ok(())
+            }
+            DspDeviceKind::PhaseInvert {
+                invert_left,
+                invert_right,
+            } => {
+                process_phase_invert(data, channels, invert_left, invert_right);
+                Ok(())
+            }
             _ => Err(AudioExportError::InvalidDspParameter),
         }
     }
@@ -136,6 +190,32 @@ fn process_pan(data: &mut [f32], channels: usize, pan: f32) {
             frame[0] *= 1.0 - pan;
         } else if pan < 0.0 {
             frame[1] *= 1.0 + pan;
+        }
+    }
+}
+
+fn process_stereo_width(data: &mut [f32], channels: usize, width: f32) {
+    if channels < 2 {
+        return;
+    }
+    for frame in data.chunks_exact_mut(channels) {
+        let mid = (frame[0] + frame[1]) * 0.5;
+        let side = (frame[0] - frame[1]) * 0.5 * width;
+        frame[0] = mid + side;
+        frame[1] = mid - side;
+    }
+}
+
+fn process_phase_invert(data: &mut [f32], channels: usize, invert_left: bool, invert_right: bool) {
+    if channels == 0 {
+        return;
+    }
+    for frame in data.chunks_exact_mut(channels) {
+        if invert_left {
+            frame[0] = -frame[0];
+        }
+        if invert_right && channels > 1 {
+            frame[1] = -frame[1];
         }
     }
 }
@@ -208,5 +288,88 @@ mod tests {
 
         assert_eq!(realtime_data, offline_data);
         assert_eq!(realtime_data, vec![0.5, 1.0, 0.25, 0.5]);
+    }
+
+    #[test]
+    fn native_effect_module_processes_balance_width_and_phase() {
+        let mut balance = NativeEffectModule::new(NativeEffectModuleSpec {
+            bypassed: false,
+            kind: DspDeviceKind::Balance { balance: -0.5 },
+        });
+        prepare_stereo(&mut balance);
+        let mut balance_data = vec![1.0, 1.0, 0.5, 0.5];
+        balance
+            .process_in_place(&mut balance_data)
+            .expect("process balance");
+        assert_eq!(balance_data, vec![1.0, 0.5, 0.5, 0.25]);
+
+        let mut width = NativeEffectModule::new(NativeEffectModuleSpec {
+            bypassed: false,
+            kind: DspDeviceKind::StereoWidth { width: 0.0 },
+        });
+        prepare_stereo(&mut width);
+        let mut width_data = vec![1.0, -1.0, 0.25, 0.75];
+        width
+            .process_in_place(&mut width_data)
+            .expect("collapse width");
+        assert_eq!(width_data, vec![0.0, 0.0, 0.5, 0.5]);
+
+        width
+            .set_parameter(NativeEffectParameterValue::StereoWidth(2.0))
+            .expect("set width");
+        let mut wide_data = vec![0.75, 0.25];
+        width
+            .process_in_place(&mut wide_data)
+            .expect("expand width");
+        assert_eq!(wide_data, vec![1.0, 0.0]);
+
+        let mut phase = NativeEffectModule::new(NativeEffectModuleSpec {
+            bypassed: false,
+            kind: DspDeviceKind::PhaseInvert {
+                invert_left: true,
+                invert_right: false,
+            },
+        });
+        prepare_stereo(&mut phase);
+        let mut phase_data = vec![1.0, -0.5, -0.25, 0.75];
+        phase
+            .process_in_place(&mut phase_data)
+            .expect("process phase");
+        assert_eq!(phase_data, vec![-1.0, -0.5, 0.25, 0.75]);
+    }
+
+    #[test]
+    fn native_effect_module_utility_devices_handle_mono_silence_and_invalid_values() {
+        let mut width = NativeEffectModule::new(NativeEffectModuleSpec {
+            bypassed: false,
+            kind: DspDeviceKind::StereoWidth { width: 2.0 },
+        });
+        width
+            .prepare(NativeModulePrepareSpec {
+                sample_rate: 48_000,
+                channels: 1,
+                max_block_frames: 16,
+            })
+            .expect("prepare mono");
+        let mut mono = vec![0.25, -0.5, 0.0];
+        width.process_in_place(&mut mono).expect("mono width no-op");
+        assert_eq!(mono, vec![0.25, -0.5, 0.0]);
+
+        let mut phase = NativeEffectModule::new(NativeEffectModuleSpec {
+            bypassed: false,
+            kind: DspDeviceKind::PhaseInvert {
+                invert_left: true,
+                invert_right: true,
+            },
+        });
+        prepare_stereo(&mut phase);
+        let mut silence = vec![0.0, 0.0, 0.0, 0.0];
+        phase.process_in_place(&mut silence).expect("phase silence");
+        assert_eq!(silence, vec![0.0, -0.0, 0.0, -0.0]);
+
+        assert!(matches!(
+            width.set_parameter(NativeEffectParameterValue::StereoWidth(2.1)),
+            Err(AudioExportError::InvalidDspParameter)
+        ));
     }
 }

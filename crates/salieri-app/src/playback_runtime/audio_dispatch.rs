@@ -117,6 +117,15 @@ fn audio_dsp_device(device: &EffectDevice) -> DspDeviceSpec {
         kind: match device.kind {
             EffectDeviceKind::Gain { gain } => AudioDspDeviceKind::Gain { gain },
             EffectDeviceKind::Pan { pan } => AudioDspDeviceKind::Pan { pan },
+            EffectDeviceKind::Balance { balance } => AudioDspDeviceKind::Balance { balance },
+            EffectDeviceKind::StereoWidth { width } => AudioDspDeviceKind::StereoWidth { width },
+            EffectDeviceKind::PhaseInvert {
+                invert_left,
+                invert_right,
+            } => AudioDspDeviceKind::PhaseInvert {
+                invert_left,
+                invert_right,
+            },
         },
     }
 }

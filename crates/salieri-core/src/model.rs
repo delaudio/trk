@@ -1401,33 +1401,25 @@ pub struct EffectDevice {
     pub kind: EffectDeviceKind,
 }
 
-impl EffectDevice {
-    #[must_use]
-    pub fn gain(id: u32, gain: f32) -> Self {
-        Self {
-            id,
-            name: "Gain".to_string(),
-            bypassed: false,
-            kind: EffectDeviceKind::Gain { gain },
-        }
-    }
-
-    #[must_use]
-    pub fn pan(id: u32, pan: f32) -> Self {
-        Self {
-            id,
-            name: "Pan".to_string(),
-            bypassed: false,
-            kind: EffectDeviceKind::Pan { pan },
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum EffectDeviceKind {
-    Gain { gain: f32 },
-    Pan { pan: f32 },
+    Gain {
+        gain: f32,
+    },
+    Pan {
+        pan: f32,
+    },
+    Balance {
+        balance: f32,
+    },
+    StereoWidth {
+        width: f32,
+    },
+    PhaseInvert {
+        invert_left: bool,
+        invert_right: bool,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

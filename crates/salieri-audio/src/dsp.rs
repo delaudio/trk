@@ -20,8 +20,22 @@ pub struct DspDeviceSpec {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DspDeviceKind {
-    Gain { gain: f32 },
-    Pan { pan: f32 },
+    Gain {
+        gain: f32,
+    },
+    Pan {
+        pan: f32,
+    },
+    Balance {
+        balance: f32,
+    },
+    StereoWidth {
+        width: f32,
+    },
+    PhaseInvert {
+        invert_left: bool,
+        invert_right: bool,
+    },
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -31,60 +45,31 @@ pub(crate) struct MixParams {
     pub(crate) pan: f32,
 }
 
-pub(crate) fn apply_track_dsp_to_mix_params(
-    params: MixParams,
-    track_id: u32,
-    graph: &DspGraphSpec,
-) -> Result<MixParams, AudioExportError> {
-    let Some(chain) = graph
+pub(crate) fn track_dsp_chain(track_id: u32, graph: &DspGraphSpec) -> &[DspDeviceSpec] {
+    graph
         .track_chains
         .iter()
         .find(|chain| chain.track_id == track_id)
-    else {
-        return Ok(params);
-    };
-
-    chain
-        .devices
-        .iter()
-        .try_fold(params, apply_device_to_mix_params)
+        .map_or(&[], |chain| chain.devices.as_slice())
 }
 
-pub(crate) fn apply_track_dsp_to_mix_params_lossy(
-    params: MixParams,
-    track_id: u32,
-    graph: &DspGraphSpec,
-) -> MixParams {
-    apply_track_dsp_to_mix_params(params, track_id, graph).unwrap_or(params)
-}
-
-fn apply_device_to_mix_params(
-    params: MixParams,
-    device: &DspDeviceSpec,
-) -> Result<MixParams, AudioExportError> {
-    if device.bypassed {
-        return Ok(params);
-    }
-    match device.kind {
-        DspDeviceKind::Gain { gain } => {
-            if !gain.is_finite() || gain < 0.0 {
-                return Err(AudioExportError::InvalidDspParameter);
-            }
-            Ok(MixParams {
-                level: params.level * gain,
-                ..params
-            })
+pub(crate) fn validate_dsp_chain(devices: &[DspDeviceSpec]) -> Result<(), AudioExportError> {
+    for device in devices {
+        if device.bypassed {
+            continue;
         }
-        DspDeviceKind::Pan { pan } => {
-            if !pan.is_finite() || !(-1.0..=1.0).contains(&pan) {
-                return Err(AudioExportError::InvalidDspParameter);
-            }
-            Ok(MixParams {
-                pan: (params.pan + pan).clamp(-1.0, 1.0),
-                ..params
-            })
+        match device.kind {
+            DspDeviceKind::Gain { gain } if gain.is_finite() && gain >= 0.0 => {}
+            DspDeviceKind::Pan { pan } if pan.is_finite() && (-1.0..=1.0).contains(&pan) => {}
+            DspDeviceKind::Balance { balance }
+                if balance.is_finite() && (-1.0..=1.0).contains(&balance) => {}
+            DspDeviceKind::StereoWidth { width }
+                if width.is_finite() && (0.0..=2.0).contains(&width) => {}
+            DspDeviceKind::PhaseInvert { .. } => {}
+            _ => return Err(AudioExportError::InvalidDspParameter),
         }
     }
+    Ok(())
 }
 
 pub(crate) fn apply_dsp_chain_to_buffer(
@@ -111,7 +96,67 @@ pub(crate) fn apply_dsp_chain_to_buffer(
                     }
                 }
             }
+            DspDeviceKind::Balance { balance }
+                if balance.is_finite() && (-1.0..=1.0).contains(&balance) && channels > 0 =>
+            {
+                for frame in data.chunks_exact_mut(channels) {
+                    for (channel, sample) in frame.iter_mut().enumerate() {
+                        *sample *= pan_gain(balance, channel, channels);
+                    }
+                }
+            }
+            DspDeviceKind::StereoWidth { width }
+                if width.is_finite() && (0.0..=2.0).contains(&width) =>
+            {
+                apply_stereo_width(data, channels, width);
+            }
+            DspDeviceKind::PhaseInvert {
+                invert_left,
+                invert_right,
+            } => apply_phase_invert(data, channels, invert_left, invert_right),
             _ => {}
+        }
+    }
+}
+
+pub(crate) fn apply_dsp_chain_to_frame(frame: &mut [f32], devices: &[DspDeviceSpec]) {
+    apply_dsp_chain_to_buffer(frame, frame.len(), devices);
+}
+
+pub(crate) fn apply_dsp_gain_to_aux_sample(sample: f32, devices: &[DspDeviceSpec]) -> f32 {
+    devices.iter().fold(sample, |sample, device| {
+        if device.bypassed {
+            return sample;
+        }
+        match device.kind {
+            DspDeviceKind::Gain { gain } if gain.is_finite() && gain >= 0.0 => sample * gain,
+            _ => sample,
+        }
+    })
+}
+
+fn apply_stereo_width(data: &mut [f32], channels: usize, width: f32) {
+    if channels < 2 {
+        return;
+    }
+    for frame in data.chunks_exact_mut(channels) {
+        let mid = (frame[0] + frame[1]) * 0.5;
+        let side = (frame[0] - frame[1]) * 0.5 * width;
+        frame[0] = mid + side;
+        frame[1] = mid - side;
+    }
+}
+
+fn apply_phase_invert(data: &mut [f32], channels: usize, invert_left: bool, invert_right: bool) {
+    if channels == 0 {
+        return;
+    }
+    for frame in data.chunks_exact_mut(channels) {
+        if invert_left {
+            frame[0] = -frame[0];
+        }
+        if invert_right && channels > 1 {
+            frame[1] = -frame[1];
         }
     }
 }
