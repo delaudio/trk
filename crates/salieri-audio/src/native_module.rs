@@ -1,4 +1,7 @@
-use crate::{dsp::DspDeviceKind, errors::AudioExportError};
+use crate::{
+    dsp::{DspDeviceKind, DspDeviceSpec, DspFilterMode, DspFrameProcessor},
+    errors::AudioExportError,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NativeModulePrepareSpec {
@@ -21,12 +24,21 @@ pub enum NativeEffectParameterValue {
     StereoWidth(f32),
     PhaseInvertLeft(bool),
     PhaseInvertRight(bool),
+    FilterMode(DspFilterMode),
+    FilterCutoffHz(f32),
+    FilterResonance(f32),
+    FilterDriveDb(f32),
+    FilterKeyTrack(f32),
+    FilterEnvAmount(f32),
+    FilterMix(f32),
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct NativeEffectModule {
     spec: NativeEffectModuleSpec,
     default: NativeEffectModuleSpec,
+    smoothed_kind: DspDeviceKind,
+    processor: DspFrameProcessor,
     prepared: Option<NativeModulePrepareSpec>,
 }
 
@@ -36,6 +48,8 @@ impl NativeEffectModule {
         Self {
             spec,
             default: spec,
+            smoothed_kind: spec.kind,
+            processor: DspFrameProcessor::default(),
             prepared: None,
         }
     }
@@ -50,6 +64,8 @@ impl NativeEffectModule {
 
     pub fn reset(&mut self) {
         self.spec = self.default;
+        self.smoothed_kind = self.default.kind;
+        self.processor = DspFrameProcessor::default();
     }
 
     #[must_use]
@@ -121,11 +137,72 @@ impl NativeEffectModule {
                 *invert_right = value;
                 Ok(())
             }
+            (DspDeviceKind::Filter { mode, .. }, NativeEffectParameterValue::FilterMode(value)) => {
+                *mode = value;
+                Ok(())
+            }
+            (
+                DspDeviceKind::Filter { cutoff_hz, .. },
+                NativeEffectParameterValue::FilterCutoffHz(value),
+            ) => {
+                if !value.is_finite() || !(20.0..=24_000.0).contains(&value) {
+                    return Err(AudioExportError::InvalidDspParameter);
+                }
+                *cutoff_hz = value;
+                Ok(())
+            }
+            (
+                DspDeviceKind::Filter { resonance, .. },
+                NativeEffectParameterValue::FilterResonance(value),
+            ) => {
+                if !value.is_finite() || !(0.0..=1.0).contains(&value) {
+                    return Err(AudioExportError::InvalidDspParameter);
+                }
+                *resonance = value;
+                Ok(())
+            }
+            (
+                DspDeviceKind::Filter { drive_db, .. },
+                NativeEffectParameterValue::FilterDriveDb(value),
+            ) => {
+                if !value.is_finite() || !(0.0..=24.0).contains(&value) {
+                    return Err(AudioExportError::InvalidDspParameter);
+                }
+                *drive_db = value;
+                Ok(())
+            }
+            (
+                DspDeviceKind::Filter { key_track, .. },
+                NativeEffectParameterValue::FilterKeyTrack(value),
+            ) => {
+                if !value.is_finite() || !(-1.0..=1.0).contains(&value) {
+                    return Err(AudioExportError::InvalidDspParameter);
+                }
+                *key_track = value;
+                Ok(())
+            }
+            (
+                DspDeviceKind::Filter { env_amount, .. },
+                NativeEffectParameterValue::FilterEnvAmount(value),
+            ) => {
+                if !value.is_finite() || !(-1.0..=1.0).contains(&value) {
+                    return Err(AudioExportError::InvalidDspParameter);
+                }
+                *env_amount = value;
+                Ok(())
+            }
+            (DspDeviceKind::Filter { mix, .. }, NativeEffectParameterValue::FilterMix(value)) => {
+                if !value.is_finite() || !(0.0..=1.0).contains(&value) {
+                    return Err(AudioExportError::InvalidDspParameter);
+                }
+                *mix = value;
+                Ok(())
+            }
             _ => Err(AudioExportError::InvalidDspParameter),
         }
     }
 
-    pub fn process_in_place(&self, data: &mut [f32]) -> Result<(), AudioExportError> {
+    pub fn process_in_place(&mut self, data: &mut [f32]) -> Result<(), AudioExportError> {
         let Some(prepared) = self.prepared else {
             return Err(AudioExportError::InvalidDspParameter);
         };
@@ -146,78 +223,74 @@ impl NativeEffectModule {
         if self.spec.bypassed {
             return Ok(());
         }
-        match self.spec.kind {
-            DspDeviceKind::Gain { gain } if gain.is_finite() && gain >= 0.0 => {
-                for sample in data {
-                    *sample *= gain;
-                }
-                Ok(())
-            }
-            DspDeviceKind::Pan { pan } if pan.is_finite() && (-1.0..=1.0).contains(&pan) => {
-                process_pan(data, channels, pan);
-                Ok(())
-            }
-            DspDeviceKind::Balance { balance }
-                if balance.is_finite() && (-1.0..=1.0).contains(&balance) =>
-            {
-                process_pan(data, channels, balance);
-                Ok(())
-            }
-            DspDeviceKind::StereoWidth { width }
-                if width.is_finite() && (0.0..=2.0).contains(&width) =>
-            {
-                process_stereo_width(data, channels, width);
-                Ok(())
-            }
-            DspDeviceKind::PhaseInvert {
-                invert_left,
-                invert_right,
-            } => {
-                process_phase_invert(data, channels, invert_left, invert_right);
-                Ok(())
-            }
-            _ => Err(AudioExportError::InvalidDspParameter),
+        let sample_rate = prepared.sample_rate;
+        for frame in data.chunks_exact_mut(channels) {
+            self.smoothed_kind = smooth_kind(self.smoothed_kind, self.spec.kind);
+            let device = DspDeviceSpec {
+                bypassed: false,
+                kind: self.smoothed_kind,
+            };
+            self.processor.process_frame(frame, sample_rate, &[device]);
         }
+        Ok(())
     }
 }
 
-fn process_pan(data: &mut [f32], channels: usize, pan: f32) {
-    if channels < 2 {
-        return;
-    }
-    for frame in data.chunks_exact_mut(channels) {
-        if pan > 0.0 {
-            frame[0] *= 1.0 - pan;
-        } else if pan < 0.0 {
-            frame[1] *= 1.0 + pan;
+fn smooth_kind(current: DspDeviceKind, target: DspDeviceKind) -> DspDeviceKind {
+    const SMOOTHING: f32 = 0.01;
+    match (current, target) {
+        (DspDeviceKind::Gain { gain }, DspDeviceKind::Gain { gain: target }) => {
+            DspDeviceKind::Gain {
+                gain: smooth_value(gain, target, SMOOTHING),
+            }
         }
+        (DspDeviceKind::Pan { pan }, DspDeviceKind::Pan { pan: target }) => DspDeviceKind::Pan {
+            pan: smooth_value(pan, target, SMOOTHING),
+        },
+        (DspDeviceKind::Balance { balance }, DspDeviceKind::Balance { balance: target }) => {
+            DspDeviceKind::Balance {
+                balance: smooth_value(balance, target, SMOOTHING),
+            }
+        }
+        (DspDeviceKind::StereoWidth { width }, DspDeviceKind::StereoWidth { width: target }) => {
+            DspDeviceKind::StereoWidth {
+                width: smooth_value(width, target, SMOOTHING),
+            }
+        }
+        (
+            DspDeviceKind::Filter {
+                mode: _,
+                cutoff_hz,
+                resonance,
+                drive_db,
+                key_track,
+                env_amount,
+                mix,
+            },
+            DspDeviceKind::Filter {
+                mode: target_mode,
+                cutoff_hz: target_cutoff,
+                resonance: target_resonance,
+                drive_db: target_drive,
+                key_track: target_key_track,
+                env_amount: target_env_amount,
+                mix: target_mix,
+            },
+        ) => DspDeviceKind::Filter {
+            mode: target_mode,
+            cutoff_hz: smooth_value(cutoff_hz, target_cutoff, SMOOTHING),
+            resonance: smooth_value(resonance, target_resonance, SMOOTHING),
+            drive_db: smooth_value(drive_db, target_drive, SMOOTHING),
+            key_track: smooth_value(key_track, target_key_track, SMOOTHING),
+            env_amount: smooth_value(env_amount, target_env_amount, SMOOTHING),
+            mix: smooth_value(mix, target_mix, SMOOTHING),
+        },
+        _ => target,
     }
 }
 
-fn process_stereo_width(data: &mut [f32], channels: usize, width: f32) {
-    if channels < 2 {
-        return;
-    }
-    for frame in data.chunks_exact_mut(channels) {
-        let mid = (frame[0] + frame[1]) * 0.5;
-        let side = (frame[0] - frame[1]) * 0.5 * width;
-        frame[0] = mid + side;
-        frame[1] = mid - side;
-    }
-}
-
-fn process_phase_invert(data: &mut [f32], channels: usize, invert_left: bool, invert_right: bool) {
-    if channels == 0 {
-        return;
-    }
-    for frame in data.chunks_exact_mut(channels) {
-        if invert_left {
-            frame[0] = -frame[0];
-        }
-        if invert_right && channels > 1 {
-            frame[1] = -frame[1];
-        }
-    }
+fn smooth_value(current: f32, target: f32, amount: f32) -> f32 {
+    current + (target - current) * amount
 }
 
 #[cfg(test)]
@@ -314,9 +387,11 @@ mod tests {
             .expect("collapse width");
         assert_eq!(width_data, vec![0.0, 0.0, 0.5, 0.5]);
 
-        width
-            .set_parameter(NativeEffectParameterValue::StereoWidth(2.0))
-            .expect("set width");
+        let mut width = NativeEffectModule::new(NativeEffectModuleSpec {
+            bypassed: false,
+            kind: DspDeviceKind::StereoWidth { width: 2.0 },
+        });
+        prepare_stereo(&mut width);
         let mut wide_data = vec![0.75, 0.25];
         width
             .process_in_place(&mut wide_data)
@@ -369,6 +444,71 @@ mod tests {
 
         assert!(matches!(
             width.set_parameter(NativeEffectParameterValue::StereoWidth(2.1)),
+            Err(AudioExportError::InvalidDspParameter)
+        ));
+    }
+
+    #[test]
+    fn native_effect_module_processes_multimode_filter_stably() {
+        for mode in [
+            DspFilterMode::LowPass,
+            DspFilterMode::HighPass,
+            DspFilterMode::BandPass,
+            DspFilterMode::Notch,
+        ] {
+            let mut module = NativeEffectModule::new(NativeEffectModuleSpec {
+                bypassed: false,
+                kind: DspDeviceKind::Filter {
+                    mode,
+                    cutoff_hz: 1_000.0,
+                    resonance: 0.5,
+                    drive_db: 6.0,
+                    key_track: 0.0,
+                    env_amount: 0.0,
+                    mix: 1.0,
+                },
+            });
+            prepare_stereo(&mut module);
+
+            let mut data = vec![1.0, -1.0, 0.5, -0.5, 0.25, -0.25, 0.0, 0.0];
+            module.process_in_place(&mut data).expect("process filter");
+
+            assert!(data.iter().all(|sample| sample.is_finite()));
+            assert_ne!(data, vec![1.0, -1.0, 0.5, -0.5, 0.25, -0.25, 0.0, 0.0]);
+        }
+    }
+
+    #[test]
+    fn native_effect_module_smooths_filter_parameter_changes() {
+        let mut module = NativeEffectModule::new(NativeEffectModuleSpec {
+            bypassed: false,
+            kind: DspDeviceKind::Filter {
+                mode: DspFilterMode::LowPass,
+                cutoff_hz: 200.0,
+                resonance: 0.0,
+                drive_db: 0.0,
+                key_track: 0.0,
+                env_amount: 0.0,
+                mix: 1.0,
+            },
+        });
+        prepare_stereo(&mut module);
+
+        module
+            .set_parameter(NativeEffectParameterValue::FilterCutoffHz(20_000.0))
+            .expect("set cutoff");
+        module
+            .set_parameter(NativeEffectParameterValue::FilterResonance(1.0))
+            .expect("set resonance");
+
+        let mut data = vec![1.0; 16];
+        module
+            .process_in_place(&mut data)
+            .expect("process smoothed");
+
+        assert!(data.iter().all(|sample| sample.is_finite()));
+        assert!(matches!(
+            module.set_parameter(NativeEffectParameterValue::FilterMix(1.5)),
             Err(AudioExportError::InvalidDspParameter)
         ));
     }

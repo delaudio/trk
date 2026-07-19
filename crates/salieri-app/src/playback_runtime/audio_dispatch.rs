@@ -2,9 +2,10 @@ use std::{path::Path, sync::mpsc::Sender};
 
 use salieri_audio::{
     AudioBackend, AudioConfig, CpalAudioBackend, DspDeviceKind as AudioDspDeviceKind,
-    DspDeviceSpec, DspGraphSpec, RealtimeAudioCommand, TrackDspChainSpec,
+    DspDeviceSpec, DspFilterMode as AudioDspFilterMode, DspGraphSpec, RealtimeAudioCommand,
+    TrackDspChainSpec,
 };
-use salieri_core::{EffectDevice, EffectDeviceKind, Song};
+use salieri_core::{EffectDevice, EffectDeviceKind, FilterMode, Song};
 
 use super::{sample_preload::load_realtime_samples, transport::PlaybackUpdate};
 
@@ -126,7 +127,33 @@ fn audio_dsp_device(device: &EffectDevice) -> DspDeviceSpec {
                 invert_left,
                 invert_right,
             },
+            EffectDeviceKind::Filter {
+                mode,
+                cutoff_hz,
+                resonance,
+                drive_db,
+                key_track,
+                env_amount,
+                mix,
+            } => AudioDspDeviceKind::Filter {
+                mode: audio_filter_mode(mode),
+                cutoff_hz,
+                resonance,
+                drive_db,
+                key_track,
+                env_amount,
+                mix,
+            },
         },
+    }
+}
+
+fn audio_filter_mode(mode: FilterMode) -> AudioDspFilterMode {
+    match mode {
+        FilterMode::LowPass => AudioDspFilterMode::LowPass,
+        FilterMode::HighPass => AudioDspFilterMode::HighPass,
+        FilterMode::BandPass => AudioDspFilterMode::BandPass,
+        FilterMode::Notch => AudioDspFilterMode::Notch,
     }
 }
 

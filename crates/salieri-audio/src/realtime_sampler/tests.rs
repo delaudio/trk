@@ -308,6 +308,80 @@ fn realtime_and_offline_match_for_native_utility_track_devices() {
 }
 
 #[test]
+fn realtime_and_offline_match_for_native_filter_fixture() {
+    let preview = PreviewBuffer {
+        sample_rate: 48_000,
+        channels: 2,
+        frames: 4,
+        data: vec![1.0, -1.0, 0.5, -0.5, 0.25, -0.25, 0.0, 0.0],
+    };
+    let graph = DspGraphSpec {
+        track_chains: Vec::new(),
+        master: vec![DspDeviceSpec {
+            bypassed: false,
+            kind: DspDeviceKind::Filter {
+                mode: DspFilterMode::LowPass,
+                cutoff_hz: 1_200.0,
+                resonance: 0.4,
+                drive_db: 6.0,
+                key_track: 0.0,
+                env_amount: 0.0,
+                mix: 0.75,
+            },
+        }],
+    };
+
+    let offline = render_sampler_events_with_dsp(
+        &[OfflineSamplerSample {
+            sample_id: 1,
+            buffer: preview.clone(),
+        }],
+        &[OfflineSamplerEvent {
+            track_id: 1,
+            sample_id: 1,
+            frame: 0,
+            gain: 1.0,
+            pan: 0.0,
+            pitch_ratio: 1.0,
+            velocity: 127,
+        }],
+        OfflineRenderSpec {
+            sample_rate: 48_000,
+            channels: 2,
+            frames: 4,
+        },
+        &graph,
+    )
+    .expect("offline render");
+
+    let mut realtime = RealtimeSampler::new(RealtimeSamplerConfig {
+        sample_rate: 48_000,
+        channels: 2,
+        max_voices: 4,
+    });
+    realtime
+        .register_sample(1, preview)
+        .expect("register sample");
+    realtime.set_dsp_graph(graph);
+    realtime
+        .handle_command(RealtimeAudioCommand::TriggerSample {
+            track_id: 1,
+            sample_id: 1,
+            frame: 0,
+            gain: 1.0,
+            pan: 0.0,
+            pitch_ratio: 1.0,
+        })
+        .expect("trigger");
+    let rendered = realtime.render(4);
+
+    assert_eq!(rendered.data.len(), offline.data.len());
+    for (actual, expected) in rendered.data.iter().zip(offline.data.iter()) {
+        assert_approx_eq(*actual, *expected);
+    }
+}
+
+#[test]
 fn realtime_sampler_can_trigger_at_current_callback_frame() {
     let mut sampler = RealtimeSampler::new(RealtimeSamplerConfig {
         sample_rate: 48_000,

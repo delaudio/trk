@@ -1,6 +1,6 @@
 use super::{
-    ParameterDescriptor, ParameterFlags, ParameterGroupId, ParameterId, ParameterRange,
-    ParameterUnit, ParameterValue, ParameterValueType,
+    ParameterChoice, ParameterDescriptor, ParameterFlags, ParameterGroupId, ParameterId,
+    ParameterRange, ParameterUnit, ParameterValue, ParameterValueType,
 };
 
 pub const SAMPLE_GAIN_PARAMETER_ID: &str = "sample.gain";
@@ -14,6 +14,13 @@ pub const NATIVE_BALANCE_PARAMETER_ID: &str = "native.balance.balance";
 pub const NATIVE_WIDTH_PARAMETER_ID: &str = "native.width.width";
 pub const NATIVE_PHASE_INVERT_LEFT_PARAMETER_ID: &str = "native.phase.invertLeft";
 pub const NATIVE_PHASE_INVERT_RIGHT_PARAMETER_ID: &str = "native.phase.invertRight";
+pub const NATIVE_FILTER_MODE_PARAMETER_ID: &str = "native.filter.mode";
+pub const NATIVE_FILTER_CUTOFF_PARAMETER_ID: &str = "native.filter.cutoffHz";
+pub const NATIVE_FILTER_RESONANCE_PARAMETER_ID: &str = "native.filter.resonance";
+pub const NATIVE_FILTER_DRIVE_PARAMETER_ID: &str = "native.filter.driveDb";
+pub const NATIVE_FILTER_KEY_TRACK_PARAMETER_ID: &str = "native.filter.keyTrack";
+pub const NATIVE_FILTER_ENV_AMOUNT_PARAMETER_ID: &str = "native.filter.envAmount";
+pub const NATIVE_FILTER_MIX_PARAMETER_ID: &str = "native.filter.mix";
 
 #[must_use]
 pub fn sample_gain_descriptor() -> ParameterDescriptor {
@@ -204,6 +211,136 @@ pub fn native_phase_invert_right_descriptor() -> ParameterDescriptor {
 }
 
 #[must_use]
+pub fn native_filter_mode_descriptor() -> ParameterDescriptor {
+    enum_descriptor(EnumDescriptorSpec {
+        id: NATIVE_FILTER_MODE_PARAMETER_ID,
+        name: "Filter Mode",
+        short_name: Some("Mode"),
+        default: "lowPass",
+        choices: &[
+            ("lowPass", "Low-pass"),
+            ("highPass", "High-pass"),
+            ("bandPass", "Band-pass"),
+            ("notch", "Notch"),
+        ],
+        flags: ParameterFlags {
+            stepped: true,
+            ..ParameterFlags::automatable()
+        },
+        group: Some("native.filter"),
+        order: 10,
+    })
+}
+
+#[must_use]
+pub fn native_filter_cutoff_descriptor() -> ParameterDescriptor {
+    continuous_descriptor(ContinuousDescriptorSpec {
+        id: NATIVE_FILTER_CUTOFF_PARAMETER_ID,
+        name: "Cutoff",
+        short_name: Some("Cut"),
+        value_type: ParameterValueType::FrequencyHertz,
+        default: ParameterValue::FrequencyHertz(12_000.0),
+        min: 20.0,
+        max: 24_000.0,
+        step: Some(0.1),
+        unit: ParameterUnit::Hertz,
+        flags: ParameterFlags::automatable_logarithmic(),
+        group: Some("native.filter"),
+        order: 20,
+    })
+}
+
+#[must_use]
+pub fn native_filter_resonance_descriptor() -> ParameterDescriptor {
+    continuous_descriptor(ContinuousDescriptorSpec {
+        id: NATIVE_FILTER_RESONANCE_PARAMETER_ID,
+        name: "Resonance",
+        short_name: Some("Res"),
+        value_type: ParameterValueType::NormalizedFloat,
+        default: ParameterValue::Normalized(0.25),
+        min: 0.0,
+        max: 1.0,
+        step: Some(0.001),
+        unit: ParameterUnit::Normalized,
+        flags: ParameterFlags::automatable(),
+        group: Some("native.filter"),
+        order: 30,
+    })
+}
+
+#[must_use]
+pub fn native_filter_drive_descriptor() -> ParameterDescriptor {
+    continuous_descriptor(ContinuousDescriptorSpec {
+        id: NATIVE_FILTER_DRIVE_PARAMETER_ID,
+        name: "Drive",
+        short_name: Some("Drv"),
+        value_type: ParameterValueType::Decibels,
+        default: ParameterValue::Decibels(0.0),
+        min: 0.0,
+        max: 24.0,
+        step: Some(0.1),
+        unit: ParameterUnit::Decibels,
+        flags: ParameterFlags::automatable(),
+        group: Some("native.filter"),
+        order: 40,
+    })
+}
+
+#[must_use]
+pub fn native_filter_key_track_descriptor() -> ParameterDescriptor {
+    continuous_descriptor(ContinuousDescriptorSpec {
+        id: NATIVE_FILTER_KEY_TRACK_PARAMETER_ID,
+        name: "Key Track",
+        short_name: Some("Key"),
+        value_type: ParameterValueType::Percentage,
+        default: ParameterValue::Percentage(0.0),
+        min: -1.0,
+        max: 1.0,
+        step: Some(0.001),
+        unit: ParameterUnit::Percent,
+        flags: ParameterFlags::automatable_bipolar(),
+        group: Some("native.filter"),
+        order: 50,
+    })
+}
+
+#[must_use]
+pub fn native_filter_env_amount_descriptor() -> ParameterDescriptor {
+    continuous_descriptor(ContinuousDescriptorSpec {
+        id: NATIVE_FILTER_ENV_AMOUNT_PARAMETER_ID,
+        name: "Envelope Amount",
+        short_name: Some("Env"),
+        value_type: ParameterValueType::Percentage,
+        default: ParameterValue::Percentage(0.0),
+        min: -1.0,
+        max: 1.0,
+        step: Some(0.001),
+        unit: ParameterUnit::Percent,
+        flags: ParameterFlags::automatable_bipolar(),
+        group: Some("native.filter"),
+        order: 60,
+    })
+}
+
+#[must_use]
+pub fn native_filter_mix_descriptor() -> ParameterDescriptor {
+    continuous_descriptor(ContinuousDescriptorSpec {
+        id: NATIVE_FILTER_MIX_PARAMETER_ID,
+        name: "Mix",
+        short_name: Some("Mix"),
+        value_type: ParameterValueType::Percentage,
+        default: ParameterValue::Percentage(1.0),
+        min: 0.0,
+        max: 1.0,
+        step: Some(0.001),
+        unit: ParameterUnit::Percent,
+        flags: ParameterFlags::automatable(),
+        group: Some("native.filter"),
+        order: 70,
+    })
+}
+
+#[must_use]
 pub fn sampler_parameter_descriptors() -> Vec<ParameterDescriptor> {
     vec![sample_gain_descriptor()]
 }
@@ -227,6 +364,13 @@ pub fn native_effect_parameter_descriptors() -> Vec<ParameterDescriptor> {
         native_width_descriptor(),
         native_phase_invert_left_descriptor(),
         native_phase_invert_right_descriptor(),
+        native_filter_mode_descriptor(),
+        native_filter_cutoff_descriptor(),
+        native_filter_resonance_descriptor(),
+        native_filter_drive_descriptor(),
+        native_filter_key_track_descriptor(),
+        native_filter_env_amount_descriptor(),
+        native_filter_mix_descriptor(),
     ]
 }
 
@@ -244,6 +388,13 @@ pub fn builtin_parameter_descriptor(id: &ParameterId) -> Option<ParameterDescrip
         NATIVE_WIDTH_PARAMETER_ID => Some(native_width_descriptor()),
         NATIVE_PHASE_INVERT_LEFT_PARAMETER_ID => Some(native_phase_invert_left_descriptor()),
         NATIVE_PHASE_INVERT_RIGHT_PARAMETER_ID => Some(native_phase_invert_right_descriptor()),
+        NATIVE_FILTER_MODE_PARAMETER_ID => Some(native_filter_mode_descriptor()),
+        NATIVE_FILTER_CUTOFF_PARAMETER_ID => Some(native_filter_cutoff_descriptor()),
+        NATIVE_FILTER_RESONANCE_PARAMETER_ID => Some(native_filter_resonance_descriptor()),
+        NATIVE_FILTER_DRIVE_PARAMETER_ID => Some(native_filter_drive_descriptor()),
+        NATIVE_FILTER_KEY_TRACK_PARAMETER_ID => Some(native_filter_key_track_descriptor()),
+        NATIVE_FILTER_ENV_AMOUNT_PARAMETER_ID => Some(native_filter_env_amount_descriptor()),
+        NATIVE_FILTER_MIX_PARAMETER_ID => Some(native_filter_mix_descriptor()),
         _ => None,
     }
 }
@@ -300,6 +451,41 @@ pub(crate) fn bool_descriptor(spec: BoolDescriptorSpec<'_>) -> ParameterDescript
         value_type: ParameterValueType::Boolean,
         default: ParameterValue::Bool(spec.default),
         range: ParameterRange::Boolean,
+        unit: ParameterUnit::Choice,
+        flags: spec.flags,
+        group: spec.group.map(ParameterGroupId::from),
+        order: spec.order,
+    }
+}
+
+pub(crate) struct EnumDescriptorSpec<'a> {
+    pub(crate) id: &'a str,
+    pub(crate) name: &'a str,
+    pub(crate) short_name: Option<&'a str>,
+    pub(crate) default: &'a str,
+    pub(crate) choices: &'a [(&'a str, &'a str)],
+    pub(crate) flags: ParameterFlags,
+    pub(crate) group: Option<&'a str>,
+    pub(crate) order: u16,
+}
+
+pub(crate) fn enum_descriptor(spec: EnumDescriptorSpec<'_>) -> ParameterDescriptor {
+    ParameterDescriptor {
+        id: ParameterId::from(spec.id),
+        name: spec.name.to_string(),
+        short_name: spec.short_name.map(str::to_string),
+        value_type: ParameterValueType::Enum,
+        default: ParameterValue::Enum(spec.default.to_string()),
+        range: ParameterRange::Enum {
+            choices: spec
+                .choices
+                .iter()
+                .map(|(id, label)| ParameterChoice {
+                    id: (*id).to_string(),
+                    label: (*label).to_string(),
+                })
+                .collect(),
+        },
         unit: ParameterUnit::Choice,
         flags: spec.flags,
         group: spec.group.map(ParameterGroupId::from),

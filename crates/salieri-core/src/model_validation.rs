@@ -7,8 +7,11 @@ use crate::{
     },
     parameters::{
         mixer_master_gain_descriptor, mixer_send_gain_descriptor, mixer_track_gain_descriptor,
-        mixer_track_pan_descriptor, native_balance_descriptor, native_gain_descriptor,
-        native_pan_descriptor, native_width_descriptor, sample_gain_descriptor,
+        mixer_track_pan_descriptor, native_balance_descriptor, native_filter_cutoff_descriptor,
+        native_filter_drive_descriptor, native_filter_env_amount_descriptor,
+        native_filter_key_track_descriptor, native_filter_mix_descriptor,
+        native_filter_resonance_descriptor, native_gain_descriptor, native_pan_descriptor,
+        native_width_descriptor, sample_gain_descriptor,
     },
 };
 
@@ -174,11 +177,29 @@ fn validate_effect_chain(effects: &[EffectDevice]) -> Result<(), ValidationError
             {
                 return Err(ValidationError::InvalidEffectParameter);
             }
+            EffectDeviceKind::Filter {
+                cutoff_hz,
+                resonance,
+                drive_db,
+                key_track,
+                env_amount,
+                mix,
+                ..
+            } if !native_filter_cutoff_descriptor().validate_f32(cutoff_hz)
+                || !native_filter_resonance_descriptor().validate_f32(resonance)
+                || !native_filter_drive_descriptor().validate_f32(drive_db)
+                || !native_filter_key_track_descriptor().validate_f32(key_track)
+                || !native_filter_env_amount_descriptor().validate_f32(env_amount)
+                || !native_filter_mix_descriptor().validate_f32(mix) =>
+            {
+                return Err(ValidationError::InvalidEffectParameter);
+            }
             EffectDeviceKind::Gain { .. }
             | EffectDeviceKind::Pan { .. }
             | EffectDeviceKind::Balance { .. }
             | EffectDeviceKind::StereoWidth { .. }
-            | EffectDeviceKind::PhaseInvert { .. } => {}
+            | EffectDeviceKind::PhaseInvert { .. }
+            | EffectDeviceKind::Filter { .. } => {}
         }
     }
     Ok(())

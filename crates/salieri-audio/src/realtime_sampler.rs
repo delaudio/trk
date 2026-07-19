@@ -6,7 +6,7 @@ use crate::{
     backend::AudioConfig,
     dsp::{
         apply_dsp_chain_to_buffer, apply_dsp_chain_to_frame, apply_dsp_gain_to_aux_sample,
-        pan_gain, track_dsp_chain, DspDeviceSpec, DspGraphSpec, MixParams,
+        pan_gain, track_dsp_chain, DspDeviceSpec, DspFrameProcessor, DspGraphSpec, MixParams,
     },
     errors::AudioExportError,
     offline_render::{OfflineRenderSpec, RenderedAudio},
@@ -230,18 +230,20 @@ impl RealtimeSampler {
             let Some(sample) = self.samples.get(&voice.sample_id) else {
                 continue;
             };
-            mix_realtime_voice(
-                data,
-                channels,
-                sample,
-                voice,
-                render_start,
-                render_end,
-                &self.dsp_graph,
-            );
+            let window = RealtimeRenderWindow {
+                start: render_start,
+                end: render_end,
+                sample_rate: self.config.sample_rate,
+            };
+            mix_realtime_voice(data, channels, sample, voice, window, &self.dsp_graph);
         }
 
-        apply_dsp_chain_to_buffer(data, channels, &self.dsp_graph.master);
+        apply_dsp_chain_to_buffer(
+            data,
+            channels,
+            self.config.sample_rate,
+            &self.dsp_graph.master,
+        );
 
         self.current_frame = render_end;
         let current_frame = self.current_frame;
@@ -370,18 +372,24 @@ pub fn apply_preview_envelope(
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+struct RealtimeRenderWindow {
+    start: u64,
+    end: u64,
+    sample_rate: u32,
+}
+
 fn mix_realtime_voice(
     output: &mut [f32],
     channels: usize,
     sample: &PreviewBuffer,
     voice: &RealtimeSamplerVoice,
-    render_start: u64,
-    render_end: u64,
+    window: RealtimeRenderWindow,
     dsp_graph: &DspGraphSpec,
 ) {
     let voice_end = voice_end_frame(voice, sample).unwrap_or(u64::MAX);
-    let mix_start = render_start.max(voice.start_frame);
-    let mix_end = render_end.min(voice_end);
+    let mix_start = window.start.max(voice.start_frame);
+    let mix_end = window.end.min(voice_end);
     if mix_start >= mix_end {
         return;
     }
@@ -392,55 +400,68 @@ fn mix_realtime_voice(
         pan: voice.pan,
     };
     let track_devices = track_dsp_chain(voice.track_id, dsp_graph);
+    let mut processor = DspFrameProcessor::default();
 
     for absolute_frame in mix_start..mix_end {
-        let output_frame = (absolute_frame - render_start) as usize;
+        let output_frame = (absolute_frame - window.start) as usize;
         let source_frame = (absolute_frame - voice.start_frame) as f32 * voice.pitch_ratio;
-        let output_offset = output_frame * channels;
+        let context = RealtimeFrameContext {
+            output_offset: output_frame * channels,
+            channels,
+            sample_rate: window.sample_rate,
+        };
         mix_realtime_frame(
             output,
-            output_offset,
-            channels,
+            context,
             sample,
             source_frame,
             params,
             track_devices,
+            &mut processor,
         );
     }
 }
 
-fn mix_realtime_frame(
-    output: &mut [f32],
+#[derive(Debug, Clone, Copy)]
+struct RealtimeFrameContext {
     output_offset: usize,
     channels: usize,
+    sample_rate: u32,
+}
+
+fn mix_realtime_frame(
+    output: &mut [f32],
+    context: RealtimeFrameContext,
     sample: &PreviewBuffer,
     source_frame: f32,
     params: MixParams,
     track_devices: &[DspDeviceSpec],
+    processor: &mut DspFrameProcessor,
 ) {
-    if channels == 1 {
-        let mut frame = [interpolated_sample(sample, source_frame, 0, channels) * params.level];
-        apply_dsp_chain_to_frame(&mut frame, track_devices);
-        output[output_offset] += frame[0];
+    if context.channels == 1 {
+        let mut frame =
+            [interpolated_sample(sample, source_frame, 0, context.channels) * params.level];
+        apply_dsp_chain_to_frame(processor, &mut frame, context.sample_rate, track_devices);
+        output[context.output_offset] += frame[0];
         return;
     }
 
     let mut frame = [
-        interpolated_sample(sample, source_frame, 0, channels)
+        interpolated_sample(sample, source_frame, 0, context.channels)
             * params.level
-            * pan_gain(params.pan, 0, channels),
-        interpolated_sample(sample, source_frame, 1, channels)
+            * pan_gain(params.pan, 0, context.channels),
+        interpolated_sample(sample, source_frame, 1, context.channels)
             * params.level
-            * pan_gain(params.pan, 1, channels),
+            * pan_gain(params.pan, 1, context.channels),
     ];
-    apply_dsp_chain_to_frame(&mut frame, track_devices);
-    output[output_offset] += frame[0];
-    output[output_offset + 1] += frame[1];
-    for channel in 2..channels {
-        let sample_value = interpolated_sample(sample, source_frame, channel, channels)
+    apply_dsp_chain_to_frame(processor, &mut frame, context.sample_rate, track_devices);
+    output[context.output_offset] += frame[0];
+    output[context.output_offset + 1] += frame[1];
+    for channel in 2..context.channels {
+        let sample_value = interpolated_sample(sample, source_frame, channel, context.channels)
             * params.level
-            * pan_gain(params.pan, channel, channels);
-        output[output_offset + channel] +=
+            * pan_gain(params.pan, channel, context.channels);
+        output[context.output_offset + channel] +=
             apply_dsp_gain_to_aux_sample(sample_value, track_devices);
     }
 }

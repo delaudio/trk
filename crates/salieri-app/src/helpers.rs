@@ -50,6 +50,17 @@ pub(crate) fn format_effect_device(device: &EffectDevice) -> String {
             invert_left,
             invert_right,
         } => format!("phase L:{} R:{}", invert_left as u8, invert_right as u8),
+        EffectDeviceKind::Filter {
+            mode,
+            cutoff_hz,
+            resonance,
+            drive_db,
+            mix,
+            ..
+        } => format!(
+            "filter {} {cutoff_hz:.1}Hz res {resonance:.3} drive {drive_db:.1}dB mix {mix:.3}",
+            mode.parameter_id()
+        ),
     }
 }
 

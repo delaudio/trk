@@ -6,7 +6,8 @@ use crate::{
     backend::AudioConfig,
     dsp::{
         apply_dsp_chain_to_buffer, apply_dsp_chain_to_frame, apply_dsp_gain_to_aux_sample,
-        pan_gain, track_dsp_chain, validate_dsp_chain, DspDeviceSpec, DspGraphSpec, MixParams,
+        pan_gain, track_dsp_chain, validate_dsp_chain, DspDeviceSpec, DspFrameProcessor,
+        DspGraphSpec, MixParams,
     },
     errors::AudioExportError,
     shared::{interpolated_sample, validate_sampler_render_sample, validated_pitch_ratio},
@@ -150,18 +151,16 @@ pub fn render_sampler_events_with_dsp(
         };
         let track_devices = track_dsp_chain(event.track_id, dsp_graph);
         validate_dsp_chain(track_devices)?;
-        mix_sample_event(
-            &mut data,
-            frames,
+        let context = OfflineMixContext {
+            output_frames: frames,
             channels,
-            sample,
-            output_frame,
-            params,
-            track_devices,
-        );
+            output_start_frame: output_frame,
+            sample_rate: spec.sample_rate,
+        };
+        mix_sample_event(&mut data, context, sample, params, track_devices);
     }
 
-    apply_dsp_chain_to_buffer(&mut data, channels, &dsp_graph.master);
+    apply_dsp_chain_to_buffer(&mut data, channels, spec.sample_rate, &dsp_graph.master);
 
     Ok(RenderedAudio {
         sample_rate: spec.sample_rate,
@@ -188,39 +187,58 @@ fn infer_sampler_render_frames(
     })
 }
 
-fn mix_sample_event(
-    output: &mut [f32],
+#[derive(Debug, Clone, Copy)]
+struct OfflineMixContext {
     output_frames: usize,
     channels: usize,
-    sample: &PreviewBuffer,
     output_start_frame: usize,
+    sample_rate: u32,
+}
+
+fn mix_sample_event(
+    output: &mut [f32],
+    context: OfflineMixContext,
+    sample: &PreviewBuffer,
     params: MixParams,
     track_devices: &[DspDeviceSpec],
 ) {
     let mut source_frame = 0.0_f32;
-    let mut output_frame = output_start_frame;
-    while output_frame < output_frames && source_frame < sample.frames as f32 {
-        let output_offset = output_frame * channels;
-        if channels == 1 {
-            let mut frame = [interpolated_sample(sample, source_frame, 0, channels) * params.level];
-            apply_dsp_chain_to_frame(&mut frame, track_devices);
+    let mut output_frame = context.output_start_frame;
+    let mut processor = DspFrameProcessor::default();
+    while output_frame < context.output_frames && source_frame < sample.frames as f32 {
+        let output_offset = output_frame * context.channels;
+        if context.channels == 1 {
+            let mut frame =
+                [interpolated_sample(sample, source_frame, 0, context.channels) * params.level];
+            apply_dsp_chain_to_frame(
+                &mut processor,
+                &mut frame,
+                context.sample_rate,
+                track_devices,
+            );
             output[output_offset] += frame[0];
         } else {
             let mut frame = [
-                interpolated_sample(sample, source_frame, 0, channels)
+                interpolated_sample(sample, source_frame, 0, context.channels)
                     * params.level
-                    * pan_gain(params.pan, 0, channels),
-                interpolated_sample(sample, source_frame, 1, channels)
+                    * pan_gain(params.pan, 0, context.channels),
+                interpolated_sample(sample, source_frame, 1, context.channels)
                     * params.level
-                    * pan_gain(params.pan, 1, channels),
+                    * pan_gain(params.pan, 1, context.channels),
             ];
-            apply_dsp_chain_to_frame(&mut frame, track_devices);
+            apply_dsp_chain_to_frame(
+                &mut processor,
+                &mut frame,
+                context.sample_rate,
+                track_devices,
+            );
             output[output_offset] += frame[0];
             output[output_offset + 1] += frame[1];
-            for channel in 2..channels {
-                let sample_value = interpolated_sample(sample, source_frame, channel, channels)
-                    * params.level
-                    * pan_gain(params.pan, channel, channels);
+            for channel in 2..context.channels {
+                let sample_value =
+                    interpolated_sample(sample, source_frame, channel, context.channels)
+                        * params.level
+                        * pan_gain(params.pan, channel, context.channels);
                 output[output_offset + channel] +=
                     apply_dsp_gain_to_aux_sample(sample_value, track_devices);
             }

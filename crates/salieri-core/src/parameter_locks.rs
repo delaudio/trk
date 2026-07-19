@@ -267,7 +267,8 @@ fn effect_descriptor(
         | EffectDeviceKind::Pan { .. }
         | EffectDeviceKind::Balance { .. }
         | EffectDeviceKind::StereoWidth { .. }
-        | EffectDeviceKind::PhaseInvert { .. } => effect
+        | EffectDeviceKind::PhaseInvert { .. }
+        | EffectDeviceKind::Filter { .. } => effect
             .native_module_descriptor()
             .parameter(parameter)
             .cloned(),

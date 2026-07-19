@@ -2,6 +2,8 @@ use std::{collections::HashSet, fmt};
 
 use serde::{Deserialize, Serialize};
 
+use crate::FilterMode;
+
 use crate::model_validation::{
     validate_mixer, validate_pattern_automation, validate_sample_playback_settings,
 };
@@ -1419,6 +1421,15 @@ pub enum EffectDeviceKind {
     PhaseInvert {
         invert_left: bool,
         invert_right: bool,
+    },
+    Filter {
+        mode: FilterMode,
+        cutoff_hz: f32,
+        resonance: f32,
+        drive_db: f32,
+        key_track: f32,
+        env_amount: f32,
+        mix: f32,
     },
 }
 

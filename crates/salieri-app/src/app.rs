@@ -5,6 +5,7 @@ mod arrangement_actions;
 mod command_mode;
 mod core;
 mod domain_commands;
+mod dsp_commands;
 mod key_handling;
 mod midi_actions;
 mod navigation;

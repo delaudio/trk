@@ -7,7 +7,9 @@ use ratatui::{
 };
 use salieri_core::{
     mixer_master_gain_descriptor, mixer_track_gain_descriptor, mixer_track_pan_descriptor,
-    native_balance_descriptor, native_gain_descriptor, native_pan_descriptor,
+    native_balance_descriptor, native_filter_cutoff_descriptor, native_filter_drive_descriptor,
+    native_filter_mix_descriptor, native_filter_mode_descriptor,
+    native_filter_resonance_descriptor, native_gain_descriptor, native_pan_descriptor,
     native_phase_invert_left_descriptor, native_phase_invert_right_descriptor,
     native_width_descriptor, sample_gain_descriptor, CellField, Cursor, EffectDeviceKind,
     NoteEvent, ParameterDescriptor, ParameterValue, Pattern, PatternCell, SamplePlaybackMode, Song,
@@ -1436,6 +1438,35 @@ fn render_track_properties(frame: &mut Frame<'_>, area: Rect, song: &Song, state
                 mixer_lines.push(parameter_control_line(
                     &native_phase_invert_right_descriptor(),
                     ParameterValue::Bool(invert_right),
+                ));
+            }
+            EffectDeviceKind::Filter {
+                mode,
+                cutoff_hz,
+                resonance,
+                drive_db,
+                mix,
+                ..
+            } => {
+                mixer_lines.push(parameter_control_line(
+                    &native_filter_mode_descriptor(),
+                    ParameterValue::Enum(mode.parameter_id().to_string()),
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_filter_cutoff_descriptor(),
+                    cutoff_hz,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_filter_resonance_descriptor(),
+                    resonance,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_filter_drive_descriptor(),
+                    drive_db,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_filter_mix_descriptor(),
+                    mix,
                 ));
             }
         }
