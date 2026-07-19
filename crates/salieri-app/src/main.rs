@@ -1,7 +1,9 @@
 mod app_event;
+mod app_mode;
 mod command;
 mod config;
 mod event_handler;
+mod keymap;
 mod persistence;
 mod playback_runtime;
 mod task_integration;
@@ -20,12 +22,14 @@ use std::{
 
 use anyhow::{Context, Result};
 use app_event::{AppDispatcher, AppEvent, AppTaskResult, PreparedAiProposal};
+use app_mode::AppMode;
 use command::{
     BrowserCommand, CommandDomain, FocusTarget, LoopCommand, PlayCommand, SalieriCommand,
     ViewCommand,
 };
 use config::{load_config, AppConfig, ConfigOverrides, ProjectBrowserConfig, SampleBrowserConfig};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
+use keymap::Keymap;
 use persistence::{load_project, save_project};
 use playback_runtime::PlaybackRuntime;
 use playback_runtime::{apply_sample_playback_settings, resolve_sample_path};
@@ -1709,6 +1713,7 @@ fn send_logged_midi_message(
 struct App {
     dispatcher: AppDispatcher,
     task_runtime: TaskRuntime<AppTaskResult>,
+    keymap: Keymap,
     song: Song,
     clean_song: Song,
     project_path: Option<PathBuf>,
@@ -1890,6 +1895,8 @@ impl Default for App {
 impl App {
     fn new(config: AppConfig) -> Self {
         let song = Song::empty();
+        let keymap = Keymap::from_config(&config.keymap)
+            .expect("application configuration keymap was validated");
         let default_midi_output = config.midi.default_output.trim().to_string();
         let default_midi_input = config.midi.default_input.trim().to_string();
         let project_browser = config.project_browser.clone();
@@ -1903,6 +1910,7 @@ impl App {
         let mut app = Self {
             dispatcher: AppDispatcher::default(),
             task_runtime: TaskRuntime::default(),
+            keymap,
             clean_song: song.clone(),
             song,
             project_path: None,
@@ -1981,6 +1989,10 @@ impl App {
     }
 
     fn handle_key_action(&mut self, key: KeyEvent) {
+        if let Some(command) = self.keymap.command_for(self.mode.keymap_mode(), &key) {
+            self.execute_typed_command(command);
+            return;
+        }
         if self.handle_control_key(key) {
             return;
         }
@@ -4493,6 +4505,9 @@ impl App {
             _ => HelpTab::Basics,
         };
         self.mode = AppMode::Help;
+        if let Some(summary) = self.keymap.help_summary() {
+            self.notify_info(summary);
+        }
     }
 
     fn open_tracker_view(&mut self) {
@@ -6068,41 +6083,6 @@ impl command::CommandExecutor for App {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum AppMode {
-    Normal,
-    Edit,
-    Command,
-    Help,
-    Dialog,
-    MidiSettings,
-    Sequence,
-    Tracks,
-    Patterns,
-    Sampler,
-    SampleBrowser,
-    ProjectBrowser,
-}
-
-impl AppMode {
-    const fn label(self) -> &'static str {
-        match self {
-            AppMode::Normal => "NORMAL",
-            AppMode::Edit => "EDIT",
-            AppMode::Command => "COMMAND",
-            AppMode::Help => "HELP",
-            AppMode::Dialog => "DIALOG",
-            AppMode::MidiSettings => "MIDI",
-            AppMode::Sequence => "SEQUENCE",
-            AppMode::Tracks => "TRACKS",
-            AppMode::Patterns => "PATTERNS",
-            AppMode::Sampler => "SAMPLER",
-            AppMode::SampleBrowser => "SAMPLES",
-            AppMode::ProjectBrowser => "PROJECTS",
-        }
-    }
-}
-
 fn command_arguments(arguments: &[String]) -> Vec<&str> {
     arguments.iter().map(String::as_str).collect()
 }
@@ -6907,6 +6887,41 @@ mod tests {
         assert_eq!(app.edit_step, 4);
         assert!(!app.vim_navigation);
         assert!(app.show_line_numbers_hex);
+    }
+
+    #[test]
+    fn configured_keymap_overrides_defaults_per_mode() {
+        let mut config = AppConfig::default();
+        config
+            .keymap
+            .normal
+            .insert("q".to_string(), "bpm 150".to_string());
+        config
+            .keymap
+            .edit
+            .insert("q".to_string(), "bpm 90".to_string());
+        let mut app = App::new(config);
+        let song_before_edit = app.song.clone();
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE));
+
+        assert_eq!(app.song.transport.bpm, 150);
+        assert!(!app.should_quit);
+
+        app.mode = AppMode::Edit;
+        app.handle_key(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE));
+
+        assert_eq!(app.song.transport.bpm, 90);
+        assert_eq!(app.mode, AppMode::Edit);
+        assert_eq!(app.song.patterns, song_before_edit.patterns);
+
+        app.open_help();
+        assert!(app
+            .notification
+            .as_ref()
+            .expect("custom key help")
+            .message
+            .contains("normal.q -> :bpm 150"));
     }
 
     #[test]

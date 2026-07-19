@@ -29,7 +29,12 @@ default_octave = 4
 
 [keymap]
 profile = "tracker"
-bindings = { "ctrl+p" = "play pattern" }
+
+[keymap.normal]
+"ctrl+p" = "play pattern"
+
+[keymap.sampler]
+b = "sample-browser"
 
 [ui]
 show_line_numbers_hex = false
@@ -60,9 +65,11 @@ recent_file = "~/.config/salieri/recent-projects.json"
 recent_project_limit = 12
 ```
 
-Keymap bindings, theme names, and display modes are validated and exposed as
-metadata for commands and presentation code. Applying custom bindings and visual
-themes is intentionally handled by the dedicated keymap and rendering work.
+Keymap bindings are grouped by application mode and override built-in shortcuts
+for the same key. Unmapped keys continue to use the built-in defaults. See
+[Configurable Keymaps](keymaps.md) for the complete layer and key syntax.
+Theme names and display modes are validated and exposed as metadata for commands
+and presentation code. Applying visual themes remains dedicated rendering work.
 
 ## Validation
 
@@ -71,7 +78,8 @@ validation reports all independent problems found in one pass, including:
 
 - edit step from 1 through 64;
 - octave from 0 through 9;
-- non-empty keymap profile, binding keys, binding commands, and theme name;
+- non-empty keymap profile and theme name;
+- valid key names, typed keymap commands, and no normalized conflicts per mode;
 - audio sample rate from 8000 through 384000 Hz;
 - audio channels from 1 through 8;
 - recent project limit from 1 through 100;

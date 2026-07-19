@@ -5,11 +5,12 @@ use std::{
 
 use serde::Deserialize;
 
+use crate::keymap;
+
 mod preferences;
 
-pub use preferences::{
-    AudioPreferences, DisplayMode, KeymapConfig, ThemeConfig, UiConfig, WorkspaceConfig,
-};
+pub use crate::keymap::KeymapConfig;
+pub use preferences::{AudioPreferences, DisplayMode, ThemeConfig, UiConfig, WorkspaceConfig};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -274,14 +275,14 @@ fn validate(config: &AppConfig) -> Result<(), ConfigValidationErrors> {
     if let Some(command) = &config.sample_browser.chooser_command {
         check_non_empty(&mut diagnostics, "sample_browser.chooser_command", command);
     }
-    for (key, command) in &config.keymap.bindings {
-        if key.trim().is_empty() || command.trim().is_empty() {
-            diagnostics.push(ConfigDiagnostic {
-                field: format!("keymap.bindings.{key}"),
-                message: "key and command must both be non-empty".to_string(),
-            });
-        }
-    }
+    diagnostics.extend(
+        keymap::validate_config(&config.keymap)
+            .into_iter()
+            .map(|diagnostic| ConfigDiagnostic {
+                field: diagnostic.field,
+                message: diagnostic.message,
+            }),
+    );
 
     if diagnostics.is_empty() {
         Ok(())
@@ -418,6 +419,56 @@ recent_file = "recent-projects.json"
         assert_eq!(loaded.metadata().keymap_profile, "studio");
         assert_eq!(loaded.metadata().theme_name, "high-contrast");
         assert_eq!(loaded.metadata().display_mode, DisplayMode::Compact);
+    }
+
+    #[test]
+    fn loads_mode_specific_keymap_sections() {
+        let file = TestFile::new(
+            "keymap-layers",
+            r#"
+[keymap]
+profile = "custom"
+
+[keymap.normal]
+q = "bpm 150"
+
+[keymap.edit]
+q = "bpm 90"
+
+[keymap.ai]
+a = "help"
+
+[keymap.clip]
+c = "help"
+"#,
+        );
+
+        let loaded = load_config(Some(&file.0), ConfigOverrides::default()).expect("valid keymap");
+
+        assert_eq!(loaded.config().keymap.normal["q"], "bpm 150");
+        assert_eq!(loaded.config().keymap.edit["q"], "bpm 90");
+        assert_eq!(loaded.config().keymap.ai["a"], "help");
+        assert_eq!(loaded.config().keymap.clip["c"], "help");
+    }
+
+    #[test]
+    fn keymap_conflicts_are_reported_as_config_diagnostics() {
+        let file = TestFile::new(
+            "keymap-conflict",
+            r#"
+[keymap.normal]
+"ctrl+p" = "play pattern"
+"control+p" = "stop"
+"#,
+        );
+
+        let error = load_config(Some(&file.0), ConfigOverrides::default()).expect_err("conflict");
+        let ConfigLoadError::Validation(error) = error else {
+            panic!("expected keymap validation error");
+        };
+        assert_eq!(error.diagnostics.len(), 1);
+        assert!(error.diagnostics[0].field.starts_with("keymap.normal."));
+        assert!(error.diagnostics[0].message.contains("conflicts with"));
     }
 
     #[test]

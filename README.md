@@ -399,6 +399,8 @@ salieri transform euclidean input.salieri output.salieri --pattern 1 --track 1 -
 
 AI-assisted composition lives behind `salieri-ai` and is available in the TUI through the local deterministic provider: `:ai propose PROMPT`, `:ai show`, `:ai accept`, and `:ai reject`. Proposals are previewed as touched cells before application, and accepted proposals use the normal undo stack. No network provider is invoked implicitly. See [docs/generative-transforms.md](docs/generative-transforms.md) and [docs/ai-assisted-edits.md](docs/ai-assisted-edits.md).
 
+Keyboard commands can be overridden per application mode while all unmapped shortcuts retain their defaults. See [docs/keymaps.md](docs/keymaps.md) for the available layers, key syntax, and conflict diagnostics.
+
 ## Interoperability
 
 `salieri-interop` supports a narrow Standard MIDI File format 0 subset for import/export, plus XRNS inspection and a minimal lossy XRNS importer for the constrained subset documented below. Legacy module formats such as MOD, XM, IT, and S3M remain explicit unsupported song-import formats; the current probe is limited to metadata/effect diagnostics and MOD sample extraction.
