@@ -34,10 +34,10 @@ pub(crate) fn upsert_effect_device(chain: &mut Vec<EffectDevice>, device: Effect
 }
 
 pub(crate) fn effect_device_is_valid(device: &EffectDevice) -> bool {
-    match device.kind {
-        EffectDeviceKind::Gain { gain } => gain.is_finite() && gain >= 0.0,
-        EffectDeviceKind::Pan { pan } => pan.is_finite() && (-1.0..=1.0).contains(&pan),
-    }
+    device
+        .native_module_state()
+        .validate_against(&device.native_module_descriptor())
+        .is_ok()
 }
 
 pub(crate) fn format_effect_device(device: &EffectDevice) -> String {

@@ -2,6 +2,7 @@ mod effect_parameters;
 mod model_validation;
 
 pub mod model;
+pub mod native_module;
 pub mod parameters;
 pub mod playback;
 
@@ -12,6 +13,12 @@ pub use model::{
     SamplePlaybackMode, SamplePlaybackSettings, SampleReference, Song, SongMetadata, Track,
     TrackId, TrackInstrumentAssignment, TrackMixerState, TrackSampleAssignment, TrackSendLevel,
     TrackerCommand, TransportSettings, ValidationError,
+};
+pub use native_module::{
+    builtin_native_effect_descriptors, builtin_native_module_descriptor,
+    native_gain_module_descriptor, native_pan_module_descriptor, NativeModuleDescriptor,
+    NativeModuleError, NativeModuleId, NativeModuleParameter, NativeModuleRole, NativeModuleState,
+    NATIVE_GAIN_MODULE_ID, NATIVE_PAN_MODULE_ID,
 };
 pub use parameters::{
     builtin_parameter_descriptor, mixer_master_gain_descriptor, mixer_parameter_descriptors,

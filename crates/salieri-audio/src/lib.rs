@@ -8,6 +8,7 @@ pub mod export;
 #[cfg(test)]
 mod fixtures;
 pub mod levels;
+pub mod native_module;
 pub mod offline_render;
 pub mod realtime_sampler;
 mod shared;
@@ -20,6 +21,9 @@ pub use dsp::{DspDeviceKind, DspDeviceSpec, DspGraphSpec, TrackDspChainSpec};
 pub use errors::{AudioError, AudioExportError};
 pub use export::{encode_audio, supported_audio_export_formats, AudioExportFormat};
 pub use levels::{measure_levels, LevelMeter};
+pub use native_module::{
+    NativeEffectModule, NativeEffectModuleSpec, NativeEffectParameterValue, NativeModulePrepareSpec,
+};
 pub use offline_render::{
     render_sampler_events, render_sampler_events_with_dsp, render_sampler_preview,
     OfflineRenderSpec, OfflineSamplerEvent, OfflineSamplerSample, RenderedAudio,
