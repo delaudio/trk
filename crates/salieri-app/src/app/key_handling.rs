@@ -1,0 +1,409 @@
+use super::*;
+
+impl App {
+    pub(crate) fn handle_key_action(&mut self, key: KeyEvent) {
+        if let Some(command) = self.keymap.command_for(self.mode.keymap_mode(), &key) {
+            self.execute_typed_command(command);
+            return;
+        }
+        if self.handle_control_key(key) {
+            return;
+        }
+
+        match self.mode {
+            AppMode::Normal => self.handle_normal_key(key),
+            AppMode::Edit => self.handle_edit_key(key),
+            AppMode::Command => self.handle_command_key(key),
+            AppMode::Help => self.handle_help_key(key),
+            AppMode::Dialog => self.handle_dialog_key(key),
+            AppMode::MidiSettings => self.handle_midi_settings_key(key),
+            AppMode::Sequence => self.handle_sequence_key(key),
+            AppMode::Tracks => self.handle_tracks_key(key),
+            AppMode::Patterns => self.handle_patterns_key(key),
+            AppMode::Sampler => self.handle_sampler_key(key),
+            AppMode::SampleBrowser => self.handle_sample_browser_key(key),
+            AppMode::ProjectBrowser => self.handle_project_browser_key(key),
+        }
+    }
+
+    pub(crate) fn handle_control_key(&mut self, key: KeyEvent) -> bool {
+        if !key.modifiers.contains(KeyModifiers::CONTROL) {
+            return false;
+        }
+
+        match key.code {
+            KeyCode::Char('s') | KeyCode::Char('S')
+                if key.modifiers.contains(KeyModifiers::SHIFT) =>
+            {
+                self.start_save_as_command();
+                true
+            }
+            KeyCode::Char('s') | KeyCode::Char('S') => {
+                if let Err(error) = self.save() {
+                    tracing::error!(?error, "failed to save project");
+                    self.notify_error(format!("Save failed: {error}"));
+                }
+                true
+            }
+            KeyCode::Char('j') | KeyCode::Char('J') | KeyCode::Char('\n') => {
+                self.open_sampler_view();
+                true
+            }
+            KeyCode::Char('t') | KeyCode::Char('T') => {
+                self.create_track();
+                true
+            }
+            KeyCode::Up => {
+                self.adjust_bpm(1);
+                true
+            }
+            KeyCode::Down => {
+                self.adjust_bpm(-1);
+                true
+            }
+            KeyCode::Right => {
+                self.adjust_lpb(1);
+                true
+            }
+            KeyCode::Left => {
+                self.adjust_lpb(-1);
+                true
+            }
+            KeyCode::Char('c') | KeyCode::Char('C') => {
+                self.copy_selection_or_current_cell();
+                true
+            }
+            KeyCode::Char('x') | KeyCode::Char('X') => {
+                self.cut_selection_or_current_cell();
+                true
+            }
+            KeyCode::Char('v') | KeyCode::Char('V') => {
+                self.paste_clipboard();
+                true
+            }
+            KeyCode::Delete => {
+                self.delete_current_row();
+                true
+            }
+            KeyCode::Char('z') | KeyCode::Char('Z') => {
+                if key.modifiers.contains(KeyModifiers::SHIFT) {
+                    self.redo();
+                } else {
+                    self.undo();
+                }
+                true
+            }
+            KeyCode::Char('y') | KeyCode::Char('Y') => {
+                self.redo();
+                true
+            }
+            KeyCode::Char('p') | KeyCode::Char('P')
+                if key.modifiers.contains(KeyModifiers::SHIFT) =>
+            {
+                self.panic_midi();
+                true
+            }
+            _ => true,
+        }
+    }
+
+    pub(crate) fn handle_normal_key(&mut self, key: KeyEvent) {
+        if self.pending_goto_start {
+            self.pending_goto_start = false;
+            if self.vim_navigation && key.code == KeyCode::Char('g') {
+                self.cursor.row = 0;
+                return;
+            }
+        }
+
+        let direction = match key.code {
+            KeyCode::Esc => {
+                self.selection_anchor = None;
+                return;
+            }
+            KeyCode::Char('q') => {
+                self.request_quit(false);
+                return;
+            }
+            KeyCode::Char(' ') if key.modifiers.contains(KeyModifiers::SHIFT) => {
+                self.start_playback();
+                return;
+            }
+            KeyCode::Char(' ') => {
+                self.toggle_playback();
+                return;
+            }
+            KeyCode::F(8) => {
+                self.stop_playback();
+                return;
+            }
+            KeyCode::F(1) => {
+                self.decrement_octave();
+                return;
+            }
+            KeyCode::F(2) => {
+                self.increment_octave();
+                return;
+            }
+            KeyCode::F(3) => {
+                self.start_pattern_rename_command();
+                return;
+            }
+            KeyCode::F(4) => {
+                self.open_midi_settings();
+                return;
+            }
+            KeyCode::F(7) => {
+                self.open_sequence_view();
+                return;
+            }
+            KeyCode::F(9) => {
+                self.open_tracks_view();
+                return;
+            }
+            KeyCode::F(10) => {
+                self.open_patterns_view();
+                return;
+            }
+            KeyCode::F(6) => {
+                self.start_pattern_length_command();
+                return;
+            }
+            KeyCode::Char('r') => {
+                self.start_track_rename_command();
+                return;
+            }
+            KeyCode::Char('c') => {
+                self.start_track_channel_command();
+                return;
+            }
+            KeyCode::Char('D') => {
+                self.duplicate_track(self.cursor.track);
+                return;
+            }
+            KeyCode::Char('{') => {
+                self.move_current_track_left();
+                return;
+            }
+            KeyCode::Char('}') => {
+                self.move_current_track_right();
+                return;
+            }
+            KeyCode::Char('N') => {
+                self.create_pattern();
+                return;
+            }
+            KeyCode::Char('P') => {
+                self.duplicate_current_pattern();
+                return;
+            }
+            KeyCode::Char('X') => {
+                self.request_delete_current_pattern();
+                return;
+            }
+            KeyCode::Char('A') => {
+                self.add_sequence_pattern(self.pattern_index);
+                return;
+            }
+            KeyCode::Char(',') => {
+                self.previous_sequence_position();
+                return;
+            }
+            KeyCode::Char('.') => {
+                self.next_sequence_position();
+                return;
+            }
+            KeyCode::Char('Y') => {
+                self.duplicate_selected_sequence_position();
+                return;
+            }
+            KeyCode::Char('R') => {
+                self.remove_selected_sequence_position();
+                return;
+            }
+            KeyCode::Char('T') => {
+                self.set_selected_sequence_to_current_pattern();
+                return;
+            }
+            KeyCode::Char('<') => {
+                self.move_selected_sequence_position_up();
+                return;
+            }
+            KeyCode::Char('>') => {
+                self.move_selected_sequence_position_down();
+                return;
+            }
+            KeyCode::Char('L') => {
+                self.toggle_loop();
+                return;
+            }
+            KeyCode::Enter if key.modifiers.contains(KeyModifiers::SHIFT) => {
+                self.start_sequence_playback_from_selected_position();
+                return;
+            }
+            KeyCode::Enter => {
+                self.start_playback_from_cursor();
+                return;
+            }
+            KeyCode::Char('i') => {
+                self.selection_anchor = None;
+                self.mode = AppMode::Edit;
+                return;
+            }
+            KeyCode::Char(':') => {
+                self.command_buffer.clear();
+                self.mode = AppMode::Command;
+                return;
+            }
+            KeyCode::Char('?') | KeyCode::Char('H') => {
+                self.open_help();
+                return;
+            }
+            KeyCode::Char('v') | KeyCode::Char('V') => {
+                self.start_selection();
+                return;
+            }
+            KeyCode::Char('[') => {
+                self.select_pattern(self.pattern_index.saturating_sub(1));
+                return;
+            }
+            KeyCode::Char(']') => {
+                self.select_pattern(self.pattern_index.saturating_add(1));
+                return;
+            }
+            KeyCode::Up => Some(Direction::Up),
+            KeyCode::Char('k') if self.vim_navigation => Some(Direction::Up),
+            KeyCode::Down => Some(Direction::Down),
+            KeyCode::Char('j') if self.vim_navigation => Some(Direction::Down),
+            KeyCode::Left => Some(Direction::Left),
+            KeyCode::Char('h') if self.vim_navigation => Some(Direction::Left),
+            KeyCode::Right => Some(Direction::Right),
+            KeyCode::Char('l') if self.vim_navigation => Some(Direction::Right),
+            KeyCode::Tab => {
+                self.next_track();
+                return;
+            }
+            KeyCode::BackTab => {
+                self.previous_track();
+                return;
+            }
+            KeyCode::Home => {
+                self.cursor.row = 0;
+                return;
+            }
+            KeyCode::End => {
+                self.cursor.row = self.current_row_count().saturating_sub(1);
+                return;
+            }
+            KeyCode::Char('g') if self.vim_navigation => {
+                self.pending_goto_start = true;
+                return;
+            }
+            KeyCode::Char('G') if self.vim_navigation => {
+                self.cursor.row = self.current_row_count().saturating_sub(1);
+                return;
+            }
+            KeyCode::PageUp => {
+                self.page_cursor_up();
+                return;
+            }
+            KeyCode::PageDown => {
+                self.page_cursor_down();
+                return;
+            }
+            KeyCode::Insert => {
+                self.insert_current_row();
+                return;
+            }
+            KeyCode::Delete => {
+                if self.selection_anchor.is_some() {
+                    self.clear_selection_region();
+                } else {
+                    self.request_delete_current_track();
+                }
+                return;
+            }
+            KeyCode::Char('m') | KeyCode::Char('M') => {
+                self.toggle_current_mute();
+                return;
+            }
+            KeyCode::Char('s') | KeyCode::Char('S') => {
+                self.toggle_current_solo();
+                return;
+            }
+            _ => None,
+        };
+
+        if let Some(direction) = direction {
+            self.move_cursor(direction);
+        }
+    }
+
+    pub(crate) fn handle_edit_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Esc => self.mode = AppMode::Normal,
+            KeyCode::Up => self.move_cursor(Direction::Up),
+            KeyCode::Down => self.move_cursor(Direction::Down),
+            KeyCode::Left => self.move_cursor(Direction::Left),
+            KeyCode::Right => self.move_cursor(Direction::Right),
+            KeyCode::Tab => self.next_track(),
+            KeyCode::BackTab => self.previous_track(),
+            KeyCode::Home => self.cursor.row = 0,
+            KeyCode::End => self.cursor.row = self.current_row_count().saturating_sub(1),
+            KeyCode::PageUp => self.page_cursor_up(),
+            KeyCode::PageDown => self.page_cursor_down(),
+            KeyCode::Insert => self.insert_current_row(),
+            KeyCode::Delete | KeyCode::Backspace => self.clear_current_cell(),
+            KeyCode::F(1) | KeyCode::Char('-') => self.decrement_octave(),
+            KeyCode::F(2) | KeyCode::Char('+') | KeyCode::Char('=') => self.increment_octave(),
+            KeyCode::Char('o') | KeyCode::Char('O') => self.insert_note_event(NoteEvent::NoteOff),
+            KeyCode::Char('.') => self.insert_note_event(NoteEvent::NoteCut),
+            KeyCode::Char(value) if self.cursor.field != CellField::Note => {
+                if let Some(hex) = value.to_digit(16) {
+                    self.enter_cell_hex_digit(hex as u8);
+                }
+            }
+            KeyCode::Char(value) => {
+                if let Some(note) = keyboard_note(value, self.octave) {
+                    self.insert_note(note);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    pub(crate) fn handle_help_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('?') => {
+                self.mode = AppMode::Normal;
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.help_scroll = self.help_scroll.saturating_sub(1);
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.help_scroll = self.help_scroll.saturating_add(1);
+            }
+            KeyCode::Tab | KeyCode::Right | KeyCode::Char('l') => {
+                self.help_tab = self.help_tab.next();
+                self.help_scroll = 0;
+            }
+            KeyCode::BackTab | KeyCode::Left | KeyCode::Char('h') => {
+                self.help_tab = self.help_tab.previous();
+                self.help_scroll = 0;
+            }
+            KeyCode::PageUp => {
+                self.help_scroll = self.help_scroll.saturating_sub(10);
+            }
+            KeyCode::PageDown => {
+                self.help_scroll = self.help_scroll.saturating_add(10);
+            }
+            KeyCode::Home => {
+                self.help_scroll = 0;
+            }
+            KeyCode::End => {
+                self.help_scroll = usize::MAX;
+            }
+            _ => {}
+        }
+    }
+}

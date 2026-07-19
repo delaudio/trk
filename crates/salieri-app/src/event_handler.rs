@@ -1,12 +1,9 @@
-use std::time::Instant;
-
 use crossterm::event::KeyEvent;
-use salieri_tui::NotificationKind;
 
 use crate::{
-    app_event::{AppAction, AppEvent, NotificationLevel, NotificationRequest},
+    app_event::{AppAction, AppEvent},
     playback_runtime::PlaybackUpdate,
-    App, Notification, NOTIFICATION_TTL,
+    App,
 };
 
 impl App {
@@ -93,48 +90,6 @@ impl App {
                 self.notify_error(format!("Audio error: {error}"));
             }
         }
-    }
-
-    fn notify(&mut self, kind: NotificationKind, message: impl Into<String>) {
-        let level = match kind {
-            NotificationKind::Info => NotificationLevel::Info,
-            NotificationKind::Success => NotificationLevel::Success,
-            NotificationKind::Warning => NotificationLevel::Warning,
-            NotificationKind::Error => NotificationLevel::Error,
-        };
-        self.dispatch_event(AppEvent::Notification(NotificationRequest::new(
-            level, message,
-        )));
-    }
-
-    fn show_notification(&mut self, notification: NotificationRequest) {
-        let kind = match notification.level {
-            NotificationLevel::Info => NotificationKind::Info,
-            NotificationLevel::Success => NotificationKind::Success,
-            NotificationLevel::Warning => NotificationKind::Warning,
-            NotificationLevel::Error => NotificationKind::Error,
-        };
-        self.notification = Some(Notification {
-            kind,
-            message: notification.message,
-            expires_at: Instant::now() + NOTIFICATION_TTL,
-        });
-    }
-
-    pub(super) fn notify_info(&mut self, message: impl Into<String>) {
-        self.notify(NotificationKind::Info, message);
-    }
-
-    pub(super) fn notify_success(&mut self, message: impl Into<String>) {
-        self.notify(NotificationKind::Success, message);
-    }
-
-    pub(super) fn notify_warning(&mut self, message: impl Into<String>) {
-        self.notify(NotificationKind::Warning, message);
-    }
-
-    pub(super) fn notify_error(&mut self, message: impl Into<String>) {
-        self.notify(NotificationKind::Error, message);
     }
 }
 
