@@ -1,5 +1,10 @@
 use crate::{
     model::{EditError, EffectDevice, EffectDeviceKind},
+    native_module::{
+        native_gain_module_descriptor, native_pan_module_descriptor, NativeModuleDescriptor,
+        NativeModuleId, NativeModuleParameter, NativeModuleState, NATIVE_GAIN_MODULE_ID,
+        NATIVE_PAN_MODULE_ID,
+    },
     parameters::{
         native_gain_descriptor, native_pan_descriptor, ParameterDescriptor, ParameterId,
         ParameterValue, NATIVE_GAIN_PARAMETER_ID, NATIVE_PAN_PARAMETER_ID,
@@ -51,6 +56,55 @@ impl EffectDevice {
             _ => Err(EditError::UnknownParameter),
         }
     }
+
+    #[must_use]
+    pub fn native_module_descriptor(&self) -> NativeModuleDescriptor {
+        match self.kind {
+            EffectDeviceKind::Gain { .. } => native_gain_module_descriptor(),
+            EffectDeviceKind::Pan { .. } => native_pan_module_descriptor(),
+        }
+    }
+
+    #[must_use]
+    pub fn native_module_state(&self) -> NativeModuleState {
+        let (module, parameter) = match self.kind {
+            EffectDeviceKind::Gain { gain } => (
+                NativeModuleId::from(NATIVE_GAIN_MODULE_ID),
+                NativeModuleParameter {
+                    id: ParameterId::from(NATIVE_GAIN_PARAMETER_ID),
+                    value: ParameterValue::Float(gain),
+                },
+            ),
+            EffectDeviceKind::Pan { pan } => (
+                NativeModuleId::from(NATIVE_PAN_MODULE_ID),
+                NativeModuleParameter {
+                    id: ParameterId::from(NATIVE_PAN_PARAMETER_ID),
+                    value: ParameterValue::Bipolar(pan),
+                },
+            ),
+        };
+        NativeModuleState {
+            module,
+            bypassed: self.bypassed,
+            parameters: vec![parameter],
+            unknown_parameters: Vec::new(),
+        }
+    }
+
+    pub fn apply_native_module_state(
+        &mut self,
+        state: &NativeModuleState,
+    ) -> Result<(), EditError> {
+        let descriptor = self.native_module_descriptor();
+        state
+            .validate_against(&descriptor)
+            .map_err(|_| EditError::InvalidParameterValue)?;
+        self.bypassed = state.bypassed;
+        for parameter in &state.parameters {
+            self.set_parameter_value(&parameter.id, parameter.value.clone())?;
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -80,5 +134,26 @@ mod tests {
                 .expect_err("gain outside descriptor range"),
             EditError::InvalidParameterValue
         );
+    }
+
+    #[test]
+    fn effect_devices_round_trip_native_module_state() {
+        let mut gain = EffectDevice::gain(1, 1.0);
+        let mut state = gain.native_module_state();
+
+        state.bypassed = true;
+        state
+            .set_parameter(
+                &gain.native_module_descriptor(),
+                ParameterId::from(NATIVE_GAIN_PARAMETER_ID),
+                ParameterValue::Float(0.25),
+            )
+            .expect("set native module parameter");
+
+        gain.apply_native_module_state(&state)
+            .expect("apply module state");
+
+        assert!(gain.bypassed);
+        assert_eq!(gain.kind, EffectDeviceKind::Gain { gain: 0.25 });
     }
 }
