@@ -51,7 +51,7 @@ use command::{
     ViewCommand,
 };
 use config::{load_config, AppConfig, ConfigOverrides, ProjectBrowserConfig, SampleBrowserConfig};
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers, MouseEventKind};
 use history::{SongTransaction, TransactionSpec, UndoHistory};
 use keymap::Keymap;
 use persistence::{load_project, save_project};
@@ -89,7 +89,7 @@ use salieri_tui::{
     render, HelpTab, MidiPortView, MidiSettingsState, NotificationKind, NotificationView,
     ProjectBrowserEntryKind, ProjectBrowserEntryView, ProjectBrowserViewState,
     SampleBrowserEntryKind, SampleBrowserEntryView, SampleBrowserViewState, SamplerEnvelopeField,
-    SamplerViewState, SelectionRect, TuiState, TuiView,
+    SamplerViewState, SelectionRect, TuiState, TuiView, ViewportAxis,
 };
 use serde::{Deserialize, Serialize};
 use task_runtime::TaskRuntime;
@@ -123,6 +123,7 @@ struct App {
     pattern_index: usize,
     cursor: Cursor,
     row_offset: usize,
+    track_offset: usize,
     mode: AppMode,
     octave: u8,
     edit_step: usize,

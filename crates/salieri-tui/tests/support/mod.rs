@@ -9,6 +9,7 @@ pub fn test_state<'a>() -> TuiState<'a> {
     TuiState {
         cursor: Cursor::new(),
         row_offset: 0,
+        track_offset: 0,
         pattern_index: 0,
         active_view: TuiView::Pattern,
         selection: None,

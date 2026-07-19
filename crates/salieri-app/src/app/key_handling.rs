@@ -26,6 +26,31 @@ impl App {
         }
     }
 
+    pub(crate) fn handle_mouse_wheel(&mut self, kind: MouseEventKind) {
+        let delta = match kind {
+            MouseEventKind::ScrollUp => -3,
+            MouseEventKind::ScrollDown => 3,
+            _ => return,
+        };
+
+        match self.mode {
+            AppMode::Help => {
+                self.help_scroll = self.help_scroll.saturating_add_signed(delta);
+            }
+            AppMode::SampleBrowser => self.move_sample_browser_cursor(delta),
+            AppMode::ProjectBrowser => self.move_project_browser_cursor(delta),
+            AppMode::Sampler => self.pan_sample_waveform(delta.signum()),
+            AppMode::Normal | AppMode::Edit => {
+                self.cursor.row = self
+                    .cursor
+                    .row
+                    .saturating_add_signed(delta)
+                    .min(self.current_row_count().saturating_sub(1));
+            }
+            _ => {}
+        }
+    }
+
     pub(crate) fn handle_control_key(&mut self, key: KeyEvent) -> bool {
         if !key.modifiers.contains(KeyModifiers::CONTROL) {
             return false;

@@ -59,8 +59,11 @@ impl App {
             } => self.apply_project_save(path, *song, quit_after, result),
             RuntimeAction::ApplyTaskUpdate(update) => self.apply_task_update(update),
             RuntimeAction::ShowNotification(notification) => self.show_notification(notification),
-            RuntimeAction::KeepActiveRowVisible { visible_rows } => {
-                self.keep_active_row_visible(visible_rows);
+            RuntimeAction::KeepActiveViewportVisible {
+                visible_rows,
+                visible_tracks,
+            } => {
+                self.keep_active_viewport_visible(visible_rows, visible_tracks);
             }
         }
         Vec::new()
@@ -168,9 +171,11 @@ mod tests {
 
         app.dispatch_event(AppEvent::Runtime(RuntimeEvent::ViewportRefresh {
             visible_rows: 4,
+            visible_tracks: 2,
         }));
 
         assert_eq!(app.row_offset, 7);
+        assert_eq!(app.track_offset, 0);
         assert_eq!(app.song, before);
     }
 

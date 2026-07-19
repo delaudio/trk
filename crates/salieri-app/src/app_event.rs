@@ -34,6 +34,7 @@ pub enum RuntimeEvent {
     Notification(NotificationRequest),
     ViewportRefresh {
         visible_rows: usize,
+        visible_tracks: usize,
     },
 }
 
@@ -62,8 +63,9 @@ pub enum RuntimeAction {
     },
     ApplyTaskUpdate(TaskUpdate<AppTaskResult>),
     ShowNotification(NotificationRequest),
-    KeepActiveRowVisible {
+    KeepActiveViewportVisible {
         visible_rows: usize,
+        visible_tracks: usize,
     },
 }
 
@@ -235,9 +237,13 @@ fn route_event(event: AppEvent) -> AppAction {
             RuntimeEvent::Notification(notification) => {
                 RuntimeAction::ShowNotification(notification)
             }
-            RuntimeEvent::ViewportRefresh { visible_rows } => {
-                RuntimeAction::KeepActiveRowVisible { visible_rows }
-            }
+            RuntimeEvent::ViewportRefresh {
+                visible_rows,
+                visible_tracks,
+            } => RuntimeAction::KeepActiveViewportVisible {
+                visible_rows,
+                visible_tracks,
+            },
         }),
     }
 }
@@ -260,6 +266,7 @@ mod tests {
         assert!(
             !dispatcher.enqueue(AppEvent::Runtime(RuntimeEvent::ViewportRefresh {
                 visible_rows: 12,
+                visible_tracks: 4,
             }))
         );
 
@@ -278,7 +285,10 @@ mod tests {
         assert!(matches!(
             dispatcher.next_action(),
             Some(AppAction::ApplyRuntime(
-                RuntimeAction::KeepActiveRowVisible { visible_rows: 12 }
+                RuntimeAction::KeepActiveViewportVisible {
+                    visible_rows: 12,
+                    visible_tracks: 4,
+                }
             ))
         ));
         assert!(matches!(
@@ -296,11 +306,15 @@ mod tests {
     fn non_mutating_viewport_event_routes_without_domain_payload() {
         let action = route_event(AppEvent::Runtime(RuntimeEvent::ViewportRefresh {
             visible_rows: 24,
+            visible_tracks: 6,
         }));
 
         assert!(matches!(
             action,
-            AppAction::ApplyRuntime(RuntimeAction::KeepActiveRowVisible { visible_rows: 24 })
+            AppAction::ApplyRuntime(RuntimeAction::KeepActiveViewportVisible {
+                visible_rows: 24,
+                visible_tracks: 6,
+            })
         ));
     }
 

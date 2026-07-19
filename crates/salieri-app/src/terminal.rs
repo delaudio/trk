@@ -16,6 +16,13 @@ use crossterm::{
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
 
+const TRACK_PANEL_WIDTH: u16 = 27;
+const TRACK_CELL_WIDTH: u16 = 21;
+const ROW_GUTTER_WIDTH: u16 = 5;
+const MEDIUM_MIN_WIDTH: u16 = 80;
+const LARGE_MIN_WIDTH: u16 = 120;
+const LARGE_INSPECTOR_WIDTH: u16 = 42;
+
 pub struct TerminalGuard {
     terminal: Terminal<CrosstermBackend<Stdout>>,
     interrupted: Arc<AtomicBool>,
@@ -49,6 +56,25 @@ impl TerminalGuard {
     pub fn visible_pattern_rows(&self) -> usize {
         let height = self.terminal.size().map_or(0, |area| area.height);
         height.saturating_sub(7) as usize
+    }
+
+    pub fn visible_pattern_tracks(&self) -> usize {
+        let width = self.terminal.size().map_or(0, |area| area.width);
+        let pattern_width = if width >= LARGE_MIN_WIDTH {
+            width
+                .saturating_sub(TRACK_PANEL_WIDTH)
+                .saturating_sub(LARGE_INSPECTOR_WIDTH)
+        } else if width >= MEDIUM_MIN_WIDTH {
+            width.saturating_sub(TRACK_PANEL_WIDTH)
+        } else {
+            width
+        };
+        pattern_width
+            .saturating_sub(2)
+            .saturating_sub(ROW_GUTTER_WIDTH)
+            .checked_div(TRACK_CELL_WIDTH)
+            .unwrap_or(0)
+            .max(1) as usize
     }
 
     pub fn interrupted(&self) -> bool {

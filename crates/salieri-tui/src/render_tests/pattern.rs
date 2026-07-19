@@ -1,0 +1,543 @@
+use super::*;
+use ratatui::{backend::TestBackend, Terminal};
+use salieri_core::{InstrumentId, NoteEvent, Song, TrackerCommand};
+
+use super::render_test_support::*;
+
+#[test]
+fn classifies_responsive_layout_breakpoints() {
+    assert_eq!(layout_kind(79), LayoutKind::Small);
+    assert_eq!(layout_kind(80), LayoutKind::Medium);
+    assert_eq!(layout_kind(119), LayoutKind::Medium);
+    assert_eq!(layout_kind(120), LayoutKind::Large);
+}
+
+#[test]
+fn waveform_lines_degrade_to_narrow_widths() {
+    let overview = test_waveform(vec![salieri_sampler::WaveformBucket {
+        min: -1.0,
+        max: 1.0,
+    }]);
+
+    let lines = waveform_lines(
+        &overview,
+        WaveformWindow::full(&overview),
+        1,
+        4,
+        WaveformGlyphs::Unicode,
+    );
+
+    assert_eq!(lines.len(), 4);
+    assert!(lines
+        .iter()
+        .all(|line| line_text(line).chars().count() == 1));
+}
+
+#[test]
+fn waveform_lines_support_ascii_glyphs() {
+    let overview = test_waveform(vec![salieri_sampler::WaveformBucket {
+        min: -0.5,
+        max: 0.5,
+    }]);
+
+    let lines = waveform_lines(
+        &overview,
+        WaveformWindow::full(&overview),
+        8,
+        2,
+        WaveformGlyphs::Ascii,
+    );
+    let rendered = lines.iter().map(line_text).collect::<Vec<_>>().join("\n");
+
+    assert!(rendered.contains('#'));
+    assert!(!rendered.contains('█'));
+}
+
+#[test]
+fn waveform_lines_use_half_block_resolution() {
+    let overview = test_waveform(vec![salieri_sampler::WaveformBucket { min: 0.2, max: 0.2 }]);
+
+    let lines = waveform_lines(
+        &overview,
+        WaveformWindow::full(&overview),
+        8,
+        6,
+        WaveformGlyphs::Unicode,
+    );
+    let rendered = lines.iter().map(line_text).collect::<Vec<_>>().join("\n");
+
+    assert!(rendered.contains('▀') || rendered.contains('▄'));
+}
+
+#[test]
+fn waveform_lines_preserve_peaks_when_downsampling() {
+    let overview = test_waveform(vec![
+        salieri_sampler::WaveformBucket { min: 0.0, max: 0.0 },
+        salieri_sampler::WaveformBucket {
+            min: -1.0,
+            max: 1.0,
+        },
+        salieri_sampler::WaveformBucket { min: 0.0, max: 0.0 },
+        salieri_sampler::WaveformBucket { min: 0.0, max: 0.0 },
+    ]);
+
+    let lines = waveform_lines(
+        &overview,
+        WaveformWindow::full(&overview),
+        2,
+        6,
+        WaveformGlyphs::Unicode,
+    );
+    let rendered = lines.iter().map(line_text).collect::<Vec<_>>().join("\n");
+
+    assert!(rendered.contains('█'));
+}
+
+#[test]
+fn renders_default_pattern_without_panic() {
+    let song = Song::empty();
+    let backend = TestBackend::new(160, 32);
+    let mut terminal = Terminal::new(backend).expect("test terminal");
+
+    terminal
+        .draw(|frame| {
+            render(
+                frame,
+                &song,
+                TuiState {
+                    cursor: Cursor::new(),
+                    row_offset: 0,
+                    track_offset: 0,
+                    pattern_index: 0,
+                    active_view: TuiView::Pattern,
+                    selection: None,
+                    mode_label: "NORMAL",
+                    octave: 4,
+                    dirty: false,
+                    show_line_numbers_hex: false,
+                    command_line: None,
+                    notification: None,
+                    show_help: false,
+                    help_scroll: 0,
+                    help_tab: HelpTab::Basics,
+                    is_playing: false,
+                    loop_pattern: true,
+                    playhead_row: None,
+                    midi_status: "MIDI Disconnected",
+                    sequence_position: None,
+                    quit_confirmation: false,
+                    delete_confirmation: None,
+                    midi_settings: None,
+                    sampler_view: None,
+                    sample_browser: None,
+                    project_browser: None,
+                },
+            );
+        })
+        .expect("draw");
+
+    let buffer = terminal.backend().buffer();
+    let rendered = buffer
+        .content
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect::<String>();
+
+    assert!(rendered.contains("Salieri Tracker"));
+    assert!(rendered.contains("Pattern Editor"));
+    assert!(rendered.contains("Drums"));
+    assert!(rendered.contains("Bass"));
+}
+
+#[test]
+fn sequence_panel_scrolls_to_active_position() {
+    let song = long_sequence_song(40);
+    let backend = TestBackend::new(32, 8);
+    let mut terminal = Terminal::new(backend).expect("test terminal");
+
+    terminal
+        .draw(|frame| {
+            render_sequence(frame, Rect::new(0, 0, 32, 8), &song, Some(30));
+        })
+        .expect("draw");
+
+    let rendered = terminal_buffer_text(&terminal);
+
+    assert!(rendered.contains("Sequence 28-33 / 40"));
+    assert!(rendered.contains("> 30 Pattern 31"));
+    assert!(!rendered.contains(" 00 Pattern 01"));
+}
+
+#[test]
+fn tracks_panel_scrolls_to_active_track() {
+    let song = long_track_song(30);
+    let backend = TestBackend::new(32, 8);
+    let mut terminal = Terminal::new(backend).expect("test terminal");
+
+    terminal
+        .draw(|frame| {
+            render_tracks(frame, Rect::new(0, 0, 32, 8), &song, 20);
+        })
+        .expect("draw");
+
+    let rendered = terminal_buffer_text(&terminal);
+
+    assert!(rendered.contains("Tracks 18-23 / 30"));
+    assert!(rendered.contains("> 21 Track 21"));
+    assert!(!rendered.contains(" 01 Track 01"));
+}
+
+#[test]
+fn pattern_manager_scrolls_to_active_pattern() {
+    let song = long_sequence_song(40);
+    let backend = TestBackend::new(48, 10);
+    let mut terminal = Terminal::new(backend).expect("test terminal");
+
+    terminal
+        .draw(|frame| {
+            render_pattern_manager(frame, Rect::new(0, 0, 48, 10), &song, 30);
+        })
+        .expect("draw");
+
+    let rendered = terminal_buffer_text(&terminal);
+
+    assert!(rendered.contains("Pattern Manager 30-32 / 40"));
+    assert!(rendered.contains(">31  Pattern 31"));
+    assert!(!rendered.contains(" 01  Pattern 01"));
+}
+
+#[test]
+fn renders_tracker_cell_subcolumns() {
+    let mut song = Song::empty();
+    let pattern = song.current_pattern_mut().expect("pattern");
+    pattern
+        .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x64)
+        .expect("note");
+    let cell = pattern.cell_mut(0, 0).expect("cell");
+    cell.instrument = Some(InstrumentId(1));
+    cell.volume = Some(0x40);
+    cell.pan = Some(0x7f);
+    cell.delay = Some(0x20);
+    cell.command = Some(TrackerCommand::retrigger(4));
+
+    let backend = TestBackend::new(180, 32);
+    let mut terminal = Terminal::new(backend).expect("test terminal");
+
+    terminal
+        .draw(|frame| {
+            render(
+                frame,
+                &song,
+                TuiState {
+                    cursor: Cursor::new(),
+                    row_offset: 0,
+                    track_offset: 0,
+                    pattern_index: 0,
+                    active_view: TuiView::Pattern,
+                    selection: None,
+                    mode_label: "NORMAL",
+                    octave: 4,
+                    dirty: false,
+                    show_line_numbers_hex: false,
+                    command_line: None,
+                    notification: None,
+                    show_help: false,
+                    help_scroll: 0,
+                    help_tab: HelpTab::Basics,
+                    is_playing: false,
+                    loop_pattern: true,
+                    playhead_row: None,
+                    midi_status: "MIDI Disconnected",
+                    sequence_position: None,
+                    quit_confirmation: false,
+                    delete_confirmation: None,
+                    midi_settings: None,
+                    sampler_view: None,
+                    sample_browser: None,
+                    project_browser: None,
+                },
+            );
+        })
+        .expect("draw");
+
+    let rendered = terminal
+        .backend()
+        .buffer()
+        .content
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect::<String>();
+
+    assert!(rendered.contains("C-4 64 01 40 7F 20 R04"));
+}
+
+#[test]
+fn renders_sample_browser_view() {
+    let song = Song::empty();
+    let overview = test_waveform(vec![
+        salieri_sampler::WaveformBucket {
+            min: -0.4,
+            max: 0.6,
+        },
+        salieri_sampler::WaveformBucket {
+            min: -0.2,
+            max: 0.2,
+        },
+    ]);
+    let entries = [
+        SampleBrowserEntryView {
+            name: "Drums",
+            kind: SampleBrowserEntryKind::Directory,
+        },
+        SampleBrowserEntryView {
+            name: "kick.wav",
+            kind: SampleBrowserEntryKind::SupportedSample,
+        },
+    ];
+    let backend = TestBackend::new(100, 28);
+    let mut terminal = Terminal::new(backend).expect("test terminal");
+
+    terminal
+        .draw(|frame| {
+            render(
+                frame,
+                &song,
+                TuiState {
+                    cursor: Cursor::new(),
+                    row_offset: 0,
+                    track_offset: 0,
+                    pattern_index: 0,
+                    active_view: TuiView::SampleBrowser,
+                    selection: None,
+                    mode_label: "SAMPLES",
+                    octave: 4,
+                    dirty: false,
+                    show_line_numbers_hex: false,
+                    command_line: None,
+                    notification: None,
+                    show_help: false,
+                    help_scroll: 0,
+                    help_tab: HelpTab::Basics,
+                    is_playing: false,
+                    loop_pattern: true,
+                    playhead_row: None,
+                    midi_status: "MIDI Disconnected",
+                    sequence_position: None,
+                    quit_confirmation: false,
+                    delete_confirmation: None,
+                    midi_settings: None,
+                    sampler_view: None,
+                    sample_browser: Some(SampleBrowserViewState {
+                        current_dir: "/tmp/samples",
+                        entries: &entries,
+                        selected: 1,
+                        preview: Some(SamplerViewState {
+                            name: "kick.wav",
+                            source_path: "/tmp/samples/kick.wav",
+                            overview: &overview,
+                            waveform_start_bucket: 0,
+                            waveform_end_bucket: overview.buckets.len(),
+                            waveform_zoom: 1,
+                            instrument: None,
+                            assigned_track: None,
+                            assigned_track_count: 0,
+                            playback_mode: "one-shot",
+                            start_frame: None,
+                            end_frame: None,
+                            loop_start_frame: None,
+                            loop_end_frame: None,
+                            envelope: (0.0, 0.0, 1.0, 0.0),
+                            selected_envelope: SamplerEnvelopeField::Attack,
+                        }),
+                        message: None,
+                    }),
+                    project_browser: None,
+                },
+            );
+        })
+        .expect("draw");
+
+    let rendered = terminal.backend().to_string();
+    assert!(rendered.contains("kick.wav"));
+    assert!(rendered.contains("Sample Metadata"));
+}
+
+#[test]
+fn renders_project_browser_view() {
+    let song = Song::empty();
+    let entries = [
+        ProjectBrowserEntryView {
+            name: "songs",
+            path: "/tmp/songs",
+            kind: ProjectBrowserEntryKind::Directory,
+            detail: "Press Enter to open directory",
+        },
+        ProjectBrowserEntryView {
+            name: "set.salieri",
+            path: "/tmp/songs/set.salieri",
+            kind: ProjectBrowserEntryKind::Project,
+            detail: "Set | 4 tracks | 2 patterns | 2 sequence slots | modified unknown",
+        },
+    ];
+    let backend = TestBackend::new(100, 28);
+    let mut terminal = Terminal::new(backend).expect("test terminal");
+
+    terminal
+        .draw(|frame| {
+            render(
+                frame,
+                &song,
+                TuiState {
+                    cursor: Cursor::new(),
+                    row_offset: 0,
+                    track_offset: 0,
+                    pattern_index: 0,
+                    active_view: TuiView::ProjectBrowser,
+                    selection: None,
+                    mode_label: "PROJECTS",
+                    octave: 4,
+                    dirty: false,
+                    show_line_numbers_hex: false,
+                    command_line: None,
+                    notification: None,
+                    show_help: false,
+                    help_scroll: 0,
+                    help_tab: HelpTab::Basics,
+                    is_playing: false,
+                    loop_pattern: true,
+                    playhead_row: None,
+                    midi_status: "MIDI Disconnected",
+                    sequence_position: None,
+                    quit_confirmation: false,
+                    delete_confirmation: None,
+                    midi_settings: None,
+                    sampler_view: None,
+                    sample_browser: None,
+                    project_browser: Some(ProjectBrowserViewState {
+                        current_dir: "/tmp/songs",
+                        entries: &entries,
+                        selected: 1,
+                        message: Some("Enter opens a project"),
+                    }),
+                },
+            );
+        })
+        .expect("draw");
+
+    let rendered = terminal.backend().to_string();
+    assert!(rendered.contains("Projects"));
+    assert!(rendered.contains("set.salieri"));
+    assert!(rendered.contains("2 patterns"));
+}
+
+#[test]
+fn renders_small_layout_as_single_pattern_view() {
+    let song = Song::empty();
+    let backend = TestBackend::new(72, 24);
+    let mut terminal = Terminal::new(backend).expect("test terminal");
+
+    terminal
+        .draw(|frame| {
+            render(
+                frame,
+                &song,
+                TuiState {
+                    cursor: Cursor::new(),
+                    row_offset: 0,
+                    track_offset: 0,
+                    pattern_index: 0,
+                    active_view: TuiView::Pattern,
+                    selection: None,
+                    mode_label: "NORMAL",
+                    octave: 4,
+                    dirty: false,
+                    show_line_numbers_hex: false,
+                    command_line: None,
+                    notification: None,
+                    show_help: false,
+                    help_scroll: 0,
+                    help_tab: HelpTab::Basics,
+                    is_playing: false,
+                    loop_pattern: true,
+                    playhead_row: None,
+                    midi_status: "MIDI Disconnected",
+                    sequence_position: None,
+                    quit_confirmation: false,
+                    delete_confirmation: None,
+                    midi_settings: None,
+                    sampler_view: None,
+                    sample_browser: None,
+                    project_browser: None,
+                },
+            );
+        })
+        .expect("draw");
+
+    let rendered = terminal
+        .backend()
+        .buffer()
+        .content
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect::<String>();
+
+    assert!(rendered.contains("Pattern Editor"));
+    assert!(!rendered.contains("Track Editor"));
+    assert!(!rendered.contains("Sequence Editor"));
+}
+
+#[test]
+fn renders_medium_layout_with_compact_side_panel() {
+    let song = Song::empty();
+    let backend = TestBackend::new(100, 28);
+    let mut terminal = Terminal::new(backend).expect("test terminal");
+
+    terminal
+        .draw(|frame| {
+            render(
+                frame,
+                &song,
+                TuiState {
+                    cursor: Cursor::new(),
+                    row_offset: 0,
+                    track_offset: 0,
+                    pattern_index: 0,
+                    active_view: TuiView::Pattern,
+                    selection: None,
+                    mode_label: "NORMAL",
+                    octave: 4,
+                    dirty: false,
+                    show_line_numbers_hex: false,
+                    command_line: None,
+                    notification: None,
+                    show_help: false,
+                    help_scroll: 0,
+                    help_tab: HelpTab::Basics,
+                    is_playing: false,
+                    loop_pattern: true,
+                    playhead_row: None,
+                    midi_status: "MIDI Disconnected",
+                    sequence_position: None,
+                    quit_confirmation: false,
+                    delete_confirmation: None,
+                    midi_settings: None,
+                    sampler_view: None,
+                    sample_browser: None,
+                    project_browser: None,
+                },
+            );
+        })
+        .expect("draw");
+
+    let rendered = terminal
+        .backend()
+        .buffer()
+        .content
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect::<String>();
+
+    assert!(rendered.contains("Pattern Editor"));
+    assert!(rendered.contains("Tracks"));
+    assert!(rendered.contains("Sequence"));
+}
