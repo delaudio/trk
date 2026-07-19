@@ -78,6 +78,7 @@ pub enum CommandDomain {
     Fx,
     Cell,
     Automation,
+    ParameterLock,
     Mixer,
     Dsp,
     Ai,
@@ -178,6 +179,9 @@ impl SalieriCommand {
             "fx" | "effect" => domain(CommandDomain::Fx, arguments),
             "cell" => domain(CommandDomain::Cell, arguments),
             "automation" | "auto" => domain(CommandDomain::Automation, arguments),
+            "plock" | "parameter-lock" | "param-lock" => {
+                domain(CommandDomain::ParameterLock, arguments)
+            }
             "mixer" | "mix" => domain(CommandDomain::Mixer, arguments),
             "dsp" | "effect-chain" => domain(CommandDomain::Dsp, arguments),
             "ai" => domain(CommandDomain::Ai, arguments),

@@ -282,8 +282,9 @@ shared gates below.
   and future instruments.
 - #121 owns sampler-local filtering, envelopes, keyzones, and modulation
   boundaries.
-- #123 owns generic parameter locks. All automatable native effect parameters in
-  this catalog must be addressable through that model.
+- #123 owns generic parameter locks. The initial model is implemented for
+  sampler, mixer/send, and native gain/pan targets; new automatable native
+  effect parameters in this catalog must extend that model.
 - #124 owns canonical parameter descriptor/value metadata. New devices extend
   the catalog; they must not create a parallel parameter system.
 - #137 owns generated descriptor-driven inspectors/editors. It should consume

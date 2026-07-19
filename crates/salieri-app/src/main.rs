@@ -64,9 +64,15 @@ use salieri_audio::{
     OfflineRenderSpec, OfflineSamplerEvent, OfflineSamplerSample, TrackDspChainSpec,
 };
 use salieri_core::{
-    row_duration_micros, sampler_events, AutomationTarget, CellField, Cursor, Direction,
-    EffectDevice, EffectDeviceKind, InstrumentId, NoteEvent, PatternCell, SampleEnvelope,
+    mixer_master_gain_descriptor, mixer_send_gain_descriptor, mixer_track_gain_descriptor,
+    mixer_track_pan_descriptor, native_gain_descriptor, native_pan_descriptor, row_duration_micros,
+    sample_gain_descriptor, sampler_events, AutomationTarget, CellField, Cursor, Direction,
+    EffectDevice, EffectDeviceKind, InstrumentId, NoteEvent, ParameterDescriptor, ParameterId,
+    ParameterLock, ParameterLockAction, ParameterLockTarget, PatternCell, SampleEnvelope,
     SamplePlaybackMode, SamplePlaybackSettings, Song, TrackerCommand,
+    MIXER_MASTER_GAIN_PARAMETER_ID, MIXER_SEND_GAIN_PARAMETER_ID, MIXER_TRACK_GAIN_PARAMETER_ID,
+    MIXER_TRACK_PAN_PARAMETER_ID, NATIVE_GAIN_PARAMETER_ID, NATIVE_PAN_PARAMETER_ID,
+    SAMPLE_GAIN_PARAMETER_ID,
 };
 use salieri_interop::{
     extract_xrns_sample_payloads, import_xrns, import_xrns_with_sample_paths,
@@ -265,13 +271,13 @@ struct SampleBrowserRequest {
     start_dir: Option<PathBuf>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 enum Clipboard {
     Cell(PatternCell),
     Region(ClipboardRegion),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 struct ClipboardRegion {
     cells: Vec<Vec<PatternCell>>,
 }

@@ -171,6 +171,79 @@ fn command_mode_sets_and_clears_sample_gain_automation() {
 }
 
 #[test]
+fn command_mode_sets_resets_and_clears_parameter_locks() {
+    let mut app = App::default();
+    let sample = app
+        .song
+        .upsert_sample_reference("samples/kick.wav", "kick.wav");
+    let track = app.song.tracks[0].id;
+    app.song
+        .assign_sample_to_track(track, sample)
+        .expect("assign sample");
+    type_command(&mut app, "dsp track gain 1.000");
+
+    type_command(&mut app, "plock sample-gain 0.250");
+    type_command(&mut app, "plock mixer pan -0.500");
+    type_command(&mut app, "plock send 1 0.500");
+    type_command(&mut app, "plock dsp track gain 0.750");
+
+    let cell = app
+        .song
+        .current_pattern()
+        .expect("pattern")
+        .cell(0, 0)
+        .expect("cell");
+    assert_eq!(cell.parameter_locks.len(), 4);
+    assert_eq!(
+        cell.parameter_locks[0].parameter,
+        ParameterId::from(SAMPLE_GAIN_PARAMETER_ID)
+    );
+    assert_eq!(
+        cell.parameter_locks[1].parameter,
+        ParameterId::from(MIXER_TRACK_PAN_PARAMETER_ID)
+    );
+    assert_eq!(
+        cell.parameter_locks[2].target,
+        ParameterLockTarget::TrackSend { track, send: 1 }
+    );
+    assert_eq!(
+        cell.parameter_locks[3].target,
+        ParameterLockTarget::TrackEffect { track, device: 1 }
+    );
+
+    type_command(&mut app, "plock sample-gain reset");
+    let cell = app
+        .song
+        .current_pattern()
+        .expect("pattern")
+        .cell(0, 0)
+        .expect("cell");
+    assert!(matches!(
+        cell.parameter_locks[0].action,
+        ParameterLockAction::Reset
+    ));
+
+    type_command(&mut app, "plock sample-gain clear");
+    let cell = app
+        .song
+        .current_pattern()
+        .expect("pattern")
+        .cell(0, 0)
+        .expect("cell");
+    assert_eq!(cell.parameter_locks.len(), 3);
+    assert!(app.dirty);
+
+    app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
+    let cell = app
+        .song
+        .current_pattern()
+        .expect("pattern")
+        .cell(0, 0)
+        .expect("cell");
+    assert_eq!(cell.parameter_locks.len(), 4);
+}
+
+#[test]
 fn command_mode_edits_mixer_state() {
     let mut app = App::default();
 
