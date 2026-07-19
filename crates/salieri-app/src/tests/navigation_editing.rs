@@ -356,6 +356,42 @@ fn mouse_wheel_moves_tracker_cursor_through_shared_viewport() {
 }
 
 #[test]
+fn modal_focus_capture_restores_previous_panel() {
+    let mut app = App::default();
+
+    app.open_sampler_view();
+    app.open_help();
+    assert_eq!(app.mode, AppMode::Help);
+    assert_eq!(app.tui_active_view(), TuiView::Sampler);
+
+    app.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+    assert_eq!(app.mode, AppMode::Sampler);
+    assert_eq!(app.tui_active_view(), TuiView::Sampler);
+
+    app.open_command_prompt();
+    assert_eq!(app.mode, AppMode::Command);
+    assert_eq!(app.tui_active_view(), TuiView::Sampler);
+
+    app.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+    assert_eq!(app.mode, AppMode::Sampler);
+    assert_eq!(app.tui_active_view(), TuiView::Sampler);
+}
+
+#[test]
+fn temporary_panel_focus_restores_previous_panel() {
+    let mut app = App::default();
+
+    app.open_sampler_view();
+    app.open_midi_settings();
+    assert_eq!(app.mode, AppMode::MidiSettings);
+    assert_eq!(app.tui_active_view(), TuiView::Pattern);
+
+    app.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+    assert_eq!(app.mode, AppMode::Sampler);
+    assert_eq!(app.tui_active_view(), TuiView::Sampler);
+}
+
+#[test]
 fn tab_and_backtab_move_between_tracks() {
     let mut app = App::default();
 

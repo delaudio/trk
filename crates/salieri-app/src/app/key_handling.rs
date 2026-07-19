@@ -275,8 +275,7 @@ impl App {
                 return;
             }
             KeyCode::Char(':') => {
-                self.command_buffer.clear();
-                self.mode = AppMode::Command;
+                self.open_command_prompt();
                 return;
             }
             KeyCode::Char('?') | KeyCode::Char('H') => {
@@ -425,7 +424,7 @@ impl App {
     pub(crate) fn handle_help_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('?') => {
-                self.mode = AppMode::Normal;
+                self.close_focus_capture();
             }
             KeyCode::Up | KeyCode::Char('k') => {
                 self.help_scroll = self.help_scroll.saturating_sub(1);
