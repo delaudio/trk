@@ -150,6 +150,118 @@ fn renders_default_pattern_without_panic() {
 }
 
 #[test]
+fn pattern_viewport_derives_visible_ranges_from_offsets_and_cursor() {
+    let viewport = pattern_viewport(
+        Rect::new(0, 0, 50, 8),
+        512,
+        12,
+        TuiState {
+            cursor: Cursor {
+                row: 120,
+                track: 5,
+                ..Cursor::new()
+            },
+            row_offset: 100,
+            track_offset: 4,
+            pattern_index: 0,
+            active_view: TuiView::Pattern,
+            selection: None,
+            mode_label: "NORMAL",
+            octave: 4,
+            dirty: false,
+            show_line_numbers_hex: false,
+            command_line: None,
+            notification: None,
+            show_help: false,
+            help_scroll: 0,
+            help_tab: HelpTab::Basics,
+            is_playing: false,
+            loop_pattern: true,
+            playhead_row: None,
+            midi_status: "MIDI Disconnected",
+            sequence_position: None,
+            quit_confirmation: false,
+            delete_confirmation: None,
+            midi_settings: None,
+            sampler_view: None,
+            sample_browser: None,
+            project_browser: None,
+        },
+    );
+
+    assert_eq!(viewport.visible_rows, 116..121);
+    assert_eq!(viewport.visible_tracks, 4..7);
+}
+
+#[test]
+fn visible_pattern_tracks_includes_partially_visible_cells() {
+    let two_full_tracks_plus_one_column =
+        2 + ROW_GUTTER_WIDTH as u16 + (PATTERN_CELL_WIDTH as u16 * 2) + 1;
+
+    assert_eq!(visible_pattern_tracks(two_full_tracks_plus_one_column), 3);
+}
+
+#[test]
+fn virtualized_pattern_render_omits_offscreen_rows_and_tracks() {
+    let mut song = long_track_song(12);
+    song.resize_pattern(0, 4_096).expect("large pattern");
+    let backend = TestBackend::new(80, 12);
+    let mut terminal = Terminal::new(backend).expect("test terminal");
+
+    terminal
+        .draw(|frame| {
+            render_pattern(
+                frame,
+                Rect::new(0, 0, 80, 12),
+                &song,
+                TuiState {
+                    cursor: Cursor {
+                        row: 1003,
+                        track: 6,
+                        ..Cursor::new()
+                    },
+                    row_offset: 1000,
+                    track_offset: 5,
+                    pattern_index: 0,
+                    active_view: TuiView::Pattern,
+                    selection: None,
+                    mode_label: "NORMAL",
+                    octave: 4,
+                    dirty: false,
+                    show_line_numbers_hex: false,
+                    command_line: None,
+                    notification: None,
+                    show_help: false,
+                    help_scroll: 0,
+                    help_tab: HelpTab::Basics,
+                    is_playing: false,
+                    loop_pattern: true,
+                    playhead_row: None,
+                    midi_status: "MIDI Disconnected",
+                    sequence_position: None,
+                    quit_confirmation: false,
+                    delete_confirmation: None,
+                    midi_settings: None,
+                    sampler_view: None,
+                    sample_browser: None,
+                    project_browser: None,
+                },
+            );
+        })
+        .expect("draw");
+
+    let rendered = terminal_buffer_text(&terminal);
+
+    assert!(rendered.contains("1003"));
+    assert!(rendered.contains("Track 06"));
+    assert!(rendered.contains("Track 08"));
+    assert!(!rendered.contains(" 000 "));
+    assert!(!rendered.contains("4095"));
+    assert!(!rendered.contains("Track 01"));
+    assert!(!rendered.contains("Track 12"));
+}
+
+#[test]
 fn sequence_panel_scrolls_to_active_position() {
     let song = long_sequence_song(40);
     let backend = TestBackend::new(32, 8);

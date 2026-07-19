@@ -86,6 +86,65 @@ fn snapshots_cursor_and_selection_state() {
 }
 
 #[test]
+fn snapshots_viewport_boundary_large_pattern() {
+    assert_snapshot(
+        "viewport-boundary-large-pattern",
+        render_snapshot(
+            large_tracker_song(4_096, 12),
+            TuiState {
+                cursor: Cursor {
+                    row: 4095,
+                    track: 11,
+                    field: salieri_core::CellField::Effect,
+                    digit: 1,
+                },
+                row_offset: 4088,
+                track_offset: 8,
+                selection: Some(SelectionRect {
+                    row_start: 4090,
+                    row_end: 4095,
+                    track_start: 9,
+                    track_end: 11,
+                }),
+                is_playing: true,
+                playhead_row: Some(4094),
+                ..test_state()
+            },
+            72,
+            24,
+        ),
+    );
+}
+
+#[test]
+fn snapshots_partially_visible_track_fields() {
+    assert_snapshot(
+        "partial-track-fields",
+        render_snapshot(
+            large_tracker_song(64, 8),
+            TuiState {
+                cursor: Cursor {
+                    row: 4,
+                    track: 3,
+                    field: salieri_core::CellField::Pan,
+                    digit: 0,
+                },
+                track_offset: 1,
+                selection: Some(SelectionRect {
+                    row_start: 3,
+                    row_end: 5,
+                    track_start: 2,
+                    track_end: 3,
+                }),
+                ..test_state()
+            },
+            56,
+            18,
+        ),
+    );
+}
+
+#[test]
 fn snapshots_help_overlay() {
     assert_snapshot(
         "help-overlay",
@@ -395,4 +454,29 @@ fn snapshots_clipped_looking_waveform() {
             },
         ])),
     );
+}
+
+fn large_tracker_song(row_count: usize, track_count: usize) -> Song {
+    let mut song = Song::empty();
+    while song.tracks.len() < track_count {
+        song.create_track();
+    }
+    for index in 0..song.tracks.len() {
+        song.rename_track(index, format!("Track {:02}", index + 1))
+            .expect("rename track");
+    }
+    song.resize_pattern(0, row_count).expect("resize pattern");
+    let pattern = song.current_pattern_mut().expect("pattern");
+    pattern
+        .set_note(4, 3, NoteEvent::Note { pitch: 67 }, 0x64)
+        .expect("partial fixture note");
+    pattern
+        .set_note(
+            4094.min(row_count.saturating_sub(1)),
+            10.min(track_count.saturating_sub(1)),
+            NoteEvent::Note { pitch: 72 },
+            0x7f,
+        )
+        .expect("boundary fixture note");
+    song
 }

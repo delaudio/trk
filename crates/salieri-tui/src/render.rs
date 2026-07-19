@@ -1673,20 +1673,12 @@ fn render_pattern(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiStat
         return;
     };
 
-    let inner_height = area.height.saturating_sub(2) as usize;
-    let data_height = inner_height.saturating_sub(1);
-    let visible_tracks = visible_pattern_tracks(area.width);
-    let mut rows = ViewportAxis::with_offset(pattern.row_count(), data_height, state.row_offset);
-    rows.keep_visible(state.cursor.row);
-    let mut tracks =
-        ViewportAxis::with_offset(song.tracks.len(), visible_tracks, state.track_offset);
-    tracks.keep_visible(state.cursor.track);
-    let visible_track_range = tracks.visible_range();
-    let mut lines = Vec::with_capacity(data_height.saturating_add(1));
+    let viewport = pattern_viewport(area, pattern.row_count(), song.tracks.len(), state);
+    let mut lines = Vec::with_capacity(viewport.row_capacity.saturating_add(1));
     lines.push(pattern_header(
         song,
         state.cursor.track,
-        visible_track_range.clone(),
+        viewport.visible_tracks.clone(),
     ));
 
     let row_state = PatternRowRenderState {
@@ -1694,10 +1686,10 @@ fn render_pattern(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiStat
         playhead_row: state.playhead_row,
         selection: state.selection,
         show_line_numbers_hex: state.show_line_numbers_hex,
-        visible_tracks: visible_track_range,
+        visible_tracks: viewport.visible_tracks,
     };
 
-    for row_index in rows.visible_range() {
+    for row_index in viewport.visible_rows {
         lines.push(pattern_row(song, pattern, row_index, &row_state));
     }
 
@@ -1708,6 +1700,36 @@ fn render_pattern(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiStat
     frame.render_widget(paragraph, area);
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PatternViewport {
+    visible_rows: Range<usize>,
+    visible_tracks: Range<usize>,
+    row_capacity: usize,
+}
+
+fn pattern_viewport(
+    area: Rect,
+    row_count: usize,
+    track_count: usize,
+    state: TuiState<'_>,
+) -> PatternViewport {
+    let inner_height = area.height.saturating_sub(2) as usize;
+    let row_capacity = inner_height.saturating_sub(1);
+    let visible_track_capacity = visible_pattern_tracks(area.width);
+
+    let mut rows = ViewportAxis::with_offset(row_count, row_capacity, state.row_offset);
+    rows.keep_visible(state.cursor.row);
+    let mut tracks =
+        ViewportAxis::with_offset(track_count, visible_track_capacity, state.track_offset);
+    tracks.keep_visible(state.cursor.track);
+
+    PatternViewport {
+        visible_rows: rows.visible_range(),
+        visible_tracks: tracks.visible_range(),
+        row_capacity,
+    }
+}
+
 fn active_pattern(song: &Song, pattern_index: usize) -> Option<&Pattern> {
     song.pattern(pattern_index)
 }
@@ -1716,7 +1738,7 @@ fn visible_pattern_tracks(area_width: u16) -> usize {
     let content_width = area_width
         .saturating_sub(2)
         .saturating_sub(ROW_GUTTER_WIDTH as u16);
-    (content_width as usize / PATTERN_CELL_WIDTH).max(1)
+    (content_width as usize).div_ceil(PATTERN_CELL_WIDTH).max(1)
 }
 
 fn pattern_header(song: &Song, active_track: usize, visible_tracks: Range<usize>) -> Line<'static> {
