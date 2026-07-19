@@ -287,7 +287,7 @@ impl App {
             track_index,
             message: format!("Delete track {:02} {}?", track_index + 1, track.name),
         });
-        self.mode = AppMode::Dialog;
+        self.capture_focus(FocusCapture::Dialog, AppMode::Dialog);
         self.notify_warning("Confirm track delete");
     }
 
@@ -408,13 +408,13 @@ impl App {
 
     pub(crate) fn start_track_rename_command(&mut self) {
         self.command_buffer = format!("track rename {} ", self.cursor.track + 1);
-        self.mode = AppMode::Command;
+        self.capture_command_mode();
         self.notify_info("Rename current track");
     }
 
     pub(crate) fn start_track_channel_command(&mut self) {
         self.command_buffer = format!("track channel {} ", self.cursor.track + 1);
-        self.mode = AppMode::Command;
+        self.capture_command_mode();
         self.notify_info("Set current track MIDI channel");
     }
 }

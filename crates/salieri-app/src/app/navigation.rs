@@ -6,8 +6,8 @@ impl App {
             self.force_quit();
         } else {
             self.stop_playback();
-            self.mode = AppMode::Dialog;
             self.dialog = Some(Dialog::QuitDirty);
+            self.capture_focus(FocusCapture::Dialog, AppMode::Dialog);
             self.notify_warning("Unsaved changes");
         }
     }
@@ -23,11 +23,11 @@ impl App {
             matches!(self.dialog, Some(Dialog::OpenProjectDirty { .. }))
                 && self.project_browser_view.is_some();
         self.dialog = None;
-        self.mode = if return_to_project_browser {
-            AppMode::ProjectBrowser
+        if return_to_project_browser {
+            self.focus_panel(FocusPanel::ProjectBrowser);
         } else {
-            AppMode::Normal
-        };
+            self.close_focus_capture();
+        }
         self.notify_info("Cancelled");
     }
 
@@ -71,7 +71,7 @@ impl App {
 
     pub(crate) fn open_midi_settings(&mut self) {
         self.refresh_midi_ports();
-        self.mode = AppMode::MidiSettings;
+        self.focus_panel(FocusPanel::MidiSettings);
     }
 
     pub(crate) fn open_help(&mut self) {
@@ -84,20 +84,20 @@ impl App {
             AppMode::Edit => HelpTab::Editing,
             _ => HelpTab::Basics,
         };
-        self.mode = AppMode::Help;
+        self.capture_focus(FocusCapture::Help, AppMode::Help);
         if let Some(summary) = self.keymap.help_summary() {
             self.notify_info(summary);
         }
     }
 
     pub(crate) fn open_tracker_view(&mut self) {
-        self.mode = AppMode::Normal;
+        self.focus_panel(FocusPanel::Tracker);
         self.notify_info("Tracker editor");
     }
 
     pub(crate) fn open_sequence_view(&mut self) {
         self.clamp_sequence_cursor();
-        self.mode = AppMode::Sequence;
+        self.focus_panel(FocusPanel::Sequence);
         self.notify_info(format!("Sequence position {:02}", self.sequence_cursor));
     }
 
@@ -106,18 +106,18 @@ impl App {
             .cursor
             .track
             .min(self.song.tracks.len().saturating_sub(1));
-        self.mode = AppMode::Tracks;
+        self.focus_panel(FocusPanel::Tracks);
         self.notify_info(format!("Track {:02}", self.cursor.track + 1));
     }
 
     pub(crate) fn open_patterns_view(&mut self) {
         self.clamp_pattern_index();
-        self.mode = AppMode::Patterns;
+        self.focus_panel(FocusPanel::Patterns);
         self.notify_info(format!("Pattern {:02}", self.pattern_index + 1));
     }
 
     pub(crate) fn open_sampler_view(&mut self) {
-        self.mode = AppMode::Sampler;
+        self.focus_panel(FocusPanel::Sampler);
         if let Some(sample) = &self.sample_view {
             self.notify_info(format!("Sample {}", sample.sample.name));
         } else {

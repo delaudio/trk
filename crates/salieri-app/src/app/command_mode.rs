@@ -4,7 +4,7 @@ impl App {
     pub(crate) fn execute_command(&mut self) {
         let command = self.command_buffer.trim().to_string();
         self.command_buffer.clear();
-        self.mode = AppMode::Normal;
+        self.close_focus_capture();
 
         if let Err(error) = command::dispatch(self, &command) {
             self.notify_warning(error.to_string());
@@ -27,13 +27,9 @@ impl App {
                 BrowserCommand::Projects => self.open_project_browser_view(path),
             },
             SalieriCommand::Focus(target) => match target {
-                FocusTarget::Tracker => self.open_tracker_view(),
-                FocusTarget::Patterns => self.open_patterns_view(),
-                FocusTarget::Sequence => self.open_sequence_view(),
-                FocusTarget::Tracks => self.open_tracks_view(),
-                FocusTarget::Sampler => self.open_sampler_view(),
                 FocusTarget::SampleBrowser => self.open_sample_browser_view(None),
                 FocusTarget::ProjectBrowser => self.open_project_browser_view(None),
+                target => self.focus_panel(FocusPanel::from_target(target)),
             },
             SalieriCommand::Quit { force: false } => self.request_quit(false),
             SalieriCommand::Quit { force: true } => self.force_quit(),

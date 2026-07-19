@@ -291,7 +291,7 @@ fn tracks_view_guides_track_management() {
 
     app.handle_key(KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE));
     assert_eq!(app.song.tracks.len(), 5);
-    assert_eq!(app.mode, AppMode::Normal);
+    assert_eq!(app.mode, AppMode::Tracks);
 }
 
 #[test]

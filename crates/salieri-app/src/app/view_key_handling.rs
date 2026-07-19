@@ -9,19 +9,19 @@ impl App {
                 }
                 Some(Dialog::DeleteTrack { track_index, .. }) => {
                     self.dialog = None;
-                    self.mode = AppMode::Normal;
+                    self.close_focus_capture();
                     self.delete_track(track_index);
                 }
                 Some(Dialog::DeletePattern { pattern_index, .. }) => {
                     self.dialog = None;
-                    self.mode = AppMode::Normal;
+                    self.close_focus_capture();
                     self.delete_pattern(pattern_index);
                 }
                 Some(Dialog::OpenProjectDirty { path, .. }) => {
                     self.dialog = None;
                     self.open_project_file(path);
                 }
-                None => self.mode = AppMode::Normal,
+                None => self.close_focus_capture(),
             },
             KeyCode::Char('n') | KeyCode::Char('N') => match self.dialog {
                 Some(Dialog::QuitDirty) => self.force_quit(),
@@ -41,7 +41,7 @@ impl App {
 
     pub(crate) fn handle_midi_settings_key(&mut self, key: KeyEvent) {
         match key.code {
-            KeyCode::Esc | KeyCode::Char('q') => self.mode = AppMode::Normal,
+            KeyCode::Esc | KeyCode::Char('q') => self.restore_previous_focus(),
             KeyCode::Up => self.previous_midi_port(),
             KeyCode::Char('k') if self.vim_navigation => self.previous_midi_port(),
             KeyCode::Down => self.next_midi_port(),
@@ -60,17 +60,16 @@ impl App {
 
     pub(crate) fn handle_sequence_key(&mut self, key: KeyEvent) {
         match key.code {
-            KeyCode::Esc => self.mode = AppMode::Normal,
+            KeyCode::Esc => self.open_tracker_view(),
             KeyCode::Char('q') => self.request_quit(false),
             KeyCode::Char('?') | KeyCode::Char('H') => self.open_help(),
             KeyCode::Char(':') => {
-                self.command_buffer.clear();
-                self.mode = AppMode::Command;
+                self.open_command_prompt();
             }
             KeyCode::Char(' ') => self.toggle_playback(),
             KeyCode::F(8) => self.stop_playback(),
             KeyCode::F(4) => self.open_midi_settings(),
-            KeyCode::F(7) => self.mode = AppMode::Normal,
+            KeyCode::F(7) => self.open_sequence_view(),
             KeyCode::Up => self.previous_sequence_position(),
             KeyCode::Char('k') if self.vim_navigation => self.previous_sequence_position(),
             KeyCode::Down => self.next_sequence_position(),
@@ -96,15 +95,14 @@ impl App {
 
     pub(crate) fn handle_tracks_key(&mut self, key: KeyEvent) {
         match key.code {
-            KeyCode::Esc => self.mode = AppMode::Normal,
+            KeyCode::Esc => self.open_tracker_view(),
             KeyCode::Char('q') => self.request_quit(false),
             KeyCode::Char('?') | KeyCode::Char('H') => self.open_help(),
             KeyCode::Char(':') => {
-                self.command_buffer.clear();
-                self.mode = AppMode::Command;
+                self.open_command_prompt();
             }
             KeyCode::F(4) => self.open_midi_settings(),
-            KeyCode::F(9) => self.mode = AppMode::Normal,
+            KeyCode::F(9) => self.open_tracks_view(),
             KeyCode::Up => self.previous_track(),
             KeyCode::Char('k') if self.vim_navigation => self.previous_track(),
             KeyCode::Down => self.next_track(),
@@ -126,14 +124,13 @@ impl App {
 
     pub(crate) fn handle_patterns_key(&mut self, key: KeyEvent) {
         match key.code {
-            KeyCode::Esc => self.mode = AppMode::Normal,
+            KeyCode::Esc => self.open_tracker_view(),
             KeyCode::Char('q') => self.request_quit(false),
             KeyCode::Char('?') | KeyCode::Char('H') => self.open_help(),
             KeyCode::Char(':') => {
-                self.command_buffer.clear();
-                self.mode = AppMode::Command;
+                self.open_command_prompt();
             }
-            KeyCode::F(10) => self.mode = AppMode::Normal,
+            KeyCode::F(10) => self.open_patterns_view(),
             KeyCode::Up => self.select_pattern(self.pattern_index.saturating_sub(1)),
             KeyCode::Char('k') if self.vim_navigation => {
                 self.select_pattern(self.pattern_index.saturating_sub(1));
@@ -154,19 +151,18 @@ impl App {
             KeyCode::Char('3') => self.resize_current_pattern(64),
             KeyCode::Char('4') => self.resize_current_pattern(128),
             KeyCode::Char('5') => self.resize_current_pattern(256),
-            KeyCode::Enter => self.mode = AppMode::Normal,
+            KeyCode::Enter => self.open_tracker_view(),
             _ => {}
         }
     }
 
     pub(crate) fn handle_sampler_key(&mut self, key: KeyEvent) {
         match key.code {
-            KeyCode::Esc => self.mode = AppMode::Normal,
+            KeyCode::Esc => self.open_tracker_view(),
             KeyCode::Char('q') => self.request_quit(false),
             KeyCode::Char('?') | KeyCode::Char('H') => self.open_help(),
             KeyCode::Char(':') => {
-                self.command_buffer.clear();
-                self.mode = AppMode::Command;
+                self.open_command_prompt();
             }
             KeyCode::F(4) => self.open_midi_settings(),
             KeyCode::F(7) => self.open_sequence_view(),
@@ -193,12 +189,11 @@ impl App {
 
     pub(crate) fn handle_sample_browser_key(&mut self, key: KeyEvent) {
         match key.code {
-            KeyCode::Esc => self.mode = AppMode::Sampler,
+            KeyCode::Esc => self.open_sampler_view(),
             KeyCode::Char('q') => self.request_quit(false),
             KeyCode::Char('?') | KeyCode::Char('H') => self.open_help(),
             KeyCode::Char(':') => {
-                self.command_buffer.clear();
-                self.mode = AppMode::Command;
+                self.open_command_prompt();
             }
             KeyCode::Up | KeyCode::Char('k') => self.move_sample_browser_cursor(-1),
             KeyCode::Down | KeyCode::Char('j') => self.move_sample_browser_cursor(1),
@@ -214,12 +209,11 @@ impl App {
 
     pub(crate) fn handle_project_browser_key(&mut self, key: KeyEvent) {
         match key.code {
-            KeyCode::Esc => self.mode = AppMode::Normal,
+            KeyCode::Esc => self.open_tracker_view(),
             KeyCode::Char('q') => self.request_quit(false),
             KeyCode::Char('?') | KeyCode::Char('H') => self.open_help(),
             KeyCode::Char(':') => {
-                self.command_buffer.clear();
-                self.mode = AppMode::Command;
+                self.open_command_prompt();
             }
             KeyCode::Up | KeyCode::Char('k') => self.move_project_browser_cursor(-1),
             KeyCode::Down | KeyCode::Char('j') => self.move_project_browser_cursor(1),
@@ -240,7 +234,7 @@ impl App {
         match key.code {
             KeyCode::Esc => {
                 self.command_buffer.clear();
-                self.mode = AppMode::Normal;
+                self.close_focus_capture();
             }
             KeyCode::Enter => self.execute_command(),
             KeyCode::Backspace => {

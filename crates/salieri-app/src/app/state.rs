@@ -86,7 +86,7 @@ impl App {
             |path| path.display().to_string(),
         );
         self.command_buffer = format!("saveas {path}");
-        self.mode = AppMode::Command;
+        self.capture_command_mode();
         self.notify_info("Save As: edit path and press Enter");
     }
 
@@ -188,20 +188,34 @@ impl App {
     }
 
     pub(crate) fn tui_active_view(&self) -> TuiView {
-        match self.mode {
-            AppMode::Sequence => TuiView::Sequence,
-            AppMode::Tracks => TuiView::Tracks,
-            AppMode::Patterns => TuiView::Patterns,
-            AppMode::Sampler => TuiView::Sampler,
-            AppMode::SampleBrowser => TuiView::SampleBrowser,
-            AppMode::ProjectBrowser => TuiView::ProjectBrowser,
-            AppMode::Normal
-            | AppMode::Edit
-            | AppMode::Command
-            | AppMode::Help
-            | AppMode::Dialog
-            | AppMode::MidiSettings => TuiView::Pattern,
-        }
+        self.focus.focused().tui_view()
+    }
+
+    pub(crate) fn focus_panel(&mut self, panel: FocusPanel) {
+        self.focus.focus(panel);
+        self.mode = panel.app_mode();
+    }
+
+    pub(crate) fn restore_previous_focus(&mut self) {
+        self.mode = self.focus.restore_previous().app_mode();
+    }
+
+    pub(crate) fn capture_focus(&mut self, capture: FocusCapture, mode: AppMode) {
+        self.focus.capture_input(capture);
+        self.mode = mode;
+    }
+
+    pub(crate) fn close_focus_capture(&mut self) {
+        self.mode = self.focus.release_capture().app_mode();
+    }
+
+    pub(crate) fn open_command_prompt(&mut self) {
+        self.command_buffer.clear();
+        self.capture_command_mode();
+    }
+
+    pub(crate) fn capture_command_mode(&mut self) {
+        self.capture_focus(FocusCapture::Command, AppMode::Command);
     }
 
     pub(crate) fn keep_cursor_visible(&mut self, visible_rows: usize) {

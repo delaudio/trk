@@ -75,7 +75,7 @@ impl App {
             pattern_index,
             message: format!("Delete pattern {:02} {}?", pattern_index + 1, pattern.name),
         });
-        self.mode = AppMode::Dialog;
+        self.capture_focus(FocusCapture::Dialog, AppMode::Dialog);
         self.notify_warning("Confirm pattern delete");
     }
 
@@ -113,7 +113,7 @@ impl App {
 
     pub(crate) fn start_pattern_length_command(&mut self) {
         self.command_buffer = "pattern length ".to_string();
-        self.mode = AppMode::Command;
+        self.capture_command_mode();
         self.notify_info("Set current pattern length");
     }
 
@@ -133,7 +133,7 @@ impl App {
 
     pub(crate) fn start_pattern_rename_command(&mut self) {
         self.command_buffer = "pattern rename ".to_string();
-        self.mode = AppMode::Command;
+        self.capture_command_mode();
         self.notify_info("Rename current pattern");
     }
 

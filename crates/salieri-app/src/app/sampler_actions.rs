@@ -3,7 +3,7 @@ use super::*;
 impl App {
     pub(crate) fn assign_loaded_sample_to_track(&mut self, track_index: usize) {
         let Some(sample_view) = &self.sample_view else {
-            self.mode = AppMode::Sampler;
+            self.focus_panel(FocusPanel::Sampler);
             self.notify_warning("Load a sample before assigning it");
             return;
         };
@@ -22,7 +22,7 @@ impl App {
             let sample_id = song.upsert_sample_reference(sample_path, sample_name);
             let _ = song.assign_sample_to_track(track_id, sample_id);
         });
-        self.mode = AppMode::Sampler;
+        self.focus_panel(FocusPanel::Sampler);
         self.notify_success(format!("Sample assigned to {track_name}"));
     }
 
@@ -42,7 +42,7 @@ impl App {
 
     pub(crate) fn replace_track_sample_with_loaded_sample(&mut self, track_index: usize) {
         let Some(sample_view) = &self.sample_view else {
-            self.mode = AppMode::Sampler;
+            self.focus_panel(FocusPanel::Sampler);
             self.notify_warning("Load a sample before replacing an assignment");
             return;
         };
@@ -71,13 +71,13 @@ impl App {
                 }
             }
         });
-        self.mode = AppMode::Sampler;
+        self.focus_panel(FocusPanel::Sampler);
         self.notify_success(format!("Sample replaced on {track_name}"));
     }
 
     pub(crate) fn unload_current_sample(&mut self) {
         let Some(sample_view) = &self.sample_view else {
-            self.mode = AppMode::Sampler;
+            self.focus_panel(FocusPanel::Sampler);
             self.notify_warning("No sample loaded");
             return;
         };
@@ -92,7 +92,7 @@ impl App {
 
         match sample_id {
             Some(sample_id) if self.song.is_sample_assigned(sample_id) => {
-                self.mode = AppMode::Sampler;
+                self.focus_panel(FocusPanel::Sampler);
                 self.notify_warning("Unassign or replace sample before unloading it");
             }
             Some(sample_id) => {
@@ -100,12 +100,12 @@ impl App {
                     let _ = song.remove_sample_reference(sample_id);
                 });
                 self.sample_view = None;
-                self.mode = AppMode::Sampler;
+                self.focus_panel(FocusPanel::Sampler);
                 self.notify_success("Sample unloaded");
             }
             None => {
                 self.sample_view = None;
-                self.mode = AppMode::Sampler;
+                self.focus_panel(FocusPanel::Sampler);
                 self.notify_info("Sample view cleared");
             }
         }
@@ -177,7 +177,7 @@ impl App {
         spec: TransactionSpec,
     ) -> bool {
         let Some(sample_view) = &self.sample_view else {
-            self.mode = AppMode::Sampler;
+            self.focus_panel(FocusPanel::Sampler);
             self.notify_warning("Load a sample before editing playback settings");
             return false;
         };
@@ -198,13 +198,13 @@ impl App {
             song.set_sample_envelope(sample_id, settings.envelope)
                 .expect("sample envelope was prevalidated");
         });
-        self.mode = AppMode::Sampler;
+        self.focus_panel(FocusPanel::Sampler);
         true
     }
 
     pub(crate) fn set_loaded_sample_frame_start(&mut self, start_frame: Option<usize>) {
         let Some(mut settings) = self.loaded_sample_playback_settings() else {
-            self.mode = AppMode::Sampler;
+            self.focus_panel(FocusPanel::Sampler);
             self.notify_warning("Load a sample before editing playback settings");
             return;
         };
@@ -223,7 +223,7 @@ impl App {
 
     pub(crate) fn set_loaded_sample_frame_end(&mut self, end_frame: Option<usize>) {
         let Some(mut settings) = self.loaded_sample_playback_settings() else {
-            self.mode = AppMode::Sampler;
+            self.focus_panel(FocusPanel::Sampler);
             self.notify_warning("Load a sample before editing playback settings");
             return;
         };
@@ -247,7 +247,7 @@ impl App {
         loop_end_frame: Option<usize>,
     ) {
         let Some(mut settings) = self.loaded_sample_playback_settings() else {
-            self.mode = AppMode::Sampler;
+            self.focus_panel(FocusPanel::Sampler);
             self.notify_warning("Load a sample before editing playback settings");
             return;
         };
@@ -272,7 +272,7 @@ impl App {
 
     pub(crate) fn set_loaded_sample_envelope(&mut self, envelope: SampleEnvelope) {
         let Some(mut settings) = self.loaded_sample_playback_settings() else {
-            self.mode = AppMode::Sampler;
+            self.focus_panel(FocusPanel::Sampler);
             self.notify_warning("Load a sample before editing playback settings");
             return;
         };
@@ -318,7 +318,7 @@ impl App {
 
     pub(crate) fn adjust_selected_sampler_envelope(&mut self, direction: f32, coarse: bool) {
         let Some(mut settings) = self.loaded_sample_playback_settings() else {
-            self.mode = AppMode::Sampler;
+            self.focus_panel(FocusPanel::Sampler);
             self.notify_warning("Load a sample before editing playback settings");
             return;
         };
@@ -373,7 +373,7 @@ impl App {
 
     pub(crate) fn show_loaded_sample_settings(&mut self) {
         let Some(settings) = self.loaded_sample_playback_settings() else {
-            self.mode = AppMode::Sampler;
+            self.focus_panel(FocusPanel::Sampler);
             self.notify_warning("Load a sample before viewing playback settings");
             return;
         };

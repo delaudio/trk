@@ -31,6 +31,7 @@ impl App {
             clean_song: song.clone(),
             song,
             project_path: None,
+            focus: FocusManager::default(),
             pattern_index: 0,
             cursor: Cursor::new(),
             row_offset: 0,

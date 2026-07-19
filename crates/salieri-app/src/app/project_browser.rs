@@ -28,7 +28,7 @@ impl App {
             message: None,
         });
         self.refresh_project_browser_view();
-        self.mode = AppMode::ProjectBrowser;
+        self.focus_panel(FocusPanel::ProjectBrowser);
     }
 
     pub(crate) fn refresh_project_browser_view(&mut self) {
@@ -125,7 +125,7 @@ impl App {
                     .unwrap_or_else(|| path.display().to_string())
             );
             self.dialog = Some(Dialog::OpenProjectDirty { path, message });
-            self.mode = AppMode::Dialog;
+            self.capture_focus(FocusCapture::Dialog, AppMode::Dialog);
             self.notify_warning("Unsaved changes");
         } else {
             self.open_project_file(path);
@@ -170,7 +170,7 @@ impl App {
                 self.clamp_cursor();
                 self.clamp_sequence_cursor();
                 self.refresh_dirty();
-                self.mode = AppMode::Normal;
+                self.focus_panel(FocusPanel::Tracker);
                 self.record_recent_project(path.clone());
                 self.notify_success(format!("Project opened: {}", path.display()));
                 vec![AppEffect::Playback(PlaybackEffect::Stop)]
@@ -178,9 +178,9 @@ impl App {
             Err(error) => {
                 if let Some(browser) = &mut self.project_browser_view {
                     browser.message = Some(format!("Project open failed: {error}"));
-                    self.mode = AppMode::ProjectBrowser;
+                    self.focus_panel(FocusPanel::ProjectBrowser);
                 } else {
-                    self.mode = AppMode::Normal;
+                    self.focus_panel(FocusPanel::Tracker);
                 }
                 self.notify_error(format!("Project open failed: {error}"));
                 Vec::new()

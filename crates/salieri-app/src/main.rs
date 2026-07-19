@@ -7,6 +7,7 @@ mod cli;
 mod command;
 mod config;
 mod event_handler;
+mod focus;
 mod helpers;
 mod history;
 mod intent_handler;
@@ -52,6 +53,7 @@ use command::{
 };
 use config::{load_config, AppConfig, ConfigOverrides, ProjectBrowserConfig, SampleBrowserConfig};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers, MouseEventKind};
+use focus::{FocusCapture, FocusManager, FocusPanel};
 use history::{SongTransaction, TransactionSpec, UndoHistory};
 use keymap::Keymap;
 use persistence::{load_project, save_project};
@@ -120,6 +122,7 @@ struct App {
     song: Song,
     clean_song: Song,
     project_path: Option<PathBuf>,
+    focus: FocusManager,
     pattern_index: usize,
     cursor: Cursor,
     row_offset: usize,

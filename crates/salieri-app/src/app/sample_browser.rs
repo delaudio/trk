@@ -8,11 +8,11 @@ impl App {
                 self.sample_view = Some(sample_view);
                 self.sample_waveform_zoom = 1;
                 self.sample_waveform_offset = 0;
-                self.mode = AppMode::Sampler;
+                self.focus_panel(FocusPanel::Sampler);
                 self.notify_success(format!("Sample loaded: {name}"));
             }
             Err(error) => {
-                self.mode = AppMode::Sampler;
+                self.focus_panel(FocusPanel::Sampler);
                 self.notify_error(format!("Sample load failed: {error}"));
             }
         }
@@ -117,13 +117,13 @@ impl App {
             .as_deref()
             .is_none_or(str::is_empty)
         {
-            self.mode = AppMode::Sampler;
+            self.focus_panel(FocusPanel::Sampler);
             self.notify_warning("Sample browser not configured");
             return;
         }
 
         self.pending_sample_browser = Some(SampleBrowserRequest { start_dir });
-        self.mode = AppMode::Sampler;
+        self.focus_panel(FocusPanel::Sampler);
         self.notify_info("Opening sample browser");
     }
 
@@ -148,7 +148,7 @@ impl App {
             message: None,
         });
         self.refresh_sample_browser_view();
-        self.mode = AppMode::SampleBrowser;
+        self.focus_panel(FocusPanel::SampleBrowser);
     }
 
     pub(crate) fn refresh_sample_browser_view(&mut self) {
@@ -282,11 +282,11 @@ impl App {
         match result {
             Ok(Some(path)) => self.load_sampler_view(path),
             Ok(None) => {
-                self.mode = AppMode::Sampler;
+                self.focus_panel(FocusPanel::Sampler);
                 self.notify_info("Sample browser closed");
             }
             Err(error) => {
-                self.mode = AppMode::Sampler;
+                self.focus_panel(FocusPanel::Sampler);
                 self.notify_error(format!("Sample browser failed: {error}"));
             }
         }
