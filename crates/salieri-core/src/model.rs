@@ -2,6 +2,14 @@ use std::{collections::HashSet, fmt};
 
 use serde::{Deserialize, Serialize};
 
+use crate::model_validation::{
+    validate_mixer, validate_pattern_automation, validate_sample_playback_settings,
+};
+use crate::parameters::{
+    mixer_master_gain_descriptor, mixer_track_gain_descriptor, mixer_track_pan_descriptor,
+    sample_gain_descriptor,
+};
+
 pub const DEFAULT_BPM: u16 = 120;
 pub const DEFAULT_LINES_PER_BEAT: u8 = 4;
 pub const DEFAULT_PATTERN_LEN: usize = 64;
@@ -257,7 +265,7 @@ impl Song {
                     root_pitch: sample.root_pitch,
                 });
             }
-            if !sample.gain.is_finite() || sample.gain < 0.0 {
+            if !sample_gain_descriptor().validate_f32(sample.gain) {
                 return Err(ValidationError::InvalidSampleGain { sample_index });
             }
             validate_sample_playback_settings(sample_index, sample.playback)?;
@@ -647,7 +655,7 @@ impl Song {
     }
 
     pub fn set_track_mixer_gain(&mut self, track_index: usize, gain: f32) -> Result<(), EditError> {
-        if !gain.is_finite() || gain < 0.0 {
+        if !mixer_track_gain_descriptor().validate_f32(gain) {
             return Err(EditError::InvalidMixerValue);
         }
         let track_id = self
@@ -667,7 +675,7 @@ impl Song {
     }
 
     pub fn set_track_mixer_pan(&mut self, track_index: usize, pan: f32) -> Result<(), EditError> {
-        if !pan.is_finite() || !(-1.0..=1.0).contains(&pan) {
+        if !mixer_track_pan_descriptor().validate_f32(pan) {
             return Err(EditError::InvalidMixerValue);
         }
         let track_id = self
@@ -721,7 +729,7 @@ impl Song {
     }
 
     pub fn set_master_gain(&mut self, gain: f32) -> Result<(), EditError> {
-        if !gain.is_finite() || gain < 0.0 {
+        if !mixer_master_gain_descriptor().validate_f32(gain) {
             return Err(EditError::InvalidMixerValue);
         }
         self.mixer.master_gain = gain;
@@ -1685,7 +1693,7 @@ impl Pattern {
         if row >= self.rows.len() {
             return Err(EditError::RowOutOfBounds { row });
         }
-        if !value.is_finite() || value < 0.0 {
+        if !sample_gain_descriptor().validate_f32(value) {
             return Err(EditError::InvalidAutomationValue);
         }
 
@@ -1868,6 +1876,10 @@ pub enum EditError {
     InvalidAutomationValue,
     #[error("invalid mixer value")]
     InvalidMixerValue,
+    #[error("unknown parameter")]
+    UnknownParameter,
+    #[error("invalid parameter value")]
+    InvalidParameterValue,
     #[error("instrument not found: instrument id {instrument_id:?}")]
     InstrumentNotFound { instrument_id: InstrumentId },
     #[error("name cannot be empty")]
@@ -2091,154 +2103,6 @@ fn clean_name(name: String) -> Result<String, EditError> {
     } else {
         Ok(name)
     }
-}
-
-fn validate_sample_playback_settings(
-    sample_index: usize,
-    settings: SamplePlaybackSettings,
-) -> Result<(), ValidationError> {
-    if let (Some(start_frame), Some(end_frame)) = (settings.start_frame, settings.end_frame) {
-        if start_frame >= end_frame {
-            return Err(ValidationError::InvalidSampleFrameWindow { sample_index });
-        }
-    }
-    match (
-        settings.mode,
-        settings.loop_start_frame,
-        settings.loop_end_frame,
-    ) {
-        (SamplePlaybackMode::Loop, Some(loop_start), Some(loop_end)) if loop_start < loop_end => {}
-        (SamplePlaybackMode::Loop, _, _) => {
-            return Err(ValidationError::InvalidSampleLoopWindow { sample_index });
-        }
-        (_, Some(loop_start), Some(loop_end)) if loop_start < loop_end => {}
-        (_, Some(_), Some(_)) | (_, Some(_), None) | (_, None, Some(_)) => {
-            return Err(ValidationError::InvalidSampleLoopWindow { sample_index });
-        }
-        (_, None, None) => {}
-    }
-    let envelope = settings.envelope;
-    if !envelope.attack_seconds.is_finite()
-        || envelope.attack_seconds < 0.0
-        || !envelope.decay_seconds.is_finite()
-        || envelope.decay_seconds < 0.0
-        || !envelope.release_seconds.is_finite()
-        || envelope.release_seconds < 0.0
-        || !envelope.sustain.is_finite()
-        || !(0.0..=1.0).contains(&envelope.sustain)
-    {
-        return Err(ValidationError::InvalidSampleEnvelope { sample_index });
-    }
-    Ok(())
-}
-
-fn validate_pattern_automation(
-    pattern_index: usize,
-    pattern: &Pattern,
-    sample_ids: &HashSet<SampleId>,
-) -> Result<(), ValidationError> {
-    let mut targets = HashSet::new();
-    for lane in &pattern.automation {
-        if !targets.insert(lane.target) {
-            return Err(ValidationError::DuplicateAutomationLane {
-                pattern_index,
-                target: lane.target,
-            });
-        }
-        match lane.target {
-            AutomationTarget::SampleGain { sample } if !sample_ids.contains(&sample) => {
-                return Err(ValidationError::AutomationSampleNotFound {
-                    pattern_index,
-                    sample_id: sample,
-                });
-            }
-            AutomationTarget::SampleGain { .. } => {}
-        }
-
-        let mut rows = HashSet::new();
-        for point in &lane.points {
-            if point.row >= pattern.rows.len() {
-                return Err(ValidationError::AutomationRowOutOfBounds {
-                    pattern_index,
-                    row: point.row,
-                });
-            }
-            if !rows.insert(point.row) {
-                return Err(ValidationError::DuplicateAutomationPoint {
-                    pattern_index,
-                    row: point.row,
-                });
-            }
-            if !point.value.is_finite() || point.value < 0.0 {
-                return Err(ValidationError::InvalidAutomationValue {
-                    pattern_index,
-                    row: point.row,
-                });
-            }
-        }
-    }
-    Ok(())
-}
-
-fn validate_mixer(mixer: &MixerState, track_ids: &HashSet<TrackId>) -> Result<(), ValidationError> {
-    if !mixer.master_gain.is_finite() || mixer.master_gain < 0.0 {
-        return Err(ValidationError::InvalidMixerMasterGain);
-    }
-
-    let mut mixer_tracks = HashSet::new();
-    for track in &mixer.tracks {
-        if !track_ids.contains(&track.track) {
-            return Err(ValidationError::MixerTrackNotFound {
-                track_id: track.track,
-            });
-        }
-        if !mixer_tracks.insert(track.track) {
-            return Err(ValidationError::DuplicateMixerTrack {
-                track_id: track.track,
-            });
-        }
-        if !track.gain.is_finite() || track.gain < 0.0 {
-            return Err(ValidationError::InvalidMixerTrackGain {
-                track_id: track.track,
-            });
-        }
-        if !track.pan.is_finite() || !(-1.0..=1.0).contains(&track.pan) {
-            return Err(ValidationError::InvalidMixerTrackPan {
-                track_id: track.track,
-            });
-        }
-        validate_effect_chain(&track.effects)?;
-    }
-    validate_effect_chain(&mixer.master_effects)?;
-    for track_id in track_ids {
-        if !mixer_tracks.contains(track_id) {
-            return Err(ValidationError::MixerTrackMissing {
-                track_id: *track_id,
-            });
-        }
-    }
-    Ok(())
-}
-
-fn validate_effect_chain(effects: &[EffectDevice]) -> Result<(), ValidationError> {
-    let mut ids = HashSet::new();
-    for effect in effects {
-        if !ids.insert(effect.id) {
-            return Err(ValidationError::DuplicateEffectDevice {
-                device_id: effect.id,
-            });
-        }
-        match effect.kind {
-            EffectDeviceKind::Gain { gain } if !gain.is_finite() || gain < 0.0 => {
-                return Err(ValidationError::InvalidEffectParameter);
-            }
-            EffectDeviceKind::Pan { pan } if !pan.is_finite() || !(-1.0..=1.0).contains(&pan) => {
-                return Err(ValidationError::InvalidEffectParameter);
-            }
-            EffectDeviceKind::Gain { .. } | EffectDeviceKind::Pan { .. } => {}
-        }
-    }
-    Ok(())
 }
 
 #[cfg(test)]
