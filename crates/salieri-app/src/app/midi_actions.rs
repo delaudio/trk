@@ -163,8 +163,7 @@ impl App {
                     resolve_midi_output_port(&self.midi_ports, output_name)
                 {
                     self.midi_port_cursor = position;
-                    self.midi_status = format!("MIDI Connecting {} ({})", port.index, port.name);
-                    self.playback.connect_midi(port.index);
+                    self.connect_midi(port.index);
                 } else {
                     self.midi_status = format!("MIDI Output Not Found ({output_name})");
                     self.notify_error(format!("MIDI output not found: {output_name}"));
@@ -178,16 +177,11 @@ impl App {
     }
 
     pub(crate) fn disconnect_midi(&mut self) {
-        self.playback.disconnect_midi();
-        self.notify_info("Disconnecting MIDI output");
+        self.dispatch_intent(AppIntent::Transport(TransportIntent::DisconnectMidi));
     }
 
     pub(crate) fn panic_midi(&mut self) {
-        self.playback.panic_all_notes_off();
-        self.is_playing = false;
-        self.playhead_row = None;
-        self.sequence_position = None;
-        self.notify_warning("MIDI panic sent");
+        self.dispatch_intent(AppIntent::Transport(TransportIntent::PanicMidi));
     }
 
     pub(crate) fn drain_midi_input(&mut self) {
@@ -198,7 +192,9 @@ impl App {
                     Ok(Some(packet)) => packets.push(packet),
                     Ok(None) => break,
                     Err(error) => {
-                        self.dispatch_event(AppEvent::MidiInputFailed(error.to_string()));
+                        self.dispatch_event(AppEvent::Runtime(RuntimeEvent::MidiInputFailed(
+                            error.to_string(),
+                        )));
                         break;
                     }
                 }
@@ -211,7 +207,7 @@ impl App {
     }
 
     pub(crate) fn handle_midi_input_packet(&mut self, packet: MidiInputPacket) {
-        self.dispatch_event(AppEvent::MidiInput(packet));
+        self.dispatch_event(AppEvent::Runtime(RuntimeEvent::MidiInput(packet)));
     }
 
     pub(crate) fn apply_midi_input_packet(&mut self, packet: MidiInputPacket) {

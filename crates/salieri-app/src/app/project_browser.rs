@@ -1,4 +1,5 @@
 use super::*;
+use crate::app_effect::{AppEffect, PlaybackEffect};
 
 impl App {
     pub(crate) fn open_project_browser_view(&mut self, start_dir: Option<PathBuf>) {
@@ -132,21 +133,27 @@ impl App {
     }
 
     pub(crate) fn open_project_file(&mut self, path: PathBuf) {
-        let result = load_project(&path).map_err(|error| error.to_string());
-        self.dispatch_event(AppEvent::ProjectLoaded {
-            path,
-            result: Box::new(result),
-        });
+        self.dispatch_intent(AppIntent::OpenProject(path));
     }
 
     pub(crate) fn apply_project_load(
         &mut self,
+        request_id: RequestId,
         path: PathBuf,
         result: std::result::Result<Song, String>,
-    ) {
+    ) -> Vec<AppEffect> {
+        if self.pending_project_load != Some(request_id) {
+            tracing::debug!(
+                request_id = request_id.get(),
+                path = %path.display(),
+                "ignored stale project load result"
+            );
+            return Vec::new();
+        }
+        self.pending_project_load = None;
+
         match result {
             Ok(song) => {
-                self.playback.stop();
                 self.song = song;
                 self.clean_song = self.song.clone();
                 self.project_path = Some(path.clone());
@@ -167,6 +174,7 @@ impl App {
                 self.mode = AppMode::Normal;
                 self.record_recent_project(path.clone());
                 self.notify_success(format!("Project opened: {}", path.display()));
+                vec![AppEffect::Playback(PlaybackEffect::Stop)]
             }
             Err(error) => {
                 if let Some(browser) = &mut self.project_browser_view {
@@ -176,6 +184,7 @@ impl App {
                     self.mode = AppMode::Normal;
                 }
                 self.notify_error(format!("Project open failed: {error}"));
+                Vec::new()
             }
         }
     }

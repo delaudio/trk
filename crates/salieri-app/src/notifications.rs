@@ -3,7 +3,7 @@ use std::time::Instant;
 use salieri_tui::NotificationKind;
 
 use crate::{
-    app_event::{AppEvent, NotificationLevel, NotificationRequest},
+    app_event::{AppEvent, NotificationLevel, NotificationRequest, RuntimeEvent},
     App, Notification, NOTIFICATION_TTL,
 };
 
@@ -15,8 +15,8 @@ impl App {
             NotificationKind::Warning => NotificationLevel::Warning,
             NotificationKind::Error => NotificationLevel::Error,
         };
-        self.dispatch_event(AppEvent::Notification(NotificationRequest::new(
-            level, message,
+        self.dispatch_event(AppEvent::Runtime(RuntimeEvent::Notification(
+            NotificationRequest::new(level, message),
         )));
     }
 

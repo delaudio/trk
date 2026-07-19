@@ -3,7 +3,7 @@ use super::*;
 impl App {
     pub(crate) fn handle_key_action(&mut self, key: KeyEvent) {
         if let Some(command) = self.keymap.command_for(self.mode.keymap_mode(), &key) {
-            self.execute_typed_command(command);
+            self.dispatch_intent(AppIntent::Command(command));
             return;
         }
         if self.handle_control_key(key) {
@@ -39,10 +39,7 @@ impl App {
                 true
             }
             KeyCode::Char('s') | KeyCode::Char('S') => {
-                if let Err(error) = self.save() {
-                    tracing::error!(?error, "failed to save project");
-                    self.notify_error(format!("Save failed: {error}"));
-                }
+                self.save();
                 true
             }
             KeyCode::Char('j') | KeyCode::Char('J') | KeyCode::Char('\n') => {
@@ -54,19 +51,21 @@ impl App {
                 true
             }
             KeyCode::Up => {
-                self.adjust_bpm(1);
+                self.dispatch_intent(AppIntent::Parameter(ParameterIntent::AdjustBpm(1)));
                 true
             }
             KeyCode::Down => {
-                self.adjust_bpm(-1);
+                self.dispatch_intent(AppIntent::Parameter(ParameterIntent::AdjustBpm(-1)));
                 true
             }
             KeyCode::Right => {
-                self.adjust_lpb(1);
+                self.dispatch_intent(AppIntent::Parameter(ParameterIntent::AdjustLinesPerBeat(1)));
                 true
             }
             KeyCode::Left => {
-                self.adjust_lpb(-1);
+                self.dispatch_intent(AppIntent::Parameter(ParameterIntent::AdjustLinesPerBeat(
+                    -1,
+                )));
                 true
             }
             KeyCode::Char('c') | KeyCode::Char('C') => {
@@ -335,37 +334,63 @@ impl App {
         };
 
         if let Some(direction) = direction {
-            self.move_cursor(direction);
+            self.dispatch_intent(AppIntent::Navigation(NavigationIntent::MoveCursor(
+                direction,
+            )));
         }
     }
 
     pub(crate) fn handle_edit_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Esc => self.mode = AppMode::Normal,
-            KeyCode::Up => self.move_cursor(Direction::Up),
-            KeyCode::Down => self.move_cursor(Direction::Down),
-            KeyCode::Left => self.move_cursor(Direction::Left),
-            KeyCode::Right => self.move_cursor(Direction::Right),
-            KeyCode::Tab => self.next_track(),
-            KeyCode::BackTab => self.previous_track(),
+            KeyCode::Up => self.dispatch_intent(AppIntent::Navigation(
+                NavigationIntent::MoveCursor(Direction::Up),
+            )),
+            KeyCode::Down => self.dispatch_intent(AppIntent::Navigation(
+                NavigationIntent::MoveCursor(Direction::Down),
+            )),
+            KeyCode::Left => self.dispatch_intent(AppIntent::Navigation(
+                NavigationIntent::MoveCursor(Direction::Left),
+            )),
+            KeyCode::Right => self.dispatch_intent(AppIntent::Navigation(
+                NavigationIntent::MoveCursor(Direction::Right),
+            )),
+            KeyCode::Tab => {
+                self.dispatch_intent(AppIntent::Navigation(NavigationIntent::NextTrack))
+            }
+            KeyCode::BackTab => {
+                self.dispatch_intent(AppIntent::Navigation(NavigationIntent::PreviousTrack))
+            }
             KeyCode::Home => self.cursor.row = 0,
             KeyCode::End => self.cursor.row = self.current_row_count().saturating_sub(1),
-            KeyCode::PageUp => self.page_cursor_up(),
-            KeyCode::PageDown => self.page_cursor_down(),
+            KeyCode::PageUp => {
+                self.dispatch_intent(AppIntent::Navigation(NavigationIntent::PageUp))
+            }
+            KeyCode::PageDown => {
+                self.dispatch_intent(AppIntent::Navigation(NavigationIntent::PageDown))
+            }
             KeyCode::Insert => self.insert_current_row(),
-            KeyCode::Delete | KeyCode::Backspace => self.clear_current_cell(),
+            KeyCode::Delete | KeyCode::Backspace => {
+                self.dispatch_intent(AppIntent::Tracker(TrackerIntent::ClearCell))
+            }
             KeyCode::F(1) | KeyCode::Char('-') => self.decrement_octave(),
             KeyCode::F(2) | KeyCode::Char('+') | KeyCode::Char('=') => self.increment_octave(),
-            KeyCode::Char('o') | KeyCode::Char('O') => self.insert_note_event(NoteEvent::NoteOff),
-            KeyCode::Char('.') => self.insert_note_event(NoteEvent::NoteCut),
+            KeyCode::Char('o') | KeyCode::Char('O') => self.dispatch_intent(AppIntent::Tracker(
+                TrackerIntent::InsertNoteEvent(NoteEvent::NoteOff),
+            )),
+            KeyCode::Char('.') => self.dispatch_intent(AppIntent::Tracker(
+                TrackerIntent::InsertNoteEvent(NoteEvent::NoteCut),
+            )),
             KeyCode::Char(value) if self.cursor.field != CellField::Note => {
                 if let Some(hex) = value.to_digit(16) {
-                    self.enter_cell_hex_digit(hex as u8);
+                    self.dispatch_intent(AppIntent::Tracker(TrackerIntent::EnterHexDigit(
+                        hex as u8,
+                    )));
                 }
             }
             KeyCode::Char(value) => {
                 if let Some(note) = keyboard_note(value, self.octave) {
-                    self.insert_note(note);
+                    self.dispatch_intent(AppIntent::Tracker(TrackerIntent::InsertNote(note)));
                 }
             }
             _ => {}

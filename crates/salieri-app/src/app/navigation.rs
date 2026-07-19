@@ -32,108 +32,41 @@ impl App {
     }
 
     pub(crate) fn toggle_playback(&mut self) {
-        if self.is_playing {
-            self.stop_playback();
-        } else {
-            self.start_playback();
-        }
+        self.dispatch_intent(AppIntent::Transport(TransportIntent::TogglePlayback));
     }
 
     pub(crate) fn toggle_loop(&mut self) {
-        self.loop_pattern = !self.loop_pattern;
-        let state = if self.loop_pattern { "ON" } else { "OFF" };
-        self.notify_info(format!("Pattern loop {state}"));
+        self.dispatch_intent(AppIntent::Transport(TransportIntent::ToggleLoop));
     }
 
     pub(crate) fn start_playback(&mut self) {
-        if self.song.pattern(self.pattern_index).is_none() {
-            self.notify_warning("No pattern to play");
-            return;
-        }
-
-        self.is_playing = true;
-        self.playhead_row = Some(0);
-        self.sequence_position = None;
-        self.playback.start_pattern_from(
-            self.song.clone(),
-            self.sample_base_dir(),
-            self.pattern_index,
-            0,
-            self.loop_pattern,
-        );
-        self.notify_info("Playing pattern from start");
+        self.dispatch_intent(AppIntent::Transport(TransportIntent::StartPattern));
     }
 
     pub(crate) fn start_playback_from_cursor(&mut self) {
-        if self.song.pattern(self.pattern_index).is_none() {
-            self.notify_warning("No pattern to play");
-            return;
-        }
-
-        self.is_playing = true;
-        self.playhead_row = Some(self.cursor.row);
-        self.sequence_position = None;
-        self.playback.start_pattern_from(
-            self.song.clone(),
-            self.sample_base_dir(),
-            self.pattern_index,
-            self.cursor.row,
-            self.loop_pattern,
-        );
-        self.notify_info(format!("Playing pattern from row {:02}", self.cursor.row));
+        self.dispatch_intent(AppIntent::Transport(
+            TransportIntent::StartPatternFromCursor,
+        ));
     }
 
     pub(crate) fn start_sequence_playback_at(&mut self, start_sequence_index: usize) {
-        if self.song.sequence.is_empty() {
-            self.notify_warning("Sequence is empty");
-            return;
-        }
-
-        if start_sequence_index >= self.song.sequence.len() {
-            self.notify_warning("Sequence position out of range");
-            return;
-        }
-
-        if let Some(first_pattern_id) = self.song.sequence.get(start_sequence_index) {
-            if let Some(pattern_index) = self
-                .song
-                .patterns
-                .iter()
-                .position(|pattern| pattern.id == *first_pattern_id)
-            {
-                self.pattern_index = pattern_index;
-            }
-        }
-
-        self.is_playing = true;
-        self.playhead_row = Some(0);
-        self.sequence_position = Some(start_sequence_index);
-        self.playback.start_sequence(
-            self.song.clone(),
-            self.sample_base_dir(),
-            start_sequence_index,
-        );
-        self.notify_info(format!("Playing sequence from {start_sequence_index}"));
+        self.dispatch_intent(AppIntent::Transport(TransportIntent::StartSequence {
+            position: start_sequence_index,
+        }));
     }
 
     pub(crate) fn start_sequence_playback_from_selected_position(&mut self) {
-        if let Some(position) = self.selected_sequence_position() {
-            self.start_sequence_playback_at(position);
-        }
+        self.dispatch_intent(AppIntent::Transport(TransportIntent::StartSelectedSequence));
     }
 
     pub(crate) fn stop_playback(&mut self) {
-        self.playback.stop();
-        self.is_playing = false;
-        self.playhead_row = None;
-        self.sequence_position = None;
-        self.notify_info("Playback stopped");
+        self.dispatch_intent(AppIntent::Transport(TransportIntent::Stop));
     }
 
     pub(crate) fn connect_midi(&mut self, port_index: usize) {
-        self.midi_status = format!("MIDI Connecting {port_index}");
-        self.playback.connect_midi(port_index);
-        self.notify_info(format!("Connecting MIDI output {port_index}"));
+        self.dispatch_intent(AppIntent::Transport(TransportIntent::ConnectMidi {
+            port_index,
+        }));
     }
 
     pub(crate) fn open_midi_settings(&mut self) {

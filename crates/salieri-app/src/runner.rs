@@ -88,9 +88,9 @@ fn run(args: CliArgs) -> Result<()> {
         app.drain_playback_updates();
         app.drain_midi_input();
         app.expire_notification();
-        app.dispatch_event(AppEvent::ViewportRefresh {
+        app.dispatch_event(AppEvent::Runtime(RuntimeEvent::ViewportRefresh {
             visible_rows: terminal.visible_pattern_rows(),
-        });
+        }));
         terminal.draw(|frame| {
             let midi_ports = app.tui_midi_ports();
             let midi_settings = app.tui_midi_settings(&midi_ports);
@@ -153,22 +153,24 @@ fn run(args: CliArgs) -> Result<()> {
                             Err(error) => app.finish_sample_browser(Err(error)),
                         }
                     }
-                    app.dispatch_event(AppEvent::ViewportRefresh {
+                    app.dispatch_event(AppEvent::Runtime(RuntimeEvent::ViewportRefresh {
                         visible_rows: terminal.visible_pattern_rows(),
-                    });
+                    }));
                 }
-                Event::Resize(_, _) => app.dispatch_event(AppEvent::ViewportRefresh {
-                    visible_rows: terminal.visible_pattern_rows(),
-                }),
+                Event::Resize(_, _) => {
+                    app.dispatch_event(AppEvent::Runtime(RuntimeEvent::ViewportRefresh {
+                        visible_rows: terminal.visible_pattern_rows(),
+                    }))
+                }
                 _ => {}
             }
         }
 
         if app.last_tick.elapsed() >= UI_TICK_RATE {
             app.last_tick = Instant::now();
-            app.dispatch_event(AppEvent::ViewportRefresh {
+            app.dispatch_event(AppEvent::Runtime(RuntimeEvent::ViewportRefresh {
                 visible_rows: terminal.visible_pattern_rows(),
-            });
+            }));
         }
     }
 

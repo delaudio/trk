@@ -71,22 +71,50 @@ impl App {
         self.dirty = self.song != self.clean_song;
     }
 
-    pub(crate) fn save(&mut self) -> Result<()> {
-        let path = self
-            .project_path
-            .clone()
-            .unwrap_or_else(|| PathBuf::from("untitled.salieri"));
-        self.save_as(path)
+    pub(crate) fn save(&mut self) {
+        self.dispatch_intent(AppIntent::SaveProject {
+            path: None,
+            quit_after: false,
+        });
     }
 
-    pub(crate) fn save_as(&mut self, path: PathBuf) -> Result<()> {
-        save_project(&path, &self.song)?;
-        self.project_path = Some(path.clone());
-        self.clean_song = self.song.clone();
-        self.refresh_dirty();
-        self.record_recent_project(path);
-        self.notify_success("Project saved");
-        Ok(())
+    pub(crate) fn save_as(&mut self, path: PathBuf) {
+        self.dispatch_intent(AppIntent::SaveProject {
+            path: Some(path),
+            quit_after: false,
+        });
+    }
+
+    pub(crate) fn save_and_quit(&mut self) {
+        self.dispatch_intent(AppIntent::SaveProject {
+            path: None,
+            quit_after: true,
+        });
+    }
+
+    pub(crate) fn apply_project_save(
+        &mut self,
+        path: PathBuf,
+        saved_song: Song,
+        quit_after: bool,
+        result: std::result::Result<(), String>,
+    ) {
+        match result {
+            Ok(()) => {
+                self.project_path = Some(path.clone());
+                self.clean_song = saved_song;
+                self.refresh_dirty();
+                self.record_recent_project(path);
+                self.notify_success("Project saved");
+                if quit_after {
+                    self.force_quit();
+                }
+            }
+            Err(error) => {
+                tracing::error!(%error, "failed to save project");
+                self.notify_error(format!("Save failed: {error}"));
+            }
+        }
     }
 
     pub(crate) fn clamp_cursor(&mut self) {

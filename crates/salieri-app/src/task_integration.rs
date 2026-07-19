@@ -6,7 +6,8 @@ use salieri_ai::{
 };
 
 use crate::{
-    app_event::{AppEvent, AppTaskResult, PreparedAiProposal},
+    app_effect::AppEffect,
+    app_event::{AiIntent, AppEvent, AppIntent, AppTaskResult, PreparedAiProposal, RuntimeEvent},
     command::TaskCommand,
     format_ai_proposal_summary,
     task_runtime::{TaskDiagnostic, TaskFailure, TaskId, TaskProgress, TaskSnapshot, TaskUpdate},
@@ -15,9 +16,13 @@ use crate::{
 
 impl App {
     pub(super) fn create_ai_proposal(&mut self, prompt: String) {
+        self.dispatch_intent(AppIntent::Ai(AiIntent::Propose(prompt)));
+    }
+
+    pub(crate) fn prepare_ai_proposal_effect(&mut self, prompt: String) -> Option<AppEffect> {
         let Some(pattern) = self.song.pattern(self.pattern_index) else {
             self.notify_warning("Pattern out of range");
-            return;
+            return None;
         };
         let request = AiPatternRequest {
             prompt,
@@ -27,7 +32,17 @@ impl App {
             root_pitch: self.ai_root_pitch(),
             velocity: DEFAULT_NOTE_VELOCITY,
         };
-        let song = self.song.clone();
+        Some(AppEffect::SubmitAiProposal {
+            song: self.song.clone(),
+            request,
+        })
+    }
+
+    pub(crate) fn submit_ai_proposal(
+        &mut self,
+        song: salieri_core::Song,
+        request: AiPatternRequest,
+    ) {
         let id = self.task_runtime.submit(
             "AI proposal",
             Box::new(move |context| {
@@ -53,7 +68,7 @@ impl App {
 
     pub(super) fn drain_task_updates(&mut self) {
         for update in self.task_runtime.drain_updates() {
-            self.dispatch_event(AppEvent::TaskUpdate(update));
+            self.dispatch_event(AppEvent::Runtime(RuntimeEvent::TaskUpdate(update)));
         }
     }
 
