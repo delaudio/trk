@@ -2,21 +2,33 @@ use std::{collections::VecDeque, path::PathBuf};
 
 use crossterm::event::KeyEvent;
 use salieri_ai::{AiProposal, CellAddress};
-use salieri_core::Song;
+use salieri_core::{Direction, NoteEvent, Song};
 use salieri_midi::MidiInputPacket;
 
-use crate::{playback_runtime::PlaybackUpdate, task_runtime::TaskUpdate};
+use crate::{command::SalieriCommand, playback_runtime::PlaybackUpdate, task_runtime::TaskUpdate};
 
 #[derive(Debug)]
 pub enum AppEvent {
-    TerminalInput(KeyEvent),
+    Intent(AppIntent),
+    Runtime(RuntimeEvent),
+}
+
+#[derive(Debug)]
+pub enum RuntimeEvent {
     PlaybackUpdate(PlaybackUpdate),
     MidiInput(MidiInputPacket),
     MidiInputFailed(String),
     SampleBrowserFinished(Result<Option<PathBuf>, String>),
     ProjectLoaded {
+        request_id: RequestId,
         path: PathBuf,
         result: Box<Result<Song, String>>,
+    },
+    ProjectSaved {
+        path: PathBuf,
+        song: Box<Song>,
+        quit_after: bool,
+        result: Result<(), String>,
     },
     TaskUpdate(TaskUpdate<AppTaskResult>),
     Notification(NotificationRequest),
@@ -27,20 +39,105 @@ pub enum AppEvent {
 
 #[derive(Debug)]
 pub enum AppAction {
-    HandleTerminalInput(KeyEvent),
+    ApplyIntent(AppIntent),
+    ApplyRuntime(RuntimeAction),
+}
+
+#[derive(Debug)]
+pub enum RuntimeAction {
     ApplyPlaybackUpdate(PlaybackUpdate),
     HandleMidiInput(MidiInputPacket),
     ReportMidiInputFailure(String),
     ApplySampleBrowserResult(Result<Option<PathBuf>, String>),
     ApplyProjectLoad {
+        request_id: RequestId,
         path: PathBuf,
         result: Box<Result<Song, String>>,
+    },
+    ApplyProjectSave {
+        path: PathBuf,
+        song: Box<Song>,
+        quit_after: bool,
+        result: Result<(), String>,
     },
     ApplyTaskUpdate(TaskUpdate<AppTaskResult>),
     ShowNotification(NotificationRequest),
     KeepActiveRowVisible {
         visible_rows: usize,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AppIntent {
+    KeyInput(KeyEvent),
+    Command(SalieriCommand),
+    Tracker(TrackerIntent),
+    Navigation(NavigationIntent),
+    Transport(TransportIntent),
+    Parameter(ParameterIntent),
+    Ai(AiIntent),
+    OpenProject(PathBuf),
+    SaveProject {
+        path: Option<PathBuf>,
+        quit_after: bool,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrackerIntent {
+    InsertNote(u8),
+    InsertNoteEvent(NoteEvent),
+    EnterHexDigit(u8),
+    ClearCell,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NavigationIntent {
+    MoveCursor(Direction),
+    PageUp,
+    PageDown,
+    NextTrack,
+    PreviousTrack,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransportIntent {
+    TogglePlayback,
+    StartPattern,
+    StartPatternFromCursor,
+    StartSequence { position: usize },
+    StartSelectedSequence,
+    Stop,
+    ToggleLoop,
+    ConnectMidi { port_index: usize },
+    DisconnectMidi,
+    PanicMidi,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParameterIntent {
+    SetBpm(u16),
+    AdjustBpm(i16),
+    SetLinesPerBeat(u8),
+    AdjustLinesPerBeat(i8),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AiIntent {
+    Propose(String),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct RequestId(u64);
+
+impl RequestId {
+    pub fn new(raw: u64) -> Self {
+        Self(raw)
+    }
+
+    pub fn get(self) -> u64 {
+        self.0
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -106,17 +203,42 @@ impl AppDispatcher {
 
 fn route_event(event: AppEvent) -> AppAction {
     match event {
-        AppEvent::TerminalInput(key) => AppAction::HandleTerminalInput(key),
-        AppEvent::PlaybackUpdate(update) => AppAction::ApplyPlaybackUpdate(update),
-        AppEvent::MidiInput(packet) => AppAction::HandleMidiInput(packet),
-        AppEvent::MidiInputFailed(error) => AppAction::ReportMidiInputFailure(error),
-        AppEvent::SampleBrowserFinished(result) => AppAction::ApplySampleBrowserResult(result),
-        AppEvent::ProjectLoaded { path, result } => AppAction::ApplyProjectLoad { path, result },
-        AppEvent::TaskUpdate(update) => AppAction::ApplyTaskUpdate(update),
-        AppEvent::Notification(notification) => AppAction::ShowNotification(notification),
-        AppEvent::ViewportRefresh { visible_rows } => {
-            AppAction::KeepActiveRowVisible { visible_rows }
-        }
+        AppEvent::Intent(intent) => AppAction::ApplyIntent(intent),
+        AppEvent::Runtime(event) => AppAction::ApplyRuntime(match event {
+            RuntimeEvent::PlaybackUpdate(update) => RuntimeAction::ApplyPlaybackUpdate(update),
+            RuntimeEvent::MidiInput(packet) => RuntimeAction::HandleMidiInput(packet),
+            RuntimeEvent::MidiInputFailed(error) => RuntimeAction::ReportMidiInputFailure(error),
+            RuntimeEvent::SampleBrowserFinished(result) => {
+                RuntimeAction::ApplySampleBrowserResult(result)
+            }
+            RuntimeEvent::ProjectLoaded {
+                request_id,
+                path,
+                result,
+            } => RuntimeAction::ApplyProjectLoad {
+                request_id,
+                path,
+                result,
+            },
+            RuntimeEvent::ProjectSaved {
+                path,
+                song,
+                quit_after,
+                result,
+            } => RuntimeAction::ApplyProjectSave {
+                path,
+                song,
+                quit_after,
+                result,
+            },
+            RuntimeEvent::TaskUpdate(update) => RuntimeAction::ApplyTaskUpdate(update),
+            RuntimeEvent::Notification(notification) => {
+                RuntimeAction::ShowNotification(notification)
+            }
+            RuntimeEvent::ViewportRefresh { visible_rows } => {
+                RuntimeAction::KeepActiveRowVisible { visible_rows }
+            }
+        }),
     }
 }
 
@@ -129,32 +251,41 @@ mod tests {
     #[test]
     fn dispatcher_preserves_fifo_order_for_nested_events() {
         let mut dispatcher = AppDispatcher::default();
-        assert!(dispatcher.enqueue(AppEvent::TerminalInput(KeyEvent::new(
-            KeyCode::Char('i'),
-            KeyModifiers::NONE,
-        ))));
-        assert!(!dispatcher.enqueue(AppEvent::ViewportRefresh { visible_rows: 12 }));
+        assert!(
+            dispatcher.enqueue(AppEvent::Intent(AppIntent::KeyInput(KeyEvent::new(
+                KeyCode::Char('i'),
+                KeyModifiers::NONE,
+            ))))
+        );
+        assert!(
+            !dispatcher.enqueue(AppEvent::Runtime(RuntimeEvent::ViewportRefresh {
+                visible_rows: 12,
+            }))
+        );
 
         assert!(matches!(
             dispatcher.next_action(),
-            Some(AppAction::HandleTerminalInput(KeyEvent {
+            Some(AppAction::ApplyIntent(AppIntent::KeyInput(KeyEvent {
                 code: KeyCode::Char('i'),
                 ..
-            }))
+            })))
         ));
         assert!(
-            !dispatcher.enqueue(AppEvent::Notification(NotificationRequest::new(
-                NotificationLevel::Info,
-                "ready"
+            !dispatcher.enqueue(AppEvent::Runtime(RuntimeEvent::Notification(
+                NotificationRequest::new(NotificationLevel::Info, "ready")
             )))
         );
         assert!(matches!(
             dispatcher.next_action(),
-            Some(AppAction::KeepActiveRowVisible { visible_rows: 12 })
+            Some(AppAction::ApplyRuntime(
+                RuntimeAction::KeepActiveRowVisible { visible_rows: 12 }
+            ))
         ));
         assert!(matches!(
             dispatcher.next_action(),
-            Some(AppAction::ShowNotification(NotificationRequest { message, .. }))
+            Some(AppAction::ApplyRuntime(RuntimeAction::ShowNotification(
+                NotificationRequest { message, .. }
+            )))
                 if message == "ready"
         ));
         assert!(dispatcher.next_action().is_none());
@@ -163,31 +294,47 @@ mod tests {
 
     #[test]
     fn non_mutating_viewport_event_routes_without_domain_payload() {
-        let action = route_event(AppEvent::ViewportRefresh { visible_rows: 24 });
+        let action = route_event(AppEvent::Runtime(RuntimeEvent::ViewportRefresh {
+            visible_rows: 24,
+        }));
 
         assert!(matches!(
             action,
-            AppAction::KeepActiveRowVisible { visible_rows: 24 }
+            AppAction::ApplyRuntime(RuntimeAction::KeepActiveRowVisible { visible_rows: 24 })
         ));
     }
 
     #[test]
     fn runtime_and_project_events_use_the_same_dispatch_queue() {
         let mut dispatcher = AppDispatcher::default();
-        assert!(dispatcher.enqueue(AppEvent::PlaybackUpdate(PlaybackUpdate::Stopped)));
-        assert!(!dispatcher.enqueue(AppEvent::ProjectLoaded {
-            path: PathBuf::from("song.salieri"),
-            result: Box::new(Ok(Song::empty())),
-        }));
+        assert!(
+            dispatcher.enqueue(AppEvent::Runtime(RuntimeEvent::PlaybackUpdate(
+                PlaybackUpdate::Stopped,
+            )))
+        );
+        assert!(
+            !dispatcher.enqueue(AppEvent::Runtime(RuntimeEvent::ProjectLoaded {
+                request_id: RequestId::new(7),
+                path: PathBuf::from("song.salieri"),
+                result: Box::new(Ok(Song::empty())),
+            }))
+        );
 
         assert!(matches!(
             dispatcher.next_action(),
-            Some(AppAction::ApplyPlaybackUpdate(PlaybackUpdate::Stopped))
+            Some(AppAction::ApplyRuntime(RuntimeAction::ApplyPlaybackUpdate(
+                PlaybackUpdate::Stopped
+            )))
         ));
         assert!(matches!(
             dispatcher.next_action(),
-            Some(AppAction::ApplyProjectLoad { path, result })
-                if path.as_path() == std::path::Path::new("song.salieri") && result.is_ok()
+            Some(AppAction::ApplyRuntime(RuntimeAction::ApplyProjectLoad {
+                request_id,
+                path,
+                result,
+            })) if request_id == RequestId::new(7)
+                && path.as_path() == std::path::Path::new("song.salieri")
+                && result.is_ok()
         ));
         dispatcher.finish();
     }

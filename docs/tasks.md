@@ -29,9 +29,10 @@ stream without starting work.
 ## Application Boundary
 
 The TUI loop drains runtime updates without waiting for jobs. Accepted updates
-become `AppEvent::TaskUpdate` values and pass through the normal FIFO dispatcher
-before they can mutate application state. Typed results are represented by
-`AppTaskResult`, keeping worker code independent from mutable `App` state.
+become `AppEvent::Runtime(RuntimeEvent::TaskUpdate(...))` values and pass through
+the normal FIFO dispatcher before they can mutate application state. Typed
+results are represented by `AppTaskResult`, keeping worker code independent
+from mutable `App` state.
 
 The first integrated operation is `:ai propose PROMPT`. Its generation and
 preview validation run in the background, and only the prepared proposal crosses

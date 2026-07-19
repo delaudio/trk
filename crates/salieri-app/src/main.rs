@@ -1,4 +1,5 @@
 mod app;
+mod app_effect;
 mod app_event;
 mod app_mode;
 mod browser_io;
@@ -7,6 +8,7 @@ mod command;
 mod config;
 mod event_handler;
 mod helpers;
+mod intent_handler;
 mod keymap;
 mod midi_cli;
 mod notifications;
@@ -38,7 +40,10 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use app_event::{AppDispatcher, AppEvent, AppTaskResult, PreparedAiProposal};
+use app_event::{
+    AppDispatcher, AppEvent, AppIntent, AppTaskResult, NavigationIntent, ParameterIntent,
+    PreparedAiProposal, RequestId, RuntimeEvent, TrackerIntent, TransportIntent,
+};
 use app_mode::AppMode;
 use command::{
     BrowserCommand, CommandDomain, FocusTarget, LoopCommand, PlayCommand, SalieriCommand,
@@ -101,6 +106,8 @@ fn main() -> Result<()> {
 #[derive(Debug)]
 struct App {
     dispatcher: AppDispatcher,
+    next_request_id: u64,
+    pending_project_load: Option<RequestId>,
     task_runtime: TaskRuntime<AppTaskResult>,
     keymap: Keymap,
     song: Song,
@@ -279,7 +286,7 @@ impl command::CommandExecutor for App {
     type Error = std::convert::Infallible;
 
     fn execute(&mut self, command: SalieriCommand) -> Result<(), Self::Error> {
-        self.execute_typed_command(command);
+        self.dispatch_intent(AppIntent::Command(command));
         Ok(())
     }
 }

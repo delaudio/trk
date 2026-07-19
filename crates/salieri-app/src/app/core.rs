@@ -23,6 +23,8 @@ impl App {
         };
         let mut app = Self {
             dispatcher: AppDispatcher::default(),
+            next_request_id: 1,
+            pending_project_load: None,
             task_runtime: TaskRuntime::default(),
             keymap,
             clean_song: song.clone(),

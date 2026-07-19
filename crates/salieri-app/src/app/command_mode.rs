@@ -37,37 +37,24 @@ impl App {
             },
             SalieriCommand::Quit { force: false } => self.request_quit(false),
             SalieriCommand::Quit { force: true } => self.force_quit(),
-            SalieriCommand::Write(path) => {
-                let result = match path {
-                    Some(path) => self.save_as(path),
-                    None => self.save(),
-                };
-                if let Err(error) = result {
-                    tracing::error!(?error, "failed to save project");
-                    self.notify_error(format!("Save failed: {error}"));
-                }
-            }
+            SalieriCommand::Write(path) => match path {
+                Some(path) => self.save_as(path),
+                None => self.save(),
+            },
             SalieriCommand::SaveAs(path) => {
-                if let Err(error) = self.save_as(path) {
-                    tracing::error!(?error, "failed to save project");
-                    self.notify_error(format!("Save failed: {error}"));
-                }
+                self.save_as(path);
             }
             SalieriCommand::WriteQuit => {
-                if let Err(error) = self.save() {
-                    tracing::error!(?error, "failed to save project");
-                    self.notify_error(format!("Save failed: {error}"));
-                    return;
-                }
-                self.stop_playback();
-                self.should_quit = true;
+                self.save_and_quit();
             }
             SalieriCommand::SetBpm(value) => {
-                self.set_bpm(value);
+                self.dispatch_intent(AppIntent::Parameter(ParameterIntent::SetBpm(value)));
                 self.notify_success(format!("BPM set to {value}"));
             }
             SalieriCommand::SetLinesPerBeat(value) => {
-                self.set_lpb(value);
+                self.dispatch_intent(AppIntent::Parameter(ParameterIntent::SetLinesPerBeat(
+                    value,
+                )));
                 self.notify_success(format!("LPB set to {value}"));
             }
             SalieriCommand::Domain {

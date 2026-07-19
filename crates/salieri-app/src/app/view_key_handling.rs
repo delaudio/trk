@@ -5,12 +5,7 @@ impl App {
         match key.code {
             KeyCode::Char('y') | KeyCode::Char('Y') => match self.dialog.clone() {
                 Some(Dialog::QuitDirty) => {
-                    if let Err(error) = self.save() {
-                        tracing::error!(?error, "failed to save project");
-                        self.notify_error(format!("Save failed: {error}"));
-                    } else {
-                        self.force_quit();
-                    }
+                    self.save_and_quit();
                 }
                 Some(Dialog::DeleteTrack { track_index, .. }) => {
                     self.dialog = None;

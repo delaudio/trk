@@ -270,9 +270,9 @@ impl App {
     }
 
     pub(crate) fn finish_sample_browser(&mut self, result: Result<Option<PathBuf>>) {
-        self.dispatch_event(AppEvent::SampleBrowserFinished(
+        self.dispatch_event(AppEvent::Runtime(RuntimeEvent::SampleBrowserFinished(
             result.map_err(|error| error.to_string()),
-        ));
+        )));
     }
 
     pub(crate) fn apply_sample_browser_result(
