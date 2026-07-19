@@ -5,7 +5,7 @@ use salieri_ai::{AiProposal, CellAddress};
 use salieri_core::Song;
 use salieri_midi::MidiInputPacket;
 
-use crate::playback_runtime::PlaybackUpdate;
+use crate::{playback_runtime::PlaybackUpdate, task_runtime::TaskUpdate};
 
 #[derive(Debug)]
 pub enum AppEvent {
@@ -18,7 +18,7 @@ pub enum AppEvent {
         path: PathBuf,
         result: Box<Result<Song, String>>,
     },
-    AiProposalPrepared(Result<PreparedAiProposal, String>),
+    TaskUpdate(TaskUpdate<AppTaskResult>),
     Notification(NotificationRequest),
     ViewportRefresh {
         visible_rows: usize,
@@ -36,7 +36,7 @@ pub enum AppAction {
         path: PathBuf,
         result: Box<Result<Song, String>>,
     },
-    ApplyAiProposal(Result<PreparedAiProposal, String>),
+    ApplyTaskUpdate(TaskUpdate<AppTaskResult>),
     ShowNotification(NotificationRequest),
     KeepActiveRowVisible {
         visible_rows: usize,
@@ -47,6 +47,11 @@ pub enum AppAction {
 pub struct PreparedAiProposal {
     pub proposal: AiProposal,
     pub touched_cells: Vec<CellAddress>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AppTaskResult {
+    AiProposal(PreparedAiProposal),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -107,7 +112,7 @@ fn route_event(event: AppEvent) -> AppAction {
         AppEvent::MidiInputFailed(error) => AppAction::ReportMidiInputFailure(error),
         AppEvent::SampleBrowserFinished(result) => AppAction::ApplySampleBrowserResult(result),
         AppEvent::ProjectLoaded { path, result } => AppAction::ApplyProjectLoad { path, result },
-        AppEvent::AiProposalPrepared(result) => AppAction::ApplyAiProposal(result),
+        AppEvent::TaskUpdate(update) => AppAction::ApplyTaskUpdate(update),
         AppEvent::Notification(notification) => AppAction::ShowNotification(notification),
         AppEvent::ViewportRefresh { visible_rows } => {
             AppAction::KeepActiveRowVisible { visible_rows }

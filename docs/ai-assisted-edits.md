@@ -21,12 +21,13 @@ In-app workflow:
 :ai reject
 ```
 
-`:ai propose` uses `LocalDeterministicProvider` with the current pattern and
-track as context. It stores a pending proposal and reports the touched cells
-without mutating the song. `:ai show` repeats the summary. `:ai accept` applies
-the proposal through the normal undo snapshot mechanism, so `Ctrl+Z` can revert
-the generated edit. `:ai reject` clears the pending proposal without changing
-the song.
+`:ai propose` submits `LocalDeterministicProvider` to the application
+[task runtime](tasks.md) with the current pattern and track as context. The TUI
+remains responsive while generation and preview validation run. A successful
+task stores a pending proposal and reports the touched cells without mutating
+the song. `:ai show` repeats the summary. `:ai accept` applies the proposal
+through the normal undo snapshot mechanism, so `Ctrl+Z` can revert the generated
+edit. `:ai reject` clears the pending proposal without changing the song.
 
 CLI integrations should print or serialize proposals before applying them so
 generated changes remain reviewable.
