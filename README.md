@@ -347,6 +347,8 @@ T               Set sequence position to current pattern
 :ai show
 :ai accept
 :ai reject
+:tasks
+:task cancel 1
 :stop
 ```
 

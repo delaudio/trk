@@ -71,7 +71,7 @@ Ownership of cross-cutting responsibilities is split as follows:
 | Audio and MIDI I/O | `salieri-audio`, `salieri-midi` | Backend-specific processing at the workspace edge |
 | UI state and input | `salieri-app` | Mutable application/view state and input dispatch |
 | Rendering | `salieri-tui` | Immutable inputs and presentation only |
-| Background tasks | `salieri-app` | Task lifecycle and cancellation until a dedicated runtime boundary exists |
+| Background tasks | `salieri-app` | The [task runtime](tasks.md) owns IDs, lifecycle, progress, cooperative cancellation, diagnostics, and typed results |
 | External integrations | `salieri-ai`, `salieri-interop`, `salieri-midi`, `salieri-audio` | Provider or protocol details stay out of core and TUI |
 
 New feature issues should name the owning crate and any required dependency edges. Put musical invariants and serializable state in core; deterministic transformations in transform; format adapters in interop; protocol and device adapters in MIDI/audio; pure rendering in TUI; and coordination, filesystem access, configuration, or user interaction in app. A feature that does not fit these rules should update the ownership decision before introducing a new edge.

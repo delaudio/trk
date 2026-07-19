@@ -2183,7 +2183,7 @@ fn help_command_lines(mode_label: &str) -> Vec<Line<'static>> {
         Line::from("  :dsp track 2 gain 0.5   :dsp master gain 0.8   :dsp track 2 clear"),
         Line::from("  :ai propose PROMPT   :ai show   :ai accept   :ai reject"),
         Line::from("  :play pattern   :play sequence [position]   :stop"),
-        Line::from(""),
+        Line::from("  :tasks   :task cancel ID"),
         Line::from("  :pattern new   :pattern duplicate   :pattern delete   :pattern length 128"),
         Line::from("  :pattern rename Intro   :pattern 1   [ previous pattern   ] next pattern"),
         Line::from("  :sequence add   :sequence remove 0   :sequence duplicate 0"),

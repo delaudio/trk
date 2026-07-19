@@ -21,6 +21,7 @@ pub enum SalieriCommand {
     Loop(LoopCommand),
     Play(PlayCommand),
     Stop,
+    Task(TaskCommand),
     Domain {
         domain: CommandDomain,
         arguments: Vec<String>,
@@ -64,6 +65,12 @@ pub enum LoopCommand {
 pub enum PlayCommand {
     Pattern,
     Sequence { position: usize },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TaskCommand {
+    List,
+    Cancel(u64),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -167,6 +174,7 @@ impl SalieriCommand {
             "loop" => Self::Loop(parse_loop(&arguments)?),
             "play" => Self::Play(parse_play(&arguments)?),
             "stop" => Self::Stop,
+            "tasks" | "task" => Self::Task(parse_task(&arguments)?),
             "fx" | "effect" => domain(CommandDomain::Fx, arguments),
             "cell" => domain(CommandDomain::Cell, arguments),
             "automation" | "auto" => domain(CommandDomain::Automation, arguments),
@@ -261,6 +269,23 @@ fn parse_play(arguments: &[String]) -> Result<PlayCommand, CommandParseError> {
     }
 }
 
+fn parse_task(arguments: &[String]) -> Result<TaskCommand, CommandParseError> {
+    match arguments {
+        [] => Ok(TaskCommand::List),
+        [command] if command == "list" => Ok(TaskCommand::List),
+        [command, id] if command == "cancel" => {
+            id.parse()
+                .map(TaskCommand::Cancel)
+                .map_err(|_| CommandParseError::InvalidArguments {
+                    usage: "Usage: :tasks | :task cancel ID",
+                })
+        }
+        _ => Err(CommandParseError::InvalidArguments {
+            usage: "Usage: :tasks | :task cancel ID",
+        }),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -320,6 +345,14 @@ mod tests {
             SalieriCommand::parse("loop off"),
             Ok(Some(SalieriCommand::Loop(LoopCommand::Off)))
         );
+        assert_eq!(
+            SalieriCommand::parse("task cancel 7"),
+            Ok(Some(SalieriCommand::Task(TaskCommand::Cancel(7))))
+        );
+        assert_eq!(
+            SalieriCommand::parse("tasks"),
+            Ok(Some(SalieriCommand::Task(TaskCommand::List)))
+        );
     }
 
     #[test]
@@ -345,6 +378,14 @@ mod tests {
         );
         assert!(matches!(
             SalieriCommand::parse("bpm fast"),
+            Err(CommandParseError::InvalidArguments { .. })
+        ));
+        assert!(matches!(
+            SalieriCommand::parse("tasks unexpected"),
+            Err(CommandParseError::InvalidArguments { .. })
+        ));
+        assert!(matches!(
+            SalieriCommand::parse("task cancel 7 unexpected"),
             Err(CommandParseError::InvalidArguments { .. })
         ));
     }

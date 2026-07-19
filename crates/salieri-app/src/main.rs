@@ -4,6 +4,8 @@ mod config;
 mod event_handler;
 mod persistence;
 mod playback_runtime;
+mod task_integration;
+mod task_runtime;
 mod terminal;
 
 use std::{
@@ -17,7 +19,7 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use app_event::{AppDispatcher, AppEvent, PreparedAiProposal};
+use app_event::{AppDispatcher, AppEvent, AppTaskResult, PreparedAiProposal};
 use command::{
     BrowserCommand, CommandDomain, FocusTarget, LoopCommand, PlayCommand, SalieriCommand,
     ViewCommand,
@@ -27,10 +29,7 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use persistence::{load_project, save_project};
 use playback_runtime::PlaybackRuntime;
 use playback_runtime::{apply_sample_playback_settings, resolve_sample_path};
-use salieri_ai::{
-    apply_proposal, preview_proposal, AiPatternRequest, AiProposal, AiProposalProvider,
-    CellAddress, LocalDeterministicProvider,
-};
+use salieri_ai::{apply_proposal, AiProposal, CellAddress};
 use salieri_audio::{
     encode_audio, prepare_realtime_sample, render_sampler_events_with_dsp, AudioConfig,
     AudioExportFormat, DspDeviceKind as AudioDspDeviceKind, DspDeviceSpec, DspGraphSpec,
@@ -59,6 +58,7 @@ use salieri_tui::{
     SamplerViewState, SelectionRect, TuiState, TuiView,
 };
 use serde::{Deserialize, Serialize};
+use task_runtime::TaskRuntime;
 use terminal::TerminalGuard;
 
 const UI_TICK_RATE: Duration = Duration::from_millis(33);
@@ -157,6 +157,7 @@ fn run(args: CliArgs) -> Result<()> {
     }
 
     loop {
+        app.drain_task_updates();
         app.drain_playback_updates();
         app.drain_midi_input();
         app.expire_notification();
@@ -1707,6 +1708,7 @@ fn send_logged_midi_message(
 #[derive(Debug)]
 struct App {
     dispatcher: AppDispatcher,
+    task_runtime: TaskRuntime<AppTaskResult>,
     song: Song,
     clean_song: Song,
     project_path: Option<PathBuf>,
@@ -1900,6 +1902,7 @@ impl App {
         };
         let mut app = Self {
             dispatcher: AppDispatcher::default(),
+            task_runtime: TaskRuntime::default(),
             clean_song: song.clone(),
             song,
             project_path: None,
@@ -3890,55 +3893,6 @@ impl App {
         }
     }
 
-    fn create_ai_proposal(&mut self, prompt: String) {
-        let result = self.prepare_ai_proposal(prompt);
-        self.dispatch_event(AppEvent::AiProposalPrepared(result));
-    }
-
-    fn prepare_ai_proposal(
-        &self,
-        prompt: String,
-    ) -> std::result::Result<PreparedAiProposal, String> {
-        let Some(pattern) = self.song.pattern(self.pattern_index) else {
-            return Err("Pattern out of range".to_string());
-        };
-        let request = AiPatternRequest {
-            prompt,
-            pattern: self.pattern_index,
-            track: self.cursor.track,
-            rows: pattern.row_count(),
-            root_pitch: self.ai_root_pitch(),
-            velocity: DEFAULT_NOTE_VELOCITY,
-        };
-
-        let provider = LocalDeterministicProvider;
-        let proposal = provider
-            .propose(&self.song, &request)
-            .map_err(|error| format!("AI proposal failed: {error}"))?;
-        let touched_cells = preview_proposal(&self.song, &proposal)
-            .map_err(|error| format!("AI preview failed: {error}"))?
-            .touched_cells;
-        Ok(PreparedAiProposal {
-            proposal,
-            touched_cells,
-        })
-    }
-
-    fn apply_prepared_ai_proposal(
-        &mut self,
-        result: std::result::Result<PreparedAiProposal, String>,
-    ) {
-        match result {
-            Ok(prepared) => {
-                let summary =
-                    format_ai_proposal_summary(&prepared.proposal, &prepared.touched_cells);
-                self.pending_ai_proposal = Some(prepared);
-                self.notify_info(summary);
-            }
-            Err(error) => self.notify_warning(error),
-        }
-    }
-
     fn show_ai_proposal(&mut self) {
         let Some(pending) = &self.pending_ai_proposal else {
             self.notify_warning("No pending AI proposal");
@@ -4097,6 +4051,7 @@ impl App {
                 PlayCommand::Pattern => self.start_playback(),
             },
             SalieriCommand::Stop => self.stop_playback(),
+            SalieriCommand::Task(command) => self.handle_task_command(command),
             SalieriCommand::Domain {
                 domain: CommandDomain::Track,
                 arguments,
@@ -5934,10 +5889,14 @@ impl App {
             input_status = "MIDI In Clock";
         }
 
-        if input_active {
+        let midi_status = if input_active {
             format!("{} | {}", self.midi_status, input_status)
         } else {
             self.midi_status.clone()
+        };
+        match self.active_task_status() {
+            Some(task) => format!("{midi_status} | Task {task}"),
+            None => midi_status,
         }
     }
 
@@ -7830,6 +7789,7 @@ mod tests {
         let before = app.song.clone();
 
         type_command(&mut app, "ai propose sparse bass sketch");
+        app.wait_for_tasks();
 
         assert_eq!(app.song, before);
         assert!(app.pending_ai_proposal.is_some());
@@ -7857,6 +7817,7 @@ mod tests {
         let before = app.song.clone();
 
         type_command(&mut app, "ai propose lead idea");
+        app.wait_for_tasks();
         type_command(&mut app, "ai reject");
 
         assert_eq!(app.song, before);

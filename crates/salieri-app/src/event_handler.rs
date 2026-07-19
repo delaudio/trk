@@ -31,7 +31,7 @@ impl App {
             }
             AppAction::ApplySampleBrowserResult(result) => self.apply_sample_browser_result(result),
             AppAction::ApplyProjectLoad { path, result } => self.apply_project_load(path, *result),
-            AppAction::ApplyAiProposal(result) => self.apply_prepared_ai_proposal(result),
+            AppAction::ApplyTaskUpdate(update) => self.apply_task_update(update),
             AppAction::ShowNotification(notification) => self.show_notification(notification),
             AppAction::KeepActiveRowVisible { visible_rows } => {
                 self.keep_active_row_visible(visible_rows);
