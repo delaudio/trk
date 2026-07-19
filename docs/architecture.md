@@ -34,6 +34,11 @@ Terminal input -> App command handling -> Song/App state
 
 The playback runtime owns timing and MIDI emission. The TUI polls playback updates and renders the latest known playhead position.
 
+Terminal input and external runtime results enter mutable app state through the
+typed [application event and action boundary](app-events.md). Its synchronous
+FIFO dispatcher preserves current ordering while keeping future background-task
+events explicit.
+
 Detailed timing assumptions and jitter test limits are tracked in [timing.md](timing.md).
 
 ## Dependency Direction And Ownership
