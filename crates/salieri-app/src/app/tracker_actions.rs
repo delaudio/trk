@@ -131,7 +131,7 @@ impl App {
     }
 
     pub(crate) fn copy_selection_or_current_cell(&mut self) {
-        if let Some(selection) = self.selection_rect() {
+        if let Some(selection) = self.selection_bounds() {
             self.copy_selection(selection);
         } else {
             self.copy_current_cell();
@@ -139,11 +139,11 @@ impl App {
     }
 
     pub(crate) fn cut_selection_or_current_cell(&mut self) {
-        if self.selection_anchor.is_some() {
-            if let Some(selection) = self.selection_rect() {
+        if self.selection.is_some() {
+            if let Some(selection) = self.selection_bounds() {
                 self.copy_selection(selection);
                 self.clear_region(selection);
-                self.selection_anchor = None;
+                self.selection = None;
             }
         } else {
             self.cut_current_cell();
@@ -179,34 +179,35 @@ impl App {
     }
 
     pub(crate) fn start_selection(&mut self) {
-        self.selection_anchor = Some(SelectionAnchor {
-            row: self.cursor.row,
-            track: self.cursor.track,
-        });
+        let endpoint = self.selection_endpoint();
+        self.selection = Some(TrackerSelection::rectangle(endpoint, endpoint));
+    }
+
+    pub(crate) fn selection_endpoint(&self) -> SelectionEndpoint {
+        SelectionEndpoint::new(self.cursor.row, self.cursor.track, self.cursor.field)
+    }
+
+    pub(crate) fn active_selection(&self) -> Option<TrackerSelection> {
+        self.selection
+            .map(|selection| selection.with_extent(self.selection_endpoint()))
+    }
+
+    pub(crate) fn selection_bounds(&self) -> Option<SelectionBounds> {
+        self.active_selection()?
+            .bounds(self.current_row_count(), self.song.tracks.len())
     }
 
     pub(crate) fn selection_rect(&self) -> Option<SelectionRect> {
-        let anchor = self.selection_anchor?;
-        let row_count = self.current_row_count();
-        let track_count = self.song.tracks.len();
-        if row_count == 0 || track_count == 0 {
-            return None;
-        }
-
-        let anchor_row = anchor.row.min(row_count.saturating_sub(1));
-        let cursor_row = self.cursor.row.min(row_count.saturating_sub(1));
-        let anchor_track = anchor.track.min(track_count.saturating_sub(1));
-        let cursor_track = self.cursor.track.min(track_count.saturating_sub(1));
-
+        let selection = self.selection_bounds()?;
         Some(SelectionRect {
-            row_start: anchor_row.min(cursor_row),
-            row_end: anchor_row.max(cursor_row),
-            track_start: anchor_track.min(cursor_track),
-            track_end: anchor_track.max(cursor_track),
+            row_start: selection.row_start,
+            row_end: selection.row_end,
+            track_start: selection.track_start,
+            track_end: selection.track_end,
         })
     }
 
-    pub(crate) fn copy_selection(&mut self, selection: SelectionRect) {
+    pub(crate) fn copy_selection(&mut self, selection: SelectionBounds) {
         let Some(pattern) = self.song.pattern(self.pattern_index) else {
             return;
         };
@@ -221,13 +222,13 @@ impl App {
     }
 
     pub(crate) fn clear_selection_region(&mut self) {
-        if let Some(selection) = self.selection_rect() {
+        if let Some(selection) = self.selection_bounds() {
             self.clear_region(selection);
-            self.selection_anchor = None;
+            self.selection = None;
         }
     }
 
-    pub(crate) fn clear_region(&mut self, selection: SelectionRect) {
+    pub(crate) fn clear_region(&mut self, selection: SelectionBounds) {
         let pattern_index = self.pattern_index;
         self.mutate_song(|song, _| {
             let Some(pattern) = song.pattern_mut(pattern_index) else {

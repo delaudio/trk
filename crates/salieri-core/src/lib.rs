@@ -1,6 +1,7 @@
 mod effect_parameters;
 mod model_validation;
 mod parameter_locks;
+mod selection;
 
 pub mod model;
 pub mod native_module;
@@ -37,3 +38,4 @@ pub use playback::{
     pattern_events, row_duration_micros, sampler_events, PlaybackEvent, PlaybackEventKind,
     PlaybackPosition, SamplerPlaybackEvent,
 };
+pub use selection::{SelectionBounds, SelectionEndpoint, SelectionShape, TrackerSelection};

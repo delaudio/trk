@@ -142,7 +142,7 @@ impl App {
 
         let direction = match key.code {
             KeyCode::Esc => {
-                self.selection_anchor = None;
+                self.selection = None;
                 return;
             }
             KeyCode::Char('q') => {
@@ -270,7 +270,7 @@ impl App {
                 return;
             }
             KeyCode::Char('i') => {
-                self.selection_anchor = None;
+                self.selection = None;
                 self.mode = AppMode::Edit;
                 return;
             }
@@ -339,7 +339,7 @@ impl App {
                 return;
             }
             KeyCode::Delete => {
-                if self.selection_anchor.is_some() {
+                if self.selection.is_some() {
                     self.clear_selection_region();
                 } else {
                     self.request_delete_current_track();

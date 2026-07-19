@@ -160,7 +160,7 @@ impl App {
                 self.pattern_index = 0;
                 self.cursor = Cursor::new();
                 self.row_offset = 0;
-                self.selection_anchor = None;
+                self.selection = None;
                 self.history.clear();
                 self.is_playing = false;
                 self.playhead_row = None;
