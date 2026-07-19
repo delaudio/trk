@@ -47,7 +47,7 @@ impl App {
             help_tab: HelpTab::Basics,
             command_buffer: String::new(),
             clipboard: None,
-            selection_anchor: None,
+            selection: None,
             history,
             playback: PlaybackRuntime::spawn(config.midi.log_file.clone()),
             is_playing: false,

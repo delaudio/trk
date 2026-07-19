@@ -71,10 +71,10 @@ use salieri_core::{
     sample_gain_descriptor, sampler_events, AutomationTarget, CellField, Cursor, Direction,
     EffectDevice, EffectDeviceKind, InstrumentId, NoteEvent, ParameterDescriptor, ParameterId,
     ParameterLock, ParameterLockAction, ParameterLockTarget, PatternCell, SampleEnvelope,
-    SamplePlaybackMode, SamplePlaybackSettings, Song, TrackerCommand,
-    MIXER_MASTER_GAIN_PARAMETER_ID, MIXER_SEND_GAIN_PARAMETER_ID, MIXER_TRACK_GAIN_PARAMETER_ID,
-    MIXER_TRACK_PAN_PARAMETER_ID, NATIVE_GAIN_PARAMETER_ID, NATIVE_PAN_PARAMETER_ID,
-    SAMPLE_GAIN_PARAMETER_ID,
+    SamplePlaybackMode, SamplePlaybackSettings, SelectionBounds, SelectionEndpoint, Song,
+    TrackerCommand, TrackerSelection, MIXER_MASTER_GAIN_PARAMETER_ID, MIXER_SEND_GAIN_PARAMETER_ID,
+    MIXER_TRACK_GAIN_PARAMETER_ID, MIXER_TRACK_PAN_PARAMETER_ID, NATIVE_GAIN_PARAMETER_ID,
+    NATIVE_PAN_PARAMETER_ID, SAMPLE_GAIN_PARAMETER_ID,
 };
 use salieri_interop::{
     extract_xrns_sample_payloads, import_xrns, import_xrns_with_sample_paths,
@@ -138,7 +138,7 @@ struct App {
     help_tab: HelpTab,
     command_buffer: String,
     clipboard: Option<Clipboard>,
-    selection_anchor: Option<SelectionAnchor>,
+    selection: Option<TrackerSelection>,
     history: UndoHistory,
     playback: PlaybackRuntime,
     is_playing: bool,
@@ -284,12 +284,6 @@ enum Clipboard {
 #[derive(Debug, Clone, PartialEq)]
 struct ClipboardRegion {
     cells: Vec<Vec<PatternCell>>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct SelectionAnchor {
-    row: usize,
-    track: usize,
 }
 
 impl command::CommandExecutor for App {

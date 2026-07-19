@@ -625,6 +625,57 @@ fn selection_region_can_be_copied_cut_pasted_and_deleted() {
 }
 
 #[test]
+fn selection_engine_normalizes_reversed_cursor_extent() {
+    let mut app = App::default();
+    app.cursor.row = 8;
+    app.cursor.track = 3;
+    app.cursor.field = CellField::Velocity;
+    app.start_selection();
+
+    app.cursor.row = 2;
+    app.cursor.track = 1;
+    app.cursor.field = CellField::Pan;
+
+    assert_eq!(
+        app.active_selection().expect("selection").anchor(),
+        SelectionEndpoint::new(8, 3, CellField::Velocity)
+    );
+    assert_eq!(
+        app.selection_bounds(),
+        Some(SelectionBounds {
+            row_start: 2,
+            row_end: 8,
+            track_start: 1,
+            track_end: 3,
+            field: None,
+        })
+    );
+}
+
+#[test]
+fn selection_engine_clamps_to_resized_pattern_edges() {
+    let mut app = App::default();
+    app.cursor.row = 60;
+    app.cursor.track = 3;
+    app.start_selection();
+    app.cursor.row = 63;
+
+    app.resize_current_pattern(16);
+
+    assert_eq!(app.cursor.row, 15);
+    assert_eq!(
+        app.selection_bounds(),
+        Some(SelectionBounds {
+            row_start: 15,
+            row_end: 15,
+            track_start: 3,
+            track_end: 3,
+            field: None,
+        })
+    );
+}
+
+#[test]
 fn parameter_locks_follow_cell_copy_paste_and_clear() {
     let mut app = App::default();
     let sample = app
@@ -664,6 +715,99 @@ fn parameter_locks_follow_cell_copy_paste_and_clear() {
         .expect("pattern")
         .cell(2, 1)
         .expect("cell")
+        .parameter_locks
+        .is_empty());
+}
+
+#[test]
+fn parameter_locks_follow_selection_copy_paste_cut_and_delete() {
+    let mut app = App::default();
+    let sample = app
+        .song
+        .upsert_sample_reference("samples/kick.wav", "kick.wav");
+    let source_track = app.song.tracks[0].id;
+    app.song
+        .assign_sample_to_track(source_track, sample)
+        .expect("assign source sample");
+    let destination_track = app.song.tracks[2].id;
+    app.song
+        .assign_sample_to_track(destination_track, sample)
+        .expect("assign destination sample");
+    type_command(&mut app, "plock sample-gain 0.500");
+    {
+        let pattern = app.song.current_pattern_mut().expect("pattern");
+        pattern
+            .set_note(0, 1, NoteEvent::Note { pitch: 62 }, 0x7f)
+            .expect("set note");
+    }
+
+    app.cursor.row = 0;
+    app.cursor.track = 0;
+    app.start_selection();
+    app.cursor.track = 1;
+    app.copy_selection_or_current_cell();
+    app.cursor.row = 3;
+    app.cursor.track = 2;
+    app.paste_clipboard();
+
+    let pasted_lock_cell = app
+        .song
+        .current_pattern()
+        .expect("pattern")
+        .cell(3, 2)
+        .expect("pasted lock cell");
+    assert_eq!(pasted_lock_cell.parameter_locks.len(), 1);
+    assert_eq!(
+        pasted_lock_cell.parameter_locks[0].parameter,
+        ParameterId::from(SAMPLE_GAIN_PARAMETER_ID)
+    );
+    assert_eq!(
+        app.song
+            .current_pattern()
+            .expect("pattern")
+            .cell(3, 3)
+            .expect("pasted sparse neighbor")
+            .note,
+        Some(NoteEvent::Note { pitch: 62 })
+    );
+
+    app.cursor.row = 0;
+    app.cursor.track = 0;
+    app.start_selection();
+    app.cursor.track = 1;
+    app.cut_selection_or_current_cell();
+    assert!(app
+        .song
+        .current_pattern()
+        .expect("pattern")
+        .cell(0, 0)
+        .expect("cleared source lock")
+        .parameter_locks
+        .is_empty());
+
+    app.cursor.row = 6;
+    app.cursor.track = 2;
+    app.paste_clipboard();
+    assert_eq!(
+        app.song
+            .current_pattern()
+            .expect("pattern")
+            .cell(6, 2)
+            .expect("cut-pasted lock")
+            .parameter_locks
+            .len(),
+        1
+    );
+
+    app.start_selection();
+    app.cursor.track = 3;
+    app.clear_selection_region();
+    assert!(app
+        .song
+        .current_pattern()
+        .expect("pattern")
+        .cell(6, 2)
+        .expect("deleted lock")
         .parameter_locks
         .is_empty());
 }
