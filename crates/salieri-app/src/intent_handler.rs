@@ -139,7 +139,7 @@ impl App {
             self.notify_info(format!("Playing pattern from row {row:02}"));
         }
         vec![AppEffect::Playback(PlaybackEffect::StartPattern {
-            song: self.song.clone(),
+            song: self.performance_playback_song(),
             sample_base_dir: self.sample_base_dir(),
             pattern_index: self.pattern_index,
             row,
@@ -172,7 +172,7 @@ impl App {
         self.sequence_position = Some(position);
         self.notify_info(format!("Playing sequence from {position}"));
         vec![AppEffect::Playback(PlaybackEffect::StartSequence {
-            song: self.song.clone(),
+            song: self.performance_playback_song(),
             sample_base_dir: self.sample_base_dir(),
             position,
         })]

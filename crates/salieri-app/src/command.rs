@@ -121,6 +121,7 @@ pub enum CommandDomain {
     Clip,
     Ableton,
     Preset,
+    Performance,
     Workspace,
     Midi,
     MidiInput,
@@ -254,6 +255,7 @@ impl SalieriCommand {
                 domain(CommandDomain::Report, values)
             }
             "preset" | "presets" => domain(CommandDomain::Preset, arguments),
+            "performance" | "perf" => domain(CommandDomain::Performance, arguments),
             "workspace" | "ws" => domain(CommandDomain::Workspace, arguments),
             "midi" => domain(CommandDomain::Midi, arguments),
             "midi-input" | "midi-in" => domain(CommandDomain::MidiInput, arguments),

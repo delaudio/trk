@@ -16,6 +16,7 @@ mod live_bridge_actions;
 mod midi_actions;
 mod navigation;
 mod pattern_operations;
+mod performance_actions;
 mod plock_dsp_commands;
 mod preset_actions;
 mod project_browser;

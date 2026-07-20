@@ -409,6 +409,9 @@ T               Set selected song slot to current pattern
 :preset save ./profiles/current.json
 :preset instrument save ./profiles/kick.instrument.json
 :preset instrument load ./profiles/kick.instrument.json
+:performance slot 1 track 2 gain 0.500
+:performance punch 1
+:performance release 1
 :workspace init ~/Music/Salieri
 :workspace index ~/Music/Salieri
 :tasks
@@ -453,6 +456,8 @@ Ctrl+J                      Open sampler view
 ```
 
 Assigned samples are routed into the internal realtime audio command boundary during playback and rendered through the default CPAL output device. Samples are sliced by start/end frame, shaped by the configured envelope, and prepared for the output sample rate and channel count before playback/export. Forward, backward, ping-pong, and reverse playback modes are shared by realtime and offline rendering. `:sample render-selection PATH [--assign TRACK]` bounces the active tracker selection to a WAV sample reference and can assign it immediately. See [docs/sampler.md](docs/sampler.md), [docs/audio-engine.md](docs/audio-engine.md), and [docs/audio-export.md](docs/audio-export.md).
+
+Performance punch-ins are temporary runtime overrides. `:performance slot SLOT [track TRACK] gain|pan|sample-gain VALUE` configures a slot, `:performance punch SLOT` applies it to the playback clone, and `:performance release SLOT` restores the saved project state.
 
 ## Generative And AI Foundations
 
