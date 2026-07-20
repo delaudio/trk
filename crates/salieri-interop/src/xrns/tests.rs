@@ -1,4 +1,7 @@
-use salieri_core::{EffectDevice, InstrumentId, NoteEvent, SamplePlaybackMode, TrackerCommand};
+use salieri_core::{
+    pattern_events, row_duration_micros, sampler_events, EffectDevice, InstrumentId, NoteEvent,
+    PlaybackEventKind, SamplePlaybackMode, TrackerCommand,
+};
 
 use super::*;
 use crate::fixtures::{xrns_archive, xrns_deflated_entry, xrns_entry, XrnsTestEntry};
@@ -425,6 +428,129 @@ fn xrns_import_reads_note_column_values_as_renoise_hex_strings() {
     assert_eq!(cell.pan, Some(64));
     assert_eq!(cell.delay, Some(10));
     assert_eq!(cell.command, Some(TrackerCommand::delay(16)));
+}
+
+#[test]
+fn xrns_import_translates_renoise_timing_effects_to_shared_playback_offsets() {
+    let xml = r#"
+<RenoiseSong>
+  <BeatsPerMin>120</BeatsPerMin>
+  <LinesPerBeat>4</LinesPerBeat>
+  <TicksPerLine>12</TicksPerLine>
+  <Tracks><Track><Name>Timing</Name></Track></Tracks>
+  <Patterns>
+    <Pattern>
+      <NumberOfLines>2</NumberOfLines>
+      <Tracks>
+        <Track>
+          <Line>
+            <Index>0</Index>
+            <Note>C-4</Note>
+            <Instrument>00</Instrument>
+            <Effect><Code>0Q</Code><Value>06</Value></Effect>
+            <Effect><Code>0R</Code><Value>04</Value></Effect>
+          </Line>
+        </Track>
+      </Tracks>
+    </Pattern>
+  </Patterns>
+  <Instruments><Instrument><Name>Kick</Name><Samples><Sample><Name>Kick</Name></Sample></Samples></Instrument></Instruments>
+</RenoiseSong>
+"#;
+    let archive = xrns_archive([
+        xrns_entry("Song.xml", xml.as_bytes()),
+        xrns_entry("SampleData/Instrument00/Sample00.wav", b"RIFF....WAVE"),
+    ]);
+
+    let report = import_xrns(&archive);
+    let song = report.song.expect("imported song");
+    let pattern = &song.patterns[0];
+    let cell = pattern.cell(0, 0).expect("cell");
+
+    assert_eq!(cell.command, Some(TrackerCommand::delay(0x7f)));
+    assert_eq!(cell.command2, Some(TrackerCommand::retrigger(4)));
+    assert!(!report
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.kind == XrnsDiagnosticKind::UnsupportedEffectCommand));
+    assert!(!report
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.kind == XrnsDiagnosticKind::DroppedExtraEffectColumn));
+
+    let row_duration = row_duration_micros(&song.transport);
+    let expected_first = row_duration * 0x7f / 256;
+    let expected_offsets = (0..4)
+        .map(|step| expected_first + row_duration * step / 4)
+        .collect::<Vec<_>>();
+    let midi_offsets = pattern_events(&song, pattern)
+        .into_iter()
+        .filter_map(|event| {
+            matches!(event.kind, PlaybackEventKind::NoteOn { .. })
+                .then_some(event.position.offset_micros)
+        })
+        .collect::<Vec<_>>();
+    let sample_offsets = sampler_events(&song, pattern)
+        .into_iter()
+        .map(|event| event.position.offset_micros)
+        .collect::<Vec<_>>();
+
+    assert_eq!(midi_offsets, expected_offsets);
+    assert_eq!(sample_offsets, expected_offsets);
+}
+
+#[test]
+fn xrns_import_preserves_deferred_high_priority_effects_with_diagnostics() {
+    let xml = r#"
+<RenoiseSong>
+  <Tracks><Track><Name>Deferred FX</Name></Track></Tracks>
+  <Patterns>
+    <Pattern>
+      <NumberOfLines>1</NumberOfLines>
+      <Tracks>
+        <Track>
+          <Line>
+            <Index>0</Index>
+            <Note>C-4</Note>
+            <Effect><Code>0D</Code><Value>20</Value></Effect>
+            <Effect><Code>0S</Code><Value>40</Value></Effect>
+          </Line>
+        </Track>
+      </Tracks>
+    </Pattern>
+  </Patterns>
+</RenoiseSong>
+"#;
+    let archive = xrns_archive([xrns_entry("Song.xml", xml.as_bytes())]);
+
+    let report = import_xrns(&archive);
+    let song = report.song.expect("imported song");
+    let cell = song.patterns[0].cell(0, 0).expect("cell");
+
+    assert_eq!(
+        cell.command,
+        Some(TrackerCommand::from_code_char('N', 0x20))
+    );
+    assert_eq!(
+        cell.command2,
+        Some(TrackerCommand::from_code_char('O', 0x40))
+    );
+    assert_eq!(
+        report
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.kind == XrnsDiagnosticKind::UnsupportedEffectCommand)
+            .count(),
+        2
+    );
+    assert!(report
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.message.contains("0D20")));
+    assert!(report
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.message.contains("0S40")));
 }
 
 #[test]
