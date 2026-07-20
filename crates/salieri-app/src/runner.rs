@@ -48,8 +48,16 @@ fn run(args: CliArgs) -> Result<()> {
             run_sample_inspect(sample_args)?;
             return Ok(());
         }
+        CliCommand::ExportPlan(plan_args) => {
+            run_export_plan(plan_args)?;
+            return Ok(());
+        }
         CliCommand::ExportAudio(export_args) => {
             run_export_audio(export_args)?;
+            return Ok(());
+        }
+        CliCommand::ExportStems(stems_args) => {
+            run_export_stems(stems_args)?;
             return Ok(());
         }
         CliCommand::ImportXrns(import_args) => {

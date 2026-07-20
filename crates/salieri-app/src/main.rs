@@ -18,6 +18,7 @@ mod midi_cli;
 mod notifications;
 mod persistence;
 mod playback_runtime;
+mod render_workflows;
 mod runner;
 mod task_integration;
 mod task_runtime;
@@ -31,6 +32,7 @@ use browser_io::*;
 use cli::*;
 use helpers::*;
 use midi_cli::*;
+use render_workflows::*;
 use workflows::*;
 
 use std::{

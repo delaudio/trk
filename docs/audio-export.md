@@ -28,4 +28,20 @@ Current behavior:
 
 Offline sampler rendering uses plain event data: track id, sample id, target frame, gain, pan, pitch ratio, and velocity. The app adapts `salieri-core::sampler_events` and persisted mixer DSP chains into those specs while keeping `salieri-audio` independent from project serialization and TUI state. Pattern automation and mixer state are resolved before events cross into `salieri-audio`.
 
+Render plans and stems:
+
+```bash
+salieri export plan song.salieri plan.json --pattern 1 --tracks 1,2
+salieri export plan song.salieri --sequence
+salieri export stems song.salieri stems/ --pattern 1 --tracks 1,2
+salieri export stems song.salieri stems/ --sequence
+```
+
+`export plan` emits JSON describing the render target, selected tracks, sampler
+event counts, sample rate, channel count, and explicit limitations. It can print
+to stdout or write a JSON file, so renders can be inspected before any WAV files
+are created. `export stems` writes deterministic per-track WAV files plus a
+`stems.json` manifest. Tracks without internal sampler events render as silence
+for the target duration and are marked with `samplerEvents: 0` in the manifest.
+
 The current renderer is deliberately small because Salieri is still MIDI-first. It renders sampler-backed tracks only; MIDI output sent to DAWs, external synths, or plugin hosts is not captured. Persisted loop points are not yet rendered as sustained loop playback. Future internal instruments, mixer routing, broader DSP devices, plugin render/freeze, and higher-quality resampling should render into `RenderedAudio` or a streaming equivalent, then reuse the same export format boundary.
