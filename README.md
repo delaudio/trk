@@ -130,6 +130,8 @@ salieri --config config/iac-driver.toml --midi-log salieri-midi.log
 
 See [Configuration](docs/configuration.md) for lookup precedence, all preference
 sections, validation rules, and the `:config` status command.
+For local Renoise demo parity checks, see
+[docs/renoise-parity.md](docs/renoise-parity.md).
 
 Or copy the relevant settings into `~/.config/salieri/config.toml`:
 
