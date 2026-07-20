@@ -5,6 +5,8 @@ use crate::{
     *,
 };
 
+mod dynamics;
+
 #[test]
 fn renders_sampler_preview_deterministically() {
     let preview = PreviewBuffer {

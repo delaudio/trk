@@ -2,16 +2,18 @@ use crate::errors::AudioExportError;
 
 mod degradation;
 mod delay;
+mod dynamics;
 mod kind;
 mod modulation;
 mod reverb;
 
 use degradation::{apply_bitcrusher_frame, apply_drive_frame, BitcrusherState};
 use delay::{apply_delay_frame, DelayFrameSpec, DelayLineState};
+use dynamics::{apply_dynamics_frame, dynamics_frame_spec, DynamicsState};
 use modulation::{apply_modulation_frame, modulation_frame_spec, ModulationState};
 use reverb::{apply_reverb_frame, ReverbFrameSpec, ReverbState};
 
-pub use kind::{DspDeviceKind, DspDriveMode, DspFilterMode};
+pub use kind::{DspDeviceKind, DspDriveMode, DspDynamicsDetector, DspFilterMode};
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct DspGraphSpec {
@@ -234,6 +236,53 @@ pub(crate) fn validate_dsp_chain(devices: &[DspDeviceSpec]) -> Result<(), AudioE
                 && valid_unit(stereo_phase)
                 && valid_unit(mix)
                 && valid_output(output_db) => {}
+            DspDeviceKind::Compressor {
+                threshold_db,
+                ratio,
+                attack_ms,
+                release_ms,
+                knee_db,
+                makeup_db,
+                stereo_link,
+                mix,
+                ..
+            } if valid_db(threshold_db, -80.0, 0.0)
+                && ratio.is_finite()
+                && (1.0..=20.0).contains(&ratio)
+                && valid_ms(attack_ms, 0.01, 500.0)
+                && valid_ms(release_ms, 1.0, 5_000.0)
+                && valid_db(knee_db, 0.0, 24.0)
+                && valid_db(makeup_db, -24.0, 24.0)
+                && valid_unit(stereo_link)
+                && valid_unit(mix) => {}
+            DspDeviceKind::Gate {
+                threshold_db,
+                hysteresis_db,
+                attack_ms,
+                hold_ms,
+                release_ms,
+                range_db,
+                stereo_link,
+                ..
+            } if valid_db(threshold_db, -80.0, 0.0)
+                && valid_db(hysteresis_db, 0.0, 24.0)
+                && valid_ms(attack_ms, 0.01, 500.0)
+                && valid_ms(hold_ms, 0.0, 1_000.0)
+                && valid_ms(release_ms, 1.0, 5_000.0)
+                && valid_db(range_db, 0.0, 80.0)
+                && valid_unit(stereo_link) => {}
+            DspDeviceKind::Limiter {
+                ceiling_db,
+                input_gain_db,
+                release_ms,
+                lookahead_ms,
+                stereo_link,
+                ..
+            } if valid_db(ceiling_db, -24.0, 0.0)
+                && valid_db(input_gain_db, -24.0, 24.0)
+                && valid_ms(release_ms, 1.0, 1_000.0)
+                && valid_ms(lookahead_ms, 0.0, 20.0)
+                && valid_unit(stereo_link) => {}
             _ => return Err(AudioExportError::InvalidDspParameter),
         }
     }
@@ -282,6 +331,7 @@ const MAX_DELAYS: usize = 8;
 const MAX_REVERBS: usize = 8;
 const MAX_BITCRUSHERS: usize = 8;
 const MAX_MODULATORS: usize = 8;
+const MAX_DYNAMICS: usize = 8;
 const MAX_CHANNELS: usize = 8;
 const MAX_DELAY_SECONDS: f32 = 4.0;
 
@@ -292,6 +342,7 @@ pub(crate) struct DspFrameProcessor {
     reverbs: Vec<ReverbState>,
     bitcrushers: Vec<BitcrusherState>,
     modulators: Vec<ModulationState>,
+    dynamics: Vec<DynamicsState>,
 }
 
 impl DspFrameProcessor {
@@ -300,6 +351,7 @@ impl DspFrameProcessor {
         let mut reverb_index = 0;
         let mut bitcrusher_index = 0;
         let mut modulation_index = 0;
+        let mut dynamics_index = 0;
         for device in devices {
             if device.bypassed {
                 continue;
@@ -331,6 +383,14 @@ impl DspFrameProcessor {
                     self.ensure_modulation_slot(slot);
                     self.modulators[slot].prepare(sample_rate, channels);
                 }
+                DspDeviceKind::Compressor { .. }
+                | DspDeviceKind::Gate { .. }
+                | DspDeviceKind::Limiter { .. } => {
+                    let slot = dynamics_index.min(MAX_DYNAMICS - 1);
+                    dynamics_index = dynamics_index.saturating_add(1);
+                    self.ensure_dynamics_slot(slot);
+                    self.dynamics[slot].prepare(sample_rate, channels);
+                }
                 _ => {}
             }
         }
@@ -347,6 +407,7 @@ impl DspFrameProcessor {
         let mut reverb_index = 0;
         let mut bitcrusher_index = 0;
         let mut modulation_index = 0;
+        let mut dynamics_index = 0;
         for device in devices {
             if device.bypassed {
                 continue;
@@ -531,6 +592,16 @@ impl DspFrameProcessor {
                         );
                     }
                 }
+                kind @ (DspDeviceKind::Compressor { .. }
+                | DspDeviceKind::Gate { .. }
+                | DspDeviceKind::Limiter { .. }) => {
+                    if let Some(spec) = dynamics_frame_spec(kind) {
+                        let slot = dynamics_index.min(MAX_DYNAMICS - 1);
+                        dynamics_index = dynamics_index.saturating_add(1);
+                        self.ensure_dynamics_slot(slot);
+                        apply_dynamics_frame(frame, sample_rate, spec, &mut self.dynamics[slot]);
+                    }
+                }
                 _ => {}
             }
         }
@@ -559,6 +630,12 @@ impl DspFrameProcessor {
             self.modulators.push(ModulationState::default());
         }
     }
+
+    fn ensure_dynamics_slot(&mut self, slot: usize) {
+        while self.dynamics.len() <= slot {
+            self.dynamics.push(DynamicsState::default());
+        }
+    }
 }
 
 fn valid_rate(value: f32) -> bool {
@@ -571,6 +648,14 @@ fn valid_unit(value: f32) -> bool {
 
 fn valid_output(value: f32) -> bool {
     value.is_finite() && (-60.0..=12.0).contains(&value)
+}
+
+fn valid_db(value: f32, min: f32, max: f32) -> bool {
+    value.is_finite() && (min..=max).contains(&value)
+}
+
+fn valid_ms(value: f32, min: f32, max: f32) -> bool {
+    value.is_finite() && (min..=max).contains(&value)
 }
 
 fn apply_pan_frame(frame: &mut [f32], pan: f32) {

@@ -17,6 +17,9 @@ pub const NATIVE_BITCRUSHER_MODULE_ID: &str = "native.effect.bitcrusher";
 pub const NATIVE_CHORUS_MODULE_ID: &str = "native.effect.chorus";
 pub const NATIVE_FLANGER_MODULE_ID: &str = "native.effect.flanger";
 pub const NATIVE_PHASER_MODULE_ID: &str = "native.effect.phaser";
+pub const NATIVE_COMPRESSOR_MODULE_ID: &str = "native.effect.compressor";
+pub const NATIVE_GATE_MODULE_ID: &str = "native.effect.gate";
+pub const NATIVE_LIMITER_MODULE_ID: &str = "native.effect.limiter";
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -387,6 +390,42 @@ pub fn native_phaser_module_descriptor() -> NativeModuleDescriptor {
 }
 
 #[must_use]
+pub fn native_compressor_module_descriptor() -> NativeModuleDescriptor {
+    NativeModuleDescriptor {
+        id: NativeModuleId::from(NATIVE_COMPRESSOR_MODULE_ID),
+        name: "Compressor".to_string(),
+        role: NativeModuleRole::Effect,
+        parameters: native_compressor_parameter_descriptors(),
+        latency_frames: 0,
+        realtime_safe: true,
+    }
+}
+
+#[must_use]
+pub fn native_gate_module_descriptor() -> NativeModuleDescriptor {
+    NativeModuleDescriptor {
+        id: NativeModuleId::from(NATIVE_GATE_MODULE_ID),
+        name: "Gate".to_string(),
+        role: NativeModuleRole::Effect,
+        parameters: native_gate_parameter_descriptors(),
+        latency_frames: 0,
+        realtime_safe: true,
+    }
+}
+
+#[must_use]
+pub fn native_limiter_module_descriptor() -> NativeModuleDescriptor {
+    NativeModuleDescriptor {
+        id: NativeModuleId::from(NATIVE_LIMITER_MODULE_ID),
+        name: "Limiter".to_string(),
+        role: NativeModuleRole::Effect,
+        parameters: native_limiter_parameter_descriptors(),
+        latency_frames: 48,
+        realtime_safe: true,
+    }
+}
+
+#[must_use]
 pub fn builtin_native_module_descriptor(id: &NativeModuleId) -> Option<NativeModuleDescriptor> {
     match id.as_str() {
         NATIVE_GAIN_MODULE_ID => Some(native_gain_module_descriptor()),
@@ -402,6 +441,9 @@ pub fn builtin_native_module_descriptor(id: &NativeModuleId) -> Option<NativeMod
         NATIVE_CHORUS_MODULE_ID => Some(native_chorus_module_descriptor()),
         NATIVE_FLANGER_MODULE_ID => Some(native_flanger_module_descriptor()),
         NATIVE_PHASER_MODULE_ID => Some(native_phaser_module_descriptor()),
+        NATIVE_COMPRESSOR_MODULE_ID => Some(native_compressor_module_descriptor()),
+        NATIVE_GATE_MODULE_ID => Some(native_gate_module_descriptor()),
+        NATIVE_LIMITER_MODULE_ID => Some(native_limiter_module_descriptor()),
         _ => None,
     }
 }
@@ -422,6 +464,9 @@ pub fn builtin_native_effect_descriptors() -> Vec<NativeModuleDescriptor> {
         native_chorus_module_descriptor(),
         native_flanger_module_descriptor(),
         native_phaser_module_descriptor(),
+        native_compressor_module_descriptor(),
+        native_gate_module_descriptor(),
+        native_limiter_module_descriptor(),
     ]
 }
 

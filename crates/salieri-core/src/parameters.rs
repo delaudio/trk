@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 mod catalog;
 mod drive_catalog;
+mod dynamics_catalog;
 mod modulation_catalog;
 mod reverb_catalog;
 #[cfg(test)]
@@ -11,6 +12,7 @@ mod tests;
 
 pub use catalog::*;
 pub use drive_catalog::*;
+pub use dynamics_catalog::*;
 pub use modulation_catalog::*;
 pub use reverb_catalog::*;
 

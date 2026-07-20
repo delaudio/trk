@@ -339,27 +339,51 @@ Purpose: provide basic mix-control processors before more advanced routing.
 
 | Device | ID | Placements | Status | Bypass | Wet/dry | Latency | Tail |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Compressor | `native.effect.compressor` | track insert, master | Planned | passthrough | yes | 0 | none |
-| Gate | `native.effect.gate` | track insert, master | Planned | passthrough | no | 0 | none |
-| Limiter | `native.effect.limiter` | master, track insert | Planned | passthrough | no | lookahead optional/deferred | none |
+| Compressor | `native.effect.compressor` | track insert, master | Implemented | passthrough | yes | 0 | none |
+| Gate | `native.effect.gate` | track insert, master | Implemented | passthrough | no | 0 | hold/release envelope only |
+| Limiter | `native.effect.limiter` | master, track insert | Implemented | passthrough | no | bounded lookahead; descriptor default 48 frames | none |
 
 | Parameter | Device | Type | Range / choices | Default | Step | Unit | Flags |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `native.compressor.threshold_db` | Compressor | `BipolarFloat` | `-80.0..=0.0` | `-18.0` | `0.1` | decibels | automatable |
-| `native.compressor.ratio` | Compressor | `PlainFloat` | `1.0..=20.0` | `4.0` | `0.01` | ratio | automatable, logarithmic |
-| `native.compressor.attack_ms` | Compressor | `PlainFloat` | `0.01..=500.0` | `10.0` | `0.01` | milliseconds | automatable, logarithmic |
-| `native.compressor.release_ms` | Compressor | `PlainFloat` | `1.0..=5000.0` | `100.0` | `0.1` | milliseconds | automatable, logarithmic |
-| `native.compressor.knee_db` | Compressor | `PlainFloat` | `0.0..=24.0` | `6.0` | `0.1` | decibels | automatable |
-| `native.compressor.makeup_db` | Compressor | `BipolarFloat` | `-24.0..=24.0` | `0.0` | `0.1` | decibels | automatable, bipolar |
-| `native.gate.threshold_db` | Gate | `BipolarFloat` | `-80.0..=0.0` | `-48.0` | `0.1` | decibels | automatable |
-| `native.gate.attack_ms` | Gate | `PlainFloat` | `0.01..=500.0` | `5.0` | `0.01` | milliseconds | automatable, logarithmic |
-| `native.gate.release_ms` | Gate | `PlainFloat` | `1.0..=5000.0` | `100.0` | `0.1` | milliseconds | automatable, logarithmic |
-| `native.gate.range_db` | Gate | `PlainFloat` | `0.0..=80.0` | `80.0` | `0.1` | decibels | automatable |
-| `native.limiter.threshold_db` | Limiter | `BipolarFloat` | `-24.0..=0.0` | `-1.0` | `0.1` | decibels | automatable |
-| `native.limiter.attack_ms` | Limiter | `PlainFloat` | `0.01..=100.0` | `1.0` | `0.01` | milliseconds | automatable, logarithmic |
-| `native.limiter.release_ms` | Limiter | `PlainFloat` | `1.0..=1000.0` | `50.0` | `0.1` | milliseconds | automatable, logarithmic |
-| `native.limiter.ceiling_db` | Limiter | `BipolarFloat` | `-24.0..=0.0` | `-0.1` | `0.1` | decibels | automatable |
-| `native.compressor.mix` | Compressor | `PlainFloat` | `0.0..=1.0` | `1.0` | `0.001` | percent | automatable |
+| `native.compressor.thresholdDb` | Compressor | `Decibels` | `-80.0..=0.0` | `-18.0` | `0.1` | decibels | automatable |
+| `native.compressor.ratio` | Compressor | `Ratio` | `1.0..=20.0` | `4.0` | `0.01` | ratio | automatable, logarithmic |
+| `native.compressor.attackMs` | Compressor | `PlainFloat` | `0.01..=500.0` | `10.0` | `0.1` | milliseconds | automatable, logarithmic |
+| `native.compressor.releaseMs` | Compressor | `PlainFloat` | `1.0..=5000.0` | `100.0` | `0.1` | milliseconds | automatable, logarithmic |
+| `native.compressor.kneeDb` | Compressor | `Decibels` | `0.0..=24.0` | `6.0` | `0.1` | decibels | automatable |
+| `native.compressor.makeupDb` | Compressor | `Decibels` | `-24.0..=24.0` | `0.0` | `0.1` | decibels | automatable |
+| `native.compressor.autoMakeup` | Compressor | `Bool` | `false`, `true` | `false` | stepped | choice | automatable, stepped |
+| `native.compressor.detector` | Compressor | `Enum` | `peak`, `rms` | `peak` | stepped | choice | automatable, stepped |
+| `native.compressor.stereoLink` | Compressor | `Percentage` | `0.0..=1.0` | `1.0` | `0.001` | percent | automatable |
+| `native.compressor.mix` | Compressor | `Percentage` | `0.0..=1.0` | `1.0` | `0.001` | percent | automatable |
+| `native.compressor.gainReductionDb` | Compressor | `Decibels` | `-80.0..=0.0` | `0.0` | `0.1` | decibels | read-only |
+| `native.gate.thresholdDb` | Gate | `Decibels` | `-80.0..=0.0` | `-48.0` | `0.1` | decibels | automatable |
+| `native.gate.hysteresisDb` | Gate | `Decibels` | `0.0..=24.0` | `3.0` | `0.1` | decibels | automatable |
+| `native.gate.attackMs` | Gate | `PlainFloat` | `0.01..=500.0` | `5.0` | `0.1` | milliseconds | automatable, logarithmic |
+| `native.gate.holdMs` | Gate | `PlainFloat` | `0.0..=1000.0` | `25.0` | `0.1` | milliseconds | automatable, logarithmic |
+| `native.gate.releaseMs` | Gate | `PlainFloat` | `1.0..=5000.0` | `100.0` | `0.1` | milliseconds | automatable, logarithmic |
+| `native.gate.rangeDb` | Gate | `Decibels` | `0.0..=80.0` | `80.0` | `0.1` | decibels | automatable |
+| `native.gate.detector` | Gate | `Enum` | `peak`, `rms` | `peak` | stepped | choice | automatable, stepped |
+| `native.gate.stereoLink` | Gate | `Percentage` | `0.0..=1.0` | `1.0` | `0.001` | percent | automatable |
+| `native.gate.open` | Gate | `Bool` | `false`, `true` | `false` | stepped | choice | read-only |
+| `native.limiter.ceilingDb` | Limiter | `Decibels` | `-24.0..=0.0` | `-0.1` | `0.1` | decibels | automatable |
+| `native.limiter.inputGainDb` | Limiter | `Decibels` | `-24.0..=24.0` | `0.0` | `0.1` | decibels | automatable |
+| `native.limiter.releaseMs` | Limiter | `PlainFloat` | `1.0..=1000.0` | `50.0` | `0.1` | milliseconds | automatable, logarithmic |
+| `native.limiter.lookaheadMs` | Limiter | `PlainFloat` | `0.0..=20.0` | `1.0` | `0.1` | milliseconds | automatable, logarithmic |
+| `native.limiter.stereoLink` | Limiter | `Percentage` | `0.0..=1.0` | `1.0` | `0.001` | percent | automatable |
+| `native.limiter.truePeak` | Limiter | `Bool` | `false`, `true` | `false` | stepped | choice | automatable, stepped |
+| `native.limiter.gainReductionDb` | Limiter | `Decibels` | `-80.0..=0.0` | `0.0` | `0.1` | decibels | read-only |
+
+Implementation notes:
+
+- Compressor uses deterministic peak/RMS detection, optional stereo linking,
+  attack/release envelope following, soft knee gain computation, dry/wet mix,
+  and optional auto makeup.
+- Gate uses the same detector/link model with hysteresis, hold, release, and
+  range attenuation. Gate state is exposed as a read-only descriptor default;
+  realtime callbacks do not allocate or lock to publish meters.
+- Limiter applies input gain, release smoothing, bounded sample lookahead, and
+  ceiling clamp. `truePeak` is serialized and automatable, but currently maps to
+  sample-peak processing; oversampled true-peak limiting remains a follow-up.
 
 ## Implementation Order
 

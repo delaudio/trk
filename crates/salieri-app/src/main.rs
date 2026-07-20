@@ -63,8 +63,9 @@ use salieri_ai::{apply_proposal, AiProposal, CellAddress};
 use salieri_audio::{
     encode_audio, prepare_realtime_sample, render_sampler_events_with_dsp, AudioConfig,
     AudioExportFormat, DspDeviceKind as AudioDspDeviceKind, DspDeviceSpec,
-    DspDriveMode as AudioDspDriveMode, DspFilterMode as AudioDspFilterMode, DspGraphSpec,
-    OfflineRenderSpec, OfflineSamplerEvent, OfflineSamplerSample, TrackDspChainSpec,
+    DspDriveMode as AudioDspDriveMode, DspDynamicsDetector as AudioDspDynamicsDetector,
+    DspFilterMode as AudioDspFilterMode, DspGraphSpec, OfflineRenderSpec, OfflineSamplerEvent,
+    OfflineSamplerSample, TrackDspChainSpec,
 };
 use salieri_core::{
     mixer_master_gain_descriptor, mixer_send_gain_descriptor, mixer_track_gain_descriptor,
@@ -88,8 +89,9 @@ use salieri_core::{
     native_reverb_predelay_descriptor, native_reverb_size_descriptor,
     native_reverb_width_descriptor, native_width_descriptor, row_duration_micros,
     sample_gain_descriptor, sampler_events, AutomationTarget, BitcrusherSpec, CellField,
-    ChorusSpec, Cursor, DelaySpec, Direction, DriveMode, DriveSpec, EffectDevice, EffectDeviceKind,
-    FilterMode, FilterSpec, FlangerSpec, InstrumentId, NoteEvent, ParameterDescriptor, ParameterId,
+    ChorusSpec, CompressorSpec, Cursor, DelaySpec, Direction, DriveMode, DriveSpec,
+    DynamicsDetector, EffectDevice, EffectDeviceKind, FilterMode, FilterSpec, FlangerSpec,
+    GateSpec, InstrumentId, LimiterSpec, NoteEvent, ParameterDescriptor, ParameterId,
     ParameterLock, ParameterLockAction, ParameterLockTarget, PatternCell, PhaserSpec, ReverbSpec,
     SampleEnvelope, SamplePlaybackMode, SamplePlaybackSettings, SelectionBounds, SelectionEndpoint,
     Song, TrackerCommand, TrackerSelection, MIXER_MASTER_GAIN_PARAMETER_ID,

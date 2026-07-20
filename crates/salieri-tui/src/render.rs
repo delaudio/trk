@@ -11,8 +11,11 @@ use salieri_core::{
     native_bitcrusher_mix_descriptor, native_bitcrusher_output_descriptor,
     native_bitcrusher_reduction_descriptor, native_chorus_depth_descriptor,
     native_chorus_mix_descriptor, native_chorus_rate_descriptor, native_chorus_spread_descriptor,
-    native_chorus_sync_descriptor, native_delay_feedback_descriptor, native_delay_mix_descriptor,
-    native_delay_output_descriptor, native_delay_ping_pong_descriptor,
+    native_chorus_sync_descriptor, native_compressor_attack_descriptor,
+    native_compressor_makeup_descriptor, native_compressor_mix_descriptor,
+    native_compressor_ratio_descriptor, native_compressor_release_descriptor,
+    native_compressor_threshold_descriptor, native_delay_feedback_descriptor,
+    native_delay_mix_descriptor, native_delay_output_descriptor, native_delay_ping_pong_descriptor,
     native_delay_sync_descriptor, native_delay_time_left_descriptor,
     native_delay_time_right_descriptor, native_drive_drive_descriptor, native_drive_mix_descriptor,
     native_drive_mode_descriptor, native_drive_output_descriptor, native_drive_tone_descriptor,
@@ -21,7 +24,11 @@ use salieri_core::{
     native_flanger_depth_descriptor, native_flanger_feedback_descriptor,
     native_flanger_manual_descriptor, native_flanger_mix_descriptor,
     native_flanger_rate_descriptor, native_flanger_stereo_phase_descriptor,
-    native_flanger_sync_descriptor, native_gain_descriptor, native_pan_descriptor,
+    native_flanger_sync_descriptor, native_gain_descriptor, native_gate_attack_descriptor,
+    native_gate_hysteresis_descriptor, native_gate_range_descriptor,
+    native_gate_release_descriptor, native_gate_threshold_descriptor,
+    native_limiter_ceiling_descriptor, native_limiter_input_gain_descriptor,
+    native_limiter_lookahead_descriptor, native_limiter_release_descriptor, native_pan_descriptor,
     native_phase_invert_left_descriptor, native_phase_invert_right_descriptor,
     native_phaser_center_descriptor, native_phaser_depth_descriptor,
     native_phaser_feedback_descriptor, native_phaser_mix_descriptor, native_phaser_rate_descriptor,
@@ -1723,6 +1730,93 @@ fn render_track_properties(frame: &mut Frame<'_>, area: Rect, song: &Song, state
                 mixer_lines.push(parameter_control_from_f32(
                     native_phaser_mix_descriptor(),
                     mix,
+                ));
+            }
+            EffectDeviceKind::Compressor {
+                threshold_db,
+                ratio,
+                attack_ms,
+                release_ms,
+                makeup_db,
+                mix,
+                ..
+            } => {
+                mixer_lines.push(parameter_control_from_f32(
+                    native_compressor_threshold_descriptor(),
+                    threshold_db,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_compressor_ratio_descriptor(),
+                    ratio,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_compressor_attack_descriptor(),
+                    attack_ms,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_compressor_release_descriptor(),
+                    release_ms,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_compressor_makeup_descriptor(),
+                    makeup_db,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_compressor_mix_descriptor(),
+                    mix,
+                ));
+            }
+            EffectDeviceKind::Gate {
+                threshold_db,
+                hysteresis_db,
+                attack_ms,
+                release_ms,
+                range_db,
+                ..
+            } => {
+                mixer_lines.push(parameter_control_from_f32(
+                    native_gate_threshold_descriptor(),
+                    threshold_db,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_gate_hysteresis_descriptor(),
+                    hysteresis_db,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_gate_attack_descriptor(),
+                    attack_ms,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_gate_release_descriptor(),
+                    release_ms,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_gate_range_descriptor(),
+                    range_db,
+                ));
+            }
+            EffectDeviceKind::Limiter {
+                ceiling_db,
+                input_gain_db,
+                release_ms,
+                lookahead_ms,
+                ..
+            } => {
+                mixer_lines.push(parameter_control_from_f32(
+                    native_limiter_ceiling_descriptor(),
+                    ceiling_db,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_limiter_input_gain_descriptor(),
+                    input_gain_db,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_limiter_release_descriptor(),
+                    release_ms,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_limiter_lookahead_descriptor(),
+                    lookahead_ms,
                 ));
             }
         }

@@ -537,6 +537,63 @@ pub(crate) fn audio_dsp_device(device: &EffectDevice) -> DspDeviceSpec {
                 mix,
                 output_db,
             },
+            EffectDeviceKind::Compressor {
+                threshold_db,
+                ratio,
+                attack_ms,
+                release_ms,
+                knee_db,
+                makeup_db,
+                auto_makeup,
+                detector,
+                stereo_link,
+                mix,
+            } => AudioDspDeviceKind::Compressor {
+                threshold_db,
+                ratio,
+                attack_ms,
+                release_ms,
+                knee_db,
+                makeup_db,
+                auto_makeup,
+                detector: audio_dynamics_detector(detector),
+                stereo_link,
+                mix,
+            },
+            EffectDeviceKind::Gate {
+                threshold_db,
+                hysteresis_db,
+                attack_ms,
+                hold_ms,
+                release_ms,
+                range_db,
+                detector,
+                stereo_link,
+            } => AudioDspDeviceKind::Gate {
+                threshold_db,
+                hysteresis_db,
+                attack_ms,
+                hold_ms,
+                release_ms,
+                range_db,
+                detector: audio_dynamics_detector(detector),
+                stereo_link,
+            },
+            EffectDeviceKind::Limiter {
+                ceiling_db,
+                input_gain_db,
+                release_ms,
+                lookahead_ms,
+                stereo_link,
+                true_peak,
+            } => AudioDspDeviceKind::Limiter {
+                ceiling_db,
+                input_gain_db,
+                release_ms,
+                lookahead_ms,
+                stereo_link,
+                true_peak,
+            },
         },
     }
 }
@@ -556,6 +613,13 @@ fn audio_drive_mode(mode: DriveMode) -> AudioDspDriveMode {
         DriveMode::Saturation => AudioDspDriveMode::Saturation,
         DriveMode::HardClip => AudioDspDriveMode::HardClip,
         DriveMode::SoftClip => AudioDspDriveMode::SoftClip,
+    }
+}
+
+fn audio_dynamics_detector(detector: DynamicsDetector) -> AudioDspDynamicsDetector {
+    match detector {
+        DynamicsDetector::Peak => AudioDspDynamicsDetector::Peak,
+        DynamicsDetector::Rms => AudioDspDynamicsDetector::Rms,
     }
 }
 

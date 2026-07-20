@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{DriveMode, FilterMode};
+use crate::{DriveMode, DynamicsDetector, FilterMode};
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
@@ -104,5 +104,35 @@ pub enum EffectDeviceKind {
         stereo_phase: f32,
         mix: f32,
         output_db: f32,
+    },
+    Compressor {
+        threshold_db: f32,
+        ratio: f32,
+        attack_ms: f32,
+        release_ms: f32,
+        knee_db: f32,
+        makeup_db: f32,
+        auto_makeup: bool,
+        detector: DynamicsDetector,
+        stereo_link: f32,
+        mix: f32,
+    },
+    Gate {
+        threshold_db: f32,
+        hysteresis_db: f32,
+        attack_ms: f32,
+        hold_ms: f32,
+        release_ms: f32,
+        range_db: f32,
+        detector: DynamicsDetector,
+        stereo_link: f32,
+    },
+    Limiter {
+        ceiling_db: f32,
+        input_gain_db: f32,
+        release_ms: f32,
+        lookahead_ms: f32,
+        stereo_link: f32,
+        true_peak: bool,
     },
 }

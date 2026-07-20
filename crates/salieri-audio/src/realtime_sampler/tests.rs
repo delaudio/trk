@@ -5,6 +5,7 @@ use crate::{
     *,
 };
 
+mod dynamics;
 mod modulation;
 
 #[test]

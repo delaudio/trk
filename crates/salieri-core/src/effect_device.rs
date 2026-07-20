@@ -20,6 +20,13 @@ pub enum DriveMode {
     SoftClip,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DynamicsDetector {
+    Peak,
+    Rms,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FilterSpec {
     pub mode: FilterMode,
@@ -120,6 +127,42 @@ pub struct PhaserSpec {
     pub output_db: f32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CompressorSpec {
+    pub threshold_db: f32,
+    pub ratio: f32,
+    pub attack_ms: f32,
+    pub release_ms: f32,
+    pub knee_db: f32,
+    pub makeup_db: f32,
+    pub auto_makeup: bool,
+    pub detector: DynamicsDetector,
+    pub stereo_link: f32,
+    pub mix: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GateSpec {
+    pub threshold_db: f32,
+    pub hysteresis_db: f32,
+    pub attack_ms: f32,
+    pub hold_ms: f32,
+    pub release_ms: f32,
+    pub range_db: f32,
+    pub detector: DynamicsDetector,
+    pub stereo_link: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LimiterSpec {
+    pub ceiling_db: f32,
+    pub input_gain_db: f32,
+    pub release_ms: f32,
+    pub lookahead_ms: f32,
+    pub stereo_link: f32,
+    pub true_peak: bool,
+}
+
 impl Default for ChorusSpec {
     fn default() -> Self {
         Self {
@@ -164,6 +207,51 @@ impl Default for PhaserSpec {
             stereo_phase: 0.5,
             mix: 0.5,
             output_db: 0.0,
+        }
+    }
+}
+
+impl Default for CompressorSpec {
+    fn default() -> Self {
+        Self {
+            threshold_db: -18.0,
+            ratio: 4.0,
+            attack_ms: 10.0,
+            release_ms: 100.0,
+            knee_db: 6.0,
+            makeup_db: 0.0,
+            auto_makeup: false,
+            detector: DynamicsDetector::Peak,
+            stereo_link: 1.0,
+            mix: 1.0,
+        }
+    }
+}
+
+impl Default for GateSpec {
+    fn default() -> Self {
+        Self {
+            threshold_db: -48.0,
+            hysteresis_db: 3.0,
+            attack_ms: 5.0,
+            hold_ms: 25.0,
+            release_ms: 100.0,
+            range_db: 80.0,
+            detector: DynamicsDetector::Peak,
+            stereo_link: 1.0,
+        }
+    }
+}
+
+impl Default for LimiterSpec {
+    fn default() -> Self {
+        Self {
+            ceiling_db: -0.1,
+            input_gain_db: 0.0,
+            release_ms: 50.0,
+            lookahead_ms: 1.0,
+            stereo_link: 1.0,
+            true_peak: false,
         }
     }
 }
@@ -285,6 +373,25 @@ impl DriveMode {
             "saturation" => Some(Self::Saturation),
             "hardClip" => Some(Self::HardClip),
             "softClip" => Some(Self::SoftClip),
+            _ => None,
+        }
+    }
+}
+
+impl DynamicsDetector {
+    #[must_use]
+    pub fn parameter_id(self) -> &'static str {
+        match self {
+            Self::Peak => "peak",
+            Self::Rms => "rms",
+        }
+    }
+
+    #[must_use]
+    pub fn from_parameter_id(value: &str) -> Option<Self> {
+        match value {
+            "peak" => Some(Self::Peak),
+            "rms" => Some(Self::Rms),
             _ => None,
         }
     }
@@ -476,6 +583,60 @@ impl EffectDevice {
                 stereo_phase: spec.stereo_phase,
                 mix: spec.mix,
                 output_db: spec.output_db,
+            },
+        )
+    }
+
+    #[must_use]
+    pub fn compressor(id: u32, spec: CompressorSpec) -> Self {
+        Self::new(
+            id,
+            "Compressor",
+            EffectDeviceKind::Compressor {
+                threshold_db: spec.threshold_db,
+                ratio: spec.ratio,
+                attack_ms: spec.attack_ms,
+                release_ms: spec.release_ms,
+                knee_db: spec.knee_db,
+                makeup_db: spec.makeup_db,
+                auto_makeup: spec.auto_makeup,
+                detector: spec.detector,
+                stereo_link: spec.stereo_link,
+                mix: spec.mix,
+            },
+        )
+    }
+
+    #[must_use]
+    pub fn gate(id: u32, spec: GateSpec) -> Self {
+        Self::new(
+            id,
+            "Gate",
+            EffectDeviceKind::Gate {
+                threshold_db: spec.threshold_db,
+                hysteresis_db: spec.hysteresis_db,
+                attack_ms: spec.attack_ms,
+                hold_ms: spec.hold_ms,
+                release_ms: spec.release_ms,
+                range_db: spec.range_db,
+                detector: spec.detector,
+                stereo_link: spec.stereo_link,
+            },
+        )
+    }
+
+    #[must_use]
+    pub fn limiter(id: u32, spec: LimiterSpec) -> Self {
+        Self::new(
+            id,
+            "Limiter",
+            EffectDeviceKind::Limiter {
+                ceiling_db: spec.ceiling_db,
+                input_gain_db: spec.input_gain_db,
+                release_ms: spec.release_ms,
+                lookahead_ms: spec.lookahead_ms,
+                stereo_link: spec.stereo_link,
+                true_peak: spec.true_peak,
             },
         )
     }

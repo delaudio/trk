@@ -336,6 +336,61 @@ fn validate_effect_chain(effects: &[EffectDevice]) -> Result<(), ValidationError
             {
                 return Err(ValidationError::InvalidEffectParameter);
             }
+            EffectDeviceKind::Compressor {
+                threshold_db,
+                ratio,
+                attack_ms,
+                release_ms,
+                knee_db,
+                makeup_db,
+                stereo_link,
+                mix,
+                ..
+            } if !native_compressor_threshold_descriptor().validate_f32(threshold_db)
+                || !native_compressor_ratio_descriptor().validate_f32(ratio)
+                || !native_compressor_attack_descriptor().validate_f32(attack_ms)
+                || !native_compressor_release_descriptor().validate_f32(release_ms)
+                || !native_compressor_knee_descriptor().validate_f32(knee_db)
+                || !native_compressor_makeup_descriptor().validate_f32(makeup_db)
+                || !native_compressor_stereo_link_descriptor().validate_f32(stereo_link)
+                || !native_compressor_mix_descriptor().validate_f32(mix) =>
+            {
+                return Err(ValidationError::InvalidEffectParameter);
+            }
+            EffectDeviceKind::Gate {
+                threshold_db,
+                hysteresis_db,
+                attack_ms,
+                hold_ms,
+                release_ms,
+                range_db,
+                stereo_link,
+                ..
+            } if !native_gate_threshold_descriptor().validate_f32(threshold_db)
+                || !native_gate_hysteresis_descriptor().validate_f32(hysteresis_db)
+                || !native_gate_attack_descriptor().validate_f32(attack_ms)
+                || !native_gate_hold_descriptor().validate_f32(hold_ms)
+                || !native_gate_release_descriptor().validate_f32(release_ms)
+                || !native_gate_range_descriptor().validate_f32(range_db)
+                || !native_gate_stereo_link_descriptor().validate_f32(stereo_link) =>
+            {
+                return Err(ValidationError::InvalidEffectParameter);
+            }
+            EffectDeviceKind::Limiter {
+                ceiling_db,
+                input_gain_db,
+                release_ms,
+                lookahead_ms,
+                stereo_link,
+                ..
+            } if !native_limiter_ceiling_descriptor().validate_f32(ceiling_db)
+                || !native_limiter_input_gain_descriptor().validate_f32(input_gain_db)
+                || !native_limiter_release_descriptor().validate_f32(release_ms)
+                || !native_limiter_lookahead_descriptor().validate_f32(lookahead_ms)
+                || !native_limiter_stereo_link_descriptor().validate_f32(stereo_link) =>
+            {
+                return Err(ValidationError::InvalidEffectParameter);
+            }
             EffectDeviceKind::Gain { .. }
             | EffectDeviceKind::Pan { .. }
             | EffectDeviceKind::Balance { .. }
@@ -348,7 +403,10 @@ fn validate_effect_chain(effects: &[EffectDevice]) -> Result<(), ValidationError
             | EffectDeviceKind::Bitcrusher { .. }
             | EffectDeviceKind::Chorus { .. }
             | EffectDeviceKind::Flanger { .. }
-            | EffectDeviceKind::Phaser { .. } => {}
+            | EffectDeviceKind::Phaser { .. }
+            | EffectDeviceKind::Compressor { .. }
+            | EffectDeviceKind::Gate { .. }
+            | EffectDeviceKind::Limiter { .. } => {}
         }
     }
     Ok(())

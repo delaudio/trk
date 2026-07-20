@@ -11,8 +11,8 @@ pub mod parameters;
 pub mod playback;
 
 pub use effect_device::{
-    BitcrusherSpec, ChorusSpec, DelaySpec, DriveMode, DriveSpec, FilterMode, FilterSpec,
-    FlangerSpec, PhaserSpec, ReverbSpec,
+    BitcrusherSpec, ChorusSpec, CompressorSpec, DelaySpec, DriveMode, DriveSpec, DynamicsDetector,
+    FilterMode, FilterSpec, FlangerSpec, GateSpec, LimiterSpec, PhaserSpec, ReverbSpec,
 };
 pub use model::{
     AutomationInterpolation, AutomationLane, AutomationPoint, AutomationTarget, CellField, Cursor,

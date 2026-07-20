@@ -115,6 +115,31 @@ impl App {
                     self.notify_warning("Usage: :dsp master phaser RATE_HZ DEPTH CENTER_HZ STAGES FEEDBACK PHASE MIX");
                 }
             }
+            ["master", "compressor", threshold, ratio, attack, release, knee, makeup, mix] => {
+                if let Some(device) =
+                    parse_compressor_device(threshold, ratio, attack, release, knee, makeup, mix)
+                {
+                    self.upsert_master_dsp_device(device);
+                } else {
+                    self.notify_warning("Usage: :dsp master compressor THRESHOLD_DB RATIO ATTACK_MS RELEASE_MS KNEE_DB MAKEUP_DB MIX");
+                }
+            }
+            ["master", "gate", threshold, hysteresis, attack, hold, release, range] => {
+                if let Some(device) =
+                    parse_gate_device(threshold, hysteresis, attack, hold, release, range)
+                {
+                    self.upsert_master_dsp_device(device);
+                } else {
+                    self.notify_warning("Usage: :dsp master gate THRESHOLD_DB HYSTERESIS_DB ATTACK_MS HOLD_MS RELEASE_MS RANGE_DB");
+                }
+            }
+            ["master", "limiter", ceiling, input, release, lookahead] => {
+                if let Some(device) = parse_limiter_device(ceiling, input, release, lookahead) {
+                    self.upsert_master_dsp_device(device);
+                } else {
+                    self.notify_warning("Usage: :dsp master limiter CEILING_DB INPUT_GAIN_DB RELEASE_MS LOOKAHEAD_MS");
+                }
+            }
             ["track", "clear"] => self.clear_track_dsp_chain(self.cursor.track),
             ["track", "gain", value] => self.set_current_track_dsp_value(
                 value,
@@ -228,6 +253,31 @@ impl App {
                     self.upsert_track_dsp_device(self.cursor.track, device);
                 } else {
                     self.notify_warning("Usage: :dsp track [TRACK] phaser RATE_HZ DEPTH CENTER_HZ STAGES FEEDBACK PHASE MIX");
+                }
+            }
+            ["track", "compressor", threshold, ratio, attack, release, knee, makeup, mix] => {
+                if let Some(device) =
+                    parse_compressor_device(threshold, ratio, attack, release, knee, makeup, mix)
+                {
+                    self.upsert_track_dsp_device(self.cursor.track, device);
+                } else {
+                    self.notify_warning("Usage: :dsp track [TRACK] compressor THRESHOLD_DB RATIO ATTACK_MS RELEASE_MS KNEE_DB MAKEUP_DB MIX");
+                }
+            }
+            ["track", "gate", threshold, hysteresis, attack, hold, release, range] => {
+                if let Some(device) =
+                    parse_gate_device(threshold, hysteresis, attack, hold, release, range)
+                {
+                    self.upsert_track_dsp_device(self.cursor.track, device);
+                } else {
+                    self.notify_warning("Usage: :dsp track [TRACK] gate THRESHOLD_DB HYSTERESIS_DB ATTACK_MS HOLD_MS RELEASE_MS RANGE_DB");
+                }
+            }
+            ["track", "limiter", ceiling, input, release, lookahead] => {
+                if let Some(device) = parse_limiter_device(ceiling, input, release, lookahead) {
+                    self.upsert_track_dsp_device(self.cursor.track, device);
+                } else {
+                    self.notify_warning("Usage: :dsp track [TRACK] limiter CEILING_DB INPUT_GAIN_DB RELEASE_MS LOOKAHEAD_MS");
                 }
             }
             ["track", track, "clear"] => {
@@ -369,8 +419,36 @@ impl App {
                     self.notify_warning("Usage: :dsp track [TRACK] phaser RATE_HZ DEPTH CENTER_HZ STAGES FEEDBACK PHASE MIX");
                 }
             }
+            ["track", track, "compressor", threshold, ratio, attack, release, knee, makeup, mix] => {
+                let track = parse_track_number(track);
+                let device =
+                    parse_compressor_device(threshold, ratio, attack, release, knee, makeup, mix);
+                if let (Some(track), Some(device)) = (track, device) {
+                    self.upsert_track_dsp_device(track, device);
+                } else {
+                    self.notify_warning("Usage: :dsp track [TRACK] compressor THRESHOLD_DB RATIO ATTACK_MS RELEASE_MS KNEE_DB MAKEUP_DB MIX");
+                }
+            }
+            ["track", track, "gate", threshold, hysteresis, attack, hold, release, range] => {
+                let track = parse_track_number(track);
+                let device = parse_gate_device(threshold, hysteresis, attack, hold, release, range);
+                if let (Some(track), Some(device)) = (track, device) {
+                    self.upsert_track_dsp_device(track, device);
+                } else {
+                    self.notify_warning("Usage: :dsp track [TRACK] gate THRESHOLD_DB HYSTERESIS_DB ATTACK_MS HOLD_MS RELEASE_MS RANGE_DB");
+                }
+            }
+            ["track", track, "limiter", ceiling, input, release, lookahead] => {
+                let track = parse_track_number(track);
+                let device = parse_limiter_device(ceiling, input, release, lookahead);
+                if let (Some(track), Some(device)) = (track, device) {
+                    self.upsert_track_dsp_device(track, device);
+                } else {
+                    self.notify_warning("Usage: :dsp track [TRACK] limiter CEILING_DB INPUT_GAIN_DB RELEASE_MS LOOKAHEAD_MS");
+                }
+            }
             _ => self.notify_warning(
-                "Usage: :dsp master gain|pan|balance|width VALUE | phase LEFT RIGHT | filter MODE CUTOFF RES DRIVE MIX | delay sync|free LEFT_MS RIGHT_MS FEEDBACK MIX [ping] | reverb SIZE PREDELAY_MS DECAY_S MIX | drive MODE DRIVE_DB TONE MIX | bitcrusher BIT_DEPTH REDUCTION_RATIO MIX [dither] | chorus|flanger|phaser ... | :dsp track [TRACK] ... | :dsp ... clear",
+                "Usage: :dsp master gain|pan|balance|width VALUE | phase LEFT RIGHT | filter MODE CUTOFF RES DRIVE MIX | delay sync|free LEFT_MS RIGHT_MS FEEDBACK MIX [ping] | reverb SIZE PREDELAY_MS DECAY_S MIX | drive MODE DRIVE_DB TONE MIX | bitcrusher BIT_DEPTH REDUCTION_RATIO MIX [dither] | chorus|flanger|phaser|compressor|gate|limiter ... | :dsp track [TRACK] ... | :dsp ... clear",
             ),
         }
     }
@@ -579,6 +657,70 @@ fn parse_phaser_device(
             stereo_phase: phase.parse::<f32>().ok()?,
             mix: mix.parse::<f32>().ok()?,
             ..PhaserSpec::default()
+        },
+    ))
+}
+
+fn parse_compressor_device(
+    threshold: &str,
+    ratio: &str,
+    attack: &str,
+    release: &str,
+    knee: &str,
+    makeup: &str,
+    mix: &str,
+) -> Option<EffectDevice> {
+    Some(EffectDevice::compressor(
+        14,
+        CompressorSpec {
+            threshold_db: threshold.parse::<f32>().ok()?,
+            ratio: ratio.parse::<f32>().ok()?,
+            attack_ms: attack.parse::<f32>().ok()?,
+            release_ms: release.parse::<f32>().ok()?,
+            knee_db: knee.parse::<f32>().ok()?,
+            makeup_db: makeup.parse::<f32>().ok()?,
+            mix: mix.parse::<f32>().ok()?,
+            ..CompressorSpec::default()
+        },
+    ))
+}
+
+fn parse_gate_device(
+    threshold: &str,
+    hysteresis: &str,
+    attack: &str,
+    hold: &str,
+    release: &str,
+    range: &str,
+) -> Option<EffectDevice> {
+    Some(EffectDevice::gate(
+        15,
+        GateSpec {
+            threshold_db: threshold.parse::<f32>().ok()?,
+            hysteresis_db: hysteresis.parse::<f32>().ok()?,
+            attack_ms: attack.parse::<f32>().ok()?,
+            hold_ms: hold.parse::<f32>().ok()?,
+            release_ms: release.parse::<f32>().ok()?,
+            range_db: range.parse::<f32>().ok()?,
+            ..GateSpec::default()
+        },
+    ))
+}
+
+fn parse_limiter_device(
+    ceiling: &str,
+    input: &str,
+    release: &str,
+    lookahead: &str,
+) -> Option<EffectDevice> {
+    Some(EffectDevice::limiter(
+        16,
+        LimiterSpec {
+            ceiling_db: ceiling.parse::<f32>().ok()?,
+            input_gain_db: input.parse::<f32>().ok()?,
+            release_ms: release.parse::<f32>().ok()?,
+            lookahead_ms: lookahead.parse::<f32>().ok()?,
+            ..LimiterSpec::default()
         },
     ))
 }
