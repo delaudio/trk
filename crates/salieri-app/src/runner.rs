@@ -161,15 +161,33 @@ fn run(args: CliArgs) -> Result<()> {
                 ai_status.as_str(),
                 ai_context.as_str(),
             );
+            let active_view = app.tui_active_view();
+            let mut tui_cursor = app.cursor;
+            let tui_pattern_index = if active_view == TuiView::Clips {
+                tui_cursor.track = app.clip_track_cursor;
+                app.clip_scene_cursor
+            } else {
+                app.pattern_index
+            };
+            let tui_sequence_position = if active_view == TuiView::Clips {
+                app.active_clip_scene
+            } else {
+                app.tui_sequence_position()
+            };
+            let tui_is_playing = if active_view == TuiView::Clips {
+                app.queued_clip_scene.is_some() || app.active_clip_scene.is_some()
+            } else {
+                app.is_playing
+            };
             render(
                 frame,
                 &app.song,
                 TuiState {
-                    cursor: app.cursor,
+                    cursor: tui_cursor,
                     row_offset: app.row_offset,
                     track_offset: app.track_offset,
-                    pattern_index: app.pattern_index,
-                    active_view: app.tui_active_view(),
+                    pattern_index: tui_pattern_index,
+                    active_view,
                     selection: app.selection_rect(),
                     mode_label: app.mode.label(),
                     octave: app.octave,
@@ -185,11 +203,11 @@ fn run(args: CliArgs) -> Result<()> {
                     show_help: app.mode == AppMode::Help,
                     help_scroll: app.help_scroll,
                     help_tab: app.help_tab,
-                    is_playing: app.is_playing,
+                    is_playing: tui_is_playing,
                     loop_pattern: app.loop_pattern,
                     playhead_row: app.playhead_row,
                     midi_status: midi_status.as_str(),
-                    sequence_position: app.tui_sequence_position(),
+                    sequence_position: tui_sequence_position,
                     quit_confirmation: app.quit_confirmation(),
                     delete_confirmation: app.delete_confirmation_message(),
                     midi_settings,

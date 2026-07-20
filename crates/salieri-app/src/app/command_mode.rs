@@ -19,6 +19,7 @@ impl App {
                 ViewCommand::Tracker => self.open_tracker_view(),
                 ViewCommand::Patterns => self.open_patterns_view(),
                 ViewCommand::Sequence => self.open_sequence_view(),
+                ViewCommand::Clips => self.open_clip_launcher_view(),
                 ViewCommand::Tracks => self.open_tracks_view(),
                 ViewCommand::Sampler => self.open_sampler_view(),
             },
@@ -66,6 +67,7 @@ impl App {
                     | CommandDomain::Ai
                     | CommandDomain::Report
                     | CommandDomain::Graph
+                    | CommandDomain::Clip
                     | CommandDomain::Preset
                     | CommandDomain::Workspace
                     | CommandDomain::MidiInput
@@ -424,6 +426,7 @@ impl App {
             CommandDomain::Ai => self.handle_ai_command(&values),
             CommandDomain::Report => self.handle_report_command(&values),
             CommandDomain::Graph => self.handle_composition_graph_command(&values),
+            CommandDomain::Clip => self.handle_clip_command(&values),
             CommandDomain::Preset => self.handle_preset_command(&values),
             CommandDomain::Workspace => self.handle_workspace_command(&values),
             CommandDomain::MidiInput => self.handle_midi_input_command(&values),

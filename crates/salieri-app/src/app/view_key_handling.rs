@@ -93,6 +93,30 @@ impl App {
         }
     }
 
+    pub(crate) fn handle_clip_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Esc => self.open_tracker_view(),
+            KeyCode::Char('q') => self.request_quit(false),
+            KeyCode::Char('?') | KeyCode::Char('H') => self.open_help(),
+            KeyCode::Char(':') => self.open_command_prompt(),
+            KeyCode::F(8) => self.stop_clip_launcher(),
+            KeyCode::Up => self.previous_clip_scene(),
+            KeyCode::Char('k') if self.vim_navigation => self.previous_clip_scene(),
+            KeyCode::Down => self.next_clip_scene(),
+            KeyCode::Char('j') if self.vim_navigation => self.next_clip_scene(),
+            KeyCode::Left => self.previous_clip_track(),
+            KeyCode::Char('h') if self.vim_navigation => self.previous_clip_track(),
+            KeyCode::Right => self.next_clip_track(),
+            KeyCode::Char('l') if self.vim_navigation => self.next_clip_track(),
+            KeyCode::Char('A') => self.add_clip_scene_from_current_pattern(),
+            KeyCode::Char('T') => self.set_selected_clip_to_current_pattern(),
+            KeyCode::Char('R') => self.clear_selected_clip(),
+            KeyCode::Enter => self.queue_selected_clip_scene(),
+            KeyCode::Char(' ') => self.launch_queued_clip_scene(),
+            _ => {}
+        }
+    }
+
     pub(crate) fn handle_tracks_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Esc => self.open_tracker_view(),

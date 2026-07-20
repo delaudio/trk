@@ -19,6 +19,7 @@ impl App {
             AppMode::Dialog => self.handle_dialog_key(key),
             AppMode::MidiSettings => self.handle_midi_settings_key(key),
             AppMode::Sequence => self.handle_sequence_key(key),
+            AppMode::Clips => self.handle_clip_key(key),
             AppMode::Tracks => self.handle_tracks_key(key),
             AppMode::Patterns => self.handle_patterns_key(key),
             AppMode::Sampler => self.handle_sampler_key(key),

@@ -38,6 +38,7 @@ impl App {
         if changed {
             self.refresh_dirty();
             self.clamp_sequence_cursor();
+            self.clamp_clip_cursor();
         }
         Ok(changed)
     }
@@ -47,6 +48,7 @@ impl App {
             self.refresh_dirty();
             self.clamp_cursor();
             self.clamp_sequence_cursor();
+            self.clamp_clip_cursor();
             self.notify_info(format!("Undo: {label}"));
         } else {
             self.notify_warning("Nothing to undo");
@@ -58,6 +60,7 @@ impl App {
             self.refresh_dirty();
             self.clamp_cursor();
             self.clamp_sequence_cursor();
+            self.clamp_clip_cursor();
             self.notify_info(format!("Redo: {label}"));
         } else {
             self.notify_warning("Nothing to redo");
@@ -186,6 +189,26 @@ impl App {
             self.sequence_cursor = self
                 .sequence_cursor
                 .min(self.song.sequence.len().saturating_sub(1));
+        }
+    }
+
+    pub(crate) fn clamp_clip_cursor(&mut self) {
+        if self.song.clip_scenes.is_empty() {
+            self.clip_scene_cursor = 0;
+            self.active_clip_scene = None;
+            self.queued_clip_scene = None;
+        } else {
+            let max_scene = self.song.clip_scenes.len().saturating_sub(1);
+            self.clip_scene_cursor = self.clip_scene_cursor.min(max_scene);
+            self.active_clip_scene = self.active_clip_scene.filter(|scene| *scene <= max_scene);
+            self.queued_clip_scene = self.queued_clip_scene.filter(|scene| *scene <= max_scene);
+        }
+        if self.song.tracks.is_empty() {
+            self.clip_track_cursor = 0;
+        } else {
+            self.clip_track_cursor = self
+                .clip_track_cursor
+                .min(self.song.tracks.len().saturating_sub(1));
         }
     }
 

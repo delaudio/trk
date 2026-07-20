@@ -101,6 +101,12 @@ impl App {
         self.notify_info(format!("Sequence position {:02}", self.sequence_cursor));
     }
 
+    pub(crate) fn open_clip_launcher_view(&mut self) {
+        self.clamp_clip_cursor();
+        self.focus_panel(FocusPanel::Clips);
+        self.notify_info(format!("Clip scene {:02}", self.clip_scene_cursor));
+    }
+
     pub(crate) fn open_tracks_view(&mut self) {
         self.cursor.track = self
             .cursor
