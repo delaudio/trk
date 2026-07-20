@@ -13,6 +13,7 @@ mod pattern_operations;
 mod patterns_sequence;
 mod persistence;
 mod preset_inventory;
+mod report_workflows;
 mod sampler_browsers;
 mod strudel_export;
 mod text_notes;

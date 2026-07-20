@@ -219,6 +219,21 @@ fn save_workspace_manifest(root: &Path, manifest: &WorkspaceManifest) -> Result<
         .map_err(|error| format!("cannot write manifest: {error}"))
 }
 
+pub(super) fn workspace_report_artifact_path(
+    root: &Path,
+    file_name: &str,
+) -> Result<PathBuf, String> {
+    let manifest = load_workspace_manifest(root)?;
+    let reports_dir = root.join(&manifest.roots.reports);
+    fs::create_dir_all(&reports_dir).map_err(|error| {
+        format!(
+            "cannot create workspace reports dir {}: {error}",
+            reports_dir.display()
+        )
+    })?;
+    Ok(reports_dir.join(file_name))
+}
+
 fn load_workspace_manifest(root: &Path) -> Result<WorkspaceManifest, String> {
     let path = manifest_path(root);
     let raw = fs::read_to_string(&path)

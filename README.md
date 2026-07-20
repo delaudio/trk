@@ -83,6 +83,8 @@ salieri transform euclidean INPUT OUTPUT [OPTIONS]
 salieri sample inspect FILE [OPTIONS]
 salieri export audio INPUT OUTPUT [OPTIONS]
 salieri export strudel INPUT [OUTPUT.js] [OPTIONS]
+salieri report project INPUT [OUTPUT.md]
+salieri report critique INPUT [OUTPUT.md]
 salieri --help
 salieri --version
 ```
@@ -102,6 +104,8 @@ salieri transform euclidean input.salieri output.salieri --pattern 1 --track 1 -
 salieri export audio song.salieri song.wav --pattern 1
 salieri export audio song.salieri song.wav --sequence --sample-rate 48000 --channels 2
 salieri export strudel song.salieri song.js --patterns 1,2
+salieri report project song.salieri reports/project.md
+salieri report critique song.salieri reports/critique.md
 ```
 
 `--midi-test-output` accepts either a port index or a port name. Configured MIDI output and input names are normalized, so `IAC Driver`, `IAC Driver Bus 1`, and `IAC Driver (Bus 1)` can match the same CoreMIDI port when available.
@@ -434,7 +438,7 @@ Deterministic transforms live in `salieri-transform` and can be used from the CL
 salieri transform euclidean input.salieri output.salieri --pattern 1 --track 1 --steps 16 --pulses 5 --rotation 0 --pitch 36 --velocity 100
 ```
 
-AI-assisted composition lives behind `salieri-ai` and is available in the TUI through the local deterministic provider: `:ai propose PROMPT`, `:ai show`, `:ai accept`, and `:ai reject`. Optional local guidance files from `[ai].guidance_dirs` can be listed, inspected, and applied with `:ai guidance list/show/apply/clear` before proposing. Proposals are previewed as touched cells before application, and accepted proposals use the normal undo transaction history. No network provider is invoked implicitly. Preset inventory profiles can also be saved and loaded as AI guidance with `:preset save` and `:preset load`. See [docs/generative-transforms.md](docs/generative-transforms.md), [docs/ai-assisted-edits.md](docs/ai-assisted-edits.md), [docs/preset-inventory.md](docs/preset-inventory.md), and [docs/undo-history.md](docs/undo-history.md).
+AI-assisted composition lives behind `salieri-ai` and is available in the TUI through the local deterministic provider: `:ai propose PROMPT`, `:ai show`, `:ai accept`, and `:ai reject`. Optional local guidance files from `[ai].guidance_dirs` can be listed, inspected, and applied with `:ai guidance list/show/apply/clear` before proposing. Project reports and critique reports can be generated with `:report project`, `:report critique`, or saved under workspace reports with `:report critique workspace ROOT`; `:revise PROMPT` turns the current critique context into a reviewable AI proposal. Proposals are previewed as touched cells before application, and accepted proposals use the normal undo transaction history. No network provider is invoked implicitly. Preset inventory profiles can also be saved and loaded as AI guidance with `:preset save` and `:preset load`. See [docs/generative-transforms.md](docs/generative-transforms.md), [docs/ai-assisted-edits.md](docs/ai-assisted-edits.md), [docs/report-workflows.md](docs/report-workflows.md), [docs/preset-inventory.md](docs/preset-inventory.md), and [docs/undo-history.md](docs/undo-history.md).
 
 Keyboard commands can be overridden per application mode while all unmapped shortcuts retain their defaults. See [docs/keymaps.md](docs/keymaps.md) for the available layers, key syntax, and conflict diagnostics.
 

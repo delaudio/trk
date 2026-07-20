@@ -64,6 +64,7 @@ impl App {
                     | CommandDomain::Mixer
                     | CommandDomain::Dsp
                     | CommandDomain::Ai
+                    | CommandDomain::Report
                     | CommandDomain::Preset
                     | CommandDomain::Workspace
                     | CommandDomain::MidiInput
@@ -420,6 +421,7 @@ impl App {
             CommandDomain::Mixer => self.handle_mixer_command(&values),
             CommandDomain::Dsp => self.handle_dsp_command(&values),
             CommandDomain::Ai => self.handle_ai_command(&values),
+            CommandDomain::Report => self.handle_report_command(&values),
             CommandDomain::Preset => self.handle_preset_command(&values),
             CommandDomain::Workspace => self.handle_workspace_command(&values),
             CommandDomain::MidiInput => self.handle_midi_input_command(&values),

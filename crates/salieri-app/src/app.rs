@@ -16,6 +16,7 @@ mod pattern_operations;
 mod plock_dsp_commands;
 mod preset_actions;
 mod project_browser;
+mod report_actions;
 mod sample_browser;
 mod sampler_actions;
 mod state;
