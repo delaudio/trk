@@ -278,6 +278,21 @@ impl Song {
             if !sample_gain_descriptor().validate_f32(sample.gain) {
                 return Err(ValidationError::InvalidSampleGain { sample_index });
             }
+            if !mixer_track_pan_descriptor().validate_f32(sample.pan) {
+                return Err(ValidationError::InvalidSamplePan { sample_index });
+            }
+            if !(-120..=120).contains(&sample.transpose_semitones) {
+                return Err(ValidationError::InvalidSampleTranspose {
+                    sample_index,
+                    transpose_semitones: sample.transpose_semitones,
+                });
+            }
+            if !(-1200..=1200).contains(&sample.fine_tune_cents) {
+                return Err(ValidationError::InvalidSampleFineTune {
+                    sample_index,
+                    fine_tune_cents: sample.fine_tune_cents,
+                });
+            }
             validate_sample_playback_settings(sample_index, sample.playback)?;
         }
 
@@ -765,6 +780,9 @@ impl Song {
             path,
             root_pitch: 60,
             gain: 1.0,
+            pan: 0.0,
+            transpose_semitones: 0,
+            fine_tune_cents: 0,
             playback: SamplePlaybackSettings::default(),
         });
         id
@@ -1204,6 +1222,18 @@ pub enum ValidationError {
     InvalidSampleRootPitch { sample_index: usize, root_pitch: u8 },
     #[error("sample {sample_index} has invalid gain")]
     InvalidSampleGain { sample_index: usize },
+    #[error("sample {sample_index} has invalid pan")]
+    InvalidSamplePan { sample_index: usize },
+    #[error("sample {sample_index} has invalid transpose {transpose_semitones}")]
+    InvalidSampleTranspose {
+        sample_index: usize,
+        transpose_semitones: i8,
+    },
+    #[error("sample {sample_index} has invalid fine tune {fine_tune_cents} cents")]
+    InvalidSampleFineTune {
+        sample_index: usize,
+        fine_tune_cents: i16,
+    },
     #[error("sample {sample_index} has invalid frame window")]
     InvalidSampleFrameWindow { sample_index: usize },
     #[error("sample {sample_index} has invalid loop window")]
@@ -1424,8 +1454,24 @@ pub struct SampleReference {
     pub path: String,
     pub root_pitch: u8,
     pub gain: f32,
+    #[serde(default, skip_serializing_if = "is_zero_f32")]
+    pub pan: f32,
+    #[serde(default, skip_serializing_if = "is_zero_i8")]
+    pub transpose_semitones: i8,
+    #[serde(default, skip_serializing_if = "is_zero_i16")]
+    pub fine_tune_cents: i16,
     #[serde(default, skip_serializing_if = "SamplePlaybackSettings::is_default")]
     pub playback: SamplePlaybackSettings,
+}
+
+fn is_zero_f32(value: &f32) -> bool {
+    *value == 0.0
+}
+fn is_zero_i8(value: &i8) -> bool {
+    *value == 0
+}
+fn is_zero_i16(value: &i16) -> bool {
+    *value == 0
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]

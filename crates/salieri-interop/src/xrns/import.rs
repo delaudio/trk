@@ -1,7 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
 use salieri_core::{
-    EffectDevice, Instrument, InstrumentId, NoteEvent, PatternCell, Song, TrackerCommand,
+    EffectDevice, Instrument, InstrumentId, NoteEvent, PatternCell, SampleEnvelope,
+    SamplePlaybackMode, SampleReference, Song, TrackerCommand,
 };
 
 use crate::diagnostics::{
@@ -17,7 +18,7 @@ use super::{
 pub(super) struct XrnsImportModel {
     tracks: Vec<XrnsImportTrack>,
     patterns: Vec<XrnsImportPattern>,
-    instruments: Vec<String>,
+    instruments: Vec<XrnsImportInstrument>,
     sequence: Vec<usize>,
     bpm: Option<u16>,
     lines_per_beat: Option<u8>,
@@ -29,6 +30,33 @@ struct XrnsImportTrack {
     gain: Option<f32>,
     pan: Option<f32>,
     effects: Vec<EffectDevice>,
+}
+
+#[derive(Debug, Clone, Default)]
+struct XrnsImportInstrument {
+    name: String,
+    samples: Vec<XrnsImportSampleMetadata>,
+}
+
+#[derive(Debug, Clone, Default)]
+struct XrnsImportSampleMetadata {
+    name: Option<String>,
+    root_pitch: Option<u8>,
+    transpose_semitones: Option<i8>,
+    fine_tune_cents: Option<i16>,
+    gain: Option<f32>,
+    pan: Option<f32>,
+    playback: XrnsImportSamplePlayback,
+}
+
+#[derive(Debug, Clone, Default)]
+struct XrnsImportSamplePlayback {
+    mode: Option<SamplePlaybackMode>,
+    start_frame: Option<usize>,
+    end_frame: Option<usize>,
+    loop_start_frame: Option<usize>,
+    loop_end_frame: Option<usize>,
+    envelope: Option<SampleEnvelope>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -73,7 +101,8 @@ pub(super) fn parse_xrns_import_model(
     let mut model = XrnsImportModel::default();
     let mut stack = Vec::<String>::new();
     let mut current_track: Option<XrnsImportTrack> = None;
-    let mut current_instrument: Option<String> = None;
+    let mut current_instrument: Option<XrnsImportInstrument> = None;
+    let mut current_sample: Option<XrnsImportSampleMetadata> = None;
     let mut current_pattern: Option<XrnsImportPattern> = None;
     let mut current_pattern_track: Option<usize> = None;
     let mut pattern_track_line_counts = Vec::<usize>::new();
@@ -90,7 +119,9 @@ pub(super) fn parse_xrns_import_model(
                 {
                     current_track = Some(XrnsImportTrack::default());
                 } else if name == "Instrument" && stack_contains(&stack, "Instruments") {
-                    current_instrument = Some(String::new());
+                    current_instrument = Some(XrnsImportInstrument::default());
+                } else if name == "Sample" && current_instrument.is_some() {
+                    current_sample = Some(XrnsImportSampleMetadata::default());
                 } else if name == "Pattern" && stack_contains(&stack, "Patterns") {
                     current_pattern = Some(XrnsImportPattern::default());
                     current_pattern_track = None;
@@ -123,13 +154,19 @@ pub(super) fn parse_xrns_import_model(
                     if let Some(track) = current_track.take() {
                         model.tracks.push(track);
                     }
+                } else if name == "Sample" {
+                    if let (Some(instrument), Some(sample)) =
+                        (&mut current_instrument, current_sample.take())
+                    {
+                        instrument.samples.push(sample);
+                    }
                 } else if name == "Instrument" {
-                    if let Some(name) = current_instrument.take() {
-                        model.instruments.push(if name.trim().is_empty() {
-                            format!("Instrument {:02}", model.instruments.len() + 1)
-                        } else {
-                            name
-                        });
+                    if let Some(mut instrument) = current_instrument.take() {
+                        if instrument.name.trim().is_empty() {
+                            instrument.name =
+                                format!("Instrument {:02}", model.instruments.len() + 1);
+                        }
+                        model.instruments.push(instrument);
                     }
                 } else if name == "Pattern" {
                     if let Some(pattern) = current_pattern.take() {
@@ -199,7 +236,9 @@ pub(super) fn parse_xrns_import_model(
                     apply_xrns_line_text(current, &text, line, diagnostics, &stack);
                     continue;
                 }
-                if let Some(track) = &mut current_track {
+                if let Some(sample) = &mut current_sample {
+                    apply_xrns_sample_text(current, &text, sample, diagnostics, &stack);
+                } else if let Some(track) = &mut current_track {
                     match current {
                         "Name" => track.name = Some(text),
                         "Gain" | "Volume" => track.gain = parse_float(&text),
@@ -223,7 +262,7 @@ pub(super) fn parse_xrns_import_model(
                     }
                 } else if let Some(instrument) = &mut current_instrument {
                     if current == "Name" {
-                        *instrument = text;
+                        instrument.name = text;
                     }
                 } else if let Some(pattern) = &mut current_pattern {
                     if matches!(current, "NumberOfLines" | "Lines") {
@@ -298,6 +337,97 @@ fn apply_xrns_line_text(
     }
 }
 
+fn apply_xrns_sample_text(
+    current: &str,
+    text: &str,
+    sample: &mut XrnsImportSampleMetadata,
+    diagnostics: &mut Vec<XrnsDiagnostic>,
+    stack: &[String],
+) {
+    match current {
+        "Name" => sample.name = Some(text.to_string()),
+        "BaseNote" | "RootNote" | "RootPitch" => {
+            sample.root_pitch = parse_sample_root_pitch(text);
+        }
+        "Transpose" | "TransposeSemitones" => {
+            sample.transpose_semitones =
+                parse_i16_value(text).and_then(|value| i8::try_from(value.clamp(-120, 120)).ok());
+        }
+        "FineTune" | "Finetune" | "FineTuneCents" => {
+            sample.fine_tune_cents = parse_i16_value(text).map(|value| value.clamp(-1200, 1200));
+        }
+        "Volume" | "Gain" => {
+            sample.gain = parse_float(text).map(|gain| gain.clamp(0.0, 2.0));
+        }
+        "Panning" | "Pan" => {
+            sample.pan = parse_sample_pan(text);
+        }
+        "Start" | "StartFrame" | "SampleStart" => {
+            sample.playback.start_frame = parse_usize_value(text);
+        }
+        "End" | "EndFrame" | "SampleEnd" => {
+            sample.playback.end_frame = parse_usize_value(text);
+        }
+        "LoopMode" | "LoopType" => {
+            sample.playback.mode = parse_loop_mode(text);
+        }
+        "LoopStart" | "LoopStartFrame" => {
+            sample.playback.loop_start_frame = parse_usize_value(text);
+        }
+        "LoopEnd" | "LoopEndFrame" => {
+            sample.playback.loop_end_frame = parse_usize_value(text);
+        }
+        "Attack" | "AttackSeconds" => {
+            sample.envelope_mut().attack_seconds = parse_envelope_seconds(text);
+        }
+        "Decay" | "DecaySeconds" => {
+            sample.envelope_mut().decay_seconds = parse_envelope_seconds(text);
+        }
+        "Sustain" => {
+            sample.envelope_mut().sustain = parse_float(text).map_or(1.0, |value| {
+                if value > 1.0 {
+                    (value / 100.0).clamp(0.0, 1.0)
+                } else {
+                    value.clamp(0.0, 1.0)
+                }
+            });
+        }
+        "Release" | "ReleaseSeconds" => {
+            sample.envelope_mut().release_seconds = parse_envelope_seconds(text);
+        }
+        "Autofade" | "InterpolationMode" | "BeatSyncMode" | "BeatSyncLines" | "NewNoteAction"
+        | "NNA" | "Oversample" | "SliceMarkers" => diagnostics.push(xrns_diagnostic(
+            XrnsDiagnosticKind::UnsupportedRenoiseFeature,
+            XrnsDiagnosticSeverity::Warning,
+            Some(xml_location(stack, current)),
+            format!("unsupported Renoise sample metadata was not imported: {current}"),
+        )),
+        _ => {}
+    }
+}
+
+impl XrnsImportSampleMetadata {
+    fn envelope_mut(&mut self) -> &mut SampleEnvelope {
+        self.playback
+            .envelope
+            .get_or_insert_with(SampleEnvelope::default)
+    }
+}
+
+impl XrnsImportModel {
+    fn sample_metadata(
+        &self,
+        instrument: InstrumentId,
+        sample_index: usize,
+    ) -> Option<&XrnsImportSampleMetadata> {
+        self.instruments
+            .get(instrument.0 as usize)?
+            .samples
+            .get(sample_index)
+            .or_else(|| self.instruments.get(instrument.0 as usize)?.samples.first())
+    }
+}
+
 pub(super) fn build_song_from_xrns_model(
     model: &XrnsImportModel,
     inspection: &XrnsInspection,
@@ -345,11 +475,23 @@ pub(super) fn build_song_from_xrns_model(
         let Some(instrument) = sample_payload_instrument_id(&sample.path) else {
             continue;
         };
+        let sample_index = sample_payload_sample_index(&sample.path).unwrap_or(0);
         if sample.supported || sample_path_overrides.contains_key(&sample.path) {
             let sample_path = sample_path_overrides
                 .get(&sample.path)
                 .map_or(sample.path.as_str(), String::as_str);
-            let sample_id = song.upsert_sample_reference(sample_path, sample_name(&sample.path));
+            let imported_name = model
+                .sample_metadata(instrument, sample_index)
+                .and_then(|metadata| metadata.name.as_deref())
+                .filter(|name| !name.trim().is_empty())
+                .map(str::to_string)
+                .unwrap_or_else(|| sample_name(&sample.path));
+            let sample_id = song.upsert_sample_reference(sample_path, imported_name);
+            if let Some(metadata) = model.sample_metadata(instrument, sample_index) {
+                if let Some(reference) = song.sample_for_id_mut(sample_id) {
+                    apply_sample_metadata(reference, metadata);
+                }
+            }
             sample_by_instrument.insert(instrument, sample_id);
         } else {
             diagnostics.push(xrns_diagnostic(
@@ -392,8 +534,9 @@ pub(super) fn build_song_from_xrns_model(
         let name = model
             .instruments
             .get(index)
+            .map(|instrument| instrument.name.as_str())
             .filter(|name| !name.trim().is_empty())
-            .cloned()
+            .map(str::to_string)
             .unwrap_or_else(|| format!("Instrument {index:02}"));
         song.instruments.push(Instrument {
             id,
@@ -450,6 +593,42 @@ pub(super) fn build_song_from_xrns_model(
     Some(song)
 }
 
+fn apply_sample_metadata(reference: &mut SampleReference, metadata: &XrnsImportSampleMetadata) {
+    if let Some(root_pitch) = metadata.root_pitch {
+        reference.root_pitch = root_pitch;
+    }
+    if let Some(transpose_semitones) = metadata.transpose_semitones {
+        reference.transpose_semitones = transpose_semitones;
+    }
+    if let Some(fine_tune_cents) = metadata.fine_tune_cents {
+        reference.fine_tune_cents = fine_tune_cents;
+    }
+    if let Some(gain) = metadata.gain {
+        reference.gain = gain;
+    }
+    if let Some(pan) = metadata.pan {
+        reference.pan = pan;
+    }
+    if let Some(mode) = metadata.playback.mode {
+        reference.playback.mode = mode;
+    }
+    if let Some(start_frame) = metadata.playback.start_frame {
+        reference.playback.start_frame = Some(start_frame);
+    }
+    if let Some(end_frame) = metadata.playback.end_frame {
+        reference.playback.end_frame = Some(end_frame);
+    }
+    if let Some(loop_start_frame) = metadata.playback.loop_start_frame {
+        reference.playback.loop_start_frame = Some(loop_start_frame);
+    }
+    if let Some(loop_end_frame) = metadata.playback.loop_end_frame {
+        reference.playback.loop_end_frame = Some(loop_end_frame);
+    }
+    if let Some(envelope) = metadata.playback.envelope {
+        reference.playback.envelope = envelope;
+    }
+}
+
 fn parse_xrns_note(value: &str) -> Option<NoteEvent> {
     let value = value.trim();
     if value.is_empty() || value == "---" {
@@ -467,6 +646,12 @@ fn parse_xrns_note(value: &str) -> Option<NoteEvent> {
         });
     }
     parse_note_name(value).map(|pitch| NoteEvent::Note { pitch })
+}
+
+fn parse_sample_root_pitch(value: &str) -> Option<u8> {
+    parse_u8_value(value)
+        .filter(|pitch| *pitch <= 127)
+        .or_else(|| parse_note_name(value))
 }
 
 fn parse_note_name(value: &str) -> Option<u8> {
@@ -505,6 +690,18 @@ fn parse_note_name(value: &str) -> Option<u8> {
 
 fn parse_u8_value(value: &str) -> Option<u8> {
     parse_u32_value(value).and_then(|value| u8::try_from(value).ok())
+}
+
+fn parse_i16_value(value: &str) -> Option<i16> {
+    let value = value.trim();
+    if value.is_empty() {
+        return None;
+    }
+    value.parse::<i16>().ok()
+}
+
+fn parse_usize_value(value: &str) -> Option<usize> {
+    parse_u32_value(value).and_then(|value| usize::try_from(value).ok())
 }
 
 fn parse_u32_value(value: &str) -> Option<u32> {
@@ -550,6 +747,31 @@ fn parse_float(value: &str) -> Option<f32> {
         .parse::<f32>()
         .ok()
         .filter(|value| value.is_finite())
+}
+
+#[rustfmt::skip]
+fn parse_envelope_seconds(value: &str) -> f32 { parse_float(value).map_or(0.0, |seconds| seconds.clamp(0.0, 60.0)) }
+
+#[rustfmt::skip]
+fn parse_sample_pan(value: &str) -> Option<f32> {
+    let pan = parse_float(value)?;
+    if (0.0..=1.0).contains(&pan) { Some((pan - 0.5) * 2.0) } else { Some(pan.clamp(-1.0, 1.0)) }
+}
+
+#[rustfmt::skip]
+fn parse_loop_mode(value: &str) -> Option<SamplePlaybackMode> {
+    let value = value.trim().to_ascii_lowercase();
+    if value.is_empty() { return None; }
+    if matches!(value.as_str(), "off" | "none" | "oneshot" | "one-shot" | "0") { Some(SamplePlaybackMode::OneShot) }
+    else if value.contains("loop") || matches!(value.as_str(), "on" | "1" | "forward") { Some(SamplePlaybackMode::Loop) }
+    else { None }
+}
+
+#[rustfmt::skip]
+fn sample_payload_sample_index(path: &str) -> Option<usize> {
+    let segment = path.split('/').find(|segment| segment.strip_prefix("Sample").and_then(|suffix| suffix.chars().next()).is_some_and(|char| char.is_ascii_digit()))?;
+    let digits = segment.trim_start_matches("Sample").chars().take_while(char::is_ascii_digit).collect::<String>();
+    digits.parse::<usize>().ok()
 }
 
 fn effect_device_from_name(id: u32, name: &str) -> Option<EffectDevice> {
