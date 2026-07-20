@@ -194,6 +194,15 @@ impl App {
                 match parts.next() {
                     Some("new") => self.create_pattern(),
                     Some("duplicate") | Some("dup") => self.duplicate_current_pattern(),
+                    Some("copy") => self.copy_pattern_operation(),
+                    Some("paste") => self.paste_pattern_operation(),
+                    Some("fill") => self.fill_pattern_operation(),
+                    Some("invert") => self.invert_pattern_operation(),
+                    Some("expand") => self.expand_pattern_operation(),
+                    Some("shrink") => self.shrink_pattern_operation(),
+                    Some("duplicate-selection" | "duplicate-region" | "dup-selection") => {
+                        self.duplicate_pattern_region_operation();
+                    }
                     Some("delete") | Some("del") => self.request_delete_current_pattern(),
                     Some("length") | Some("len") => {
                         if let Some(row_count) =
@@ -211,6 +220,10 @@ impl App {
                     Some(value) => {
                         if let Ok(pattern_number) = value.parse::<usize>() {
                             self.select_pattern(pattern_number.saturating_sub(1));
+                        } else {
+                            self.notify_warning(
+                                "Usage: :pattern new|duplicate|copy|paste|fill|invert|expand|shrink|duplicate-selection|delete|length|rename|next|prev",
+                            );
                         }
                     }
                     None => {}

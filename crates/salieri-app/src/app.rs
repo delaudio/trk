@@ -11,6 +11,7 @@ mod dsp_commands;
 mod key_handling;
 mod midi_actions;
 mod navigation;
+mod pattern_operations;
 mod plock_dsp_commands;
 mod project_browser;
 mod sample_browser;

@@ -327,6 +327,13 @@ T               Set sequence position to current pattern
 :pattern duplicate
 :pattern rename Intro
 :pattern length 128
+:pattern fill
+:pattern copy
+:pattern paste
+:pattern invert
+:pattern expand
+:pattern shrink
+:pattern duplicate-selection
 :sequence add
 :sequence set 0 2
 :sequence move 1 0
