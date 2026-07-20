@@ -104,6 +104,7 @@ impl App {
             ai_session_file: config.ai.session_file.clone(),
             ai_retention_messages: config.ai.retention_messages,
             ai_thread: AiThread::default(),
+            ai_guidance: None,
             project_browser_view: None,
             pending_ai_proposal: None,
             dirty: false,

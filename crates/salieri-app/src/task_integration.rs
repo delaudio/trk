@@ -20,17 +20,25 @@ use crate::{
 
 impl App {
     pub(super) fn create_ai_proposal(&mut self, prompt: String) {
+        if prompt.trim().is_empty() {
+            self.notify_warning("AI prompt cannot be empty");
+            return;
+        }
         self.push_ai_message(AiMessageRole::User, prompt.clone());
         self.dispatch_intent(AppIntent::Ai(AiIntent::Propose(prompt)));
     }
 
     pub(crate) fn prepare_ai_proposal_effect(&mut self, prompt: String) -> Option<AppEffect> {
+        if prompt.trim().is_empty() {
+            self.notify_warning("AI prompt cannot be empty");
+            return None;
+        }
         let Some(pattern) = self.song.pattern(self.pattern_index) else {
             self.notify_warning("Pattern out of range");
             return None;
         };
         let request = AiPatternRequest {
-            prompt,
+            prompt: self.ai_prompt_with_guidance(&prompt),
             pattern: self.pattern_index,
             track: self.cursor.track,
             rows: pattern.row_count(),

@@ -12,6 +12,7 @@ impl App {
                 let prompt = prompt.join(" ");
                 self.create_ai_proposal(prompt);
             }
+            ["guidance", command @ ..] => self.handle_ai_guidance_command(command),
             ["show"] | ["preview"] => self.show_ai_proposal(),
             ["accept"] | ["apply"] => self.apply_ai_proposal(),
             ["reject"] | ["clear"] => self.reject_ai_proposal(),
@@ -23,7 +24,7 @@ impl App {
                 Err(_) => self.notify_warning("Usage: :ai retention MESSAGES"),
             },
             _ => self.notify_warning(
-                "Usage: :ai chat | :ai provider | :ai propose PROMPT | :ai show | :ai accept | :ai reject | :ai load/save/delete | :ai retention N",
+                "Usage: :ai chat | :ai provider | :ai propose PROMPT | :ai guidance list/show/apply/clear | :ai show | :ai accept | :ai reject | :ai load/save/delete | :ai retention N",
             ),
         }
     }

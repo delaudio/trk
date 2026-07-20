@@ -334,9 +334,147 @@ fn ai_chat_retention_keeps_system_message_and_recent_history() {
     let _ = std::fs::remove_file(session_file);
 }
 
+#[test]
+fn ai_guidance_apply_enriches_provider_prompt_without_rewriting_chat_prompt() {
+    let guidance_dir = ai_guidance_test_dir("apply");
+    std::fs::create_dir_all(&guidance_dir).expect("create guidance dir");
+    let guidance_file = guidance_dir.join("dub-techno.md");
+    std::fs::write(
+        &guidance_file,
+        "Use sparse chords, tape hiss, and delayed stabs.",
+    )
+    .expect("write guidance");
+    let mut app = App::new(AppConfig {
+        ai: config::AiConfig {
+            guidance_dirs: vec![guidance_dir.clone()],
+            ..config::AiConfig::default()
+        },
+        ..AppConfig::default()
+    });
+
+    type_command(&mut app, "ai guidance apply dub-techno");
+    type_command(&mut app, "ai propose four bar sketch");
+    app.wait_for_tasks();
+
+    let pending = app.pending_ai_proposal.as_ref().expect("proposal");
+    assert!(pending
+        .proposal
+        .prompt
+        .contains("Local guidance: dub-techno"));
+    assert!(pending
+        .proposal
+        .prompt
+        .contains("Use sparse chords, tape hiss, and delayed stabs."));
+    assert!(pending
+        .proposal
+        .prompt
+        .contains("User prompt:\nfour bar sketch"));
+    assert!(app.ai_thread.messages.iter().any(|message| {
+        message.role == AiMessageRole::User && message.text == "four bar sketch"
+    }));
+
+    let _ = std::fs::remove_file(guidance_file);
+    let _ = std::fs::remove_dir_all(guidance_dir);
+}
+
+#[test]
+fn ai_guidance_does_not_allow_empty_user_prompt() {
+    let guidance_dir = ai_guidance_test_dir("empty-prompt");
+    std::fs::create_dir_all(&guidance_dir).expect("create guidance dir");
+    let guidance_file = guidance_dir.join("ambient.md");
+    std::fs::write(&guidance_file, "Use long decays.").expect("write guidance");
+    let mut app = App::new(AppConfig {
+        ai: config::AiConfig {
+            guidance_dirs: vec![guidance_dir.clone()],
+            ..config::AiConfig::default()
+        },
+        ..AppConfig::default()
+    });
+
+    type_command(&mut app, "ai guidance apply ambient");
+    type_command(&mut app, "ai propose");
+
+    assert!(app.pending_ai_proposal.is_none());
+    assert!(app.task_runtime.is_idle());
+    assert!(app
+        .notification
+        .as_ref()
+        .expect("notification")
+        .message
+        .contains("AI prompt cannot be empty"));
+
+    let _ = std::fs::remove_file(guidance_file);
+    let _ = std::fs::remove_dir_all(guidance_dir);
+}
+
+#[test]
+fn ai_guidance_malformed_json_reports_clear_diagnostic() {
+    let guidance_dir = ai_guidance_test_dir("malformed");
+    std::fs::create_dir_all(&guidance_dir).expect("create guidance dir");
+    let guidance_file = guidance_dir.join("broken.json");
+    std::fs::write(&guidance_file, "{not-json").expect("write guidance");
+    let mut app = App::new(AppConfig {
+        ai: config::AiConfig {
+            guidance_dirs: vec![guidance_dir.clone()],
+            ..config::AiConfig::default()
+        },
+        ..AppConfig::default()
+    });
+
+    type_command(&mut app, "ai guidance apply broken");
+
+    assert!(app.ai_guidance.is_none());
+    let notification = app.notification.as_ref().expect("notification");
+    assert_eq!(notification.kind, NotificationKind::Warning);
+    assert!(notification.message.contains("AI guidance error"));
+    assert!(notification.message.contains("invalid JSON"));
+
+    let _ = std::fs::remove_file(guidance_file);
+    let _ = std::fs::remove_dir_all(guidance_dir);
+}
+
+#[test]
+fn ai_guidance_list_and_show_use_local_files() {
+    let guidance_dir = ai_guidance_test_dir("list-show");
+    std::fs::create_dir_all(&guidance_dir).expect("create guidance dir");
+    let guidance_file = guidance_dir.join("palette.txt");
+    std::fs::write(&guidance_file, "Keep drums dry and bass clipped.").expect("write guidance");
+    let mut app = App::new(AppConfig {
+        ai: config::AiConfig {
+            guidance_dirs: vec![guidance_dir.clone()],
+            ..config::AiConfig::default()
+        },
+        ..AppConfig::default()
+    });
+
+    type_command(&mut app, "ai guidance list");
+    type_command(&mut app, "ai guidance show palette");
+
+    assert!(app.ai_thread.messages.iter().any(|message| {
+        message.role == AiMessageRole::Assistant
+            && message.text.contains("AI guidance files:")
+            && message.text.contains("palette.txt")
+    }));
+    assert!(app.ai_thread.messages.iter().any(|message| {
+        message.role == AiMessageRole::Assistant
+            && message.text.contains("AI guidance: palette")
+            && message.text.contains("Keep drums dry and bass clipped.")
+    }));
+
+    let _ = std::fs::remove_file(guidance_file);
+    let _ = std::fs::remove_dir_all(guidance_dir);
+}
+
 fn ai_session_test_path(label: &str) -> std::path::PathBuf {
     std::env::temp_dir().join(format!(
         "salieri-ai-command-session-{label}-{}.json",
+        std::process::id()
+    ))
+}
+
+fn ai_guidance_test_dir(label: &str) -> std::path::PathBuf {
+    std::env::temp_dir().join(format!(
+        "salieri-ai-guidance-{label}-{}",
         std::process::id()
     ))
 }
