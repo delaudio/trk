@@ -35,6 +35,8 @@ salieri export plan song.salieri plan.json --pattern 1 --tracks 1,2
 salieri export plan song.salieri --sequence
 salieri export stems song.salieri stems/ --pattern 1 --tracks 1,2
 salieri export stems song.salieri stems/ --sequence
+salieri export strudel song.salieri strudel.js --patterns 1,2
+salieri export strudel song.salieri --sequence
 ```
 
 `export plan` emits JSON describing the render target, selected tracks, sampler
@@ -43,6 +45,12 @@ to stdout or write a JSON file, so renders can be inspected before any WAV files
 are created. `export stems` writes deterministic per-track WAV files plus a
 `stems.json` manifest. Tracks without internal sampler events render as silence
 for the target duration and are marked with `samplerEvents: 0` in the manifest.
+
+`export strudel` is text-only and targets browser live-coding rather than WAV
+rendering. It can print to stdout or write a `.js` file, emits deterministic
+`setcps`/`stack(note(...))` output, and lists unsupported sampler, mixer, clip,
+automation, and tracker-effect features in comments. See
+[Strudel Export](strudel-export.md).
 
 Selection-to-sample rendering is available inside the tracker:
 

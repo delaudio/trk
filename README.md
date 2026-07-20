@@ -82,6 +82,7 @@ salieri --midi-test-output NAME_OR_INDEX [OPTIONS]
 salieri transform euclidean INPUT OUTPUT [OPTIONS]
 salieri sample inspect FILE [OPTIONS]
 salieri export audio INPUT OUTPUT [OPTIONS]
+salieri export strudel INPUT [OUTPUT.js] [OPTIONS]
 salieri --help
 salieri --version
 ```
@@ -100,6 +101,7 @@ salieri sample inspect kick.wav --format text --buckets 64
 salieri transform euclidean input.salieri output.salieri --pattern 1 --track 1 --steps 16 --pulses 5 --pitch 36
 salieri export audio song.salieri song.wav --pattern 1
 salieri export audio song.salieri song.wav --sequence --sample-rate 48000 --channels 2
+salieri export strudel song.salieri song.js --patterns 1,2
 ```
 
 `--midi-test-output` accepts either a port index or a port name. Configured MIDI output and input names are normalized, so `IAC Driver`, `IAC Driver Bus 1`, and `IAC Driver (Bus 1)` can match the same CoreMIDI port when available.
@@ -458,9 +460,12 @@ salieri export audio input.salieri output.wav --pattern 1
 salieri export audio input.salieri output.wav --sequence --sample-rate 48000 --channels 2
 salieri export plan input.salieri plan.json --pattern 1 --tracks 1,2
 salieri export stems input.salieri stems/ --sequence
+salieri export strudel input.salieri strudel.js --sequence
 ```
 
 The exporter renders sampler events only. MIDI-only external instruments are not captured in the WAV file. Tracker instrument/volume/pan/delay columns, stepped sample-gain automation, mixer gain/pan, and native DSP gain/pan chains are applied through the same sampler event path used by realtime playback. Render plans can be inspected as JSON before writing audio, and stem exports write per-track WAV files plus a manifest. See [docs/audio-export.md](docs/audio-export.md), [docs/automation.md](docs/automation.md), and [docs/mixer.md](docs/mixer.md).
+
+`export strudel` writes or prints a deterministic browser live-coding sketch for selected patterns or the song sequence. It preserves tempo, track comments, pattern lengths, notes, velocity, and simple volume/pan columns, with unsupported sampler, mixer, clip, and tracker-effect features listed as diagnostics. See [docs/strudel-export.md](docs/strudel-export.md).
 
 ## Project Files
 
