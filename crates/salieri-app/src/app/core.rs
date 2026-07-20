@@ -93,6 +93,7 @@ impl App {
             midi_clock_follow: false,
             midi_clock_ticks: 0,
             sample_view: None,
+            sample_recorder: SampleRecorder::default(),
             sample_waveform_zoom: 1,
             sample_waveform_offset: 0,
             sampler_envelope_field: SamplerEnvelopeField::Attack,

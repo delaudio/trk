@@ -83,10 +83,11 @@ use playback_runtime::{
 use salieri_ai::{apply_proposal, AiProposal, CellAddress};
 use salieri_audio::{
     encode_audio, prepare_realtime_sample, render_sampler_events_with_dsp, AudioConfig,
-    AudioExportFormat, DspDeviceKind as AudioDspDeviceKind, DspDeviceSpec,
-    DspDriveMode as AudioDspDriveMode, DspDynamicsDetector as AudioDspDynamicsDetector,
-    DspFilterMode as AudioDspFilterMode, DspGraphSpec, OfflineRenderSpec, OfflineSamplerEvent,
-    OfflineSamplerSample, SendDspBusSpec, TrackDspChainSpec, TrackSendSpec,
+    AudioExportFormat, AudioInputSource, CpalAudioInputSource, DspDeviceKind as AudioDspDeviceKind,
+    DspDeviceSpec, DspDriveMode as AudioDspDriveMode,
+    DspDynamicsDetector as AudioDspDynamicsDetector, DspFilterMode as AudioDspFilterMode,
+    DspGraphSpec, OfflineRenderSpec, OfflineSamplerEvent, OfflineSamplerSample, SampleRecorder,
+    SendDspBusSpec, TrackDspChainSpec, TrackSendSpec,
 };
 use salieri_core::{
     mixer_master_gain_descriptor, mixer_send_gain_descriptor, mixer_track_gain_descriptor,
@@ -236,6 +237,7 @@ struct App {
     midi_clock_follow: bool,
     midi_clock_ticks: u32,
     sample_view: Option<AppSampleView>,
+    sample_recorder: SampleRecorder,
     sample_waveform_zoom: usize,
     sample_waveform_offset: usize,
     sampler_envelope_field: SamplerEnvelopeField,

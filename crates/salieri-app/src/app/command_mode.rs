@@ -327,6 +327,10 @@ impl App {
                             .notify_warning("Usage: :sample render-selection PATH [--assign TRACK]"),
                     }
                 }
+                Some("recorder") | Some("record") => {
+                    let values = parts.collect::<Vec<_>>();
+                    self.handle_sample_recorder_command(&values);
+                }
                 Some("assign") => {
                     let track_index = parts
                         .next()
@@ -424,7 +428,7 @@ impl App {
                 Some("settings") | Some("info") => self.show_loaded_sample_settings(),
                 None => self.open_sampler_view(),
                 Some(_) => self.notify_warning(
-                    "Usage: :sample view PATH | render-selection PATH [--assign TRACK] | assign [TRACK] | start FRAME|clear | end FRAME|clear | loop [backward|pingpong] START END|off | mode MODE | envelope A D S R",
+                    "Usage: :sample view PATH | render-selection PATH [--assign TRACK] | recorder inputs|capture|trim|save|save-load | assign [TRACK] | start FRAME|clear | end FRAME|clear | loop [backward|pingpong] START END|off | mode MODE | envelope A D S R",
                 ),
                 }
             }
@@ -502,6 +506,74 @@ impl App {
                 self.open_tracker_view();
                 self.notify_info(format!("Layout panel {panel:?} resized by {delta}"));
             }
+        }
+    }
+}
+
+impl App {
+    fn handle_sample_recorder_command(&mut self, values: &[&str]) {
+        match values.first().copied() {
+            Some("inputs") | Some("devices") | Some("list") => {
+                self.list_sample_recorder_inputs();
+            }
+            Some("select") => {
+                if let Some(device_id) = values.get(1) {
+                    self.select_sample_recorder_input(device_id);
+                } else {
+                    self.notify_warning("Usage: :sample recorder select DEVICE_ID");
+                }
+            }
+            Some("gain") => {
+                if let Some(gain) = values.get(1).and_then(|value| value.parse::<f32>().ok()) {
+                    self.set_sample_recorder_gain(gain);
+                } else {
+                    self.notify_warning("Usage: :sample recorder gain VALUE");
+                }
+            }
+            Some("start") => {
+                if let Some(frames) = values.get(1).and_then(|value| value.parse::<usize>().ok()) {
+                    self.start_sample_recorder(frames);
+                } else {
+                    self.notify_warning("Usage: :sample recorder start FRAMES");
+                }
+            }
+            Some("stop") => self.stop_sample_recorder(),
+            Some("capture") | Some("record") => {
+                if let Some(frames) = values.get(1).and_then(|value| value.parse::<usize>().ok()) {
+                    self.capture_sample_recording(frames, values.get(2).copied());
+                } else {
+                    self.notify_warning("Usage: :sample recorder capture FRAMES [DEVICE_ID]");
+                }
+            }
+            Some("trim") | Some("crop") => {
+                let start = values.get(1).and_then(|value| value.parse::<usize>().ok());
+                let end = values.get(2).and_then(|value| value.parse::<usize>().ok());
+                if let (Some(start), Some(end)) = (start, end) {
+                    self.trim_sample_recording(start, end);
+                } else {
+                    self.notify_warning("Usage: :sample recorder trim START_FRAME END_FRAME");
+                }
+            }
+            Some("save") => {
+                let path = values.get(1..).unwrap_or_default().join(" ");
+                if path.is_empty() {
+                    self.notify_warning("Usage: :sample recorder save PATH");
+                } else {
+                    self.save_sample_recording(PathBuf::from(path));
+                }
+            }
+            Some("save-load") | Some("save-and-load") | Some("load") => {
+                match parse_sample_render_selection_args(values.get(1..).unwrap_or_default()) {
+                    Some((path, assign_track)) => {
+                        self.save_sample_recording_and_load(path, assign_track);
+                    }
+                    None => self
+                        .notify_warning("Usage: :sample recorder save-load PATH [--assign TRACK]"),
+                }
+            }
+            None | Some(_) => self.notify_warning(
+                "Usage: :sample recorder inputs|select DEVICE_ID|gain VALUE|capture FRAMES [DEVICE_ID]|trim START END|save PATH|save-load PATH [--assign TRACK]",
+            ),
         }
     }
 }
