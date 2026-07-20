@@ -46,6 +46,7 @@ playback, and offline export.
 | Send device and routing utilities | Mixer routing | Partial | #84 foundation | Audio sends now have routing and deterministic summing rules; expanded send-specific utilities and UI remain follow-up scope. |
 | Native instrument devices | Instrument/module layer | Partial | #116 boundary exists; concrete instruments deferred | Instruments use the same module/state contract but are not part of this effect roadmap except where sampler-local processing overlaps #121. |
 | Reviewed C/C++ DSP wrappers | Native module boundary | Implemented foundation | #115 C/C++ DSP boundary | Optional feature-gated wrappers may adapt vendored, license-reviewed algorithms into Salieri-owned modules. They must expose plain descriptors/state and stay separate from arbitrary binary hosting. |
+| WebAssembly DSP modules | Export/runtime boundary | Evaluated | #117 WebAssembly DSP evaluation | Recommended first for browser/Web Audio export. Desktop sandboxed realtime execution remains deferred until runtime overhead and callback safety are proven. |
 | Tracker note/effect commands: delay, retrigger, arpeggio, slides, sample offset | Pattern command library | Partial | #85 expanded per-step FX commands | These are row playback semantics, not DSP devices. They may also write parameter locks once #123 exists. |
 | Third-party plugins | Plugin host boundary | Deferred | Future ADR only | Direct VST/AU/CLAP hosting remains out of scope for this roadmap. |
 
