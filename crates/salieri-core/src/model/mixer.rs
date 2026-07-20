@@ -81,11 +81,15 @@ pub struct EffectDevice {
     pub kind: EffectDeviceKind,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MixerSend {
     pub id: u32,
     pub name: String,
+    #[serde(default)]
+    pub pre_fader: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub effects: Vec<EffectDevice>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -353,6 +353,28 @@ pub(crate) fn audio_dsp_graph(song: &Song) -> DspGraphSpec {
                 devices: track.effects.iter().map(audio_dsp_device).collect(),
             })
             .collect(),
+        sends: song
+            .mixer
+            .sends
+            .iter()
+            .map(|send| SendDspBusSpec {
+                send_id: send.id,
+                pre_fader: send.pre_fader,
+                devices: send.effects.iter().map(audio_dsp_device).collect(),
+            })
+            .collect(),
+        track_sends: song
+            .mixer
+            .tracks
+            .iter()
+            .flat_map(|track| {
+                track.sends.iter().map(move |send| TrackSendSpec {
+                    track_id: track.track.0,
+                    send_id: send.send,
+                    gain: send.gain,
+                })
+            })
+            .collect(),
         master: song
             .mixer
             .master_effects

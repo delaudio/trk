@@ -14,6 +14,8 @@ fn realtime_and_offline_match_for_native_chorus_fixture() {
             .collect(),
     };
     let graph = DspGraphSpec {
+        sends: Vec::new(),
+        track_sends: Vec::new(),
         track_chains: Vec::new(),
         master: vec![DspDeviceSpec {
             bypassed: false,

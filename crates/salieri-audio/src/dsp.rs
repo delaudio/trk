@@ -18,6 +18,8 @@ pub use kind::{DspDeviceKind, DspDriveMode, DspDynamicsDetector, DspFilterMode};
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct DspGraphSpec {
     pub track_chains: Vec<TrackDspChainSpec>,
+    pub sends: Vec<SendDspBusSpec>,
+    pub track_sends: Vec<TrackSendSpec>,
     pub master: Vec<DspDeviceSpec>,
 }
 
@@ -25,6 +27,20 @@ pub struct DspGraphSpec {
 pub struct TrackDspChainSpec {
     pub track_id: u32,
     pub devices: Vec<DspDeviceSpec>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SendDspBusSpec {
+    pub send_id: u32,
+    pub pre_fader: bool,
+    pub devices: Vec<DspDeviceSpec>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TrackSendSpec {
+    pub track_id: u32,
+    pub send_id: u32,
+    pub gain: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -46,6 +62,20 @@ pub(crate) fn track_dsp_chain(track_id: u32, graph: &DspGraphSpec) -> &[DspDevic
         .iter()
         .find(|chain| chain.track_id == track_id)
         .map_or(&[], |chain| chain.devices.as_slice())
+}
+
+pub(crate) fn send_bus(send_id: u32, graph: &DspGraphSpec) -> Option<&SendDspBusSpec> {
+    graph.sends.iter().find(|send| send.send_id == send_id)
+}
+
+pub(crate) fn track_send_levels(
+    track_id: u32,
+    graph: &DspGraphSpec,
+) -> impl Iterator<Item = &TrackSendSpec> {
+    graph
+        .track_sends
+        .iter()
+        .filter(move |send| send.track_id == track_id && send.gain > 0.0)
 }
 
 pub(crate) fn validate_dsp_chain(devices: &[DspDeviceSpec]) -> Result<(), AudioExportError> {

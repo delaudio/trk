@@ -4,7 +4,7 @@ use salieri_audio::{
     AudioBackend, AudioConfig, CpalAudioBackend, DspDeviceKind as AudioDspDeviceKind,
     DspDeviceSpec, DspDriveMode as AudioDspDriveMode,
     DspDynamicsDetector as AudioDspDynamicsDetector, DspFilterMode as AudioDspFilterMode,
-    DspGraphSpec, RealtimeAudioCommand, TrackDspChainSpec,
+    DspGraphSpec, RealtimeAudioCommand, SendDspBusSpec, TrackDspChainSpec, TrackSendSpec,
 };
 use salieri_core::{DriveMode, DynamicsDetector, EffectDevice, EffectDeviceKind, FilterMode, Song};
 
@@ -102,6 +102,28 @@ fn audio_dsp_graph(song: &Song) -> DspGraphSpec {
             .map(|track| TrackDspChainSpec {
                 track_id: track.track.0,
                 devices: track.effects.iter().map(audio_dsp_device).collect(),
+            })
+            .collect(),
+        sends: song
+            .mixer
+            .sends
+            .iter()
+            .map(|send| SendDspBusSpec {
+                send_id: send.id,
+                pre_fader: send.pre_fader,
+                devices: send.effects.iter().map(audio_dsp_device).collect(),
+            })
+            .collect(),
+        track_sends: song
+            .mixer
+            .tracks
+            .iter()
+            .flat_map(|track| {
+                track.sends.iter().map(move |send| TrackSendSpec {
+                    track_id: track.track.0,
+                    send_id: send.send,
+                    gain: send.gain,
+                })
             })
             .collect(),
         master: song

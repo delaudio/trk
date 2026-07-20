@@ -99,6 +99,17 @@ pub(crate) fn validate_mixer(
         return Err(ValidationError::InvalidMixerMasterGain);
     }
 
+    let mut mixer_sends = HashSet::new();
+    for send in &mixer.sends {
+        if send.name.trim().is_empty() {
+            return Err(ValidationError::EmptyMixerSend { send_id: send.id });
+        }
+        if !mixer_sends.insert(send.id) {
+            return Err(ValidationError::DuplicateMixerSend { send_id: send.id });
+        }
+        validate_effect_chain(&send.effects)?;
+    }
+
     let mut mixer_tracks = HashSet::new();
     for track in &mixer.tracks {
         if !track_ids.contains(&track.track) {
@@ -121,10 +132,24 @@ pub(crate) fn validate_mixer(
                 track_id: track.track,
             });
         }
+        let mut track_sends = HashSet::new();
         for send in &track.sends {
-            if !mixer_send_gain_descriptor().validate_f32(send.gain) {
-                return Err(ValidationError::InvalidMixerTrackGain {
+            if !mixer_sends.contains(&send.send) {
+                return Err(ValidationError::MixerSendNotFound {
                     track_id: track.track,
+                    send_id: send.send,
+                });
+            }
+            if !track_sends.insert(send.send) {
+                return Err(ValidationError::DuplicateTrackSend {
+                    track_id: track.track,
+                    send_id: send.send,
+                });
+            }
+            if !mixer_send_gain_descriptor().validate_f32(send.gain) {
+                return Err(ValidationError::InvalidMixerSendGain {
+                    track_id: track.track,
+                    send_id: send.send,
                 });
             }
         }

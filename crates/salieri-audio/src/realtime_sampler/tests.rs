@@ -5,32 +5,10 @@ use crate::{
     *,
 };
 
+mod commands;
 mod dynamics;
 mod modulation;
-
-#[test]
-fn realtime_commands_are_plain_data_messages() {
-    let command = RealtimeAudioCommand::TriggerSample {
-        track_id: 1,
-        sample_id: 1,
-        frame: 128,
-        gain: 0.5,
-        pan: 0.0,
-        pitch_ratio: 2.0,
-    };
-
-    assert_eq!(
-        command,
-        RealtimeAudioCommand::TriggerSample {
-            track_id: 1,
-            sample_id: 1,
-            frame: 128,
-            gain: 0.5,
-            pan: 0.0,
-            pitch_ratio: 2.0,
-        }
-    );
-}
+mod send_routing;
 
 #[test]
 fn prepares_realtime_samples_for_output_config() {
@@ -128,6 +106,8 @@ fn realtime_sampler_applies_dsp_graph() {
         .register_sample(1, mono_sample(vec![1.0]))
         .expect("register sample");
     sampler.set_dsp_graph(DspGraphSpec {
+        sends: Vec::new(),
+        track_sends: Vec::new(),
         track_chains: vec![TrackDspChainSpec {
             track_id: 1,
             devices: vec![DspDeviceSpec {
@@ -182,6 +162,8 @@ fn realtime_and_offline_match_for_native_utility_master_devices() {
         data: vec![1.0, 0.0],
     };
     let graph = DspGraphSpec {
+        sends: Vec::new(),
+        track_sends: Vec::new(),
         track_chains: Vec::new(),
         master: vec![
             DspDeviceSpec {
@@ -257,6 +239,8 @@ fn realtime_and_offline_match_for_native_utility_track_devices() {
         data: vec![1.0, 0.0],
     };
     let graph = DspGraphSpec {
+        sends: Vec::new(),
+        track_sends: Vec::new(),
         track_chains: vec![TrackDspChainSpec {
             track_id: 1,
             devices: vec![
@@ -335,6 +319,8 @@ fn realtime_and_offline_match_for_native_filter_fixture() {
         data: vec![1.0, -1.0, 0.5, -0.5, 0.25, -0.25, 0.0, 0.0],
     };
     let graph = DspGraphSpec {
+        sends: Vec::new(),
+        track_sends: Vec::new(),
         track_chains: Vec::new(),
         master: vec![DspDeviceSpec {
             bypassed: false,
@@ -409,6 +395,8 @@ fn realtime_and_offline_match_for_native_delay_fixture() {
         data: vec![1.0, 0.0],
     };
     let graph = DspGraphSpec {
+        sends: Vec::new(),
+        track_sends: Vec::new(),
         track_chains: Vec::new(),
         master: vec![DspDeviceSpec {
             bypassed: false,
@@ -488,6 +476,8 @@ fn realtime_and_offline_match_for_native_drive_fixture() {
         data: vec![0.20, -0.20, 0.50, -0.50, 0.80, -0.80, 1.0, -1.0],
     };
     let graph = DspGraphSpec {
+        sends: Vec::new(),
+        track_sends: Vec::new(),
         track_chains: Vec::new(),
         master: vec![DspDeviceSpec {
             bypassed: false,
@@ -561,6 +551,8 @@ fn realtime_and_offline_match_for_native_bitcrusher_fixture() {
         data: vec![0.10, -0.10, 0.40, -0.40, 0.70, -0.70, 1.0, -1.0],
     };
     let graph = DspGraphSpec {
+        sends: Vec::new(),
+        track_sends: Vec::new(),
         track_chains: Vec::new(),
         master: vec![DspDeviceSpec {
             bypassed: false,
@@ -633,6 +625,8 @@ fn realtime_and_offline_match_for_native_reverb_fixture() {
         data: vec![1.0, 0.0],
     };
     let graph = DspGraphSpec {
+        sends: Vec::new(),
+        track_sends: Vec::new(),
         track_chains: Vec::new(),
         master: vec![DspDeviceSpec {
             bypassed: false,

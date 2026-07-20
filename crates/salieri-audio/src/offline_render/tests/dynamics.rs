@@ -21,6 +21,8 @@ fn renders_sampler_events_through_native_dynamics_effects() {
         velocity: 127,
     }];
     let graph = DspGraphSpec {
+        sends: Vec::new(),
+        track_sends: Vec::new(),
         track_chains: vec![TrackDspChainSpec {
             track_id: 2,
             devices: vec![
