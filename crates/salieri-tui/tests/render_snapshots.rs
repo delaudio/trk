@@ -220,6 +220,7 @@ fn snapshots_midi_settings_overlay() {
         },
     ];
 
+    let routing_song = Song::empty();
     assert_snapshot(
         "midi-settings",
         render_snapshot(
@@ -230,6 +231,8 @@ fn snapshots_midi_settings_overlay() {
                     ports: &ports,
                     selected_port: 1,
                     status: "MIDI Disconnected",
+                    input_status: "MIDI In Disconnected",
+                    routing: &routing_song.midi,
                 }),
                 ..test_state()
             },

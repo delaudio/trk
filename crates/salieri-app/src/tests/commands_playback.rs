@@ -859,7 +859,11 @@ fn midi_input_recording_drains_fake_input_and_is_undoable() {
 
 #[test]
 fn midi_clock_follow_controls_transport() {
+    let mut song = Song::empty();
+    song.midi.clock_in = true;
+    song.midi.transport_in = true;
     let mut app = App {
+        song,
         midi_clock_follow: true,
         ..App::default()
     };

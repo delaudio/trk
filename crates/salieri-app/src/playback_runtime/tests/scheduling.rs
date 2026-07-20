@@ -321,3 +321,31 @@ fn fake_midi_playback_honors_mute_and_solo() {
     assert!(solo_sent.contains(&MidiMessage::note_on(10, 60, 0x7f)));
     assert!(!solo_sent.contains(&MidiMessage::note_on(1, 48, 0x70)));
 }
+
+#[test]
+fn fake_midi_playback_honors_output_routing_settings() {
+    let mut song = Song::empty();
+    speed_up_transport(&mut song);
+    {
+        let pattern = song.current_pattern_mut().expect("pattern");
+        pattern
+            .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x7f)
+            .expect("set drums note");
+        pattern
+            .set_note(0, 1, NoteEvent::Note { pitch: 48 }, 0x70)
+            .expect("set bass note");
+    }
+    let (_command_tx, command_rx) = mpsc::channel();
+
+    song.midi.output_channels = vec![1];
+    let (_result, filtered_sent, _updates) =
+        run_pattern_with_recording(&song, 0, 0, false, &command_rx);
+    assert!(!filtered_sent.contains(&MidiMessage::note_on(10, 60, 0x7f)));
+    assert!(filtered_sent.contains(&MidiMessage::note_on(1, 48, 0x70)));
+
+    let (_command_tx, command_rx) = mpsc::channel();
+    song.midi.notes_out = false;
+    let (_result, disabled_sent, _updates) =
+        run_pattern_with_recording(&song, 0, 0, false, &command_rx);
+    assert!(!disabled_sent.contains(&MidiMessage::note_on(1, 48, 0x70)));
+}

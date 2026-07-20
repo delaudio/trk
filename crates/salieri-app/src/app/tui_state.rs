@@ -63,6 +63,8 @@ impl App {
             ports,
             selected_port: self.midi_port_cursor.min(ports.len().saturating_sub(1)),
             status: self.midi_status.as_str(),
+            input_status: self.midi_input_status.as_str(),
+            routing: &self.song.midi,
         })
     }
 

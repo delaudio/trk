@@ -534,6 +534,8 @@ fn renders_midi_settings_overlay() {
                         ports: &ports,
                         selected_port: 1,
                         status: "MIDI Disconnected",
+                        input_status: "MIDI In Disconnected",
+                        routing: &song.midi,
                     }),
                     command_palette: None,
                     sampler_view: None,

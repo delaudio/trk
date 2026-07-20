@@ -125,12 +125,12 @@ impl App {
 
     pub(crate) fn from_file(path: &Path, config: AppConfig) -> Result<Self> {
         let song = load_project(path)?;
-        Ok(Self {
-            clean_song: song.clone(),
-            song,
-            project_path: Some(path.to_path_buf()),
-            ..Self::new(config)
-        })
+        let mut app = Self::new(config);
+        app.clean_song = song.clone();
+        app.midi_clock_follow = song.midi.clock_in || song.midi.transport_in;
+        app.song = song;
+        app.project_path = Some(path.to_path_buf());
+        Ok(app)
     }
 
     pub(crate) fn sample_base_dir(&self) -> Option<PathBuf> {

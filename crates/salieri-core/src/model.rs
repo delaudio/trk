@@ -34,7 +34,9 @@ pub use sampler::{
     Instrument, InstrumentSampleZone, SampleEnvelope, SamplePlaybackMode, SamplePlaybackSettings,
     SampleReference, TrackInstrumentAssignment, TrackSampleAssignment,
 };
-pub use song_types::{SongMetadata, Track, TransportSettings};
+pub use song_types::{
+    MidiRecordingSettings, MidiRoutingSettings, SongMetadata, Track, TransportSettings,
+};
 
 pub const DEFAULT_BPM: u16 = 120;
 pub const DEFAULT_LINES_PER_BEAT: u8 = 4;
@@ -49,6 +51,8 @@ pub struct Song {
     pub tracks: Vec<Track>,
     pub patterns: Vec<Pattern>,
     pub sequence: Vec<PatternId>,
+    #[serde(default, skip_serializing_if = "MidiRoutingSettings::is_default")]
+    pub midi: MidiRoutingSettings,
     #[serde(default)]
     pub mixer: MixerState,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -102,6 +106,7 @@ impl Song {
             tracks,
             patterns: vec![pattern],
             sequence: vec![PatternId(1)],
+            midi: MidiRoutingSettings::default(),
             mixer,
             samples: Vec::new(),
             sample_assignments: Vec::new(),
@@ -143,6 +148,7 @@ impl Song {
         if self.sequence.is_empty() {
             return Err(ValidationError::EmptySequence);
         }
+        validate_midi_routing(&self.midi)?;
 
         let mut track_ids = HashSet::new();
         for (track_index, track) in self.tracks.iter().enumerate() {
@@ -1414,6 +1420,20 @@ pub enum ValidationError {
     NoPatterns,
     #[error("sequence must contain at least one pattern reference")]
     EmptySequence,
+    #[error("invalid MIDI middle C calibration: {middle_c}")]
+    InvalidMidiMiddleC { middle_c: u8 },
+    #[error("invalid MIDI clock sync delay: {delay_ms}ms")]
+    InvalidMidiClockSyncDelay { delay_ms: i16 },
+    #[error("invalid {direction} MIDI channel filter: {channel}")]
+    InvalidMidiChannelFilter {
+        direction: &'static str,
+        channel: u8,
+    },
+    #[error("duplicate {direction} MIDI channel filter: {channel}")]
+    DuplicateMidiChannelFilter {
+        direction: &'static str,
+        channel: u8,
+    },
     #[error("duplicate track id: {track_id:?}")]
     DuplicateTrackId { track_id: TrackId },
     #[error("track {track_index} name cannot be empty")]
@@ -1682,6 +1702,41 @@ fn default_midi_channel(index: usize) -> u8 {
         0 => 10,
         _ => (((index - 1) % 16) + 1) as u8,
     }
+}
+
+fn validate_midi_routing(settings: &MidiRoutingSettings) -> Result<(), ValidationError> {
+    if settings.middle_c > 127 {
+        return Err(ValidationError::InvalidMidiMiddleC {
+            middle_c: settings.middle_c,
+        });
+    }
+    if !(-1000..=1000).contains(&settings.clock_sync_delay_ms) {
+        return Err(ValidationError::InvalidMidiClockSyncDelay {
+            delay_ms: settings.clock_sync_delay_ms,
+        });
+    }
+    validate_midi_channels(&settings.input_channels, "input")?;
+    validate_midi_channels(&settings.output_channels, "output")?;
+    Ok(())
+}
+
+fn validate_midi_channels(channels: &[u8], direction: &'static str) -> Result<(), ValidationError> {
+    let mut seen = HashSet::new();
+    for channel in channels {
+        if !(1..=16).contains(channel) {
+            return Err(ValidationError::InvalidMidiChannelFilter {
+                direction,
+                channel: *channel,
+            });
+        }
+        if !seen.insert(*channel) {
+            return Err(ValidationError::DuplicateMidiChannelFilter {
+                direction,
+                channel: *channel,
+            });
+        }
+    }
+    Ok(())
 }
 
 fn clean_name(name: String) -> Result<String, EditError> {
@@ -2672,6 +2727,55 @@ mod tests {
     #[test]
     fn default_song_validates() {
         Song::empty().validate().expect("default song is valid");
+    }
+
+    #[test]
+    fn midi_routing_settings_validate_and_omit_defaults() {
+        let song = Song::empty();
+        let json = serde_json::to_string(&song).expect("serialize default");
+        assert!(!json.contains("\"midi\""));
+
+        let mut routed = song.clone();
+        routed.midi.clock_in = true;
+        routed.midi.transport_out = true;
+        routed.midi.input_channels = vec![1, 10];
+        routed.midi.output_channels = vec![10];
+        routed.midi.middle_c = 72;
+        routed.midi.clock_sync_delay_ms = -12;
+        routed.validate().expect("valid routed MIDI settings");
+
+        let json = serde_json::to_string(&routed).expect("serialize routed");
+        assert!(json.contains("\"midi\""));
+        let restored: Song = serde_json::from_str(&json).expect("deserialize routed");
+        assert_eq!(restored.midi, routed.midi);
+
+        let partial = r#"{"metadata":{"title":"Untitled"},"transport":{"bpm":120,"linesPerBeat":4,"swing":0.0},"tracks":[{"id":1,"name":"Drums","midiChannel":10,"muted":false,"solo":false,"armed":true}],"patterns":[{"id":1,"name":"Pattern 01","rows":[{"cells":[{}]}]}],"sequence":[1],"midi":{"notesOut":false}}"#;
+        let restored: Song = serde_json::from_str(partial).expect("deserialize partial MIDI");
+        assert!(!restored.midi.notes_out);
+        assert!(restored.midi.notes_in);
+    }
+
+    #[test]
+    fn midi_routing_rejects_invalid_channel_filters() {
+        let mut song = Song::empty();
+        song.midi.input_channels = vec![1, 1];
+        assert!(matches!(
+            song.validate(),
+            Err(ValidationError::DuplicateMidiChannelFilter {
+                direction: "input",
+                channel: 1,
+            })
+        ));
+
+        song.midi.input_channels = Vec::new();
+        song.midi.output_channels = vec![17];
+        assert!(matches!(
+            song.validate(),
+            Err(ValidationError::InvalidMidiChannelFilter {
+                direction: "output",
+                channel: 17,
+            })
+        ));
     }
 
     #[test]

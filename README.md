@@ -333,7 +333,10 @@ T               Set selected song slot to current pattern
 :midi-input ports
 :midi-input connect 0
 :midi-input record on
-:midi-input clock on
+:midi-input clock in on
+:midi-input transport in on
+:midi-input notes in on
+:midi-input channel in 1,10
 :midi-input disconnect
 :track new Acid
 :track rename Bass
