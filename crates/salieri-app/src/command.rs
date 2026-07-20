@@ -119,6 +119,7 @@ pub enum CommandDomain {
     Report,
     Graph,
     Clip,
+    Ableton,
     Preset,
     Workspace,
     Midi,
@@ -241,6 +242,7 @@ impl SalieriCommand {
             }
             "graph" | "composition-graph" => domain(CommandDomain::Graph, arguments),
             "clip" | "scene" | "scenes" => domain(CommandDomain::Clip, arguments),
+            "ableton" | "live" | "bridge" => domain(CommandDomain::Ableton, arguments),
             "critique" => {
                 let mut values = vec!["critique".to_string()];
                 values.extend(arguments);
@@ -442,7 +444,6 @@ mod tests {
             Ok(())
         }
     }
-
     #[test]
     fn parses_stable_view_and_browser_aliases() {
         assert_eq!(
@@ -467,7 +468,6 @@ mod tests {
             Ok(Some(SalieriCommand::Focus(FocusTarget::ProjectBrowser)))
         );
     }
-
     #[test]
     fn parses_typed_transport_values() {
         assert_eq!(

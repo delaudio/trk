@@ -15,6 +15,7 @@ mod helpers;
 mod history;
 mod intent_handler;
 mod keymap;
+mod live_bridge;
 mod midi_cli;
 mod notifications;
 mod persistence;

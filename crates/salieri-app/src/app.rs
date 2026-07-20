@@ -12,6 +12,7 @@ mod core;
 mod domain_commands;
 mod dsp_commands;
 mod key_handling;
+mod live_bridge_actions;
 mod midi_actions;
 mod navigation;
 mod pattern_operations;

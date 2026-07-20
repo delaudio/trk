@@ -33,6 +33,6 @@ activates the queued scene. The visible states are:
 - `M` muted track
 
 Clip actions store pattern references and do not duplicate, alter, or destroy
-the underlying patterns. This first implementation keeps launch state in the app
-runtime; it does not yet push or pull Ableton Live session clips. That optional
-bridge is tracked separately.
+the underlying patterns. Launch state is runtime-only. Ableton Live
+push/pull/clear plans are available as an optional dry-run terminal bridge; see
+[Ableton Live bridge](ableton-live-bridge.md).
