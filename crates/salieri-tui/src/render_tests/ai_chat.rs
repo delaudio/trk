@@ -27,6 +27,11 @@ fn renders_ai_chat_view_with_all_message_roles() {
             text: "Task #1 running",
         },
     ];
+    let proposal_preview = vec![
+        "Pending: Local deterministic pattern sketch".to_string(),
+        "Touches 2 cell(s): p01/r00/t01, p01/r04/t01".to_string(),
+        "Actions: a apply | r reject | p preview | Ctrl+Z undo after apply".to_string(),
+    ];
     let mut terminal = Terminal::new(TestBackend::new(100, 24)).expect("terminal");
 
     terminal
@@ -73,6 +78,9 @@ fn renders_ai_chat_view_with_all_message_roles() {
                         composer: "draft prompt",
                         messages: &messages,
                         selected_context: "Context: pattern 01, track 01, row 00",
+                        proposal_preview: Some(AiChatProposalPreviewView {
+                            lines: &proposal_preview,
+                        }),
                     }),
                     tracker_layout: crate::TrackerLayoutState::default(),
                 },
@@ -87,6 +95,9 @@ fn renders_ai_chat_view_with_all_message_roles() {
     assert!(rendered.contains("assistant:"));
     assert!(rendered.contains("error:"));
     assert!(rendered.contains("progress:"));
+    assert!(rendered.contains("Selected Proposal"));
+    assert!(rendered.contains("p01/r00/t01"));
+    assert!(rendered.contains("a apply"));
     assert!(rendered.contains("draft prompt"));
 }
 

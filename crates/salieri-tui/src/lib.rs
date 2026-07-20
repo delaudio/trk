@@ -9,10 +9,10 @@ pub use layout::{
 };
 pub use render::{
     render, render_waveform_overview, render_waveform_overview_with_glyphs, AiChatMessageRole,
-    AiChatMessageView, AiChatViewState, CommandPaletteEntryView, CommandPaletteViewState, HelpTab,
-    MidiPortView, MidiSettingsState, NotificationKind, NotificationView, ProjectBrowserEntryKind,
-    ProjectBrowserEntryView, ProjectBrowserViewState, SampleBrowserEntryKind,
-    SampleBrowserEntryView, SampleBrowserViewState, SamplerEnvelopeField, SamplerViewState,
-    SelectionRect, TuiState, TuiView, WaveformGlyphs,
+    AiChatMessageView, AiChatProposalPreviewView, AiChatViewState, CommandPaletteEntryView,
+    CommandPaletteViewState, HelpTab, MidiPortView, MidiSettingsState, NotificationKind,
+    NotificationView, ProjectBrowserEntryKind, ProjectBrowserEntryView, ProjectBrowserViewState,
+    SampleBrowserEntryKind, SampleBrowserEntryView, SampleBrowserViewState, SamplerEnvelopeField,
+    SamplerViewState, SelectionRect, TuiState, TuiView, WaveformGlyphs,
 };
 pub use viewport::{OverscrollPolicy, Viewport2D, ViewportAxis};

@@ -269,9 +269,27 @@ impl App {
         }
     }
 
+    pub(crate) fn tui_ai_proposal_preview_lines(&self) -> Vec<String> {
+        let Some(pending) = &self.pending_ai_proposal else {
+            return Vec::new();
+        };
+        vec![
+            format!("Pending: {}", pending.proposal.summary),
+            format!(
+                "Touches {} cell(s): {}",
+                pending.touched_cells.len(),
+                format_all_touched_cells(&pending.touched_cells)
+            ),
+            format!("Areas: {}", format_touched_areas(&pending.touched_cells)),
+            "Scope: tracker cells only; no instrument, automation, or mixer changes".to_string(),
+            "Actions: a apply | r reject | p preview | Ctrl+Z undo after apply".to_string(),
+        ]
+    }
+
     pub(crate) fn tui_ai_chat_view<'a>(
         &'a self,
         messages: &'a [AiChatMessageView<'a>],
+        proposal_preview_lines: &'a [String],
         provider: &'a str,
         status: &'a str,
         context: &'a str,
@@ -282,6 +300,11 @@ impl App {
             composer: self.ai_thread.composer.as_str(),
             messages,
             selected_context: context,
+            proposal_preview: (!proposal_preview_lines.is_empty()).then_some(
+                AiChatProposalPreviewView {
+                    lines: proposal_preview_lines,
+                },
+            ),
         })
     }
 }

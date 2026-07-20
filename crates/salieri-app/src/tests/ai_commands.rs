@@ -158,3 +158,83 @@ fn ai_chat_composer_submits_prompt_without_mutating_until_accept() {
         .iter()
         .any(|message| message.role == AiMessageRole::Assistant));
 }
+
+#[test]
+fn ai_chat_renders_selected_proposal_preview_with_all_touched_cells() {
+    let mut app = App::default();
+
+    enter_command(&mut app, "ai chat");
+    for ch in "preview all cells".chars() {
+        app.handle_key(KeyEvent::new(KeyCode::Char(ch), KeyModifiers::NONE));
+    }
+    app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+    app.wait_for_tasks();
+
+    let preview_lines = app.tui_ai_proposal_preview_lines();
+    let pending = app.pending_ai_proposal.as_ref().expect("proposal");
+    for cell in &pending.touched_cells {
+        let cell_label = format!(
+            "p{:02}/r{:02}/t{:02}",
+            cell.pattern + 1,
+            cell.row,
+            cell.track + 1
+        );
+        assert!(
+            preview_lines.iter().any(|line| line.contains(&cell_label)),
+            "missing touched cell {cell_label} from {preview_lines:?}"
+        );
+    }
+    assert!(preview_lines
+        .iter()
+        .any(|line| line.contains("a apply | r reject | p preview")));
+    assert!(preview_lines
+        .iter()
+        .any(|line| line.contains("no instrument, automation, or mixer changes")));
+}
+
+#[test]
+fn ai_chat_apply_shortcut_routes_through_undo_stack() {
+    let mut app = App::default();
+    let before = app.song.clone();
+
+    enter_command(&mut app, "ai chat");
+    for ch in "apply from chat".chars() {
+        app.handle_key(KeyEvent::new(KeyCode::Char(ch), KeyModifiers::NONE));
+    }
+    app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+    app.wait_for_tasks();
+    assert!(app.pending_ai_proposal.is_some());
+
+    app.handle_key(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE));
+
+    assert!(app.pending_ai_proposal.is_none());
+    assert_ne!(app.song, before);
+    assert!(app.ai_thread.messages.iter().any(|message| {
+        message.role == AiMessageRole::Assistant && message.text.contains("AI proposal applied")
+    }));
+
+    app.undo();
+    assert_eq!(app.song, before);
+}
+
+#[test]
+fn ai_chat_reject_shortcut_does_not_mutate_song() {
+    let mut app = App::default();
+    let before = app.song.clone();
+
+    enter_command(&mut app, "ai chat");
+    for ch in "reject from chat".chars() {
+        app.handle_key(KeyEvent::new(KeyCode::Char(ch), KeyModifiers::NONE));
+    }
+    app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+    app.wait_for_tasks();
+    assert!(app.pending_ai_proposal.is_some());
+
+    app.handle_key(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::NONE));
+
+    assert_eq!(app.song, before);
+    assert!(app.pending_ai_proposal.is_none());
+    assert!(app.ai_thread.messages.iter().any(|message| {
+        message.role == AiMessageRole::Progress && message.text == "AI proposal rejected"
+    }));
+}

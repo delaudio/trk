@@ -125,6 +125,12 @@ pub struct AiChatViewState<'a> {
     pub composer: &'a str,
     pub messages: &'a [AiChatMessageView<'a>],
     pub selected_context: &'a str,
+    pub proposal_preview: Option<AiChatProposalPreviewView<'a>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AiChatProposalPreviewView<'a> {
+    pub lines: &'a [String],
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2355,7 +2361,7 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
         )
     } else if state.active_view == TuiView::AiChat {
         format!(
-            " {} | Esc Tracker | Enter Submit | Ctrl+C Cancel Task | : Command | :ai provider | q Quit ",
+            " {} | Enter Submit | a Apply | r Reject | p Preview | Ctrl+C Cancel Task | Esc Tracker | : Command | q Quit ",
             state.mode_label
         )
     } else {
@@ -2382,6 +2388,11 @@ fn render_ai_chat_view(frame: &mut Frame<'_>, area: Rect, chat: Option<AiChatVie
         .constraints([
             Constraint::Length(3),
             Constraint::Min(5),
+            Constraint::Length(
+                chat.proposal_preview
+                    .map(|preview| (preview.lines.len() as u16 + 2).clamp(3, 7))
+                    .unwrap_or(0),
+            ),
             Constraint::Length(3),
         ])
         .split(area);
@@ -2423,10 +2434,24 @@ fn render_ai_chat_view(frame: &mut Frame<'_>, area: Rect, chat: Option<AiChatVie
         .block(Block::default().title(" Thread ").borders(Borders::ALL));
     frame.render_widget(transcript, chunks[1]);
 
+    if let Some(preview) = chat.proposal_preview {
+        let lines = preview
+            .lines
+            .iter()
+            .map(|line| Line::from(line.as_str()))
+            .collect::<Vec<_>>();
+        let proposal = Paragraph::new(lines).wrap(Wrap { trim: false }).block(
+            Block::default()
+                .title(" Selected Proposal ")
+                .borders(Borders::ALL),
+        );
+        frame.render_widget(proposal, chunks[2]);
+    }
+
     let composer = Paragraph::new(chat.composer.to_string())
         .wrap(Wrap { trim: false })
         .block(Block::default().title(" Composer ").borders(Borders::ALL));
-    frame.render_widget(composer, chunks[2]);
+    frame.render_widget(composer, chunks[3]);
 }
 
 fn ai_chat_role_label(role: AiChatMessageRole) -> &'static str {

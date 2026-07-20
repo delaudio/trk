@@ -14,13 +14,7 @@ impl App {
             }
             ["show"] | ["preview"] => self.show_ai_proposal(),
             ["accept"] | ["apply"] => self.apply_ai_proposal(),
-            ["reject"] | ["clear"] => {
-                if self.pending_ai_proposal.take().is_some() {
-                    self.notify_info("AI proposal rejected");
-                } else {
-                    self.notify_warning("No pending AI proposal");
-                }
-            }
+            ["reject"] | ["clear"] => self.reject_ai_proposal(),
             _ => self.notify_warning(
                 "Usage: :ai chat | :ai provider | :ai propose PROMPT | :ai show | :ai accept | :ai reject",
             ),
@@ -47,10 +41,12 @@ impl App {
             self.notify_warning("No pending AI proposal");
             return;
         };
-        self.notify_info(format_ai_proposal_summary(
-            &pending.proposal,
-            &pending.touched_cells,
-        ));
+        let summary = format_ai_proposal_summary(&pending.proposal, &pending.touched_cells);
+        self.ai_thread.messages.push(AiMessage {
+            role: AiMessageRole::Assistant,
+            text: format!("Preview: {summary}"),
+        });
+        self.notify_info(summary);
     }
 
     pub(crate) fn apply_ai_proposal(&mut self) {
@@ -66,13 +62,30 @@ impl App {
         match result {
             Ok(_) => {
                 self.pending_ai_proposal = None;
-                self.notify_success(format!(
+                let summary = format!(
                     "AI proposal applied to {} cell(s): {}",
                     touched_cells.len(),
                     format_touched_cells(&touched_cells)
-                ));
+                );
+                self.ai_thread.messages.push(AiMessage {
+                    role: AiMessageRole::Assistant,
+                    text: summary.clone(),
+                });
+                self.notify_success(summary);
             }
             Err(error) => self.notify_warning(format!("AI apply failed: {error}")),
+        }
+    }
+
+    pub(crate) fn reject_ai_proposal(&mut self) {
+        if self.pending_ai_proposal.take().is_some() {
+            self.ai_thread.messages.push(AiMessage {
+                role: AiMessageRole::Progress,
+                text: "AI proposal rejected".to_string(),
+            });
+            self.notify_info("AI proposal rejected");
+        } else {
+            self.notify_warning("No pending AI proposal");
         }
     }
 

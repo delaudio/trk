@@ -29,6 +29,15 @@ Typing a prompt and pressing `Enter` submits it through the same reviewable
 proposal path as `:ai propose`; `Esc` returns to the tracker and `Ctrl+C`
 requests cancellation of the active task.
 
+When a proposal is ready, the chat view treats the pending proposal as the
+selected review target. Its preview panel lists the full touched cell set, the
+touched pattern/track/row areas, the explicit absence of instrument, automation,
+or mixer changes for current cell-only proposals, and the available actions.
+With an empty composer, press `a` to apply the selected proposal, `r` to reject
+it, or `p` to append the preview summary to the thread. Applied proposals still
+go through the normal undo transaction stack, so `Ctrl+Z` restores the
+pre-accept song state.
+
 AI jobs are queued on the application task runtime and then reported back into
 the chat thread. The TUI surfaces queued, running, cancelling, completed,
 failed, and cancelled states without blocking tracker input. Phase progress
