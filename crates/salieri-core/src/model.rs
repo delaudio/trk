@@ -27,8 +27,8 @@ pub use pattern::{
     CellField, Cursor, Direction, NoteEvent, Pattern, PatternCell, PatternRow, TrackerCommand,
 };
 pub use sampler::{
-    Instrument, SampleEnvelope, SamplePlaybackMode, SamplePlaybackSettings, SampleReference,
-    TrackInstrumentAssignment, TrackSampleAssignment,
+    Instrument, InstrumentSampleZone, SampleEnvelope, SamplePlaybackMode, SamplePlaybackSettings,
+    SampleReference, TrackInstrumentAssignment, TrackSampleAssignment,
 };
 pub use song_types::{SongMetadata, Track, TransportSettings};
 
@@ -339,6 +339,20 @@ impl Song {
                     return Err(ValidationError::InstrumentSampleNotFound {
                         instrument_id: instrument.id,
                         sample_id: sample,
+                    });
+                }
+            }
+            for zone in &instrument.zones {
+                if !sample_ids.contains(&zone.sample) {
+                    return Err(ValidationError::InstrumentSampleNotFound {
+                        instrument_id: instrument.id,
+                        sample_id: zone.sample,
+                    });
+                }
+                if zone.key_start > zone.key_end || zone.velocity_start > zone.velocity_end {
+                    return Err(ValidationError::InvalidInstrumentSampleZone {
+                        instrument_id: instrument.id,
+                        sample_id: zone.sample,
                     });
                 }
             }
@@ -919,7 +933,7 @@ impl Song {
 
         self.samples.retain(|reference| reference.id != sample);
         self.instruments
-            .retain(|instrument| instrument.sample != Some(sample));
+            .retain(|instrument| !instrument.references_sample(sample));
         Ok(())
     }
 
@@ -930,17 +944,13 @@ impl Song {
             .map(|assignment| assignment.instrument)
             .collect::<HashSet<_>>();
         self.instruments.retain(|instrument| {
-            instrument.sample.is_none() || assigned_instruments.contains(&instrument.id)
+            instrument.primary_sample().is_none() || assigned_instruments.contains(&instrument.id)
         });
         let assigned_samples = self
             .sample_assignments
             .iter()
             .map(|assignment| assignment.sample)
-            .chain(
-                self.instruments
-                    .iter()
-                    .filter_map(|instrument| instrument.sample),
-            )
+            .chain(self.instruments.iter().flat_map(Instrument::sample_ids))
             .collect::<HashSet<_>>();
         let before = self.samples.len();
         self.samples
@@ -957,7 +967,7 @@ impl Song {
                 .track_instrument_assignments
                 .iter()
                 .filter_map(|assignment| self.instrument_for_id(assignment.instrument))
-                .any(|instrument| instrument.sample == Some(sample))
+                .any(|instrument| instrument.references_sample(sample))
     }
 
     #[must_use]
@@ -984,7 +994,7 @@ impl Song {
             .and_then(|assignment| self.sample_for_id(assignment.sample))
             .or_else(|| {
                 self.instrument_for_track(track)
-                    .and_then(|instrument| instrument.sample)
+                    .and_then(Instrument::primary_sample)
                     .and_then(|sample| self.sample_for_id(sample))
             })
     }
@@ -999,7 +1009,7 @@ impl Song {
         if let Some(instrument) = self
             .instruments
             .iter()
-            .find(|instrument| instrument.sample == Some(sample))
+            .find(|instrument| instrument.references_sample(sample))
         {
             return Ok(instrument.id);
         }
@@ -1012,6 +1022,7 @@ impl Song {
             id,
             name: sample_name,
             sample: Some(sample),
+            zones: Vec::new(),
         });
         Ok(id)
     }
@@ -1320,6 +1331,11 @@ pub enum ValidationError {
     EmptyInstrumentName { instrument_index: usize },
     #[error("instrument {instrument_id:?} references missing sample {sample_id:?}")]
     InstrumentSampleNotFound {
+        instrument_id: InstrumentId,
+        sample_id: SampleId,
+    },
+    #[error("instrument {instrument_id:?} has invalid sample zone for {sample_id:?}")]
+    InvalidInstrumentSampleZone {
         instrument_id: InstrumentId,
         sample_id: SampleId,
     },

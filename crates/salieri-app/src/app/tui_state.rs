@@ -125,7 +125,7 @@ impl App {
                 self.song
                     .instruments
                     .iter()
-                    .find(|instrument| instrument.sample == Some(sample_id))
+                    .find(|instrument| instrument.references_sample(sample_id))
             });
             let (waveform_start_bucket, waveform_end_bucket) = self.sample_waveform_window();
             SamplerViewState {

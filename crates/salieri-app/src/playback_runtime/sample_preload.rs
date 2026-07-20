@@ -25,22 +25,16 @@ pub(super) fn load_realtime_samples(
         .chain(
             song.track_instrument_assignments
                 .iter()
-                .filter_map(|assignment| {
-                    song.instrument_for_id(assignment.instrument)
-                        .and_then(|instrument| instrument.sample)
-                }),
+                .filter_map(|assignment| song.instrument_for_id(assignment.instrument))
+                .flat_map(|instrument| instrument.sample_ids()),
         )
         .chain(
             song.patterns
                 .iter()
                 .flat_map(|pattern| &pattern.rows)
                 .flat_map(|row| &row.cells)
-                .filter_map(|cell| {
-                    cell.instrument.and_then(|instrument| {
-                        song.instrument_for_id(instrument)
-                            .and_then(|instrument| instrument.sample)
-                    })
-                }),
+                .filter_map(|cell| cell.instrument.and_then(|id| song.instrument_for_id(id)))
+                .flat_map(|instrument| instrument.sample_ids()),
         )
         .collect::<HashSet<_>>();
     if assigned_samples.is_empty() {

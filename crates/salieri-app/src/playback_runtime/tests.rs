@@ -5,7 +5,7 @@ use std::{
 };
 
 use salieri_audio::{AudioConfig, RealtimeAudioCommand};
-use salieri_core::{row_duration_micros, NoteEvent, PlaybackPosition, Song};
+use salieri_core::{row_duration_micros, InstrumentSampleZone, NoteEvent, PlaybackPosition, Song};
 use salieri_midi::MidiMessage;
 
 use super::*;

@@ -9,10 +9,13 @@ use crate::diagnostics::{
     XrnsDiagnostic, XrnsDiagnosticKind, XrnsDiagnosticSeverity, XrnsInspection,
 };
 
-use super::{
-    parse_xml_events, sample_payload_instrument_id, stack_contains, xml_location, xrns_diagnostic,
-    XmlEvent,
-};
+mod keyzones;
+mod samples;
+
+use keyzones::{instrument_zones, parse_keyzone_note, parse_keyzone_velocity};
+use samples::import_sample_references;
+
+use super::{parse_xml_events, stack_contains, xml_location, xrns_diagnostic, XmlEvent};
 
 #[derive(Debug, Clone, Default)]
 pub(super) struct XrnsImportModel {
@@ -46,6 +49,10 @@ struct XrnsImportSampleMetadata {
     fine_tune_cents: Option<i16>,
     gain: Option<f32>,
     pan: Option<f32>,
+    key_start: Option<u8>,
+    key_end: Option<u8>,
+    velocity_start: Option<u8>,
+    velocity_end: Option<u8>,
     playback: XrnsImportSamplePlayback,
 }
 
@@ -362,6 +369,18 @@ fn apply_xrns_sample_text(
         "Panning" | "Pan" => {
             sample.pan = parse_sample_pan(text);
         }
+        "KeyStart" | "KeyRangeStart" | "NoteStart" | "LowNote" | "KeyLow" => {
+            sample.key_start = parse_keyzone_note(text);
+        }
+        "KeyEnd" | "KeyRangeEnd" | "NoteEnd" | "HighNote" | "KeyHigh" => {
+            sample.key_end = parse_keyzone_note(text);
+        }
+        "VelocityStart" | "VelocityRangeStart" | "VelocityLow" => {
+            sample.velocity_start = parse_keyzone_velocity(text);
+        }
+        "VelocityEnd" | "VelocityRangeEnd" | "VelocityHigh" => {
+            sample.velocity_end = parse_keyzone_velocity(text);
+        }
         "Start" | "StartFrame" | "SampleStart" => {
             sample.playback.start_frame = parse_usize_value(text);
         }
@@ -412,6 +431,9 @@ impl XrnsImportSampleMetadata {
             .envelope
             .get_or_insert_with(SampleEnvelope::default)
     }
+
+    #[rustfmt::skip]
+    fn has_keyzone_mapping(&self) -> bool { self.key_start.is_some() || self.key_end.is_some() || self.velocity_start.is_some() || self.velocity_end.is_some() }
 }
 
 impl XrnsImportModel {
@@ -470,41 +492,13 @@ pub(super) fn build_song_from_xrns_model(
         }
     }
 
-    let mut sample_by_instrument = HashMap::<InstrumentId, _>::new();
-    for sample in &inspection.sample_payloads {
-        let Some(instrument) = sample_payload_instrument_id(&sample.path) else {
-            continue;
-        };
-        let sample_index = sample_payload_sample_index(&sample.path).unwrap_or(0);
-        if sample.supported || sample_path_overrides.contains_key(&sample.path) {
-            let sample_path = sample_path_overrides
-                .get(&sample.path)
-                .map_or(sample.path.as_str(), String::as_str);
-            let imported_name = model
-                .sample_metadata(instrument, sample_index)
-                .and_then(|metadata| metadata.name.as_deref())
-                .filter(|name| !name.trim().is_empty())
-                .map(str::to_string)
-                .unwrap_or_else(|| sample_name(&sample.path));
-            let sample_id = song.upsert_sample_reference(sample_path, imported_name);
-            if let Some(metadata) = model.sample_metadata(instrument, sample_index) {
-                if let Some(reference) = song.sample_for_id_mut(sample_id) {
-                    apply_sample_metadata(reference, metadata);
-                }
-            }
-            sample_by_instrument.insert(instrument, sample_id);
-        } else {
-            diagnostics.push(xrns_diagnostic(
-                XrnsDiagnosticKind::UnsupportedSampleFormat,
-                XrnsDiagnosticSeverity::Warning,
-                Some(sample.path.clone()),
-                format!(
-                    "instrument {:?} references unsupported sample format {}",
-                    instrument, sample.format
-                ),
-            ));
-        }
-    }
+    let sample_by_instrument_sample = import_sample_references(
+        &mut song,
+        model,
+        inspection,
+        sample_path_overrides,
+        diagnostics,
+    );
     let referenced_instruments = model
         .patterns
         .iter()
@@ -522,9 +516,9 @@ pub(super) fn build_song_from_xrns_model(
                 .unwrap_or(0),
         )
         .max(
-            sample_by_instrument
+            sample_by_instrument_sample
                 .keys()
-                .map(|id| id.0 as usize + 1)
+                .map(|(id, _)| id.0 as usize + 1)
                 .max()
                 .unwrap_or(0),
         );
@@ -538,10 +532,18 @@ pub(super) fn build_song_from_xrns_model(
             .filter(|name| !name.trim().is_empty())
             .map(str::to_string)
             .unwrap_or_else(|| format!("Instrument {index:02}"));
+        let mut instrument_samples = sample_by_instrument_sample
+            .iter()
+            .filter_map(|((instrument, sample_index), sample)| {
+                (*instrument == id).then_some((*sample_index, *sample))
+            })
+            .collect::<Vec<_>>();
+        instrument_samples.sort_unstable_by_key(|(sample_index, _)| *sample_index);
         song.instruments.push(Instrument {
             id,
             name,
-            sample: sample_by_instrument.get(&id).copied(),
+            sample: instrument_samples.first().map(|(_, sample)| *sample),
+            zones: instrument_zones(model, id, &instrument_samples, diagnostics),
         });
     }
 
