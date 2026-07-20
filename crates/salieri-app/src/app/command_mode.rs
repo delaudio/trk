@@ -65,6 +65,7 @@ impl App {
                     | CommandDomain::Dsp
                     | CommandDomain::Ai
                     | CommandDomain::Report
+                    | CommandDomain::Graph
                     | CommandDomain::Preset
                     | CommandDomain::Workspace
                     | CommandDomain::MidiInput
@@ -422,6 +423,7 @@ impl App {
             CommandDomain::Dsp => self.handle_dsp_command(&values),
             CommandDomain::Ai => self.handle_ai_command(&values),
             CommandDomain::Report => self.handle_report_command(&values),
+            CommandDomain::Graph => self.handle_composition_graph_command(&values),
             CommandDomain::Preset => self.handle_preset_command(&values),
             CommandDomain::Workspace => self.handle_workspace_command(&values),
             CommandDomain::MidiInput => self.handle_midi_input_command(&values),

@@ -5,6 +5,7 @@ mod ai_commands;
 mod cli_workflows;
 mod command_palette;
 mod commands_playback;
+mod composition_graph;
 mod history_transactions;
 mod layout_commands;
 mod navigation_editing;

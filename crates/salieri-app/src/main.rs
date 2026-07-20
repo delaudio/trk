@@ -7,6 +7,7 @@ mod browser_io;
 mod cli;
 mod command;
 mod command_palette;
+mod composition_graph;
 mod config;
 mod event_handler;
 mod focus;
@@ -67,6 +68,7 @@ use command_palette::{
     command_palette_results, CommandPaletteActionKind, CommandPaletteContext,
     CommandPaletteInternalAction, CommandPaletteMatch,
 };
+use composition_graph::*;
 use config::{load_config, AppConfig, ConfigOverrides, ProjectBrowserConfig, SampleBrowserConfig};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers, MouseEventKind};
 use focus::{FocusCapture, FocusManager, FocusPanel};
@@ -244,6 +246,7 @@ struct App {
     ai_guidance: Option<AiGuidanceContext>,
     project_browser_view: Option<AppProjectBrowserView>,
     pending_ai_proposal: Option<PreparedAiProposal>,
+    pending_composition_graph: Option<CompositionGraph>,
     dirty: bool,
     should_quit: bool,
     dialog: Option<Dialog>,

@@ -107,6 +107,7 @@ impl App {
             ai_guidance: None,
             project_browser_view: None,
             pending_ai_proposal: None,
+            pending_composition_graph: None,
             dirty: false,
             should_quit: false,
             dialog: None,
