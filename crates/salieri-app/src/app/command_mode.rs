@@ -68,6 +68,7 @@ impl App {
                     | CommandDomain::Report
                     | CommandDomain::Graph
                     | CommandDomain::Clip
+                    | CommandDomain::Ableton
                     | CommandDomain::Preset
                     | CommandDomain::Workspace
                     | CommandDomain::MidiInput
@@ -427,6 +428,7 @@ impl App {
             CommandDomain::Report => self.handle_report_command(&values),
             CommandDomain::Graph => self.handle_composition_graph_command(&values),
             CommandDomain::Clip => self.handle_clip_command(&values),
+            CommandDomain::Ableton => self.handle_live_bridge_command(&values),
             CommandDomain::Preset => self.handle_preset_command(&values),
             CommandDomain::Workspace => self.handle_workspace_command(&values),
             CommandDomain::MidiInput => self.handle_midi_input_command(&values),
