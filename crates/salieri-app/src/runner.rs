@@ -105,7 +105,9 @@ fn run(args: CliArgs) -> Result<()> {
             let midi_status = app.tui_midi_status();
             let ai_chat_messages = app.tui_ai_chat_messages();
             let ai_provider = format!("{} model={}", app.ai_config.provider, app.ai_config.model);
-            let ai_status = crate::task_integration::format_ai_provider_status(&app.ai_config);
+            let ai_provider_status =
+                crate::task_integration::format_ai_provider_status(&app.ai_config);
+            let ai_status = app.tui_ai_status(&ai_provider_status);
             let ai_context = format!(
                 "Context: pattern {:02}, track {:02}, row {:02}",
                 app.pattern_index + 1,

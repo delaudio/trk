@@ -29,6 +29,15 @@ Typing a prompt and pressing `Enter` submits it through the same reviewable
 proposal path as `:ai propose`; `Esc` returns to the tracker and `Ctrl+C`
 requests cancellation of the active task.
 
+AI jobs are queued on the application task runtime and then reported back into
+the chat thread. The TUI surfaces queued, running, cancelling, completed,
+failed, and cancelled states without blocking tracker input. Phase progress
+events include the current percentage when a total is known, the phase name, the
+tool/provider label, and the diagnostic text produced by the job. Final proposal
+summaries are appended as assistant messages; failures are appended as error
+messages. Cancellation marks the job cancelled and leaves the song and pending
+proposal slot unchanged.
+
 `:ai provider` reports the configured provider, model, and availability before a
 prompt is submitted. `:ai propose` submits the configured local or mock provider
 to the application [task runtime](tasks.md) with the current pattern and track as
