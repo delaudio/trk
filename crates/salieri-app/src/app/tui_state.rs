@@ -262,6 +262,13 @@ impl App {
             .collect()
     }
 
+    pub(crate) fn tui_ai_status(&self, provider_status: &str) -> String {
+        match self.active_task_status() {
+            Some(task) => format!("{provider_status} | Task {task}"),
+            None => provider_status.to_string(),
+        }
+    }
+
     pub(crate) fn tui_ai_chat_view<'a>(
         &'a self,
         messages: &'a [AiChatMessageView<'a>],

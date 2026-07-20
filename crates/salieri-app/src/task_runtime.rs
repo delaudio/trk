@@ -67,6 +67,8 @@ pub struct TaskProgress {
     pub completed: u64,
     pub total: Option<u64>,
     pub message: Option<String>,
+    pub phase: Option<String>,
+    pub tool: Option<String>,
 }
 
 impl TaskProgress {
@@ -75,7 +77,19 @@ impl TaskProgress {
             completed,
             total,
             message: Some(message.into()),
+            phase: None,
+            tool: None,
         }
+    }
+
+    pub fn with_phase(mut self, phase: impl Into<String>) -> Self {
+        self.phase = Some(phase.into());
+        self
+    }
+
+    pub fn with_tool(mut self, tool: impl Into<String>) -> Self {
+        self.tool = Some(tool.into());
+        self
     }
 
     pub fn percentage(&self) -> Option<u64> {

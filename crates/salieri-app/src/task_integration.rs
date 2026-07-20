@@ -68,19 +68,32 @@ impl App {
             return;
         }
         let provider_label = ai_provider_label(&provider);
+        let job_provider_label = provider_label.clone();
         let id = self.task_runtime.submit(
             format!("AI proposal via {provider_label}"),
             Box::new(move |context| {
-                context.report_progress(TaskProgress::new(0, Some(2), "generating proposal"));
+                context.report_progress(
+                    TaskProgress::new(0, Some(3), "generating proposal")
+                        .with_phase("generate")
+                        .with_tool(job_provider_label),
+                );
                 let proposal = propose_with_configured_provider(&provider, &song, &request)
                     .map_err(|error| TaskFailure::error(format!("AI proposal failed: {error}")))?;
                 context.check_cancelled()?;
-                context.report_progress(TaskProgress::new(1, Some(2), "validating preview"));
+                context.report_progress(
+                    TaskProgress::new(1, Some(3), "validating preview")
+                        .with_phase("preview")
+                        .with_tool("proposal diff"),
+                );
                 let touched_cells = preview_proposal(&song, &proposal)
                     .map_err(|error| TaskFailure::error(format!("AI preview failed: {error}")))?
                     .touched_cells;
                 context.check_cancelled()?;
-                context.report_progress(TaskProgress::new(2, Some(2), "proposal ready"));
+                context.report_progress(
+                    TaskProgress::new(3, Some(3), "proposal ready")
+                        .with_phase("ready")
+                        .with_tool("proposal diff"),
+                );
                 Ok(AppTaskResult::AiProposal(PreparedAiProposal {
                     proposal,
                     touched_cells,
@@ -106,13 +119,20 @@ impl App {
         let id = update.id();
         let name = self.task_name(id);
         match update {
-            TaskUpdate::Started { .. } => self.notify_info(format!("Task #{id} running: {name}")),
+            TaskUpdate::Started { .. } => {
+                self.ai_thread.messages.push(AiMessage {
+                    role: AiMessageRole::Progress,
+                    text: format!("Task #{id} running: {name}"),
+                });
+                self.notify_info(format!("Task #{id} running: {name}"));
+            }
             TaskUpdate::Progress { progress, .. } => {
-                let percentage = progress
-                    .percentage()
-                    .map_or_else(String::new, |value| format!(" {value}%"));
-                let detail = progress.message.unwrap_or_else(|| "working".to_string());
-                self.notify_info(format!("Task #{id}{percentage}: {detail}"));
+                let summary = format_task_progress(id, &progress);
+                self.ai_thread.messages.push(AiMessage {
+                    role: AiMessageRole::Progress,
+                    text: summary.clone(),
+                });
+                self.notify_info(summary);
             }
             TaskUpdate::Completed { result, .. } => match result {
                 AppTaskResult::AiProposal(prepared) => {
@@ -179,6 +199,11 @@ impl App {
 
     fn cancel_task(&mut self, id: TaskId) {
         if self.task_runtime.cancel(id) {
+            let name = self.task_name(id);
+            self.ai_thread.messages.push(AiMessage {
+                role: AiMessageRole::Progress,
+                text: format!("Task #{id} cancelling: {name}"),
+            });
             self.notify_info(format!("Task #{id} cancellation requested"));
             return;
         }
@@ -296,6 +321,22 @@ fn format_task_snapshot(task: &TaskSnapshot) -> String {
     format!("#{} {} {}{progress}", task.id, task.name, task.status)
 }
 
+fn format_task_progress(id: TaskId, progress: &TaskProgress) -> String {
+    let percentage = progress
+        .percentage()
+        .map_or_else(String::new, |value| format!(" {value}%"));
+    let phase = progress
+        .phase
+        .as_deref()
+        .map_or_else(String::new, |value| format!(" [{value}]"));
+    let tool = progress
+        .tool
+        .as_deref()
+        .map_or_else(String::new, |value| format!(" via {value}"));
+    let detail = progress.message.as_deref().unwrap_or("working");
+    format!("Task #{id}{percentage}{phase}{tool}: {detail}")
+}
+
 fn format_task_failure(id: TaskId, name: &str, diagnostics: &[TaskDiagnostic]) -> String {
     let details = diagnostics
         .iter()
@@ -370,5 +411,88 @@ mod tests {
 
         assert!(app.pending_ai_proposal.is_some());
         assert!(app.task_runtime.is_idle());
+    }
+
+    #[test]
+    fn ai_task_progress_streams_into_chat_thread() {
+        let (backend, controller) = FakeTaskBackend::new();
+        let mut app = App {
+            task_runtime: TaskRuntime::with_backend(backend),
+            ..App::default()
+        };
+
+        app.create_ai_proposal("syncopated bass".to_string());
+        let id = app
+            .task_runtime
+            .tasks()
+            .next_back()
+            .expect("queued task")
+            .id;
+        controller.push(TaskUpdate::Started { id });
+        controller.push(TaskUpdate::Progress {
+            id,
+            progress: TaskProgress::new(1, Some(4), "streaming stderr diagnostics")
+                .with_phase("diagnostics")
+                .with_tool("mock provider"),
+        });
+
+        app.drain_task_updates();
+
+        assert!(app.ai_thread.messages.iter().any(|message| {
+            message.role == AiMessageRole::Progress
+                && message.text.starts_with(&format!(
+                    "Task #{id} running: AI proposal via local_deterministic"
+                ))
+        }));
+        assert!(app.ai_thread.messages.iter().any(|message| {
+            message.role == AiMessageRole::Progress
+                && message.text
+                    == format!(
+                        "Task #{id} 25% [diagnostics] via mock provider: streaming stderr diagnostics"
+                    )
+        }));
+        assert_eq!(
+            app.active_task_status(),
+            Some(format!(
+                "#{id} AI proposal via local_deterministic model=local-deterministic running 25%"
+            ))
+        );
+    }
+
+    #[test]
+    fn cancelling_ai_task_leaves_project_unchanged_and_no_pending_proposal() {
+        let (backend, controller) = FakeTaskBackend::new();
+        let mut app = App {
+            task_runtime: TaskRuntime::with_backend(backend),
+            ..App::default()
+        };
+        let before = app.song.clone();
+
+        app.create_ai_proposal("cancel this sketch".to_string());
+        let id = app
+            .task_runtime
+            .tasks()
+            .next_back()
+            .expect("queued task")
+            .id;
+        app.cancel_active_task();
+        assert!(controller.was_cancelled(id));
+        controller.push(TaskUpdate::Cancelled { id });
+        app.drain_task_updates();
+
+        assert_eq!(app.song, before);
+        assert!(app.pending_ai_proposal.is_none());
+        assert!(app.ai_thread.messages.iter().any(|message| {
+            message.role == AiMessageRole::Progress
+                && message.text.starts_with(&format!(
+                    "Task #{id} cancelling: AI proposal via local_deterministic"
+                ))
+        }));
+        assert!(app.ai_thread.messages.iter().any(|message| {
+            message.role == AiMessageRole::Progress
+                && message.text.starts_with(&format!(
+                    "Task #{id} cancelled: AI proposal via local_deterministic"
+                ))
+        }));
     }
 }
