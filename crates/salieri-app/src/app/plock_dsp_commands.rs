@@ -168,6 +168,16 @@ impl App {
                 let (parameter, descriptor) = reverb_lock_descriptor(parameter)?;
                 self.track_effect_lock(8, parameter, descriptor, action)
             }
+            ["dsp", "track", parameter, action] if drive_lock_descriptor(parameter).is_some() => {
+                let (parameter, descriptor) = drive_lock_descriptor(parameter)?;
+                self.track_effect_lock(9, parameter, descriptor, action)
+            }
+            ["dsp", "track", parameter, action]
+                if bitcrusher_lock_descriptor(parameter).is_some() =>
+            {
+                let (parameter, descriptor) = bitcrusher_lock_descriptor(parameter)?;
+                self.track_effect_lock(10, parameter, descriptor, action)
+            }
             ["dsp", "master", "gain", action] => self.master_effect_lock(
                 1,
                 NATIVE_GAIN_PARAMETER_ID,
@@ -294,6 +304,16 @@ impl App {
                 let (parameter, descriptor) = reverb_lock_descriptor(parameter)?;
                 self.master_effect_lock(8, parameter, descriptor, action)
             }
+            ["dsp", "master", parameter, action] if drive_lock_descriptor(parameter).is_some() => {
+                let (parameter, descriptor) = drive_lock_descriptor(parameter)?;
+                self.master_effect_lock(9, parameter, descriptor, action)
+            }
+            ["dsp", "master", parameter, action]
+                if bitcrusher_lock_descriptor(parameter).is_some() =>
+            {
+                let (parameter, descriptor) = bitcrusher_lock_descriptor(parameter)?;
+                self.master_effect_lock(10, parameter, descriptor, action)
+            }
             _ => None,
         }
     }
@@ -378,6 +398,61 @@ fn reverb_lock_descriptor(parameter: &str) -> Option<(&'static str, ParameterDes
         "reverb-output" | "reverb-out" => Some((
             NATIVE_REVERB_OUTPUT_PARAMETER_ID,
             native_reverb_output_descriptor(),
+        )),
+        _ => None,
+    }
+}
+
+fn drive_lock_descriptor(parameter: &str) -> Option<(&'static str, ParameterDescriptor)> {
+    match parameter {
+        "drive-mode" => Some((
+            NATIVE_DRIVE_MODE_PARAMETER_ID,
+            native_drive_mode_descriptor(),
+        )),
+        "drive-drive" | "drive-db" | "drive-gain" => Some((
+            NATIVE_DRIVE_DRIVE_PARAMETER_ID,
+            native_drive_drive_descriptor(),
+        )),
+        "drive-tone" => Some((
+            NATIVE_DRIVE_TONE_PARAMETER_ID,
+            native_drive_tone_descriptor(),
+        )),
+        "drive-bias" => Some((
+            NATIVE_DRIVE_BIAS_PARAMETER_ID,
+            native_drive_bias_descriptor(),
+        )),
+        "drive-mix" => Some((NATIVE_DRIVE_MIX_PARAMETER_ID, native_drive_mix_descriptor())),
+        "drive-output" | "drive-out" => Some((
+            NATIVE_DRIVE_OUTPUT_PARAMETER_ID,
+            native_drive_output_descriptor(),
+        )),
+        _ => None,
+    }
+}
+
+fn bitcrusher_lock_descriptor(parameter: &str) -> Option<(&'static str, ParameterDescriptor)> {
+    match parameter {
+        "bit-depth" | "bitcrusher-bit-depth" | "crusher-bit-depth" => Some((
+            NATIVE_BITCRUSHER_BIT_DEPTH_PARAMETER_ID,
+            native_bitcrusher_bit_depth_descriptor(),
+        )),
+        "bitcrusher-rate" | "crusher-rate" | "bitcrusher-reduction" | "crusher-reduction" => {
+            Some((
+                NATIVE_BITCRUSHER_REDUCTION_PARAMETER_ID,
+                native_bitcrusher_reduction_descriptor(),
+            ))
+        }
+        "bitcrusher-dither" | "crusher-dither" => Some((
+            NATIVE_BITCRUSHER_DITHER_PARAMETER_ID,
+            native_bitcrusher_dither_descriptor(),
+        )),
+        "bitcrusher-mix" | "crusher-mix" => Some((
+            NATIVE_BITCRUSHER_MIX_PARAMETER_ID,
+            native_bitcrusher_mix_descriptor(),
+        )),
+        "bitcrusher-output" | "bitcrusher-out" | "crusher-output" | "crusher-out" => Some((
+            NATIVE_BITCRUSHER_OUTPUT_PARAMETER_ID,
+            native_bitcrusher_output_descriptor(),
         )),
         _ => None,
     }

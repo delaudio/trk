@@ -446,6 +446,34 @@ pub(crate) fn audio_dsp_device(device: &EffectDevice) -> DspDeviceSpec {
                 mix,
                 output_db,
             },
+            EffectDeviceKind::Drive {
+                mode,
+                drive_db,
+                tone,
+                bias,
+                mix,
+                output_db,
+            } => AudioDspDeviceKind::Drive {
+                mode: audio_drive_mode(mode),
+                drive_db,
+                tone,
+                bias,
+                mix,
+                output_db,
+            },
+            EffectDeviceKind::Bitcrusher {
+                bit_depth,
+                reduction_ratio,
+                dither,
+                mix,
+                output_db,
+            } => AudioDspDeviceKind::Bitcrusher {
+                bit_depth,
+                reduction_ratio,
+                dither,
+                mix,
+                output_db,
+            },
         },
     }
 }
@@ -456,6 +484,15 @@ fn audio_filter_mode(mode: FilterMode) -> AudioDspFilterMode {
         FilterMode::HighPass => AudioDspFilterMode::HighPass,
         FilterMode::BandPass => AudioDspFilterMode::BandPass,
         FilterMode::Notch => AudioDspFilterMode::Notch,
+    }
+}
+
+fn audio_drive_mode(mode: DriveMode) -> AudioDspDriveMode {
+    match mode {
+        DriveMode::Overdrive => AudioDspDriveMode::Overdrive,
+        DriveMode::Saturation => AudioDspDriveMode::Saturation,
+        DriveMode::HardClip => AudioDspDriveMode::HardClip,
+        DriveMode::SoftClip => AudioDspDriveMode::SoftClip,
     }
 }
 

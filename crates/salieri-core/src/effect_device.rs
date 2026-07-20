@@ -11,6 +11,15 @@ pub enum FilterMode {
     Notch,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DriveMode {
+    Overdrive,
+    Saturation,
+    HardClip,
+    SoftClip,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FilterSpec {
     pub mode: FilterMode,
@@ -51,6 +60,50 @@ pub struct ReverbSpec {
     pub early_reflections: f32,
     pub mix: f32,
     pub output_db: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DriveSpec {
+    pub mode: DriveMode,
+    pub drive_db: f32,
+    pub tone: f32,
+    pub bias: f32,
+    pub mix: f32,
+    pub output_db: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BitcrusherSpec {
+    pub bit_depth: u8,
+    pub reduction_ratio: f32,
+    pub dither: bool,
+    pub mix: f32,
+    pub output_db: f32,
+}
+
+impl Default for DriveSpec {
+    fn default() -> Self {
+        Self {
+            mode: DriveMode::Overdrive,
+            drive_db: 12.0,
+            tone: 0.5,
+            bias: 0.0,
+            mix: 1.0,
+            output_db: 0.0,
+        }
+    }
+}
+
+impl Default for BitcrusherSpec {
+    fn default() -> Self {
+        Self {
+            bit_depth: 12,
+            reduction_ratio: 1.0,
+            dither: false,
+            mix: 1.0,
+            output_db: 0.0,
+        }
+    }
 }
 
 impl Default for ReverbSpec {
@@ -122,6 +175,29 @@ impl FilterMode {
             "highPass" => Some(Self::HighPass),
             "bandPass" => Some(Self::BandPass),
             "notch" => Some(Self::Notch),
+            _ => None,
+        }
+    }
+}
+
+impl DriveMode {
+    #[must_use]
+    pub fn parameter_id(self) -> &'static str {
+        match self {
+            Self::Overdrive => "overdrive",
+            Self::Saturation => "saturation",
+            Self::HardClip => "hardClip",
+            Self::SoftClip => "softClip",
+        }
+    }
+
+    #[must_use]
+    pub fn from_parameter_id(value: &str) -> Option<Self> {
+        match value {
+            "overdrive" => Some(Self::Overdrive),
+            "saturation" => Some(Self::Saturation),
+            "hardClip" => Some(Self::HardClip),
+            "softClip" => Some(Self::SoftClip),
             _ => None,
         }
     }
@@ -223,6 +299,37 @@ impl EffectDevice {
                 diffusion: spec.diffusion,
                 width: spec.width,
                 early_reflections: spec.early_reflections,
+                mix: spec.mix,
+                output_db: spec.output_db,
+            },
+        )
+    }
+
+    #[must_use]
+    pub fn drive(id: u32, spec: DriveSpec) -> Self {
+        Self::new(
+            id,
+            "Drive",
+            EffectDeviceKind::Drive {
+                mode: spec.mode,
+                drive_db: spec.drive_db,
+                tone: spec.tone,
+                bias: spec.bias,
+                mix: spec.mix,
+                output_db: spec.output_db,
+            },
+        )
+    }
+
+    #[must_use]
+    pub fn bitcrusher(id: u32, spec: BitcrusherSpec) -> Self {
+        Self::new(
+            id,
+            "Bitcrusher",
+            EffectDeviceKind::Bitcrusher {
+                bit_depth: spec.bit_depth,
+                reduction_ratio: spec.reduction_ratio,
+                dither: spec.dither,
                 mix: spec.mix,
                 output_db: spec.output_db,
             },

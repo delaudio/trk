@@ -312,6 +312,117 @@ fn renders_sampler_events_through_native_filter_modes() {
 }
 
 #[test]
+fn renders_sampler_events_through_native_drive_modes() {
+    let samples = vec![OfflineSamplerSample {
+        sample_id: 7,
+        buffer: PreviewBuffer {
+            sample_rate: 48_000,
+            channels: 2,
+            frames: 4,
+            data: vec![0.20, -0.20, 0.50, -0.50, 0.80, -0.80, 1.0, -1.0],
+        },
+    }];
+    let events = vec![OfflineSamplerEvent {
+        track_id: 2,
+        sample_id: 7,
+        frame: 0,
+        gain: 1.0,
+        pan: 0.0,
+        pitch_ratio: 1.0,
+        velocity: 127,
+    }];
+
+    for mode in [
+        DspDriveMode::Overdrive,
+        DspDriveMode::Saturation,
+        DspDriveMode::HardClip,
+        DspDriveMode::SoftClip,
+    ] {
+        let graph = DspGraphSpec {
+            track_chains: Vec::new(),
+            master: vec![DspDeviceSpec {
+                bypassed: false,
+                kind: DspDeviceKind::Drive {
+                    mode,
+                    drive_db: 18.0,
+                    tone: 0.5,
+                    bias: 0.0,
+                    mix: 1.0,
+                    output_db: -6.0,
+                },
+            }],
+        };
+
+        let rendered = render_sampler_events_with_dsp(
+            &samples,
+            &events,
+            OfflineRenderSpec {
+                sample_rate: 48_000,
+                channels: 2,
+                frames: 4,
+            },
+            &graph,
+        )
+        .expect("render drive");
+
+        assert!(rendered.data.iter().all(|sample| sample.is_finite()));
+        assert_ne!(rendered.data, samples[0].buffer.data);
+    }
+}
+
+#[test]
+fn renders_sampler_events_through_native_bitcrusher_reduction() {
+    let samples = vec![OfflineSamplerSample {
+        sample_id: 7,
+        buffer: PreviewBuffer {
+            sample_rate: 48_000,
+            channels: 2,
+            frames: 4,
+            data: vec![0.10, -0.10, 0.40, -0.40, 0.70, -0.70, 1.0, -1.0],
+        },
+    }];
+    let events = vec![OfflineSamplerEvent {
+        track_id: 2,
+        sample_id: 7,
+        frame: 0,
+        gain: 1.0,
+        pan: 0.0,
+        pitch_ratio: 1.0,
+        velocity: 127,
+    }];
+    let graph = DspGraphSpec {
+        track_chains: Vec::new(),
+        master: vec![DspDeviceSpec {
+            bypassed: false,
+            kind: DspDeviceKind::Bitcrusher {
+                bit_depth: 4,
+                reduction_ratio: 2.0,
+                dither: false,
+                mix: 1.0,
+                output_db: 0.0,
+            },
+        }],
+    };
+
+    let rendered = render_sampler_events_with_dsp(
+        &samples,
+        &events,
+        OfflineRenderSpec {
+            sample_rate: 48_000,
+            channels: 2,
+            frames: 4,
+        },
+        &graph,
+    )
+    .expect("render bitcrusher");
+
+    assert!(rendered.data.iter().all(|sample| sample.is_finite()));
+    assert_approx_eq(rendered.data[0], rendered.data[2]);
+    assert_approx_eq(rendered.data[1], rendered.data[3]);
+    assert_ne!(rendered.data, samples[0].buffer.data);
+}
+
+#[test]
 fn renders_sampler_events_through_native_delay_timing() {
     let samples = vec![OfflineSamplerSample {
         sample_id: 7,

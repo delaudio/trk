@@ -1,4 +1,18 @@
 use super::{
+    drive_catalog::{
+        native_bitcrusher_bit_depth_descriptor, native_bitcrusher_dither_descriptor,
+        native_bitcrusher_mix_descriptor, native_bitcrusher_output_descriptor,
+        native_bitcrusher_parameter_descriptors, native_bitcrusher_reduction_descriptor,
+        native_drive_bias_descriptor, native_drive_drive_descriptor, native_drive_mix_descriptor,
+        native_drive_mode_descriptor, native_drive_output_descriptor,
+        native_drive_parameter_descriptors, native_drive_tone_descriptor,
+        NATIVE_BITCRUSHER_BIT_DEPTH_PARAMETER_ID, NATIVE_BITCRUSHER_DITHER_PARAMETER_ID,
+        NATIVE_BITCRUSHER_MIX_PARAMETER_ID, NATIVE_BITCRUSHER_OUTPUT_PARAMETER_ID,
+        NATIVE_BITCRUSHER_REDUCTION_PARAMETER_ID, NATIVE_DRIVE_BIAS_PARAMETER_ID,
+        NATIVE_DRIVE_DRIVE_PARAMETER_ID, NATIVE_DRIVE_MIX_PARAMETER_ID,
+        NATIVE_DRIVE_MODE_PARAMETER_ID, NATIVE_DRIVE_OUTPUT_PARAMETER_ID,
+        NATIVE_DRIVE_TONE_PARAMETER_ID,
+    },
     reverb_catalog::{
         native_reverb_damping_descriptor, native_reverb_decay_descriptor,
         native_reverb_diffusion_descriptor, native_reverb_early_reflections_descriptor,
@@ -621,6 +635,8 @@ pub fn native_effect_parameter_descriptors() -> Vec<ParameterDescriptor> {
         native_delay_output_descriptor(),
     ];
     descriptors.extend(native_reverb_parameter_descriptors());
+    descriptors.extend(native_drive_parameter_descriptors());
+    descriptors.extend(native_bitcrusher_parameter_descriptors());
     descriptors
 }
 
@@ -672,6 +688,17 @@ pub fn builtin_parameter_descriptor(id: &ParameterId) -> Option<ParameterDescrip
         }
         NATIVE_REVERB_MIX_PARAMETER_ID => Some(native_reverb_mix_descriptor()),
         NATIVE_REVERB_OUTPUT_PARAMETER_ID => Some(native_reverb_output_descriptor()),
+        NATIVE_DRIVE_MODE_PARAMETER_ID => Some(native_drive_mode_descriptor()),
+        NATIVE_DRIVE_DRIVE_PARAMETER_ID => Some(native_drive_drive_descriptor()),
+        NATIVE_DRIVE_TONE_PARAMETER_ID => Some(native_drive_tone_descriptor()),
+        NATIVE_DRIVE_BIAS_PARAMETER_ID => Some(native_drive_bias_descriptor()),
+        NATIVE_DRIVE_MIX_PARAMETER_ID => Some(native_drive_mix_descriptor()),
+        NATIVE_DRIVE_OUTPUT_PARAMETER_ID => Some(native_drive_output_descriptor()),
+        NATIVE_BITCRUSHER_BIT_DEPTH_PARAMETER_ID => Some(native_bitcrusher_bit_depth_descriptor()),
+        NATIVE_BITCRUSHER_REDUCTION_PARAMETER_ID => Some(native_bitcrusher_reduction_descriptor()),
+        NATIVE_BITCRUSHER_DITHER_PARAMETER_ID => Some(native_bitcrusher_dither_descriptor()),
+        NATIVE_BITCRUSHER_MIX_PARAMETER_ID => Some(native_bitcrusher_mix_descriptor()),
+        NATIVE_BITCRUSHER_OUTPUT_PARAMETER_ID => Some(native_bitcrusher_output_descriptor()),
         _ => None,
     }
 }

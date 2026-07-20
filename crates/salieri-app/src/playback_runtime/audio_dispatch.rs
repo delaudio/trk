@@ -2,10 +2,10 @@ use std::{path::Path, sync::mpsc::Sender};
 
 use salieri_audio::{
     AudioBackend, AudioConfig, CpalAudioBackend, DspDeviceKind as AudioDspDeviceKind,
-    DspDeviceSpec, DspFilterMode as AudioDspFilterMode, DspGraphSpec, RealtimeAudioCommand,
-    TrackDspChainSpec,
+    DspDeviceSpec, DspDriveMode as AudioDspDriveMode, DspFilterMode as AudioDspFilterMode,
+    DspGraphSpec, RealtimeAudioCommand, TrackDspChainSpec,
 };
-use salieri_core::{EffectDevice, EffectDeviceKind, FilterMode, Song};
+use salieri_core::{DriveMode, EffectDevice, EffectDeviceKind, FilterMode, Song};
 
 use super::{sample_preload::load_realtime_samples, transport::PlaybackUpdate};
 
@@ -196,6 +196,34 @@ fn audio_dsp_device(device: &EffectDevice) -> DspDeviceSpec {
                 mix,
                 output_db,
             },
+            EffectDeviceKind::Drive {
+                mode,
+                drive_db,
+                tone,
+                bias,
+                mix,
+                output_db,
+            } => AudioDspDeviceKind::Drive {
+                mode: audio_drive_mode(mode),
+                drive_db,
+                tone,
+                bias,
+                mix,
+                output_db,
+            },
+            EffectDeviceKind::Bitcrusher {
+                bit_depth,
+                reduction_ratio,
+                dither,
+                mix,
+                output_db,
+            } => AudioDspDeviceKind::Bitcrusher {
+                bit_depth,
+                reduction_ratio,
+                dither,
+                mix,
+                output_db,
+            },
         },
     }
 }
@@ -206,6 +234,15 @@ fn audio_filter_mode(mode: FilterMode) -> AudioDspFilterMode {
         FilterMode::HighPass => AudioDspFilterMode::HighPass,
         FilterMode::BandPass => AudioDspFilterMode::BandPass,
         FilterMode::Notch => AudioDspFilterMode::Notch,
+    }
+}
+
+fn audio_drive_mode(mode: DriveMode) -> AudioDspDriveMode {
+    match mode {
+        DriveMode::Overdrive => AudioDspDriveMode::Overdrive,
+        DriveMode::Saturation => AudioDspDriveMode::Saturation,
+        DriveMode::HardClip => AudioDspDriveMode::HardClip,
+        DriveMode::SoftClip => AudioDspDriveMode::SoftClip,
     }
 }
 

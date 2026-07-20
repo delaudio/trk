@@ -5,23 +5,7 @@ use crate::{
         AutomationTarget, EffectDevice, EffectDeviceKind, MixerState, Pattern, SampleId,
         SamplePlaybackMode, SamplePlaybackSettings, TrackId, ValidationError,
     },
-    parameters::{
-        mixer_master_gain_descriptor, mixer_send_gain_descriptor, mixer_track_gain_descriptor,
-        mixer_track_pan_descriptor, native_balance_descriptor, native_delay_feedback_descriptor,
-        native_delay_filter_high_cut_descriptor, native_delay_filter_low_cut_descriptor,
-        native_delay_mix_descriptor, native_delay_mod_depth_descriptor,
-        native_delay_mod_rate_descriptor, native_delay_output_descriptor,
-        native_delay_time_left_descriptor, native_delay_time_right_descriptor,
-        native_filter_cutoff_descriptor, native_filter_drive_descriptor,
-        native_filter_env_amount_descriptor, native_filter_key_track_descriptor,
-        native_filter_mix_descriptor, native_filter_resonance_descriptor, native_gain_descriptor,
-        native_pan_descriptor, native_reverb_damping_descriptor, native_reverb_decay_descriptor,
-        native_reverb_diffusion_descriptor, native_reverb_early_reflections_descriptor,
-        native_reverb_high_cut_descriptor, native_reverb_low_cut_descriptor,
-        native_reverb_mix_descriptor, native_reverb_output_descriptor,
-        native_reverb_predelay_descriptor, native_reverb_size_descriptor,
-        native_reverb_width_descriptor, native_width_descriptor, sample_gain_descriptor,
-    },
+    parameters::*,
 };
 
 pub(crate) fn validate_sample_playback_settings(
@@ -255,6 +239,36 @@ fn validate_effect_chain(effects: &[EffectDevice]) -> Result<(), ValidationError
             {
                 return Err(ValidationError::InvalidEffectParameter);
             }
+            EffectDeviceKind::Drive {
+                drive_db,
+                tone,
+                bias,
+                mix,
+                output_db,
+                ..
+            } if !native_drive_drive_descriptor().validate_f32(drive_db)
+                || !native_drive_tone_descriptor().validate_f32(tone)
+                || !native_drive_bias_descriptor().validate_f32(bias)
+                || !native_drive_mix_descriptor().validate_f32(mix)
+                || !native_drive_output_descriptor().validate_f32(output_db) =>
+            {
+                return Err(ValidationError::InvalidEffectParameter);
+            }
+            EffectDeviceKind::Bitcrusher {
+                bit_depth,
+                reduction_ratio,
+                mix,
+                output_db,
+                ..
+            } if native_bitcrusher_bit_depth_descriptor()
+                .validate(&crate::ParameterValue::Integer(i64::from(bit_depth)))
+                .is_err()
+                || !native_bitcrusher_reduction_descriptor().validate_f32(reduction_ratio)
+                || !native_bitcrusher_mix_descriptor().validate_f32(mix)
+                || !native_bitcrusher_output_descriptor().validate_f32(output_db) =>
+            {
+                return Err(ValidationError::InvalidEffectParameter);
+            }
             EffectDeviceKind::Gain { .. }
             | EffectDeviceKind::Pan { .. }
             | EffectDeviceKind::Balance { .. }
@@ -262,7 +276,9 @@ fn validate_effect_chain(effects: &[EffectDevice]) -> Result<(), ValidationError
             | EffectDeviceKind::PhaseInvert { .. }
             | EffectDeviceKind::Filter { .. }
             | EffectDeviceKind::Delay { .. }
-            | EffectDeviceKind::Reverb { .. } => {}
+            | EffectDeviceKind::Reverb { .. }
+            | EffectDeviceKind::Drive { .. }
+            | EffectDeviceKind::Bitcrusher { .. } => {}
         }
     }
     Ok(())

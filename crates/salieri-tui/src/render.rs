@@ -7,18 +7,21 @@ use ratatui::{
 };
 use salieri_core::{
     mixer_master_gain_descriptor, mixer_track_gain_descriptor, mixer_track_pan_descriptor,
-    native_balance_descriptor, native_delay_feedback_descriptor, native_delay_mix_descriptor,
-    native_delay_output_descriptor, native_delay_ping_pong_descriptor,
+    native_balance_descriptor, native_bitcrusher_bit_depth_descriptor,
+    native_bitcrusher_mix_descriptor, native_bitcrusher_output_descriptor,
+    native_bitcrusher_reduction_descriptor, native_delay_feedback_descriptor,
+    native_delay_mix_descriptor, native_delay_output_descriptor, native_delay_ping_pong_descriptor,
     native_delay_sync_descriptor, native_delay_time_left_descriptor,
-    native_delay_time_right_descriptor, native_filter_cutoff_descriptor,
-    native_filter_drive_descriptor, native_filter_mix_descriptor, native_filter_mode_descriptor,
-    native_filter_resonance_descriptor, native_gain_descriptor, native_pan_descriptor,
-    native_phase_invert_left_descriptor, native_phase_invert_right_descriptor,
-    native_reverb_damping_descriptor, native_reverb_decay_descriptor, native_reverb_mix_descriptor,
-    native_reverb_output_descriptor, native_reverb_predelay_descriptor,
-    native_reverb_size_descriptor, native_width_descriptor, sample_gain_descriptor, CellField,
-    Cursor, EffectDeviceKind, NoteEvent, ParameterDescriptor, ParameterValue, Pattern, PatternCell,
-    SamplePlaybackMode, Song,
+    native_delay_time_right_descriptor, native_drive_drive_descriptor, native_drive_mix_descriptor,
+    native_drive_mode_descriptor, native_drive_output_descriptor, native_drive_tone_descriptor,
+    native_filter_cutoff_descriptor, native_filter_drive_descriptor, native_filter_mix_descriptor,
+    native_filter_mode_descriptor, native_filter_resonance_descriptor, native_gain_descriptor,
+    native_pan_descriptor, native_phase_invert_left_descriptor,
+    native_phase_invert_right_descriptor, native_reverb_damping_descriptor,
+    native_reverb_decay_descriptor, native_reverb_mix_descriptor, native_reverb_output_descriptor,
+    native_reverb_predelay_descriptor, native_reverb_size_descriptor, native_width_descriptor,
+    sample_gain_descriptor, CellField, Cursor, EffectDeviceKind, NoteEvent, ParameterDescriptor,
+    ParameterValue, Pattern, PatternCell, SamplePlaybackMode, Song,
 };
 use salieri_sampler::{WaveformBucket, WaveformOverview};
 
@@ -1545,6 +1548,59 @@ fn render_track_properties(frame: &mut Frame<'_>, area: Rect, song: &Song, state
                 ));
                 mixer_lines.push(parameter_control_from_f32(
                     native_reverb_output_descriptor(),
+                    output_db,
+                ));
+            }
+            EffectDeviceKind::Drive {
+                mode,
+                drive_db,
+                tone,
+                mix,
+                output_db,
+                ..
+            } => {
+                mixer_lines.push(parameter_control_line(
+                    &native_drive_mode_descriptor(),
+                    ParameterValue::Enum(mode.parameter_id().to_string()),
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_drive_drive_descriptor(),
+                    drive_db,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_drive_tone_descriptor(),
+                    tone,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_drive_mix_descriptor(),
+                    mix,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_drive_output_descriptor(),
+                    output_db,
+                ));
+            }
+            EffectDeviceKind::Bitcrusher {
+                bit_depth,
+                reduction_ratio,
+                mix,
+                output_db,
+                ..
+            } => {
+                mixer_lines.push(parameter_control_line(
+                    &native_bitcrusher_bit_depth_descriptor(),
+                    ParameterValue::Integer(i64::from(bit_depth)),
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_bitcrusher_reduction_descriptor(),
+                    reduction_ratio,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_bitcrusher_mix_descriptor(),
+                    mix,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_bitcrusher_output_descriptor(),
                     output_db,
                 ));
             }
