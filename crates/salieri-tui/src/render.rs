@@ -80,6 +80,10 @@ pub struct TuiState<'a> {
     pub octave: u8,
     pub dirty: bool,
     pub show_line_numbers_hex: bool,
+    pub row_number_offset: usize,
+    pub pattern_divider_interval: usize,
+    pub pattern_highlight_interval: usize,
+    pub show_pattern_top_info: bool,
     pub command_line: Option<&'a str>,
     pub notification: Option<NotificationView<'a>>,
     pub show_help: bool,
@@ -1961,6 +1965,9 @@ fn render_pattern(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiStat
         playhead_row: state.playhead_row,
         selection: state.selection,
         show_line_numbers_hex: state.show_line_numbers_hex,
+        row_number_offset: state.row_number_offset,
+        pattern_divider_interval: state.pattern_divider_interval,
+        pattern_highlight_interval: state.pattern_highlight_interval,
         visible_tracks: viewport.visible_tracks,
     };
 
@@ -1968,9 +1975,17 @@ fn render_pattern(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiStat
         lines.push(pattern_row(song, pattern, row_index, &row_state));
     }
 
-    let block = Block::default()
-        .title(" Pattern Editor ")
-        .borders(Borders::ALL);
+    let title = if state.show_pattern_top_info {
+        format!(
+            " Pattern Editor: {} | rows={} | tracks={} ",
+            pattern.name,
+            pattern.row_count(),
+            song.tracks.len()
+        )
+    } else {
+        " Pattern Editor ".to_string()
+    };
+    let block = Block::default().title(title).borders(Borders::ALL);
     let paragraph = Paragraph::new(lines).block(block);
     frame.render_widget(paragraph, area);
 }
@@ -2056,6 +2071,9 @@ struct PatternRowRenderState {
     playhead_row: Option<usize>,
     selection: Option<SelectionRect>,
     show_line_numbers_hex: bool,
+    row_number_offset: usize,
+    pattern_divider_interval: usize,
+    pattern_highlight_interval: usize,
     visible_tracks: Range<usize>,
 }
 
@@ -2066,13 +2084,18 @@ fn pattern_row(
     state: &PatternRowRenderState,
 ) -> Line<'static> {
     let is_playhead = state.playhead_row == Some(row_index);
+    let row_style = pattern_row_gutter_style(row_index, state);
     let mut spans = vec![Span::styled(
         format!(
             "{:<ROW_GUTTER_WIDTH$}",
             format!(
                 "{}{}",
                 if is_playhead { ">" } else { " " },
-                format_row_number(row_index, state.show_line_numbers_hex)
+                format_row_number(
+                    row_index,
+                    state.show_line_numbers_hex,
+                    state.row_number_offset
+                )
             )
         ),
         if is_playhead {
@@ -2080,7 +2103,7 @@ fn pattern_row(
                 .fg(Color::LightGreen)
                 .add_modifier(Modifier::BOLD)
         } else {
-            Style::default().fg(Color::DarkGray)
+            row_style
         },
     )];
 
@@ -2112,11 +2135,30 @@ fn pattern_row(
     Line::from(spans)
 }
 
-fn format_row_number(row: usize, hexadecimal: bool) -> String {
-    if hexadecimal {
-        format!("{:02X}", row.min(0xff))
+fn pattern_row_gutter_style(row_index: usize, state: &PatternRowRenderState) -> Style {
+    if state.pattern_highlight_interval > 0
+        && row_index.is_multiple_of(state.pattern_highlight_interval)
+    {
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD)
+    } else if state.pattern_divider_interval > 0
+        && row_index.is_multiple_of(state.pattern_divider_interval)
+    {
+        Style::default()
+            .fg(Color::Gray)
+            .add_modifier(Modifier::BOLD)
     } else {
-        format!("{row:02}")
+        Style::default().fg(Color::DarkGray)
+    }
+}
+
+fn format_row_number(row: usize, hexadecimal: bool, offset: usize) -> String {
+    let display_row = row.saturating_add(offset);
+    if hexadecimal {
+        format!("{:02X}", display_row.min(0xff))
+    } else {
+        format!("{display_row:02}")
     }
 }
 
@@ -2597,6 +2639,9 @@ fn format_note(pitch: u8) -> String {
     format!("{note}{octave}")
 }
 
+#[cfg(test)]
+#[path = "render_tests/display.rs"]
+mod render_display_tests;
 #[cfg(test)]
 #[path = "render_tests/overlays.rs"]
 mod render_overlay_tests;

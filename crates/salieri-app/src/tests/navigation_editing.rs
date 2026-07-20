@@ -9,7 +9,11 @@ fn app_uses_keyboard_config_defaults() {
             vim_navigation: false,
         },
         ui: config::UiConfig {
-            show_line_numbers_hex: true,
+            row_number_format: config::RowNumberFormat::Hex,
+            row_number_base: config::RowNumberBase::One,
+            pattern_divider_interval: 8,
+            pattern_highlight_interval: 32,
+            show_pattern_top_info: false,
             ..config::UiConfig::default()
         },
         ..AppConfig::default()
@@ -19,6 +23,10 @@ fn app_uses_keyboard_config_defaults() {
     assert_eq!(app.edit_step, 4);
     assert!(!app.vim_navigation);
     assert!(app.show_line_numbers_hex);
+    assert_eq!(app.row_number_offset, 1);
+    assert_eq!(app.pattern_divider_interval, 8);
+    assert_eq!(app.pattern_highlight_interval, 32);
+    assert!(!app.show_pattern_top_info);
 }
 
 #[test]

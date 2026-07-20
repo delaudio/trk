@@ -54,7 +54,14 @@ impl App {
             vim_navigation: config.keyboard.vim_navigation,
             pending_goto_start: false,
             follow_playhead: config.ui.follow_playhead,
-            show_line_numbers_hex: config.ui.show_line_numbers_hex,
+            show_line_numbers_hex: config
+                .ui
+                .row_number_format
+                .uses_hex(config.ui.show_line_numbers_hex),
+            row_number_offset: config.ui.row_number_base.offset(),
+            pattern_divider_interval: config.ui.pattern_divider_interval,
+            pattern_highlight_interval: config.ui.pattern_highlight_interval,
+            show_pattern_top_info: config.ui.show_pattern_top_info,
             tracker_layout: config.ui.layout.tracker_layout(),
             help_scroll: 0,
             help_tab: HelpTab::Basics,
