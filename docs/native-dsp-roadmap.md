@@ -48,6 +48,7 @@ playback, and offline export.
 | Reviewed C/C++ DSP wrappers | Native module boundary | Implemented foundation | #115 C/C++ DSP boundary | Optional feature-gated wrappers may adapt vendored, license-reviewed algorithms into Salieri-owned modules. They must expose plain descriptors/state and stay separate from arbitrary binary hosting. |
 | WebAssembly DSP modules | Export/runtime boundary | Evaluated | #117 WebAssembly DSP evaluation | Recommended first for browser/Web Audio export. Desktop sandboxed realtime execution remains deferred until runtime overhead and callback safety are proven. |
 | Faust-generated modules | Native module source format | Evaluated | #118 Faust DSP evaluation | Recommend C++ generation into the #115 wrapper boundary first; WebAssembly is reserved for web export after native behavior is proven. |
+| RNBO exports | Interop boundary | Evaluated | #119 RNBO interoperability evaluation | C++ source export can be reviewed through #115 and Web Export can target #117. Do not make RNBO a core module system or persist opaque runtime state. |
 | Tracker note/effect commands: delay, retrigger, arpeggio, slides, sample offset | Pattern command library | Partial | #85 expanded per-step FX commands | These are row playback semantics, not DSP devices. They may also write parameter locks once #123 exists. |
 | Third-party plugins | Plugin host boundary | Deferred | Future ADR only | Direct VST/AU/CLAP hosting remains out of scope for this roadmap. |
 
