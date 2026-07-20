@@ -37,7 +37,7 @@ playback, and offline export.
 | --- | --- | --- | --- | --- |
 | Gain, gainer, stereo expander, DC/utility, channel tools | Track insert, master, utility | Implemented | #125 native utility audio devices | Native gain, pan, balance, stereo width, and phase invert cover the initial utility-device suite. Mono/channel swap and DC blocking remain future extensions if justified. |
 | EQ and filters | Track insert, sampler-local | Implemented | #126 native multimode filter; parametric EQ deferred | Multimode LP/HP/BP/notch uses a stable state-variable filter. Sampler-local modulation/key tracking remains coordinated with #121. |
-| Delay, multitap delay, repeater | Track insert, send, master | Planned | #127 native delay | First implementation should be stereo delay with tempo sync, feedback, wet/dry, and bounded delay memory. |
+| Delay, multitap delay, repeater | Track insert, send, master | Implemented | #127 native delay | Stereo delay covers linked/free times, sync quantization, feedback filtering, ping-pong routing, wet/dry mix, and bounded delay memory. |
 | Reverb | Track insert, send, master | Planned | #128 native reverb | First implementation should be deterministic and bounded; convolution is deferred. |
 | Distortion, cabinet, lo-fi, bit reduction | Track insert, sampler-local | Planned | #129 native drive and degradation effects | Clip/soft-clip and bit/sample-rate reduction are baseline; cabinet/convolution deferred. |
 | Chorus, flanger, phaser, tremolo, ring modulation, autopan | Track insert, master | Planned | #130 native modulation effects | All LFO-driven devices must share deterministic phase/reset behavior for offline and realtime. |
@@ -157,18 +157,36 @@ Purpose: provide tempo-aware echo for insert and later send workflows.
 
 | Device | ID | Placements | Status | Bypass | Wet/dry | Latency | Tail |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Stereo Delay | `native.effect.delay` | track insert, send, master | Planned | input passthrough; delay line muted | yes | 0 | yes |
+| Stereo Delay | `native.effect.delay` | track insert, send, master | Implemented | input passthrough; delay line muted | yes | 0 | yes |
 
 | Parameter | Type | Range / choices | Default | Step | Unit | Flags |
 | --- | --- | --- | --- | --- | --- | --- |
-| `native.delay.time_ms` | `PlainFloat` | `1.0..=4000.0` | `375.0` | `0.1` | milliseconds | automatable, logarithmic |
-| `native.delay.division` | `Enum` | `free`, `1/64`, `1/32`, `1/16`, `1/8`, `1/4`, `1/2`, `1/1` | `1/4` | stepped | beat division | automatable, stepped |
-| `native.delay.feedback` | `PlainFloat` | `0.0..=0.95` | `0.35` | `0.001` | percent | automatable |
-| `native.delay.stereo_offset` | `BipolarFloat` | `-1.0..=1.0` | `0.0` | `0.001` | normalized | automatable, bipolar |
-| `native.delay.low_cut_hz` | `PlainFloat` | `20.0..=20000.0` | `20.0` | `0.01` | hertz | automatable, logarithmic, advanced |
-| `native.delay.high_cut_hz` | `PlainFloat` | `20.0..=20000.0` | `20000.0` | `0.01` | hertz | automatable, logarithmic, advanced |
-| `native.delay.wet` | `PlainFloat` | `0.0..=1.0` | `0.35` | `0.001` | percent | automatable |
-| `native.delay.dry` | `PlainFloat` | `0.0..=1.0` | `1.0` | `0.001` | percent | automatable |
+| `native.delay.sync` | `Bool` | `false`, `true` | `true` | stepped | choice | automatable, stepped |
+| `native.delay.timeLeftMs` | `PlainFloat` | `1.0..=4000.0` | `500.0` | `0.1` | milliseconds | automatable, logarithmic |
+| `native.delay.timeRightMs` | `PlainFloat` | `1.0..=4000.0` | `500.0` | `0.1` | milliseconds | automatable, logarithmic |
+| `native.delay.linkTimes` | `Bool` | `false`, `true` | `true` | stepped | choice | automatable, stepped |
+| `native.delay.feedback` | `Percentage` | `0.0..=0.95` | `0.35` | `0.001` | percent | automatable |
+| `native.delay.pingPong` | `Bool` | `false`, `true` | `false` | stepped | choice | automatable, stepped |
+| `native.delay.filterLowCutHz` | `FrequencyHertz` | `20.0..=20000.0` | `20.0` | `0.1` | hertz | automatable, logarithmic |
+| `native.delay.filterHighCutHz` | `FrequencyHertz` | `20.0..=20000.0` | `20000.0` | `0.1` | hertz | automatable, logarithmic |
+| `native.delay.modRateHz` | `FrequencyHertz` | `0.0..=20.0` | `0.0` | `0.01` | hertz | automatable |
+| `native.delay.modDepth` | `Percentage` | `0.0..=1.0` | `0.0` | `0.001` | percent | automatable |
+| `native.delay.mix` | `Percentage` | `0.0..=1.0` | `0.25` | `0.001` | percent | automatable |
+| `native.delay.outputDb` | `Decibels` | `-60.0..=12.0` | `0.0` | `0.1` | decibels | automatable |
+
+Implementation notes:
+
+- The delay uses bounded per-device delay lines sized to four seconds at the
+  active sample rate. Processing is deterministic for realtime and offline
+  renders, with no locks or filesystem access in the frame loop.
+- Free mode uses millisecond delay times directly. Sync mode quantizes the
+  stored millisecond values to a fixed set of musical divisions based on the
+  current 120 BPM transport baseline until the DSP graph carries tempo events.
+- Feedback is capped at 0.95 and runs through first-order low/high cut filters
+  before being written back into the delay line. Bypass mutes the delay line and
+  passes input through unchanged.
+- Ping-pong swaps the feedback source between left and right delay lines.
+  `linkTimes` makes the right delay follow the left delay.
 
 ### #128 Native Reverb
 

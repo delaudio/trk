@@ -61,6 +61,20 @@ pub(crate) fn format_effect_device(device: &EffectDevice) -> String {
             "filter {} {cutoff_hz:.1}Hz res {resonance:.3} drive {drive_db:.1}dB mix {mix:.3}",
             mode.parameter_id()
         ),
+        EffectDeviceKind::Delay {
+            sync,
+            time_left_ms,
+            time_right_ms,
+            feedback,
+            ping_pong,
+            mix,
+            output_db,
+            ..
+        } => format!(
+            "delay {} L {time_left_ms:.1}ms R {time_right_ms:.1}ms fb {feedback:.3} ping {} mix {mix:.3} out {output_db:+.1}dB",
+            if sync { "sync" } else { "free" },
+            ping_pong as u8
+        ),
     }
 }
 

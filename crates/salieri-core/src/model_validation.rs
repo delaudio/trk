@@ -7,11 +7,15 @@ use crate::{
     },
     parameters::{
         mixer_master_gain_descriptor, mixer_send_gain_descriptor, mixer_track_gain_descriptor,
-        mixer_track_pan_descriptor, native_balance_descriptor, native_filter_cutoff_descriptor,
-        native_filter_drive_descriptor, native_filter_env_amount_descriptor,
-        native_filter_key_track_descriptor, native_filter_mix_descriptor,
-        native_filter_resonance_descriptor, native_gain_descriptor, native_pan_descriptor,
-        native_width_descriptor, sample_gain_descriptor,
+        mixer_track_pan_descriptor, native_balance_descriptor, native_delay_feedback_descriptor,
+        native_delay_filter_high_cut_descriptor, native_delay_filter_low_cut_descriptor,
+        native_delay_mix_descriptor, native_delay_mod_depth_descriptor,
+        native_delay_mod_rate_descriptor, native_delay_output_descriptor,
+        native_delay_time_left_descriptor, native_delay_time_right_descriptor,
+        native_filter_cutoff_descriptor, native_filter_drive_descriptor,
+        native_filter_env_amount_descriptor, native_filter_key_track_descriptor,
+        native_filter_mix_descriptor, native_filter_resonance_descriptor, native_gain_descriptor,
+        native_pan_descriptor, native_width_descriptor, sample_gain_descriptor,
     },
 };
 
@@ -194,12 +198,37 @@ fn validate_effect_chain(effects: &[EffectDevice]) -> Result<(), ValidationError
             {
                 return Err(ValidationError::InvalidEffectParameter);
             }
+            EffectDeviceKind::Delay {
+                time_left_ms,
+                time_right_ms,
+                feedback,
+                filter_low_cut_hz,
+                filter_high_cut_hz,
+                mod_rate_hz,
+                mod_depth,
+                mix,
+                output_db,
+                ..
+            } if !native_delay_time_left_descriptor().validate_f32(time_left_ms)
+                || !native_delay_time_right_descriptor().validate_f32(time_right_ms)
+                || !native_delay_feedback_descriptor().validate_f32(feedback)
+                || !native_delay_filter_low_cut_descriptor().validate_f32(filter_low_cut_hz)
+                || !native_delay_filter_high_cut_descriptor().validate_f32(filter_high_cut_hz)
+                || filter_low_cut_hz > filter_high_cut_hz
+                || !native_delay_mod_rate_descriptor().validate_f32(mod_rate_hz)
+                || !native_delay_mod_depth_descriptor().validate_f32(mod_depth)
+                || !native_delay_mix_descriptor().validate_f32(mix)
+                || !native_delay_output_descriptor().validate_f32(output_db) =>
+            {
+                return Err(ValidationError::InvalidEffectParameter);
+            }
             EffectDeviceKind::Gain { .. }
             | EffectDeviceKind::Pan { .. }
             | EffectDeviceKind::Balance { .. }
             | EffectDeviceKind::StereoWidth { .. }
             | EffectDeviceKind::PhaseInvert { .. }
-            | EffectDeviceKind::Filter { .. } => {}
+            | EffectDeviceKind::Filter { .. }
+            | EffectDeviceKind::Delay { .. } => {}
         }
     }
     Ok(())

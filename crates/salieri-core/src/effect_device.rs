@@ -22,6 +22,41 @@ pub struct FilterSpec {
     pub mix: f32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DelaySpec {
+    pub sync: bool,
+    pub time_left_ms: f32,
+    pub time_right_ms: f32,
+    pub link_times: bool,
+    pub feedback: f32,
+    pub ping_pong: bool,
+    pub filter_low_cut_hz: f32,
+    pub filter_high_cut_hz: f32,
+    pub mod_rate_hz: f32,
+    pub mod_depth: f32,
+    pub mix: f32,
+    pub output_db: f32,
+}
+
+impl Default for DelaySpec {
+    fn default() -> Self {
+        Self {
+            sync: true,
+            time_left_ms: 500.0,
+            time_right_ms: 500.0,
+            link_times: true,
+            feedback: 0.35,
+            ping_pong: false,
+            filter_low_cut_hz: 20.0,
+            filter_high_cut_hz: 20_000.0,
+            mod_rate_hz: 0.0,
+            mod_depth: 0.0,
+            mix: 0.25,
+            output_db: 0.0,
+        }
+    }
+}
+
 impl Default for FilterSpec {
     fn default() -> Self {
         Self {
@@ -114,6 +149,28 @@ impl EffectDevice {
                 key_track: spec.key_track,
                 env_amount: spec.env_amount,
                 mix: spec.mix,
+            },
+        )
+    }
+
+    #[must_use]
+    pub fn delay(id: u32, spec: DelaySpec) -> Self {
+        Self::new(
+            id,
+            "Delay",
+            EffectDeviceKind::Delay {
+                sync: spec.sync,
+                time_left_ms: spec.time_left_ms,
+                time_right_ms: spec.time_right_ms,
+                link_times: spec.link_times,
+                feedback: spec.feedback,
+                ping_pong: spec.ping_pong,
+                filter_low_cut_hz: spec.filter_low_cut_hz,
+                filter_high_cut_hz: spec.filter_high_cut_hz,
+                mod_rate_hz: spec.mod_rate_hz,
+                mod_depth: spec.mod_depth,
+                mix: spec.mix,
+                output_db: spec.output_db,
             },
         )
     }

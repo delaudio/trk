@@ -252,7 +252,7 @@ impl App {
     pub(crate) fn handle_parameter_lock_command(&mut self, values: &[&str]) {
         let Some(edit) = self.parse_parameter_lock_edit(values) else {
             self.notify_warning(
-                "Usage: :plock sample-gain|mixer gain|mixer pan|master gain|send SEND|dsp track gain|pan|balance|width|phase-left|phase-right|filter-* VALUE|reset|clear",
+                "Usage: :plock sample-gain|mixer gain|mixer pan|master gain|send SEND|dsp track gain|pan|balance|width|phase-left|phase-right|filter-*|delay-* VALUE|reset|clear",
             );
             return;
         };
@@ -315,208 +315,7 @@ impl App {
                     action,
                 )
             }
-            ["dsp", "track", "gain", action] => {
-                let track = self.song.tracks.get(self.cursor.track)?;
-                parameter_lock_edit(
-                    ParameterLockTarget::TrackEffect {
-                        track: track.id,
-                        device: 1,
-                    },
-                    NATIVE_GAIN_PARAMETER_ID,
-                    native_gain_descriptor(),
-                    action,
-                )
-            }
-            ["dsp", "track", "pan", action] => {
-                let track = self.song.tracks.get(self.cursor.track)?;
-                parameter_lock_edit(
-                    ParameterLockTarget::TrackEffect {
-                        track: track.id,
-                        device: 2,
-                    },
-                    NATIVE_PAN_PARAMETER_ID,
-                    native_pan_descriptor(),
-                    action,
-                )
-            }
-            ["dsp", "track", "balance", action] | ["dsp", "track", "bal", action] => {
-                let track = self.song.tracks.get(self.cursor.track)?;
-                parameter_lock_edit(
-                    ParameterLockTarget::TrackEffect {
-                        track: track.id,
-                        device: 3,
-                    },
-                    NATIVE_BALANCE_PARAMETER_ID,
-                    native_balance_descriptor(),
-                    action,
-                )
-            }
-            ["dsp", "track", "width", action] | ["dsp", "track", "stereo-width", action] => {
-                let track = self.song.tracks.get(self.cursor.track)?;
-                parameter_lock_edit(
-                    ParameterLockTarget::TrackEffect {
-                        track: track.id,
-                        device: 4,
-                    },
-                    NATIVE_WIDTH_PARAMETER_ID,
-                    native_width_descriptor(),
-                    action,
-                )
-            }
-            ["dsp", "track", "phase-left", action] => {
-                let track = self.song.tracks.get(self.cursor.track)?;
-                parameter_lock_edit(
-                    ParameterLockTarget::TrackEffect {
-                        track: track.id,
-                        device: 5,
-                    },
-                    NATIVE_PHASE_INVERT_LEFT_PARAMETER_ID,
-                    native_phase_invert_left_descriptor(),
-                    action,
-                )
-            }
-            ["dsp", "track", "phase-right", action] => {
-                let track = self.song.tracks.get(self.cursor.track)?;
-                parameter_lock_edit(
-                    ParameterLockTarget::TrackEffect {
-                        track: track.id,
-                        device: 5,
-                    },
-                    NATIVE_PHASE_INVERT_RIGHT_PARAMETER_ID,
-                    native_phase_invert_right_descriptor(),
-                    action,
-                )
-            }
-            ["dsp", "track", "filter-mode", action] => {
-                let track = self.song.tracks.get(self.cursor.track)?;
-                parameter_lock_edit(
-                    ParameterLockTarget::TrackEffect {
-                        track: track.id,
-                        device: 6,
-                    },
-                    NATIVE_FILTER_MODE_PARAMETER_ID,
-                    native_filter_mode_descriptor(),
-                    action,
-                )
-            }
-            ["dsp", "track", "filter-cutoff" | "filter-cutoff-hz", action] => {
-                let track = self.song.tracks.get(self.cursor.track)?;
-                parameter_lock_edit(
-                    ParameterLockTarget::TrackEffect {
-                        track: track.id,
-                        device: 6,
-                    },
-                    NATIVE_FILTER_CUTOFF_PARAMETER_ID,
-                    native_filter_cutoff_descriptor(),
-                    action,
-                )
-            }
-            ["dsp", "track", "filter-resonance" | "filter-res", action] => {
-                let track = self.song.tracks.get(self.cursor.track)?;
-                parameter_lock_edit(
-                    ParameterLockTarget::TrackEffect {
-                        track: track.id,
-                        device: 6,
-                    },
-                    NATIVE_FILTER_RESONANCE_PARAMETER_ID,
-                    native_filter_resonance_descriptor(),
-                    action,
-                )
-            }
-            ["dsp", "track", "filter-drive", action] => {
-                let track = self.song.tracks.get(self.cursor.track)?;
-                parameter_lock_edit(
-                    ParameterLockTarget::TrackEffect {
-                        track: track.id,
-                        device: 6,
-                    },
-                    NATIVE_FILTER_DRIVE_PARAMETER_ID,
-                    native_filter_drive_descriptor(),
-                    action,
-                )
-            }
-            ["dsp", "track", "filter-mix", action] => {
-                let track = self.song.tracks.get(self.cursor.track)?;
-                parameter_lock_edit(
-                    ParameterLockTarget::TrackEffect {
-                        track: track.id,
-                        device: 6,
-                    },
-                    NATIVE_FILTER_MIX_PARAMETER_ID,
-                    native_filter_mix_descriptor(),
-                    action,
-                )
-            }
-            ["dsp", "master", "gain", action] => parameter_lock_edit(
-                ParameterLockTarget::MasterEffect { device: 1 },
-                NATIVE_GAIN_PARAMETER_ID,
-                native_gain_descriptor(),
-                action,
-            ),
-            ["dsp", "master", "pan", action] => parameter_lock_edit(
-                ParameterLockTarget::MasterEffect { device: 2 },
-                NATIVE_PAN_PARAMETER_ID,
-                native_pan_descriptor(),
-                action,
-            ),
-            ["dsp", "master", "balance", action] | ["dsp", "master", "bal", action] => {
-                parameter_lock_edit(
-                    ParameterLockTarget::MasterEffect { device: 3 },
-                    NATIVE_BALANCE_PARAMETER_ID,
-                    native_balance_descriptor(),
-                    action,
-                )
-            }
-            ["dsp", "master", "width", action] | ["dsp", "master", "stereo-width", action] => {
-                parameter_lock_edit(
-                    ParameterLockTarget::MasterEffect { device: 4 },
-                    NATIVE_WIDTH_PARAMETER_ID,
-                    native_width_descriptor(),
-                    action,
-                )
-            }
-            ["dsp", "master", "phase-left", action] => parameter_lock_edit(
-                ParameterLockTarget::MasterEffect { device: 5 },
-                NATIVE_PHASE_INVERT_LEFT_PARAMETER_ID,
-                native_phase_invert_left_descriptor(),
-                action,
-            ),
-            ["dsp", "master", "phase-right", action] => parameter_lock_edit(
-                ParameterLockTarget::MasterEffect { device: 5 },
-                NATIVE_PHASE_INVERT_RIGHT_PARAMETER_ID,
-                native_phase_invert_right_descriptor(),
-                action,
-            ),
-            ["dsp", "master", "filter-mode", action] => parameter_lock_edit(
-                ParameterLockTarget::MasterEffect { device: 6 },
-                NATIVE_FILTER_MODE_PARAMETER_ID,
-                native_filter_mode_descriptor(),
-                action,
-            ),
-            ["dsp", "master", "filter-cutoff" | "filter-cutoff-hz", action] => parameter_lock_edit(
-                ParameterLockTarget::MasterEffect { device: 6 },
-                NATIVE_FILTER_CUTOFF_PARAMETER_ID,
-                native_filter_cutoff_descriptor(),
-                action,
-            ),
-            ["dsp", "master", "filter-resonance" | "filter-res", action] => parameter_lock_edit(
-                ParameterLockTarget::MasterEffect { device: 6 },
-                NATIVE_FILTER_RESONANCE_PARAMETER_ID,
-                native_filter_resonance_descriptor(),
-                action,
-            ),
-            ["dsp", "master", "filter-drive", action] => parameter_lock_edit(
-                ParameterLockTarget::MasterEffect { device: 6 },
-                NATIVE_FILTER_DRIVE_PARAMETER_ID,
-                native_filter_drive_descriptor(),
-                action,
-            ),
-            ["dsp", "master", "filter-mix", action] => parameter_lock_edit(
-                ParameterLockTarget::MasterEffect { device: 6 },
-                NATIVE_FILTER_MIX_PARAMETER_ID,
-                native_filter_mix_descriptor(),
-                action,
-            ),
+            ["dsp", ..] => self.parse_dsp_parameter_lock_edit(values),
             _ => None,
         }
     }
@@ -822,7 +621,7 @@ impl App {
     }
 }
 
-enum ParameterLockEdit {
+pub(super) enum ParameterLockEdit {
     Set {
         lock: ParameterLock,
         descriptor: Box<ParameterDescriptor>,
@@ -833,7 +632,7 @@ enum ParameterLockEdit {
     },
 }
 
-fn parameter_lock_edit(
+pub(super) fn parameter_lock_edit(
     target: ParameterLockTarget,
     parameter: &str,
     descriptor: ParameterDescriptor,

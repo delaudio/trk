@@ -7,8 +7,11 @@ use ratatui::{
 };
 use salieri_core::{
     mixer_master_gain_descriptor, mixer_track_gain_descriptor, mixer_track_pan_descriptor,
-    native_balance_descriptor, native_filter_cutoff_descriptor, native_filter_drive_descriptor,
-    native_filter_mix_descriptor, native_filter_mode_descriptor,
+    native_balance_descriptor, native_delay_feedback_descriptor, native_delay_mix_descriptor,
+    native_delay_output_descriptor, native_delay_ping_pong_descriptor,
+    native_delay_sync_descriptor, native_delay_time_left_descriptor,
+    native_delay_time_right_descriptor, native_filter_cutoff_descriptor,
+    native_filter_drive_descriptor, native_filter_mix_descriptor, native_filter_mode_descriptor,
     native_filter_resonance_descriptor, native_gain_descriptor, native_pan_descriptor,
     native_phase_invert_left_descriptor, native_phase_invert_right_descriptor,
     native_width_descriptor, sample_gain_descriptor, CellField, Cursor, EffectDeviceKind,
@@ -1467,6 +1470,45 @@ fn render_track_properties(frame: &mut Frame<'_>, area: Rect, song: &Song, state
                 mixer_lines.push(parameter_control_from_f32(
                     native_filter_mix_descriptor(),
                     mix,
+                ));
+            }
+            EffectDeviceKind::Delay {
+                sync,
+                time_left_ms,
+                time_right_ms,
+                feedback,
+                ping_pong,
+                mix,
+                output_db,
+                ..
+            } => {
+                mixer_lines.push(parameter_control_line(
+                    &native_delay_sync_descriptor(),
+                    ParameterValue::Bool(sync),
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_delay_time_left_descriptor(),
+                    time_left_ms,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_delay_time_right_descriptor(),
+                    time_right_ms,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_delay_feedback_descriptor(),
+                    feedback,
+                ));
+                mixer_lines.push(parameter_control_line(
+                    &native_delay_ping_pong_descriptor(),
+                    ParameterValue::Bool(ping_pong),
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_delay_mix_descriptor(),
+                    mix,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_delay_output_descriptor(),
+                    output_db,
                 ));
             }
         }
