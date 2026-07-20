@@ -15,8 +15,15 @@ impl App {
             ["show"] | ["preview"] => self.show_ai_proposal(),
             ["accept"] | ["apply"] => self.apply_ai_proposal(),
             ["reject"] | ["clear"] => self.reject_ai_proposal(),
+            ["load"] => self.load_ai_session_command(),
+            ["save"] => self.save_ai_session_command(),
+            ["delete"] | ["forget"] => self.delete_ai_session_command(),
+            ["retention", value] => match value.parse::<usize>() {
+                Ok(retention_messages) => self.set_ai_retention_messages(retention_messages),
+                Err(_) => self.notify_warning("Usage: :ai retention MESSAGES"),
+            },
             _ => self.notify_warning(
-                "Usage: :ai chat | :ai provider | :ai propose PROMPT | :ai show | :ai accept | :ai reject",
+                "Usage: :ai chat | :ai provider | :ai propose PROMPT | :ai show | :ai accept | :ai reject | :ai load/save/delete | :ai retention N",
             ),
         }
     }
@@ -42,10 +49,7 @@ impl App {
             return;
         };
         let summary = format_ai_proposal_summary(&pending.proposal, &pending.touched_cells);
-        self.ai_thread.messages.push(AiMessage {
-            role: AiMessageRole::Assistant,
-            text: format!("Preview: {summary}"),
-        });
+        self.push_ai_message(AiMessageRole::Assistant, format!("Preview: {summary}"));
         self.notify_info(summary);
     }
 
@@ -67,10 +71,7 @@ impl App {
                     touched_cells.len(),
                     format_touched_cells(&touched_cells)
                 );
-                self.ai_thread.messages.push(AiMessage {
-                    role: AiMessageRole::Assistant,
-                    text: summary.clone(),
-                });
+                self.push_ai_message(AiMessageRole::Assistant, summary.clone());
                 self.notify_success(summary);
             }
             Err(error) => self.notify_warning(format!("AI apply failed: {error}")),
@@ -79,10 +80,7 @@ impl App {
 
     pub(crate) fn reject_ai_proposal(&mut self) {
         if self.pending_ai_proposal.take().is_some() {
-            self.ai_thread.messages.push(AiMessage {
-                role: AiMessageRole::Progress,
-                text: "AI proposal rejected".to_string(),
-            });
+            self.push_ai_message(AiMessageRole::Progress, "AI proposal rejected");
             self.notify_info("AI proposal rejected");
         } else {
             self.notify_warning("No pending AI proposal");

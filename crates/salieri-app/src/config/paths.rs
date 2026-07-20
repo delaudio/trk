@@ -7,6 +7,7 @@ use super::AppConfig;
 
 pub(super) fn expand_config_paths(config: &mut AppConfig, config_path: Option<&Path>) {
     let base_dir = config_path.and_then(Path::parent);
+    expand_optional_path(&mut config.ai.session_file, base_dir);
     expand_optional_path(&mut config.midi.log_file, base_dir);
     expand_optional_path(&mut config.sample_browser.start_dir, base_dir);
     expand_optional_path(&mut config.project_browser.start_dir, base_dir);

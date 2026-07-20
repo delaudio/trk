@@ -111,6 +111,8 @@ provider = "mock"
 model = "fixture-mock"
 command_path = "codex"
 required_env = ["SALIERI_AI_TOKEN"]
+session_file = "ai-session.json"
+retention_messages = 42
 "#,
     );
 
@@ -121,6 +123,16 @@ required_env = ["SALIERI_AI_TOKEN"]
     assert_eq!(ai.model, "fixture-mock");
     assert_eq!(ai.command_path.as_deref(), Some("codex"));
     assert_eq!(ai.required_env, vec!["SALIERI_AI_TOKEN".to_string()]);
+    assert_eq!(
+        ai.session_file,
+        Some(
+            file.0
+                .parent()
+                .expect("config parent")
+                .join("ai-session.json")
+        )
+    );
+    assert_eq!(ai.retention_messages, 42);
 }
 
 #[test]
@@ -272,6 +284,7 @@ fn validates_ai_provider_preferences() {
 model = " "
 command_path = " "
 required_env = ["SALIERI_AI_TOKEN", ""]
+retention_messages = 0
 "#,
     );
 
@@ -281,10 +294,11 @@ required_env = ["SALIERI_AI_TOKEN", ""]
     };
     let rendered = error.to_string();
 
-    assert_eq!(error.diagnostics.len(), 3);
+    assert_eq!(error.diagnostics.len(), 4);
     assert!(rendered.contains("ai.model"));
     assert!(rendered.contains("ai.command_path"));
     assert!(rendered.contains("ai.required_env.1"));
+    assert!(rendered.contains("ai.retention_messages"));
 }
 
 #[test]
