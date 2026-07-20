@@ -46,6 +46,7 @@ fn renders_help_overlay_when_requested() {
                     sampler_view: None,
                     sample_browser: None,
                     project_browser: None,
+                    ai_chat: None,
                     tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );
@@ -134,6 +135,7 @@ fn renders_command_palette_overlay() {
                     sampler_view: None,
                     sample_browser: None,
                     project_browser: None,
+                    ai_chat: None,
                     tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );
@@ -204,6 +206,7 @@ fn renders_playhead_when_playing() {
                     sampler_view: None,
                     sample_browser: None,
                     project_browser: None,
+                    ai_chat: None,
                     tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );
@@ -268,6 +271,7 @@ fn renders_hex_line_numbers_when_enabled() {
                     sampler_view: None,
                     sample_browser: None,
                     project_browser: None,
+                    ai_chat: None,
                     tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );
@@ -332,6 +336,7 @@ fn renders_status_notification() {
                     sampler_view: None,
                     sample_browser: None,
                     project_browser: None,
+                    ai_chat: None,
                     tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );
@@ -394,6 +399,7 @@ fn renders_quit_confirmation_overlay() {
                     sampler_view: None,
                     sample_browser: None,
                     project_browser: None,
+                    ai_chat: None,
                     tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );
@@ -456,6 +462,7 @@ fn renders_delete_confirmation_overlay() {
                     sampler_view: None,
                     sample_browser: None,
                     project_browser: None,
+                    ai_chat: None,
                     tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );
@@ -532,6 +539,7 @@ fn renders_midi_settings_overlay() {
                     sampler_view: None,
                     sample_browser: None,
                     project_browser: None,
+                    ai_chat: None,
                     tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );

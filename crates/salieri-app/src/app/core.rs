@@ -101,6 +101,7 @@ impl App {
             recent_project_limit: config.workspace.recent_project_limit,
             config_metadata: config.metadata.clone(),
             ai_config: config.ai.clone(),
+            ai_thread: AiThread::default(),
             project_browser_view: None,
             pending_ai_proposal: None,
             dirty: false,

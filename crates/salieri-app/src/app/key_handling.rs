@@ -22,6 +22,7 @@ impl App {
             AppMode::Tracks => self.handle_tracks_key(key),
             AppMode::Patterns => self.handle_patterns_key(key),
             AppMode::Sampler => self.handle_sampler_key(key),
+            AppMode::Ai => self.handle_ai_key(key),
             AppMode::SampleBrowser => self.handle_sample_browser_key(key),
             AppMode::ProjectBrowser => self.handle_project_browser_key(key),
         }
@@ -96,6 +97,10 @@ impl App {
                 true
             }
             KeyCode::Char('c') | KeyCode::Char('C') => {
+                if self.mode == AppMode::Ai {
+                    self.cancel_active_task();
+                    return true;
+                }
                 self.copy_selection_or_current_cell();
                 true
             }
@@ -136,6 +141,21 @@ impl App {
                 true
             }
             _ => true,
+        }
+    }
+
+    pub(crate) fn handle_ai_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Esc => self.open_tracker_view(),
+            KeyCode::Char('q') if self.ai_thread.composer.is_empty() => self.request_quit(false),
+            KeyCode::Char('?') | KeyCode::Char('H') => self.open_help(),
+            KeyCode::Char(':') => self.open_command_prompt(),
+            KeyCode::Enter => self.submit_ai_chat_prompt(),
+            KeyCode::Backspace => {
+                self.ai_thread.composer.pop();
+            }
+            KeyCode::Char(ch) => self.ai_thread.composer.push(ch),
+            _ => {}
         }
     }
 

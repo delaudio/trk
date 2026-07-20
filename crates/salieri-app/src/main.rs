@@ -136,11 +136,12 @@ use salieri_midi::{
 use salieri_sampler::{Sample, WaveformBucket, WaveformOverview};
 use salieri_transform::{apply_euclidean, EuclideanRhythm};
 use salieri_tui::{
-    render, CommandPaletteEntryView, CommandPaletteViewState, HelpTab, ManagedPanelId,
-    MidiPortView, MidiSettingsState, NotificationKind, NotificationView, ProjectBrowserEntryKind,
-    ProjectBrowserEntryView, ProjectBrowserViewState, SampleBrowserEntryKind,
-    SampleBrowserEntryView, SampleBrowserViewState, SamplerEnvelopeField, SamplerViewState,
-    SelectionRect, TrackerLayoutPreset, TrackerLayoutState, TuiState, TuiView, ViewportAxis,
+    render, AiChatMessageRole, AiChatMessageView, AiChatViewState, CommandPaletteEntryView,
+    CommandPaletteViewState, HelpTab, ManagedPanelId, MidiPortView, MidiSettingsState,
+    NotificationKind, NotificationView, ProjectBrowserEntryKind, ProjectBrowserEntryView,
+    ProjectBrowserViewState, SampleBrowserEntryKind, SampleBrowserEntryView,
+    SampleBrowserViewState, SamplerEnvelopeField, SamplerViewState, SelectionRect,
+    TrackerLayoutPreset, TrackerLayoutState, TuiState, TuiView, ViewportAxis,
 };
 use serde::{Deserialize, Serialize};
 use task_runtime::TaskRuntime;
@@ -225,6 +226,7 @@ struct App {
     recent_project_limit: usize,
     config_metadata: config::ConfigMetadata,
     ai_config: config::AiConfig,
+    ai_thread: AiThread,
     project_browser_view: Option<AppProjectBrowserView>,
     pending_ai_proposal: Option<PreparedAiProposal>,
     dirty: bool,
@@ -236,6 +238,39 @@ struct App {
 
 struct AppMidiInput {
     inner: Box<dyn MidiInput>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct AiThread {
+    messages: Vec<AiMessage>,
+    composer: String,
+}
+
+impl Default for AiThread {
+    fn default() -> Self {
+        Self {
+            messages: vec![AiMessage {
+                role: AiMessageRole::System,
+                text: "Local AI chat is ready. Prompts become reviewable proposals.".to_string(),
+            }],
+            composer: String::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct AiMessage {
+    role: AiMessageRole,
+    text: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AiMessageRole {
+    System,
+    User,
+    Assistant,
+    Error,
+    Progress,
 }
 
 impl AppMidiInput {
