@@ -14,8 +14,11 @@ use salieri_core::{
     native_filter_drive_descriptor, native_filter_mix_descriptor, native_filter_mode_descriptor,
     native_filter_resonance_descriptor, native_gain_descriptor, native_pan_descriptor,
     native_phase_invert_left_descriptor, native_phase_invert_right_descriptor,
-    native_width_descriptor, sample_gain_descriptor, CellField, Cursor, EffectDeviceKind,
-    NoteEvent, ParameterDescriptor, ParameterValue, Pattern, PatternCell, SamplePlaybackMode, Song,
+    native_reverb_damping_descriptor, native_reverb_decay_descriptor, native_reverb_mix_descriptor,
+    native_reverb_output_descriptor, native_reverb_predelay_descriptor,
+    native_reverb_size_descriptor, native_width_descriptor, sample_gain_descriptor, CellField,
+    Cursor, EffectDeviceKind, NoteEvent, ParameterDescriptor, ParameterValue, Pattern, PatternCell,
+    SamplePlaybackMode, Song,
 };
 use salieri_sampler::{WaveformBucket, WaveformOverview};
 
@@ -1508,6 +1511,40 @@ fn render_track_properties(frame: &mut Frame<'_>, area: Rect, song: &Song, state
                 ));
                 mixer_lines.push(parameter_control_from_f32(
                     native_delay_output_descriptor(),
+                    output_db,
+                ));
+            }
+            EffectDeviceKind::Reverb {
+                size,
+                predelay_ms,
+                decay_s,
+                damping,
+                mix,
+                output_db,
+                ..
+            } => {
+                mixer_lines.push(parameter_control_from_f32(
+                    native_reverb_size_descriptor(),
+                    size,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_reverb_predelay_descriptor(),
+                    predelay_ms,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_reverb_decay_descriptor(),
+                    decay_s,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_reverb_damping_descriptor(),
+                    damping,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_reverb_mix_descriptor(),
+                    mix,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_reverb_output_descriptor(),
                     output_db,
                 ));
             }

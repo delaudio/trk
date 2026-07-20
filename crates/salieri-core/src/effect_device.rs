@@ -38,6 +38,39 @@ pub struct DelaySpec {
     pub output_db: f32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ReverbSpec {
+    pub size: f32,
+    pub predelay_ms: f32,
+    pub decay_s: f32,
+    pub damping: f32,
+    pub low_cut_hz: f32,
+    pub high_cut_hz: f32,
+    pub diffusion: f32,
+    pub width: f32,
+    pub early_reflections: f32,
+    pub mix: f32,
+    pub output_db: f32,
+}
+
+impl Default for ReverbSpec {
+    fn default() -> Self {
+        Self {
+            size: 0.5,
+            predelay_ms: 20.0,
+            decay_s: 2.5,
+            damping: 0.5,
+            low_cut_hz: 100.0,
+            high_cut_hz: 16_000.0,
+            diffusion: 0.75,
+            width: 1.0,
+            early_reflections: 0.5,
+            mix: 0.25,
+            output_db: 0.0,
+        }
+    }
+}
+
 impl Default for DelaySpec {
     fn default() -> Self {
         Self {
@@ -169,6 +202,27 @@ impl EffectDevice {
                 filter_high_cut_hz: spec.filter_high_cut_hz,
                 mod_rate_hz: spec.mod_rate_hz,
                 mod_depth: spec.mod_depth,
+                mix: spec.mix,
+                output_db: spec.output_db,
+            },
+        )
+    }
+
+    #[must_use]
+    pub fn reverb(id: u32, spec: ReverbSpec) -> Self {
+        Self::new(
+            id,
+            "Reverb",
+            EffectDeviceKind::Reverb {
+                size: spec.size,
+                predelay_ms: spec.predelay_ms,
+                decay_s: spec.decay_s,
+                damping: spec.damping,
+                low_cut_hz: spec.low_cut_hz,
+                high_cut_hz: spec.high_cut_hz,
+                diffusion: spec.diffusion,
+                width: spec.width,
+                early_reflections: spec.early_reflections,
                 mix: spec.mix,
                 output_db: spec.output_db,
             },

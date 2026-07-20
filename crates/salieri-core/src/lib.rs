@@ -9,7 +9,7 @@ pub mod native_module;
 pub mod parameters;
 pub mod playback;
 
-pub use effect_device::{DelaySpec, FilterMode, FilterSpec};
+pub use effect_device::{DelaySpec, FilterMode, FilterSpec, ReverbSpec};
 pub use model::{
     AutomationInterpolation, AutomationLane, AutomationPoint, AutomationTarget, CellField, Cursor,
     Direction, EditError, EffectDevice, EffectDeviceKind, Instrument, InstrumentId, MixerSend,
@@ -23,10 +23,11 @@ pub use native_module::{
     builtin_native_effect_descriptors, builtin_native_module_descriptor,
     native_balance_module_descriptor, native_delay_module_descriptor,
     native_filter_module_descriptor, native_gain_module_descriptor, native_pan_module_descriptor,
-    native_phase_module_descriptor, native_width_module_descriptor, NativeModuleDescriptor,
-    NativeModuleError, NativeModuleId, NativeModuleParameter, NativeModuleRole, NativeModuleState,
-    NATIVE_BALANCE_MODULE_ID, NATIVE_DELAY_MODULE_ID, NATIVE_FILTER_MODULE_ID,
-    NATIVE_GAIN_MODULE_ID, NATIVE_PAN_MODULE_ID, NATIVE_PHASE_MODULE_ID, NATIVE_WIDTH_MODULE_ID,
+    native_phase_module_descriptor, native_reverb_module_descriptor,
+    native_width_module_descriptor, NativeModuleDescriptor, NativeModuleError, NativeModuleId,
+    NativeModuleParameter, NativeModuleRole, NativeModuleState, NATIVE_BALANCE_MODULE_ID,
+    NATIVE_DELAY_MODULE_ID, NATIVE_FILTER_MODULE_ID, NATIVE_GAIN_MODULE_ID, NATIVE_PAN_MODULE_ID,
+    NATIVE_PHASE_MODULE_ID, NATIVE_REVERB_MODULE_ID, NATIVE_WIDTH_MODULE_ID,
 };
 pub use parameter_locks::{parameter_lock_events, ParameterLockEvent};
 pub use parameters::{
@@ -44,11 +45,17 @@ pub use parameters::{
     native_filter_mix_descriptor, native_filter_mode_descriptor,
     native_filter_resonance_descriptor, native_gain_descriptor, native_pan_descriptor,
     native_phase_invert_left_descriptor, native_phase_invert_right_descriptor,
-    native_width_descriptor, sample_gain_descriptor, sampler_parameter_descriptors,
-    ParameterChoice, ParameterDescriptor, ParameterFlags, ParameterGroupId, ParameterId,
-    ParameterRange, ParameterUnit, ParameterValidationError, ParameterValue, ParameterValueType,
-    MIXER_MASTER_GAIN_PARAMETER_ID, MIXER_SEND_GAIN_PARAMETER_ID, MIXER_TRACK_GAIN_PARAMETER_ID,
-    MIXER_TRACK_PAN_PARAMETER_ID, NATIVE_BALANCE_PARAMETER_ID, NATIVE_DELAY_FEEDBACK_PARAMETER_ID,
+    native_reverb_damping_descriptor, native_reverb_decay_descriptor,
+    native_reverb_diffusion_descriptor, native_reverb_early_reflections_descriptor,
+    native_reverb_high_cut_descriptor, native_reverb_low_cut_descriptor,
+    native_reverb_mix_descriptor, native_reverb_output_descriptor,
+    native_reverb_parameter_descriptors, native_reverb_predelay_descriptor,
+    native_reverb_size_descriptor, native_reverb_width_descriptor, native_width_descriptor,
+    sample_gain_descriptor, sampler_parameter_descriptors, ParameterChoice, ParameterDescriptor,
+    ParameterFlags, ParameterGroupId, ParameterId, ParameterRange, ParameterUnit,
+    ParameterValidationError, ParameterValue, ParameterValueType, MIXER_MASTER_GAIN_PARAMETER_ID,
+    MIXER_SEND_GAIN_PARAMETER_ID, MIXER_TRACK_GAIN_PARAMETER_ID, MIXER_TRACK_PAN_PARAMETER_ID,
+    NATIVE_BALANCE_PARAMETER_ID, NATIVE_DELAY_FEEDBACK_PARAMETER_ID,
     NATIVE_DELAY_FILTER_HIGH_CUT_PARAMETER_ID, NATIVE_DELAY_FILTER_LOW_CUT_PARAMETER_ID,
     NATIVE_DELAY_LINK_TIMES_PARAMETER_ID, NATIVE_DELAY_MIX_PARAMETER_ID,
     NATIVE_DELAY_MOD_DEPTH_PARAMETER_ID, NATIVE_DELAY_MOD_RATE_PARAMETER_ID,
@@ -59,7 +66,13 @@ pub use parameters::{
     NATIVE_FILTER_KEY_TRACK_PARAMETER_ID, NATIVE_FILTER_MIX_PARAMETER_ID,
     NATIVE_FILTER_MODE_PARAMETER_ID, NATIVE_FILTER_RESONANCE_PARAMETER_ID,
     NATIVE_GAIN_PARAMETER_ID, NATIVE_PAN_PARAMETER_ID, NATIVE_PHASE_INVERT_LEFT_PARAMETER_ID,
-    NATIVE_PHASE_INVERT_RIGHT_PARAMETER_ID, NATIVE_WIDTH_PARAMETER_ID, SAMPLE_GAIN_PARAMETER_ID,
+    NATIVE_PHASE_INVERT_RIGHT_PARAMETER_ID, NATIVE_REVERB_DAMPING_PARAMETER_ID,
+    NATIVE_REVERB_DECAY_PARAMETER_ID, NATIVE_REVERB_DIFFUSION_PARAMETER_ID,
+    NATIVE_REVERB_EARLY_REFLECTIONS_PARAMETER_ID, NATIVE_REVERB_HIGH_CUT_PARAMETER_ID,
+    NATIVE_REVERB_LOW_CUT_PARAMETER_ID, NATIVE_REVERB_MIX_PARAMETER_ID,
+    NATIVE_REVERB_OUTPUT_PARAMETER_ID, NATIVE_REVERB_PREDELAY_PARAMETER_ID,
+    NATIVE_REVERB_SIZE_PARAMETER_ID, NATIVE_REVERB_WIDTH_PARAMETER_ID, NATIVE_WIDTH_PARAMETER_ID,
+    SAMPLE_GAIN_PARAMETER_ID,
 };
 pub use playback::{
     pattern_events, row_duration_micros, sampler_events, PlaybackEvent, PlaybackEventKind,

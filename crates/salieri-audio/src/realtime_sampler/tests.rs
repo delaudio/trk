@@ -154,6 +154,22 @@ fn realtime_sampler_applies_dsp_graph() {
     assert_approx_eq(rendered.data[0], 0.25);
 }
 
+fn test_reverb_kind() -> DspDeviceKind {
+    DspDeviceKind::Reverb {
+        size: 0.5,
+        predelay_ms: 0.0,
+        decay_s: 1.0,
+        damping: 0.5,
+        low_cut_hz: 100.0,
+        high_cut_hz: 16_000.0,
+        diffusion: 0.75,
+        width: 1.0,
+        early_reflections: 0.5,
+        mix: 1.0,
+        output_db: 0.0,
+    }
+}
+
 #[test]
 fn realtime_and_offline_match_for_native_utility_master_devices() {
     let preview = PreviewBuffer {
@@ -458,6 +474,78 @@ fn realtime_and_offline_match_for_native_delay_fixture() {
     for (actual, expected) in rendered.data.iter().zip(offline.data.iter()) {
         assert_approx_eq(*actual, *expected);
     }
+}
+
+#[test]
+fn realtime_and_offline_match_for_native_reverb_fixture() {
+    let preview = PreviewBuffer {
+        sample_rate: 48_000,
+        channels: 2,
+        frames: 1,
+        data: vec![1.0, 0.0],
+    };
+    let graph = DspGraphSpec {
+        track_chains: Vec::new(),
+        master: vec![DspDeviceSpec {
+            bypassed: false,
+            kind: test_reverb_kind(),
+        }],
+    };
+
+    let offline = render_sampler_events_with_dsp(
+        &[OfflineSamplerSample {
+            sample_id: 1,
+            buffer: preview.clone(),
+        }],
+        &[OfflineSamplerEvent {
+            track_id: 1,
+            sample_id: 1,
+            frame: 0,
+            gain: 1.0,
+            pan: 0.0,
+            pitch_ratio: 1.0,
+            velocity: 127,
+        }],
+        OfflineRenderSpec {
+            sample_rate: 48_000,
+            channels: 2,
+            frames: 2_048,
+        },
+        &graph,
+    )
+    .expect("offline render");
+
+    let mut realtime = RealtimeSampler::new(RealtimeSamplerConfig {
+        sample_rate: 48_000,
+        channels: 2,
+        max_voices: 4,
+    });
+    realtime
+        .register_sample(1, preview)
+        .expect("register sample");
+    realtime.set_dsp_graph(graph);
+    realtime
+        .handle_command(RealtimeAudioCommand::TriggerSample {
+            track_id: 1,
+            sample_id: 1,
+            frame: 0,
+            gain: 1.0,
+            pan: 0.0,
+            pitch_ratio: 1.0,
+        })
+        .expect("trigger");
+    let rendered = realtime.render(2_048);
+
+    assert_eq!(rendered.data.len(), offline.data.len());
+    for (actual, expected) in rendered.data.iter().zip(offline.data.iter()) {
+        assert_approx_eq(*actual, *expected);
+    }
+    assert!(
+        rendered.data[2..]
+            .iter()
+            .any(|sample| sample.abs() > 0.000_1),
+        "reverb should produce a tail in the fixture"
+    );
 }
 
 #[test]

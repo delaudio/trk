@@ -4,10 +4,11 @@ use crate::{
         native_balance_module_descriptor, native_delay_module_descriptor,
         native_filter_module_descriptor, native_gain_module_descriptor,
         native_pan_module_descriptor, native_phase_module_descriptor,
-        native_width_module_descriptor, NativeModuleDescriptor, NativeModuleId,
-        NativeModuleParameter, NativeModuleState, NATIVE_BALANCE_MODULE_ID, NATIVE_DELAY_MODULE_ID,
-        NATIVE_FILTER_MODULE_ID, NATIVE_GAIN_MODULE_ID, NATIVE_PAN_MODULE_ID,
-        NATIVE_PHASE_MODULE_ID, NATIVE_WIDTH_MODULE_ID,
+        native_reverb_module_descriptor, native_width_module_descriptor, NativeModuleDescriptor,
+        NativeModuleId, NativeModuleParameter, NativeModuleState, NATIVE_BALANCE_MODULE_ID,
+        NATIVE_DELAY_MODULE_ID, NATIVE_FILTER_MODULE_ID, NATIVE_GAIN_MODULE_ID,
+        NATIVE_PAN_MODULE_ID, NATIVE_PHASE_MODULE_ID, NATIVE_REVERB_MODULE_ID,
+        NATIVE_WIDTH_MODULE_ID,
     },
     parameters::{
         native_balance_descriptor, native_delay_feedback_descriptor,
@@ -21,19 +22,30 @@ use crate::{
         native_filter_key_track_descriptor, native_filter_mix_descriptor,
         native_filter_mode_descriptor, native_filter_resonance_descriptor, native_gain_descriptor,
         native_pan_descriptor, native_phase_invert_left_descriptor,
-        native_phase_invert_right_descriptor, native_width_descriptor, ParameterDescriptor,
-        ParameterId, ParameterValue, NATIVE_BALANCE_PARAMETER_ID,
-        NATIVE_DELAY_FEEDBACK_PARAMETER_ID, NATIVE_DELAY_FILTER_HIGH_CUT_PARAMETER_ID,
-        NATIVE_DELAY_FILTER_LOW_CUT_PARAMETER_ID, NATIVE_DELAY_LINK_TIMES_PARAMETER_ID,
-        NATIVE_DELAY_MIX_PARAMETER_ID, NATIVE_DELAY_MOD_DEPTH_PARAMETER_ID,
-        NATIVE_DELAY_MOD_RATE_PARAMETER_ID, NATIVE_DELAY_OUTPUT_PARAMETER_ID,
-        NATIVE_DELAY_PING_PONG_PARAMETER_ID, NATIVE_DELAY_SYNC_PARAMETER_ID,
-        NATIVE_DELAY_TIME_LEFT_PARAMETER_ID, NATIVE_DELAY_TIME_RIGHT_PARAMETER_ID,
-        NATIVE_FILTER_CUTOFF_PARAMETER_ID, NATIVE_FILTER_DRIVE_PARAMETER_ID,
-        NATIVE_FILTER_ENV_AMOUNT_PARAMETER_ID, NATIVE_FILTER_KEY_TRACK_PARAMETER_ID,
-        NATIVE_FILTER_MIX_PARAMETER_ID, NATIVE_FILTER_MODE_PARAMETER_ID,
-        NATIVE_FILTER_RESONANCE_PARAMETER_ID, NATIVE_GAIN_PARAMETER_ID, NATIVE_PAN_PARAMETER_ID,
-        NATIVE_PHASE_INVERT_LEFT_PARAMETER_ID, NATIVE_PHASE_INVERT_RIGHT_PARAMETER_ID,
+        native_phase_invert_right_descriptor, native_reverb_damping_descriptor,
+        native_reverb_decay_descriptor, native_reverb_diffusion_descriptor,
+        native_reverb_early_reflections_descriptor, native_reverb_high_cut_descriptor,
+        native_reverb_low_cut_descriptor, native_reverb_mix_descriptor,
+        native_reverb_output_descriptor, native_reverb_parameter_descriptors,
+        native_reverb_predelay_descriptor, native_reverb_size_descriptor,
+        native_reverb_width_descriptor, native_width_descriptor, ParameterDescriptor, ParameterId,
+        ParameterValue, NATIVE_BALANCE_PARAMETER_ID, NATIVE_DELAY_FEEDBACK_PARAMETER_ID,
+        NATIVE_DELAY_FILTER_HIGH_CUT_PARAMETER_ID, NATIVE_DELAY_FILTER_LOW_CUT_PARAMETER_ID,
+        NATIVE_DELAY_LINK_TIMES_PARAMETER_ID, NATIVE_DELAY_MIX_PARAMETER_ID,
+        NATIVE_DELAY_MOD_DEPTH_PARAMETER_ID, NATIVE_DELAY_MOD_RATE_PARAMETER_ID,
+        NATIVE_DELAY_OUTPUT_PARAMETER_ID, NATIVE_DELAY_PING_PONG_PARAMETER_ID,
+        NATIVE_DELAY_SYNC_PARAMETER_ID, NATIVE_DELAY_TIME_LEFT_PARAMETER_ID,
+        NATIVE_DELAY_TIME_RIGHT_PARAMETER_ID, NATIVE_FILTER_CUTOFF_PARAMETER_ID,
+        NATIVE_FILTER_DRIVE_PARAMETER_ID, NATIVE_FILTER_ENV_AMOUNT_PARAMETER_ID,
+        NATIVE_FILTER_KEY_TRACK_PARAMETER_ID, NATIVE_FILTER_MIX_PARAMETER_ID,
+        NATIVE_FILTER_MODE_PARAMETER_ID, NATIVE_FILTER_RESONANCE_PARAMETER_ID,
+        NATIVE_GAIN_PARAMETER_ID, NATIVE_PAN_PARAMETER_ID, NATIVE_PHASE_INVERT_LEFT_PARAMETER_ID,
+        NATIVE_PHASE_INVERT_RIGHT_PARAMETER_ID, NATIVE_REVERB_DAMPING_PARAMETER_ID,
+        NATIVE_REVERB_DECAY_PARAMETER_ID, NATIVE_REVERB_DIFFUSION_PARAMETER_ID,
+        NATIVE_REVERB_EARLY_REFLECTIONS_PARAMETER_ID, NATIVE_REVERB_HIGH_CUT_PARAMETER_ID,
+        NATIVE_REVERB_LOW_CUT_PARAMETER_ID, NATIVE_REVERB_MIX_PARAMETER_ID,
+        NATIVE_REVERB_OUTPUT_PARAMETER_ID, NATIVE_REVERB_PREDELAY_PARAMETER_ID,
+        NATIVE_REVERB_SIZE_PARAMETER_ID, NATIVE_REVERB_WIDTH_PARAMETER_ID,
         NATIVE_WIDTH_PARAMETER_ID,
     },
     FilterMode,
@@ -74,6 +86,7 @@ impl EffectDevice {
                 native_delay_mix_descriptor(),
                 native_delay_output_descriptor(),
             ],
+            EffectDeviceKind::Reverb { .. } => native_reverb_parameter_descriptors(),
         }
     }
 
@@ -163,6 +176,42 @@ impl EffectDevice {
                 Some(ParameterValue::Percentage(mix))
             }
             (NATIVE_DELAY_OUTPUT_PARAMETER_ID, EffectDeviceKind::Delay { output_db, .. }) => {
+                Some(ParameterValue::Decibels(output_db))
+            }
+            (NATIVE_REVERB_SIZE_PARAMETER_ID, EffectDeviceKind::Reverb { size, .. }) => {
+                Some(ParameterValue::Percentage(size))
+            }
+            (NATIVE_REVERB_PREDELAY_PARAMETER_ID, EffectDeviceKind::Reverb { predelay_ms, .. }) => {
+                Some(ParameterValue::Float(predelay_ms))
+            }
+            (NATIVE_REVERB_DECAY_PARAMETER_ID, EffectDeviceKind::Reverb { decay_s, .. }) => {
+                Some(ParameterValue::Seconds(decay_s))
+            }
+            (NATIVE_REVERB_DAMPING_PARAMETER_ID, EffectDeviceKind::Reverb { damping, .. }) => {
+                Some(ParameterValue::Percentage(damping))
+            }
+            (NATIVE_REVERB_LOW_CUT_PARAMETER_ID, EffectDeviceKind::Reverb { low_cut_hz, .. }) => {
+                Some(ParameterValue::FrequencyHertz(low_cut_hz))
+            }
+            (NATIVE_REVERB_HIGH_CUT_PARAMETER_ID, EffectDeviceKind::Reverb { high_cut_hz, .. }) => {
+                Some(ParameterValue::FrequencyHertz(high_cut_hz))
+            }
+            (NATIVE_REVERB_DIFFUSION_PARAMETER_ID, EffectDeviceKind::Reverb { diffusion, .. }) => {
+                Some(ParameterValue::Percentage(diffusion))
+            }
+            (NATIVE_REVERB_WIDTH_PARAMETER_ID, EffectDeviceKind::Reverb { width, .. }) => {
+                Some(ParameterValue::Percentage(width))
+            }
+            (
+                NATIVE_REVERB_EARLY_REFLECTIONS_PARAMETER_ID,
+                EffectDeviceKind::Reverb {
+                    early_reflections, ..
+                },
+            ) => Some(ParameterValue::Percentage(early_reflections)),
+            (NATIVE_REVERB_MIX_PARAMETER_ID, EffectDeviceKind::Reverb { mix, .. }) => {
+                Some(ParameterValue::Percentage(mix))
+            }
+            (NATIVE_REVERB_OUTPUT_PARAMETER_ID, EffectDeviceKind::Reverb { output_db, .. }) => {
                 Some(ParameterValue::Decibels(output_db))
             }
             _ => None,
@@ -391,6 +440,46 @@ impl EffectDevice {
                 *output_db = value.as_f32().expect("validated output is numeric");
                 Ok(())
             }
+            (NATIVE_REVERB_SIZE_PARAMETER_ID, EffectDeviceKind::Reverb { size, .. }) => {
+                set_reverb_numeric(native_reverb_size_descriptor(), size, value)
+            }
+            (NATIVE_REVERB_PREDELAY_PARAMETER_ID, EffectDeviceKind::Reverb { predelay_ms, .. }) => {
+                set_reverb_numeric(native_reverb_predelay_descriptor(), predelay_ms, value)
+            }
+            (NATIVE_REVERB_DECAY_PARAMETER_ID, EffectDeviceKind::Reverb { decay_s, .. }) => {
+                set_reverb_numeric(native_reverb_decay_descriptor(), decay_s, value)
+            }
+            (NATIVE_REVERB_DAMPING_PARAMETER_ID, EffectDeviceKind::Reverb { damping, .. }) => {
+                set_reverb_numeric(native_reverb_damping_descriptor(), damping, value)
+            }
+            (NATIVE_REVERB_LOW_CUT_PARAMETER_ID, EffectDeviceKind::Reverb { low_cut_hz, .. }) => {
+                set_reverb_numeric(native_reverb_low_cut_descriptor(), low_cut_hz, value)
+            }
+            (NATIVE_REVERB_HIGH_CUT_PARAMETER_ID, EffectDeviceKind::Reverb { high_cut_hz, .. }) => {
+                set_reverb_numeric(native_reverb_high_cut_descriptor(), high_cut_hz, value)
+            }
+            (NATIVE_REVERB_DIFFUSION_PARAMETER_ID, EffectDeviceKind::Reverb { diffusion, .. }) => {
+                set_reverb_numeric(native_reverb_diffusion_descriptor(), diffusion, value)
+            }
+            (NATIVE_REVERB_WIDTH_PARAMETER_ID, EffectDeviceKind::Reverb { width, .. }) => {
+                set_reverb_numeric(native_reverb_width_descriptor(), width, value)
+            }
+            (
+                NATIVE_REVERB_EARLY_REFLECTIONS_PARAMETER_ID,
+                EffectDeviceKind::Reverb {
+                    early_reflections, ..
+                },
+            ) => set_reverb_numeric(
+                native_reverb_early_reflections_descriptor(),
+                early_reflections,
+                value,
+            ),
+            (NATIVE_REVERB_MIX_PARAMETER_ID, EffectDeviceKind::Reverb { mix, .. }) => {
+                set_reverb_numeric(native_reverb_mix_descriptor(), mix, value)
+            }
+            (NATIVE_REVERB_OUTPUT_PARAMETER_ID, EffectDeviceKind::Reverb { output_db, .. }) => {
+                set_reverb_numeric(native_reverb_output_descriptor(), output_db, value)
+            }
             _ => Err(EditError::UnknownParameter),
         }
     }
@@ -405,6 +494,7 @@ impl EffectDevice {
             EffectDeviceKind::PhaseInvert { .. } => native_phase_module_descriptor(),
             EffectDeviceKind::Filter { .. } => native_filter_module_descriptor(),
             EffectDeviceKind::Delay { .. } => native_delay_module_descriptor(),
+            EffectDeviceKind::Reverb { .. } => native_reverb_module_descriptor(),
         }
     }
 
@@ -562,6 +652,67 @@ impl EffectDevice {
                     },
                 ],
             ),
+            EffectDeviceKind::Reverb {
+                size,
+                predelay_ms,
+                decay_s,
+                damping,
+                low_cut_hz,
+                high_cut_hz,
+                diffusion,
+                width,
+                early_reflections,
+                mix,
+                output_db,
+            } => (
+                NativeModuleId::from(NATIVE_REVERB_MODULE_ID),
+                vec![
+                    NativeModuleParameter {
+                        id: ParameterId::from(NATIVE_REVERB_SIZE_PARAMETER_ID),
+                        value: ParameterValue::Percentage(size),
+                    },
+                    NativeModuleParameter {
+                        id: ParameterId::from(NATIVE_REVERB_PREDELAY_PARAMETER_ID),
+                        value: ParameterValue::Float(predelay_ms),
+                    },
+                    NativeModuleParameter {
+                        id: ParameterId::from(NATIVE_REVERB_DECAY_PARAMETER_ID),
+                        value: ParameterValue::Seconds(decay_s),
+                    },
+                    NativeModuleParameter {
+                        id: ParameterId::from(NATIVE_REVERB_DAMPING_PARAMETER_ID),
+                        value: ParameterValue::Percentage(damping),
+                    },
+                    NativeModuleParameter {
+                        id: ParameterId::from(NATIVE_REVERB_LOW_CUT_PARAMETER_ID),
+                        value: ParameterValue::FrequencyHertz(low_cut_hz),
+                    },
+                    NativeModuleParameter {
+                        id: ParameterId::from(NATIVE_REVERB_HIGH_CUT_PARAMETER_ID),
+                        value: ParameterValue::FrequencyHertz(high_cut_hz),
+                    },
+                    NativeModuleParameter {
+                        id: ParameterId::from(NATIVE_REVERB_DIFFUSION_PARAMETER_ID),
+                        value: ParameterValue::Percentage(diffusion),
+                    },
+                    NativeModuleParameter {
+                        id: ParameterId::from(NATIVE_REVERB_WIDTH_PARAMETER_ID),
+                        value: ParameterValue::Percentage(width),
+                    },
+                    NativeModuleParameter {
+                        id: ParameterId::from(NATIVE_REVERB_EARLY_REFLECTIONS_PARAMETER_ID),
+                        value: ParameterValue::Percentage(early_reflections),
+                    },
+                    NativeModuleParameter {
+                        id: ParameterId::from(NATIVE_REVERB_MIX_PARAMETER_ID),
+                        value: ParameterValue::Percentage(mix),
+                    },
+                    NativeModuleParameter {
+                        id: ParameterId::from(NATIVE_REVERB_OUTPUT_PARAMETER_ID),
+                        value: ParameterValue::Decibels(output_db),
+                    },
+                ],
+            ),
         };
         NativeModuleState {
             module,
@@ -590,3 +741,15 @@ impl EffectDevice {
 #[cfg(test)]
 #[path = "effect_parameters_tests.rs"]
 mod tests;
+
+fn set_reverb_numeric(
+    descriptor: ParameterDescriptor,
+    target: &mut f32,
+    value: ParameterValue,
+) -> Result<(), EditError> {
+    descriptor
+        .validate(&value)
+        .map_err(|_| EditError::InvalidParameterValue)?;
+    *target = value.as_f32().expect("validated reverb value is numeric");
+    Ok(())
+}

@@ -1,5 +1,5 @@
 use super::*;
-use crate::{DelaySpec, FilterSpec};
+use crate::{DelaySpec, FilterSpec, ReverbSpec};
 
 #[test]
 fn effect_devices_expose_and_validate_parameter_values() {
@@ -110,6 +110,31 @@ fn effect_devices_expose_and_validate_parameter_values() {
                 ParameterValue::Percentage(1.0),
             )
             .expect_err("reject unstable feedback"),
+        EditError::InvalidParameterValue
+    );
+
+    let mut reverb = EffectDevice::reverb(8, ReverbSpec::default());
+    assert_eq!(
+        reverb.parameter_value(&ParameterId::from(NATIVE_REVERB_PREDELAY_PARAMETER_ID)),
+        Some(ParameterValue::Float(20.0))
+    );
+    reverb
+        .set_parameter_value(
+            &ParameterId::from(NATIVE_REVERB_DECAY_PARAMETER_ID),
+            ParameterValue::Seconds(5.0),
+        )
+        .expect("set decay");
+    assert_eq!(
+        reverb.parameter_value(&ParameterId::from(NATIVE_REVERB_DECAY_PARAMETER_ID)),
+        Some(ParameterValue::Seconds(5.0))
+    );
+    assert_eq!(
+        reverb
+            .set_parameter_value(
+                &ParameterId::from(NATIVE_REVERB_DECAY_PARAMETER_ID),
+                ParameterValue::Seconds(60.0),
+            )
+            .expect_err("reject invalid decay"),
         EditError::InvalidParameterValue
     );
 }
@@ -255,6 +280,56 @@ fn effect_devices_round_trip_delay_native_module_state() {
             mod_depth: 0.0,
             mix: 0.5,
             output_db: 0.0
+        }
+    );
+}
+
+#[test]
+fn effect_devices_round_trip_reverb_native_module_state() {
+    let mut reverb = EffectDevice::reverb(8, ReverbSpec::default());
+    let mut state = reverb.native_module_state();
+
+    assert_eq!(state.parameters.len(), 11);
+    state
+        .set_parameter(
+            &reverb.native_module_descriptor(),
+            ParameterId::from(NATIVE_REVERB_SIZE_PARAMETER_ID),
+            ParameterValue::Percentage(0.75),
+        )
+        .expect("set size");
+    state
+        .set_parameter(
+            &reverb.native_module_descriptor(),
+            ParameterId::from(NATIVE_REVERB_MIX_PARAMETER_ID),
+            ParameterValue::Percentage(1.0),
+        )
+        .expect("set mix");
+    state
+        .set_parameter(
+            &reverb.native_module_descriptor(),
+            ParameterId::from(NATIVE_REVERB_OUTPUT_PARAMETER_ID),
+            ParameterValue::Decibels(-6.0),
+        )
+        .expect("set output");
+
+    reverb
+        .apply_native_module_state(&state)
+        .expect("apply reverb state");
+
+    assert_eq!(
+        reverb.kind,
+        EffectDeviceKind::Reverb {
+            size: 0.75,
+            predelay_ms: 20.0,
+            decay_s: 2.5,
+            damping: 0.5,
+            low_cut_hz: 100.0,
+            high_cut_hz: 16_000.0,
+            diffusion: 0.75,
+            width: 1.0,
+            early_reflections: 0.5,
+            mix: 1.0,
+            output_db: -6.0
         }
     );
 }

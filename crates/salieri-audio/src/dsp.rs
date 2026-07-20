@@ -1,5 +1,9 @@
 use crate::errors::AudioExportError;
 
+mod reverb;
+
+use reverb::{apply_reverb_frame, ReverbFrameSpec, ReverbState};
+
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct DspGraphSpec {
     pub track_chains: Vec<TrackDspChainSpec>,
@@ -64,6 +68,19 @@ pub enum DspDeviceKind {
         filter_high_cut_hz: f32,
         mod_rate_hz: f32,
         mod_depth: f32,
+        mix: f32,
+        output_db: f32,
+    },
+    Reverb {
+        size: f32,
+        predelay_ms: f32,
+        decay_s: f32,
+        damping: f32,
+        low_cut_hz: f32,
+        high_cut_hz: f32,
+        diffusion: f32,
+        width: f32,
+        early_reflections: f32,
         mix: f32,
         output_db: f32,
     },
@@ -147,6 +164,41 @@ pub(crate) fn validate_dsp_chain(devices: &[DspDeviceSpec]) -> Result<(), AudioE
                 && (0.0..=1.0).contains(&mix)
                 && output_db.is_finite()
                 && (-60.0..=12.0).contains(&output_db) => {}
+            DspDeviceKind::Reverb {
+                size,
+                predelay_ms,
+                decay_s,
+                damping,
+                low_cut_hz,
+                high_cut_hz,
+                diffusion,
+                width,
+                early_reflections,
+                mix,
+                output_db,
+            } if size.is_finite()
+                && (0.0..=1.0).contains(&size)
+                && predelay_ms.is_finite()
+                && (0.0..=250.0).contains(&predelay_ms)
+                && decay_s.is_finite()
+                && (0.1..=30.0).contains(&decay_s)
+                && damping.is_finite()
+                && (0.0..=1.0).contains(&damping)
+                && low_cut_hz.is_finite()
+                && (20.0..=2_000.0).contains(&low_cut_hz)
+                && high_cut_hz.is_finite()
+                && (1_000.0..=20_000.0).contains(&high_cut_hz)
+                && low_cut_hz <= high_cut_hz
+                && diffusion.is_finite()
+                && (0.0..=1.0).contains(&diffusion)
+                && width.is_finite()
+                && (0.0..=2.0).contains(&width)
+                && early_reflections.is_finite()
+                && (0.0..=1.0).contains(&early_reflections)
+                && mix.is_finite()
+                && (0.0..=1.0).contains(&mix)
+                && output_db.is_finite()
+                && (-60.0..=12.0).contains(&output_db) => {}
             _ => return Err(AudioExportError::InvalidDspParameter),
         }
     }
@@ -192,6 +244,7 @@ pub(crate) fn apply_dsp_gain_to_aux_sample(sample: f32, devices: &[DspDeviceSpec
 
 const MAX_FILTERS: usize = 8;
 const MAX_DELAYS: usize = 8;
+const MAX_REVERBS: usize = 8;
 const MAX_CHANNELS: usize = 8;
 const MAX_DELAY_SECONDS: f32 = 4.0;
 
@@ -199,20 +252,31 @@ const MAX_DELAY_SECONDS: f32 = 4.0;
 pub(crate) struct DspFrameProcessor {
     filters: [[SvfState; MAX_CHANNELS]; MAX_FILTERS],
     delays: Vec<DelayLineState>,
+    reverbs: Vec<ReverbState>,
 }
 
 impl DspFrameProcessor {
     pub(crate) fn prepare(&mut self, sample_rate: u32, channels: usize, devices: &[DspDeviceSpec]) {
         let mut delay_index = 0;
+        let mut reverb_index = 0;
         for device in devices {
             if device.bypassed {
                 continue;
             }
-            if let DspDeviceKind::Delay { .. } = device.kind {
-                let delay_slot = delay_index.min(MAX_DELAYS - 1);
-                delay_index = delay_index.saturating_add(1);
-                self.ensure_delay_slot(delay_slot);
-                self.delays[delay_slot].prepare(sample_rate, channels);
+            match device.kind {
+                DspDeviceKind::Delay { .. } => {
+                    let delay_slot = delay_index.min(MAX_DELAYS - 1);
+                    delay_index = delay_index.saturating_add(1);
+                    self.ensure_delay_slot(delay_slot);
+                    self.delays[delay_slot].prepare(sample_rate, channels);
+                }
+                DspDeviceKind::Reverb { .. } => {
+                    let reverb_slot = reverb_index.min(MAX_REVERBS - 1);
+                    reverb_index = reverb_index.saturating_add(1);
+                    self.ensure_reverb_slot(reverb_slot);
+                    self.reverbs[reverb_slot].prepare(sample_rate, channels);
+                }
+                _ => {}
             }
         }
     }
@@ -225,6 +289,7 @@ impl DspFrameProcessor {
     ) {
         let mut filter_index = 0;
         let mut delay_index = 0;
+        let mut reverb_index = 0;
         for device in devices {
             if device.bypassed {
                 continue;
@@ -317,6 +382,48 @@ impl DspFrameProcessor {
                     };
                     apply_delay_frame(frame, sample_rate, spec, &mut self.delays[delay_slot]);
                 }
+                DspDeviceKind::Reverb {
+                    size,
+                    predelay_ms,
+                    decay_s,
+                    damping,
+                    low_cut_hz,
+                    high_cut_hz,
+                    diffusion,
+                    width,
+                    early_reflections,
+                    mix,
+                    output_db,
+                } if size.is_finite()
+                    && predelay_ms.is_finite()
+                    && decay_s.is_finite()
+                    && damping.is_finite()
+                    && low_cut_hz.is_finite()
+                    && high_cut_hz.is_finite()
+                    && diffusion.is_finite()
+                    && width.is_finite()
+                    && early_reflections.is_finite()
+                    && mix.is_finite()
+                    && output_db.is_finite() =>
+                {
+                    let reverb_slot = reverb_index.min(MAX_REVERBS - 1);
+                    reverb_index = reverb_index.saturating_add(1);
+                    self.ensure_reverb_slot(reverb_slot);
+                    let spec = ReverbFrameSpec {
+                        size,
+                        predelay_ms,
+                        decay_s,
+                        damping,
+                        low_cut_hz,
+                        high_cut_hz,
+                        diffusion,
+                        width,
+                        early_reflections,
+                        mix,
+                        output_db,
+                    };
+                    apply_reverb_frame(frame, sample_rate, spec, &mut self.reverbs[reverb_slot]);
+                }
                 _ => {}
             }
         }
@@ -325,6 +432,12 @@ impl DspFrameProcessor {
     fn ensure_delay_slot(&mut self, slot: usize) {
         while self.delays.len() <= slot {
             self.delays.push(DelayLineState::default());
+        }
+    }
+
+    fn ensure_reverb_slot(&mut self, slot: usize) {
+        while self.reverbs.len() <= slot {
+            self.reverbs.push(ReverbState::default());
         }
     }
 }

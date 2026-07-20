@@ -1445,6 +1445,19 @@ pub enum EffectDeviceKind {
         mix: f32,
         output_db: f32,
     },
+    Reverb {
+        size: f32,
+        predelay_ms: f32,
+        decay_s: f32,
+        damping: f32,
+        low_cut_hz: f32,
+        high_cut_hz: f32,
+        diffusion: f32,
+        width: f32,
+        early_reflections: f32,
+        mix: f32,
+        output_db: f32,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

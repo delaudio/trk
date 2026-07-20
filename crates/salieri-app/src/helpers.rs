@@ -75,6 +75,17 @@ pub(crate) fn format_effect_device(device: &EffectDevice) -> String {
             if sync { "sync" } else { "free" },
             ping_pong as u8
         ),
+        EffectDeviceKind::Reverb {
+            size,
+            predelay_ms,
+            decay_s,
+            damping,
+            mix,
+            output_db,
+            ..
+        } => format!(
+            "reverb size {size:.3} pre {predelay_ms:.1}ms decay {decay_s:.2}s damp {damping:.3} mix {mix:.3} out {output_db:+.1}dB"
+        ),
     }
 }
 

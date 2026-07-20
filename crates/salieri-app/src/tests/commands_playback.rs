@@ -191,6 +191,7 @@ fn command_mode_sets_resets_and_clears_parameter_locks() {
     type_command(&mut app, "plock dsp track filter-mode High-pass");
     type_command(&mut app, "plock dsp track delay-left 250");
     type_command(&mut app, "plock dsp track delay-mix 0.500");
+    type_command(&mut app, "plock dsp track reverb-decay 3.500");
 
     let cell = app
         .song
@@ -198,7 +199,7 @@ fn command_mode_sets_resets_and_clears_parameter_locks() {
         .expect("pattern")
         .cell(0, 0)
         .expect("cell");
-    assert_eq!(cell.parameter_locks.len(), 9);
+    assert_eq!(cell.parameter_locks.len(), 10);
     assert_eq!(
         cell.parameter_locks[0].parameter,
         ParameterId::from(SAMPLE_GAIN_PARAMETER_ID)
@@ -243,6 +244,14 @@ fn command_mode_sets_resets_and_clears_parameter_locks() {
         cell.parameter_locks[8].parameter,
         ParameterId::from(NATIVE_DELAY_MIX_PARAMETER_ID)
     );
+    assert_eq!(
+        cell.parameter_locks[9].parameter,
+        ParameterId::from(NATIVE_REVERB_DECAY_PARAMETER_ID)
+    );
+    assert_eq!(
+        cell.parameter_locks[9].target,
+        ParameterLockTarget::TrackEffect { track, device: 8 }
+    );
 
     type_command(&mut app, "plock sample-gain reset");
     let cell = app
@@ -263,7 +272,7 @@ fn command_mode_sets_resets_and_clears_parameter_locks() {
         .expect("pattern")
         .cell(0, 0)
         .expect("cell");
-    assert_eq!(cell.parameter_locks.len(), 8);
+    assert_eq!(cell.parameter_locks.len(), 9);
     assert!(app.dirty);
 
     app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
@@ -273,7 +282,7 @@ fn command_mode_sets_resets_and_clears_parameter_locks() {
         .expect("pattern")
         .cell(0, 0)
         .expect("cell");
-    assert_eq!(cell.parameter_locks.len(), 9);
+    assert_eq!(cell.parameter_locks.len(), 10);
 }
 
 #[test]
@@ -313,15 +322,17 @@ fn command_mode_edits_dsp_chains() {
         "dsp track 2 filter lowpass 2000 0.500 3.000 0.750",
     );
     type_command(&mut app, "dsp track 2 delay free 250 500 0.350 0.250 ping");
+    type_command(&mut app, "dsp track 2 reverb 0.600 10 3.000 0.400");
     type_command(&mut app, "dsp master gain 0.800");
     type_command(&mut app, "dsp master width 0.750");
     type_command(&mut app, "dsp master phase false true");
     type_command(&mut app, "dsp master filter notch 4000 0.250 0.000 0.500");
     type_command(&mut app, "dsp master delay sync 500 500 0.250 0.500");
+    type_command(&mut app, "dsp master reverb 0.500 20 2.500 0.250");
 
     let track_id = app.song.tracks[1].id;
     let mixer = app.song.track_mixer_for_track(track_id);
-    assert_eq!(mixer.effects.len(), 7);
+    assert_eq!(mixer.effects.len(), 8);
     assert_eq!(mixer.effects[0].kind, EffectDeviceKind::Gain { gain: 0.5 });
     assert_eq!(mixer.effects[1].kind, EffectDeviceKind::Pan { pan: -0.25 });
     assert_eq!(
@@ -368,7 +379,23 @@ fn command_mode_edits_dsp_chains() {
             output_db: 0.0
         }
     );
-    assert_eq!(app.song.mixer.master_effects.len(), 5);
+    assert_eq!(
+        mixer.effects[7].kind,
+        EffectDeviceKind::Reverb {
+            size: 0.6,
+            predelay_ms: 10.0,
+            decay_s: 3.0,
+            damping: 0.5,
+            low_cut_hz: 100.0,
+            high_cut_hz: 16_000.0,
+            diffusion: 0.75,
+            width: 1.0,
+            early_reflections: 0.5,
+            mix: 0.4,
+            output_db: 0.0
+        }
+    );
+    assert_eq!(app.song.mixer.master_effects.len(), 6);
     assert_eq!(
         app.song.mixer.master_effects[0].kind,
         EffectDeviceKind::Gain { gain: 0.8 }
@@ -410,6 +437,22 @@ fn command_mode_edits_dsp_chains() {
             mod_rate_hz: 0.0,
             mod_depth: 0.0,
             mix: 0.5,
+            output_db: 0.0
+        }
+    );
+    assert_eq!(
+        app.song.mixer.master_effects[5].kind,
+        EffectDeviceKind::Reverb {
+            size: 0.5,
+            predelay_ms: 20.0,
+            decay_s: 2.5,
+            damping: 0.5,
+            low_cut_hz: 100.0,
+            high_cut_hz: 16_000.0,
+            diffusion: 0.75,
+            width: 1.0,
+            early_reflections: 0.5,
+            mix: 0.25,
             output_db: 0.0
         }
     );

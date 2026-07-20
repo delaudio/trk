@@ -371,6 +371,56 @@ fn renders_sampler_events_through_native_delay_timing() {
 }
 
 #[test]
+fn renders_sampler_events_through_native_reverb_tail() {
+    let samples = vec![OfflineSamplerSample {
+        sample_id: 7,
+        buffer: PreviewBuffer {
+            sample_rate: 48_000,
+            channels: 2,
+            frames: 1,
+            data: vec![1.0, 0.0],
+        },
+    }];
+    let events = vec![OfflineSamplerEvent {
+        track_id: 2,
+        sample_id: 7,
+        frame: 0,
+        gain: 1.0,
+        pan: 0.0,
+        pitch_ratio: 1.0,
+        velocity: 127,
+    }];
+    let graph = DspGraphSpec {
+        track_chains: Vec::new(),
+        master: vec![DspDeviceSpec {
+            bypassed: false,
+            kind: test_reverb_kind(),
+        }],
+    };
+
+    let rendered = render_sampler_events_with_dsp(
+        &samples,
+        &events,
+        OfflineRenderSpec {
+            sample_rate: 48_000,
+            channels: 2,
+            frames: 2_048,
+        },
+        &graph,
+    )
+    .expect("render reverb");
+
+    assert_eq!(rendered.data[0], 0.0);
+    assert!(rendered.data.iter().all(|sample| sample.is_finite()));
+    assert!(
+        rendered.data[2..]
+            .iter()
+            .any(|sample| sample.abs() > 0.000_1),
+        "reverb should produce tail after the input frame"
+    );
+}
+
+#[test]
 fn bypassed_dsp_devices_do_not_process_audio() {
     let samples = vec![OfflineSamplerSample {
         sample_id: 7,
@@ -510,4 +560,20 @@ fn sampler_event_render_failures_are_clear() {
         ),
         Err(AudioExportError::InvalidPitchRatio { pitch_ratio: 0.0 })
     ));
+}
+
+fn test_reverb_kind() -> DspDeviceKind {
+    DspDeviceKind::Reverb {
+        size: 0.5,
+        predelay_ms: 0.0,
+        decay_s: 1.0,
+        damping: 0.5,
+        low_cut_hz: 100.0,
+        high_cut_hz: 16_000.0,
+        diffusion: 0.75,
+        width: 1.0,
+        early_reflections: 0.5,
+        mix: 1.0,
+        output_db: 0.0,
+    }
 }
