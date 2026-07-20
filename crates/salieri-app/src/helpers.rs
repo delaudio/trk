@@ -251,16 +251,12 @@ pub(crate) fn validate_sample_playback_settings(
         }
     }
     let envelope = settings.envelope;
-    if !envelope.attack_seconds.is_finite()
-        || envelope.attack_seconds < 0.0
-        || !envelope.decay_seconds.is_finite()
-        || envelope.decay_seconds < 0.0
-        || !envelope.release_seconds.is_finite()
-        || envelope.release_seconds < 0.0
-        || !envelope.sustain.is_finite()
-        || !(0.0..=1.0).contains(&envelope.sustain)
+    if !sample_envelope_attack_descriptor().validate_f32(envelope.attack_seconds)
+        || !sample_envelope_decay_descriptor().validate_f32(envelope.decay_seconds)
+        || !sample_envelope_release_descriptor().validate_f32(envelope.release_seconds)
+        || !sample_envelope_sustain_descriptor().validate_f32(envelope.sustain)
     {
-        return Err("Sample envelope requires A/D/R >= 0 and sustain between 0 and 1");
+        return Err("Sample envelope requires A/D/R between 0 and 60s and sustain between 0 and 1");
     }
     Ok(())
 }
@@ -312,7 +308,9 @@ pub(crate) fn sampler_envelope_field_label(field: SamplerEnvelopeField) -> &'sta
 
 pub(crate) fn adjust_sampler_envelope_seconds(value: f32, direction: f32, coarse: bool) -> f32 {
     let step = if coarse { 0.050 } else { 0.005 };
-    round_sampler_control((value + direction * step).clamp(0.0, MAX_SAMPLER_ENVELOPE_SECONDS))
+    let descriptor = sample_envelope_attack_descriptor();
+    let value = descriptor.clamp(&descriptor.value_from_f32(value + direction * step));
+    round_sampler_control(value.as_f32().unwrap_or(0.0))
 }
 
 pub(crate) fn adjust_sampler_sustain(value: f32, direction: f32, coarse: bool) -> f32 {

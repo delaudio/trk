@@ -54,6 +54,11 @@ Playback settings are also saved in `.salieri` project files:
 - `envelope` stores attack seconds, decay seconds, sustain level `0..=1`, and release seconds, and is applied to realtime playback and offline audio export;
 - `settings` prints the current settings for the loaded sample.
 
+The implemented sampler controls are defined in the shared parameter descriptor
+catalog so validation, formatting, persistence metadata, and future parameter
+locks use stable IDs. The current descriptor coverage and Ableton/Renoise parity
+status are tracked in [sampler-parity-roadmap.md](sampler-parity-roadmap.md).
+
 Pattern-local `sample-gain` automation can change the effective gain of assigned
 samples over time. See [automation.md](automation.md).
 

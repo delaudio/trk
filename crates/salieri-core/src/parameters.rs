@@ -7,6 +7,7 @@ mod drive_catalog;
 mod dynamics_catalog;
 mod modulation_catalog;
 mod reverb_catalog;
+mod sampler_catalog;
 #[cfg(test)]
 mod tests;
 
@@ -15,6 +16,7 @@ pub use drive_catalog::*;
 pub use dynamics_catalog::*;
 pub use modulation_catalog::*;
 pub use reverb_catalog::*;
+pub use sampler_catalog::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]

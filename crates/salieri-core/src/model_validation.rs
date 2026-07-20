@@ -33,14 +33,10 @@ pub(crate) fn validate_sample_playback_settings(
         (_, None, None) => {}
     }
     let envelope = settings.envelope;
-    if !envelope.attack_seconds.is_finite()
-        || envelope.attack_seconds < 0.0
-        || !envelope.decay_seconds.is_finite()
-        || envelope.decay_seconds < 0.0
-        || !envelope.release_seconds.is_finite()
-        || envelope.release_seconds < 0.0
-        || !envelope.sustain.is_finite()
-        || !(0.0..=1.0).contains(&envelope.sustain)
+    if !sample_envelope_attack_descriptor().validate_f32(envelope.attack_seconds)
+        || !sample_envelope_decay_descriptor().validate_f32(envelope.decay_seconds)
+        || !sample_envelope_release_descriptor().validate_f32(envelope.release_seconds)
+        || !sample_envelope_sustain_descriptor().validate_f32(envelope.sustain)
     {
         return Err(ValidationError::InvalidSampleEnvelope { sample_index });
     }
