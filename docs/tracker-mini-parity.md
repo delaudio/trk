@@ -42,7 +42,7 @@ Status meanings:
 | Sampling | Host audio input sample recorder with trim/crop/save/load | Planned | Maps line/mic recording to host audio input devices and fake-input tests for CI. | #78 |
 | Sampling | Internal render/bounce workflows | Partial | Render plans, deterministic per-track stem export, and selection-to-sample bounce exist for internal sampler/native audio. MIDI-only external instruments remain explicit non-rendered sources. | #79, #95 |
 | Song mode | Linear sequence of pattern slots | Supported | The sequence model persists pattern order and supports sequence playback/editing commands. | existing |
-| Song mode | Clip-like song slot view with per-track activity scan | Planned | Needs a dedicated TUI view on top of the existing sequence model. | #80 |
+| Song mode | Clip-like song slot view with per-track activity scan | Implemented / Partial | The F7 song slot view renders sequence slots with assigned pattern labels, per-track active/empty/muted clips, selected-slot editing, and playback-follow scrolling on the active slot. | #80 |
 | Performance | Momentary performance effects targeting tracks/patterns | Planned | Temporary punch-in state must restore the underlying project after release and stay separate from saved presets. | #83 |
 | Mixer and routing | Track mix, pan, mute/solo, sample gain automation, and native device chains | Partial | Mixer and native DSP foundations exist for realtime/offline paths, but Tracker Mini-style send/return and master chains are not complete. | existing |
 | Mixer and routing | Delay/reverb sends and master processing chain | Planned | Requires serializable routing, realtime/offline parity, and placeholders or implementations for unsupported native devices. | #84 |

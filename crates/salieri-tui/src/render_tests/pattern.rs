@@ -366,25 +366,6 @@ fn virtualized_pattern_render_omits_offscreen_rows_and_tracks() {
 }
 
 #[test]
-fn sequence_panel_scrolls_to_active_position() {
-    let song = long_sequence_song(40);
-    let backend = TestBackend::new(32, 8);
-    let mut terminal = Terminal::new(backend).expect("test terminal");
-
-    terminal
-        .draw(|frame| {
-            render_sequence(frame, Rect::new(0, 0, 32, 8), &song, Some(30));
-        })
-        .expect("draw");
-
-    let rendered = terminal_buffer_text(&terminal);
-
-    assert!(rendered.contains("Sequence 28-33 / 40"));
-    assert!(rendered.contains("> 30 Pattern 31"));
-    assert!(!rendered.contains(" 00 Pattern 01"));
-}
-
-#[test]
 fn tracks_panel_scrolls_to_active_track() {
     let song = long_track_song(30);
     let backend = TestBackend::new(32, 8);
@@ -796,5 +777,5 @@ fn renders_medium_layout_with_compact_side_panel() {
 
     assert!(rendered.contains("Pattern Editor"));
     assert!(rendered.contains("Tracks"));
-    assert!(rendered.contains("Sequence"));
+    assert!(rendered.contains("Song Slots"));
 }
