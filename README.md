@@ -484,11 +484,14 @@ Workspace manifests provide a portable root for projects, samples, preset profil
 
 ## Interoperability
 
-`salieri-interop` supports a narrow Standard MIDI File format 0 subset for import/export, plus XRNS inspection and a minimal lossy XRNS importer for the constrained subset documented below. Legacy module formats such as MOD, XM, IT, and S3M remain explicit unsupported song-import formats; the current probe is limited to metadata/effect diagnostics and MOD sample extraction.
+`salieri-interop` supports a narrow Standard MIDI File format 0 subset for import/export, a MusicXML `score-partwise` subset for notation interchange, plus XRNS inspection and a minimal lossy XRNS importer for the constrained subset documented below. Legacy module formats such as MOD, XM, IT, and S3M remain explicit unsupported song-import formats; the current probe is limited to metadata/effect diagnostics and MOD sample extraction.
 
 ```bash
 salieri import xrns input.xrns output.salieri
 salieri import xrns input.xrns output.salieri --sample-dir fixtures/local/samples/demo --sample-path-prefix samples/demo
+salieri import musicxml score.musicxml score.salieri
+salieri export musicxml score.salieri score.musicxml --pattern 1
+salieri validate roundtrip score.salieri report.json --format json
 ```
 
 See [docs/interoperability.md](docs/interoperability.md).

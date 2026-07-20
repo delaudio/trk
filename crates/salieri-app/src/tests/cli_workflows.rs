@@ -233,6 +233,62 @@ fn cli_parses_xrns_sample_conversion_option() {
 }
 
 #[test]
+fn cli_parses_musicxml_import_export_and_roundtrip_validation() {
+    assert_eq!(
+        CliArgs::parse([
+            "import".to_string(),
+            "musicxml".to_string(),
+            "score.musicxml".to_string(),
+            "score.salieri".to_string(),
+        ]),
+        CliArgs {
+            command: CliCommand::ImportMusicXml(ImportMusicXmlArgs {
+                input_path: Some(PathBuf::from("score.musicxml")),
+                output_path: Some(PathBuf::from("score.salieri")),
+            }),
+            project_path: None,
+            config_path: None,
+            log_level: None,
+            midi_log_path: None,
+            midi_test: MidiTestArgs::default(),
+        }
+    );
+    assert_eq!(
+        CliArgs::parse([
+            "export".to_string(),
+            "musicxml".to_string(),
+            "score.salieri".to_string(),
+            "score.musicxml".to_string(),
+            "--pattern=2".to_string(),
+        ])
+        .command,
+        CliCommand::ExportMusicXml(MusicXmlExportArgs {
+            input_path: Some(PathBuf::from("score.salieri")),
+            output_path: Some(PathBuf::from("score.musicxml")),
+            pattern: 2,
+        })
+    );
+    assert_eq!(
+        CliArgs::parse([
+            "validate".to_string(),
+            "roundtrip".to_string(),
+            "score.salieri".to_string(),
+            "roundtrip.json".to_string(),
+            "--format=json".to_string(),
+            "--pattern".to_string(),
+            "3".to_string(),
+        ])
+        .command,
+        CliCommand::ValidateRoundTrip(RoundTripValidationArgs {
+            input_path: Some(PathBuf::from("score.salieri")),
+            output_path: Some(PathBuf::from("roundtrip.json")),
+            pattern: 3,
+            format: AnalysisOutputFormat::Json,
+        })
+    );
+}
+
+#[test]
 fn xrns_sample_export_names_are_stable_and_unique() {
     let mut used = HashSet::new();
 
@@ -362,6 +418,80 @@ fn audio_export_writes_sampler_events_to_wav() {
         4
     );
     assert!(i16::from_le_bytes([bytes[44], bytes[45]]) > 32_760);
+}
+
+#[test]
+fn musicxml_import_export_and_roundtrip_validation_workflow() {
+    let base = std::env::temp_dir().join(format!("salieri-musicxml-{}", std::process::id()));
+    let input_xml = base.with_extension("musicxml");
+    let project_path = base.with_extension("salieri");
+    let export_xml = base.with_extension("export.musicxml");
+    let report_path = base.with_extension("roundtrip.json");
+    std::fs::write(
+        &input_xml,
+        r#"<?xml version="1.0"?>
+<score-partwise version="4.0">
+  <work><work-title>CLI Import</work-title></work>
+  <part-list><score-part id="P1"><part-name>Lead</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes><divisions>4</divisions><time><beats>4</beats><beat-type>4</beat-type></time></attributes>
+      <direction><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>110</per-minute></metronome></direction-type></direction>
+      <note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration><velocity>96</velocity></note>
+      <note><rest/><duration>4</duration></note>
+      <note><pitch><step>G</step><octave>4</octave></pitch><duration>4</duration></note>
+    </measure>
+  </part>
+</score-partwise>"#,
+    )
+    .expect("write musicxml");
+
+    run_import_musicxml(&ImportMusicXmlArgs {
+        input_path: Some(input_xml.clone()),
+        output_path: Some(project_path.clone()),
+    })
+    .expect("import musicxml");
+    let imported = load_project(&project_path).expect("load project");
+    assert_eq!(imported.metadata.title, "CLI Import");
+    assert_eq!(imported.transport.bpm, 110);
+    assert_eq!(imported.tracks[0].name, "Lead");
+    assert_eq!(
+        imported
+            .current_pattern()
+            .expect("pattern")
+            .cell(0, 0)
+            .expect("cell")
+            .note,
+        Some(NoteEvent::Note { pitch: 60 })
+    );
+
+    run_export_musicxml(&MusicXmlExportArgs {
+        input_path: Some(project_path.clone()),
+        output_path: Some(export_xml.clone()),
+        pattern: 1,
+    })
+    .expect("export musicxml");
+    let exported = std::fs::read_to_string(&export_xml).expect("read export");
+    assert!(exported.contains("<score-partwise version=\"4.0\">"));
+    assert!(exported.contains("<part-name>Lead</part-name>"));
+
+    run_validate_round_trip(&RoundTripValidationArgs {
+        input_path: Some(project_path.clone()),
+        output_path: Some(report_path.clone()),
+        pattern: 1,
+        format: AnalysisOutputFormat::Json,
+    })
+    .expect("validate roundtrip");
+    let report: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&report_path).expect("read report"))
+            .expect("json report");
+    assert_eq!(report["musicxml"]["survived"], true);
+    assert_eq!(report["midi"]["survived"], true);
+
+    let _ = std::fs::remove_file(&input_xml);
+    let _ = std::fs::remove_file(&project_path);
+    let _ = std::fs::remove_file(&export_xml);
+    let _ = std::fs::remove_file(&report_path);
 }
 
 #[test]

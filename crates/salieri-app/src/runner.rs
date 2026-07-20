@@ -64,6 +64,10 @@ fn run(args: CliArgs) -> Result<()> {
             run_export_strudel(strudel_args)?;
             return Ok(());
         }
+        CliCommand::ExportMusicXml(musicxml_args) => {
+            run_export_musicxml(musicxml_args)?;
+            return Ok(());
+        }
         CliCommand::ReportProject(report_args) => {
             run_report_project(report_args)?;
             return Ok(());
@@ -80,6 +84,10 @@ fn run(args: CliArgs) -> Result<()> {
             run_compare(compare_args)?;
             return Ok(());
         }
+        CliCommand::ValidateRoundTrip(validation_args) => {
+            run_validate_round_trip(validation_args)?;
+            return Ok(());
+        }
         CliCommand::GraphValidate(graph_args) => {
             run_graph_validate(graph_args)?;
             return Ok(());
@@ -90,6 +98,10 @@ fn run(args: CliArgs) -> Result<()> {
         }
         CliCommand::ImportXrns(import_args) => {
             run_import_xrns(import_args)?;
+            return Ok(());
+        }
+        CliCommand::ImportMusicXml(import_args) => {
+            run_import_musicxml(import_args)?;
             return Ok(());
         }
         CliCommand::Run | CliCommand::MidiTest => {}

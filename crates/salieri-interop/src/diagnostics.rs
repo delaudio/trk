@@ -80,6 +80,49 @@ pub enum InteropError {
     UnsupportedMidiEvent(u8),
     #[error("unsupported tracker module format {0:?}")]
     UnsupportedTrackerModule(TrackerModuleFormat),
+    #[error("invalid MusicXML document: {0}")]
+    InvalidMusicXml(String),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MusicXmlImportReport {
+    pub song: Option<Song>,
+    pub diagnostics: Vec<MusicXmlDiagnostic>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MusicXmlRoundTripReport {
+    pub exported: String,
+    pub imported_song: Option<Song>,
+    pub diagnostics: Vec<MusicXmlDiagnostic>,
+    pub original_note_count: usize,
+    pub imported_note_count: usize,
+    pub survived: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MusicXmlDiagnostic {
+    pub kind: MusicXmlDiagnosticKind,
+    pub severity: MusicXmlDiagnosticSeverity,
+    pub location: Option<String>,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MusicXmlDiagnosticSeverity {
+    Info,
+    Warning,
+    Error,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MusicXmlDiagnosticKind {
+    MalformedXml,
+    UnsupportedRoot,
+    UnsupportedNotation,
+    QuantizedTiming,
+    DroppedCollision,
+    ValidationFailed,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

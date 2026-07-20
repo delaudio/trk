@@ -1,3 +1,7 @@
+use super::cli_musicxml::{
+    parse_import_musicxml_args, parse_musicxml_export_args, parse_round_trip_validation_args,
+    ImportMusicXmlArgs, MusicXmlExportArgs, RoundTripValidationArgs,
+};
 use super::*;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -114,6 +118,16 @@ impl CliArgs {
                 "compare" => {
                     return Self {
                         command: CliCommand::Compare(parse_compare_args(args)),
+                        project_path: None,
+                        config_path,
+                        log_level,
+                        midi_log_path,
+                        midi_test,
+                    }
+                }
+                "validate" => {
+                    return Self {
+                        command: parse_validate_command(args),
                         project_path: None,
                         config_path,
                         log_level,
@@ -259,18 +273,21 @@ pub(crate) enum CliCommand {
     ExportAudio(AudioExportArgs),
     ExportStems(RenderStemsArgs),
     ExportStrudel(StrudelExportArgs),
+    ExportMusicXml(MusicXmlExportArgs),
     ReportProject(ReportArgs),
     ReportCritique(ReportArgs),
     Analyze(AnalysisArgs),
     Compare(CompareArgs),
+    ValidateRoundTrip(RoundTripValidationArgs),
     GraphValidate(GraphValidateArgs),
     GraphCompile(GraphCompileArgs),
     ImportXrns(ImportXrnsArgs),
+    ImportMusicXml(ImportMusicXmlArgs),
 }
 
 pub(crate) fn print_help() {
     println!(
-        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --list-midi-inputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri sample inspect FILE [OPTIONS]\n  salieri import xrns INPUT OUTPUT [OPTIONS]\n  salieri export plan INPUT [OUTPUT.json] [OPTIONS]\n  salieri export audio INPUT OUTPUT.wav [OPTIONS]\n  salieri export stems INPUT OUT_DIR [OPTIONS]\n  salieri export strudel INPUT [OUTPUT.js] [OPTIONS]\n  salieri report project INPUT [OUTPUT.md]\n  salieri report critique INPUT [OUTPUT.md]\n  salieri analyze INPUT [OUTPUT] [--format text|json]\n  salieri compare LEFT RIGHT [OUTPUT] [--format text|json]\n  salieri graph validate GRAPH.json\n  salieri graph compile GRAPH.json INPUT.salieri OUTPUT.salieri\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --list-midi-inputs            List available MIDI input ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index (default 1)\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Velocity, 0-127 (default 100)\n\nSample inspect options:\n  --format text|json            Output format (default text)\n  --buckets N, --width N        Waveform bucket count (default 64)\n\nAnalysis options:\n  --format text|json            Output format for analyze/compare (default text)\n\nImport options:\n  salieri import xrns INPUT OUTPUT imports an XRNS subset and writes a .salieri project\n  --sample-dir DIR              Extract supported XRNS WAV payloads into DIR\n  --sample-path-prefix PREFIX   Store extracted sample paths with PREFIX in the project\n  --convert-samples-to-wav      Convert FLAC/OGG/AIF payloads to WAV with ffmpeg\n\nRender/export options:\n  --pattern N                   Export 1-based pattern index (default 1)\n  --patterns LIST               Comma-separated 1-based patterns for Strudel\n  --sequence                    Export the full sequence instead of one pattern\n  --tracks LIST                 Comma-separated 1-based tracks for plans/stems\n  --sample-rate HZ              Output sample rate (default 48000)\n  --channels N                  Output channels (default 2)\n\n  --help                        Show this help\n  --version                     Show version"
+        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --list-midi-inputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri sample inspect FILE [OPTIONS]\n  salieri import xrns INPUT OUTPUT [OPTIONS]\n  salieri import musicxml INPUT.musicxml OUTPUT.salieri\n  salieri export plan INPUT [OUTPUT.json] [OPTIONS]\n  salieri export audio INPUT OUTPUT.wav [OPTIONS]\n  salieri export stems INPUT OUT_DIR [OPTIONS]\n  salieri export strudel INPUT [OUTPUT.js] [OPTIONS]\n  salieri export musicxml INPUT [OUTPUT.musicxml] [OPTIONS]\n  salieri validate roundtrip INPUT [OUTPUT] [--format text|json]\n  salieri report project INPUT [OUTPUT.md]\n  salieri report critique INPUT [OUTPUT.md]\n  salieri analyze INPUT [OUTPUT] [--format text|json]\n  salieri compare LEFT RIGHT [OUTPUT] [--format text|json]\n  salieri graph validate GRAPH.json\n  salieri graph compile GRAPH.json INPUT.salieri OUTPUT.salieri\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --list-midi-inputs            List available MIDI input ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index (default 1)\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Velocity, 0-127 (default 100)\n\nSample inspect options:\n  --format text|json            Output format (default text)\n  --buckets N, --width N        Waveform bucket count (default 64)\n\nAnalysis and validation options:\n  --format text|json            Output format for analyze/compare/validate (default text)\n\nImport options:\n  salieri import xrns INPUT OUTPUT imports an XRNS subset and writes a .salieri project\n  salieri import musicxml INPUT OUTPUT imports a MusicXML score-partwise subset\n  --sample-dir DIR              Extract supported XRNS WAV payloads into DIR\n  --sample-path-prefix PREFIX   Store extracted sample paths with PREFIX in the project\n  --convert-samples-to-wav      Convert FLAC/OGG/AIF payloads to WAV with ffmpeg\n\nRender/export options:\n  --pattern N                   Export 1-based pattern index (default 1)\n  --patterns LIST               Comma-separated 1-based patterns for Strudel\n  --sequence                    Export the full sequence instead of one pattern\n  --tracks LIST                 Comma-separated 1-based tracks for plans/stems\n  --sample-rate HZ              Output sample rate (default 48000)\n  --channels N                  Output channels (default 2)\n\n  --help                        Show this help\n  --version                     Show version"
     );
 }
 
@@ -297,6 +314,9 @@ pub(crate) fn parse_export_command(args: impl IntoIterator<Item = String>) -> Cl
         Some("audio") => CliCommand::ExportAudio(parse_audio_export_args(args)),
         Some("stems") => CliCommand::ExportStems(parse_render_stems_args(args)),
         Some("strudel") => CliCommand::ExportStrudel(parse_strudel_export_args(args)),
+        Some("musicxml") | Some("xml") => {
+            CliCommand::ExportMusicXml(parse_musicxml_export_args(args))
+        }
         _ => CliCommand::Help,
     }
 }
@@ -305,6 +325,19 @@ pub(crate) fn parse_import_command(args: impl IntoIterator<Item = String>) -> Cl
     let mut args = args.into_iter();
     match args.next().as_deref() {
         Some("xrns") => CliCommand::ImportXrns(parse_import_xrns_args(args)),
+        Some("musicxml") | Some("xml") => {
+            CliCommand::ImportMusicXml(parse_import_musicxml_args(args))
+        }
+        _ => CliCommand::Help,
+    }
+}
+
+pub(crate) fn parse_validate_command(args: impl IntoIterator<Item = String>) -> CliCommand {
+    let mut args = args.into_iter();
+    match args.next().as_deref() {
+        Some("roundtrip") | Some("round-trip") => {
+            CliCommand::ValidateRoundTrip(parse_round_trip_validation_args(args))
+        }
         _ => CliCommand::Help,
     }
 }
