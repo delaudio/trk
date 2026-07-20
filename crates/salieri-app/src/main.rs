@@ -102,7 +102,7 @@ use salieri_core::{
     Cursor, DelaySpec, Direction, DriveMode, DriveSpec, DynamicsDetector, EffectDevice,
     EffectDeviceKind, FilterMode, FilterSpec, FlangerSpec, GateSpec, InstrumentId, LimiterSpec,
     NoteEvent, ParameterDescriptor, ParameterId, ParameterLock, ParameterLockAction,
-    ParameterLockTarget, PatternCell, PatternRow, PhaserSpec, ReverbSpec, SampleEnvelope,
+    ParameterLockTarget, Pattern, PatternCell, PatternRow, PhaserSpec, ReverbSpec, SampleEnvelope,
     SamplePlaybackMode, SamplePlaybackSettings, SelectionBounds, SelectionEndpoint, Song,
     TrackerCommand, TrackerSelection, MIXER_MASTER_GAIN_PARAMETER_ID, MIXER_SEND_GAIN_PARAMETER_ID,
     MIXER_TRACK_GAIN_PARAMETER_ID, MIXER_TRACK_PAN_PARAMETER_ID, NATIVE_BALANCE_PARAMETER_ID,

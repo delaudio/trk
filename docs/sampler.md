@@ -37,6 +37,8 @@ After loading a WAV, assign it to the current track:
 :sample loop 2400 12000
 :sample loop off
 :sample envelope 0.005 0.040 0.800 0.080
+:sample render-selection bounces/loop.wav
+:sample render-selection bounces/loop.wav --assign 2
 :sample settings
 :sample unload
 :sample cleanup
@@ -46,6 +48,14 @@ After loading a WAV, assign it to the current track:
 Assignments are saved in `.salieri` project files. Loading old projects with direct `sampleAssignments` automatically creates compatible sample-backed instruments, and the sampler view shows the assigned instrument and track for the currently loaded sample.
 `replace` swaps the sample on a track and removes the previous sample reference when it is no longer used.
 `unload` removes the currently viewed sample reference only when it is unassigned, while `cleanup` prunes all unused sample references.
+
+`render-selection` bounces the active tracker selection through the internal
+sampler/native audio path, writes a WAV file atomically, loads the rendered file
+into the sampler view, and stores it as a project sample reference. Add
+`--assign TRACK` to assign the rendered sample immediately to a 1-based target
+track. File/audio failures are reported before the project is mutated. External
+MIDI-only destinations are not captured; selections with no internal sampler
+events render as silence.
 
 Playback settings are also saved in `.salieri` project files:
 

@@ -310,6 +310,16 @@ impl App {
                         Some(PathBuf::from(path))
                     });
                 }
+                Some("render-selection") | Some("render-sel") | Some("bounce-selection") => {
+                    let values = parts.collect::<Vec<_>>();
+                    match parse_sample_render_selection_args(&values) {
+                        Some((path, assign_track)) => {
+                            self.render_selection_to_sample(path, assign_track);
+                        }
+                        None => self
+                            .notify_warning("Usage: :sample render-selection PATH [--assign TRACK]"),
+                    }
+                }
                 Some("assign") => {
                     let track_index = parts
                         .next()
@@ -391,7 +401,7 @@ impl App {
                 Some("settings") | Some("info") => self.show_loaded_sample_settings(),
                 None => self.open_sampler_view(),
                 Some(_) => self.notify_warning(
-                    "Usage: :sample view PATH | assign [TRACK] | start FRAME|clear | end FRAME|clear | loop START END|off | envelope A D S R",
+                    "Usage: :sample view PATH | render-selection PATH [--assign TRACK] | assign [TRACK] | start FRAME|clear | end FRAME|clear | loop START END|off | envelope A D S R",
                 ),
                 }
             }
@@ -474,4 +484,29 @@ fn layout_panel_id(panel: LayoutPanelCommand) -> ManagedPanelId {
         LayoutPanelCommand::Inspector => ManagedPanelId::Inspector,
         LayoutPanelCommand::TrackDesk => ManagedPanelId::TrackDesk,
     }
+}
+
+fn parse_sample_render_selection_args(values: &[&str]) -> Option<(PathBuf, Option<usize>)> {
+    if values.is_empty() {
+        return None;
+    }
+    let mut path_parts = Vec::new();
+    let mut assign_track = None;
+    let mut index = 0;
+    while index < values.len() {
+        match values[index] {
+            "--assign" | "assign" => {
+                index += 1;
+                assign_track = values
+                    .get(index)
+                    .and_then(|value| parse_track_number(value));
+            }
+            value if value.starts_with("--assign=") => {
+                assign_track = parse_track_number(value.trim_start_matches("--assign="));
+            }
+            value => path_parts.push(value),
+        }
+        index += 1;
+    }
+    (!path_parts.is_empty()).then(|| (PathBuf::from(path_parts.join(" ")), assign_track))
 }

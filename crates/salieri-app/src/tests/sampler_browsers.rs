@@ -100,6 +100,99 @@ fn sampler_commands_assign_list_and_unassign_loaded_sample() {
 }
 
 #[test]
+fn sample_render_selection_writes_wav_reference_and_can_assign_track() {
+    let mut app = App::default();
+    let sample_path = std::env::temp_dir().join(format!(
+        "salieri-render-selection-source-{}.wav",
+        std::process::id()
+    ));
+    let output_path = std::env::temp_dir().join(format!(
+        "salieri-render-selection-bounce-{}.wav",
+        std::process::id()
+    ));
+    std::fs::write(
+        &sample_path,
+        wav_pcm16_bytes(48_000, 2, &[i16::MAX, i16::MAX, i16::MAX, i16::MAX]),
+    )
+    .expect("write source wav");
+    let sample = app
+        .song
+        .upsert_sample_reference(sample_path.to_string_lossy(), "Source");
+    let source_track = app.song.tracks[0].id;
+    app.song
+        .assign_sample_to_track(source_track, sample)
+        .expect("assign source");
+    app.song
+        .current_pattern_mut()
+        .expect("pattern")
+        .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x7f)
+        .expect("set note");
+    app.cursor.row = 0;
+    app.cursor.track = 0;
+    app.start_selection();
+
+    enter_command(
+        &mut app,
+        &format!(
+            "sample render-selection {} --assign 2",
+            output_path.display()
+        ),
+    );
+
+    let bytes = std::fs::read(&output_path).expect("rendered wav");
+    assert_eq!(&bytes[0..4], b"RIFF");
+    assert_eq!(&bytes[8..12], b"WAVE");
+    let rendered = app
+        .song
+        .samples
+        .iter()
+        .find(|sample| sample.path == output_path.to_string_lossy())
+        .expect("rendered sample reference");
+    assert_eq!(
+        app.song
+            .sample_assignment_for_track(app.song.tracks[1].id)
+            .expect("assigned bounce")
+            .sample,
+        rendered.id
+    );
+    assert!(app.tui_sampler_view().is_some());
+    assert!(app.selection.is_none());
+    assert!(app.dirty);
+
+    let _ = std::fs::remove_file(&sample_path);
+    let _ = std::fs::remove_file(&output_path);
+}
+
+#[test]
+fn sample_render_selection_failure_does_not_mutate_project() {
+    let mut app = App::default();
+    let missing_dir = std::env::temp_dir().join(format!(
+        "salieri-render-selection-missing-dir-{}",
+        std::process::id()
+    ));
+    let output_path = missing_dir.join("bounce.wav");
+    app.cursor.row = 0;
+    app.cursor.track = 0;
+    app.start_selection();
+    let before = app.song.clone();
+
+    enter_command(
+        &mut app,
+        &format!(
+            "sample render-selection {} --assign 2",
+            output_path.display()
+        ),
+    );
+
+    assert_eq!(app.song, before);
+    assert!(!output_path.exists());
+    assert!(app
+        .notification
+        .as_ref()
+        .is_some_and(|notification| notification.message.contains("Render selection failed")));
+}
+
+#[test]
 fn sampler_commands_edit_playback_settings() {
     let mut app = App::default();
     let path = std::env::temp_dir().join(format!(

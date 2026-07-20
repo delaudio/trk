@@ -352,6 +352,7 @@ T               Set sequence position to current pattern
 :sample loop 2400 12000
 :sample loop off
 :sample envelope 0.005 0.040 0.800 0.080
+:sample render-selection bounces/loop.wav --assign 2
 :sample unload
 :sample cleanup
 :sample assignments
@@ -415,7 +416,7 @@ Ctrl+J                      Open sampler view
 :sample cleanup             Remove unused sample references
 ```
 
-Assigned samples are routed into the internal realtime audio command boundary during playback and rendered through the default CPAL output device. Samples are sliced by start/end frame, shaped by the configured envelope, and prepared for the output sample rate and channel count before playback/export. Loop points are persisted and displayed but are not yet rendered as sustained loop playback. See [docs/sampler.md](docs/sampler.md), [docs/audio-engine.md](docs/audio-engine.md), and [docs/audio-export.md](docs/audio-export.md).
+Assigned samples are routed into the internal realtime audio command boundary during playback and rendered through the default CPAL output device. Samples are sliced by start/end frame, shaped by the configured envelope, and prepared for the output sample rate and channel count before playback/export. `:sample render-selection PATH [--assign TRACK]` bounces the active tracker selection to a WAV sample reference and can assign it immediately. Loop points are persisted and displayed but are not yet rendered as sustained loop playback. See [docs/sampler.md](docs/sampler.md), [docs/audio-engine.md](docs/audio-engine.md), and [docs/audio-export.md](docs/audio-export.md).
 
 ## Generative And AI Foundations
 
