@@ -166,9 +166,14 @@ impl App {
                 self.playhead_row = None;
                 self.sequence_position = None;
                 self.sequence_cursor = 0;
+                self.clip_scene_cursor = 0;
+                self.clip_track_cursor = 0;
+                self.active_clip_scene = None;
+                self.queued_clip_scene = None;
                 self.project_browser_view = None;
                 self.clamp_cursor();
                 self.clamp_sequence_cursor();
+                self.clamp_clip_cursor();
                 self.refresh_dirty();
                 self.focus_panel(FocusPanel::Tracker);
                 self.record_recent_project(path.clone());

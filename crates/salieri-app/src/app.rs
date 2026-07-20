@@ -4,6 +4,7 @@ mod ai_actions;
 mod ai_guidance;
 mod ai_session;
 mod arrangement_actions;
+mod clip_actions;
 mod command_mode;
 mod command_palette;
 mod composition_graph_actions;

@@ -359,6 +359,12 @@ T               Set selected song slot to current pattern
 :sequence add
 :sequence set 0 2
 :sequence move 1 0
+:clips
+:clip add
+:clip set 0 2 1
+:clip launch scene 0
+:clip commit
+:clip stop
 :play pattern
 :play sequence 0
 :sample view path/to/sample.wav
@@ -477,7 +483,7 @@ salieri export strudel input.salieri strudel.js --sequence
 
 The exporter renders sampler events only. MIDI-only external instruments are not captured in the WAV file. Tracker instrument/volume/pan/delay columns, stepped sample-gain automation, mixer gain/pan, and native DSP gain/pan chains are applied through the same sampler event path used by realtime playback. Render plans can be inspected as JSON before writing audio, and stem exports write per-track WAV files plus a manifest. See [docs/audio-export.md](docs/audio-export.md), [docs/automation.md](docs/automation.md), and [docs/mixer.md](docs/mixer.md).
 
-`export strudel` writes or prints a deterministic browser live-coding sketch for selected patterns or the song sequence. It preserves tempo, track comments, pattern lengths, notes, velocity, and simple volume/pan columns, with unsupported sampler, mixer, clip, and tracker-effect features listed as diagnostics. See [docs/strudel-export.md](docs/strudel-export.md).
+`export strudel` writes or prints a deterministic browser live-coding sketch for selected patterns or the song sequence. It preserves tempo, track comments, pattern lengths, notes, velocity, and simple volume/pan columns, with unsupported sampler, mixer, clip, and tracker-effect features listed as diagnostics. Clip launcher scenes can be edited locally with `:clips` and `:clip ...` commands; Ableton push/pull remains a separate optional bridge. See [docs/strudel-export.md](docs/strudel-export.md) and [docs/clip-launcher.md](docs/clip-launcher.md).
 
 `analyze` and `compare` produce deterministic style/profile reports for one or two projects in text or JSON. The TUI equivalents are `:analyze` and `:compare PATH`; see [docs/style-analysis.md](docs/style-analysis.md).
 

@@ -114,6 +114,7 @@ pub struct TuiState<'a> {
 pub enum TuiView {
     Pattern,
     Sequence,
+    Clips,
     Tracks,
     Patterns,
     Sampler,
@@ -531,6 +532,10 @@ fn render_body(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'
         render_sequence_editor(frame, area, song, state.sequence_position);
         return;
     }
+    if state.active_view == TuiView::Clips {
+        render_clip_launcher(frame, area, song, state);
+        return;
+    }
     if state.active_view == TuiView::Tracks {
         render_track_editor(frame, area, song, state.cursor.track);
         return;
@@ -858,6 +863,112 @@ fn render_track_editor(frame: &mut Frame<'_>, area: Rect, song: &Song, active_tr
 
     render_track_mixer(frame, sections[0], song, active_track);
     render_instrument_matrix(frame, sections[1], song, active_track);
+}
+
+fn render_clip_launcher(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
+    let visible_tracks = song
+        .tracks
+        .len()
+        .min(area.width.saturating_sub(16).max(3) as usize / 4);
+    let selected_scene = state
+        .pattern_index
+        .min(song.clip_scenes.len().saturating_sub(1));
+    let selected_track = state.cursor.track.min(song.tracks.len().saturating_sub(1));
+    let active_scene = state.sequence_position;
+    let queued_scene = state
+        .is_playing
+        .then_some(selected_scene)
+        .filter(|scene| active_scene != Some(*scene));
+    let visible_items = list_inner_height(area).saturating_sub(4);
+    let active_scroll_index = active_scene.unwrap_or(selected_scene);
+    let start = centered_scroll_offset(song.clip_scenes.len(), active_scroll_index, visible_items);
+    let end = start
+        .saturating_add(visible_items)
+        .min(song.clip_scenes.len());
+
+    let mut lines = Vec::new();
+    let mut header = String::from("SCENE        ");
+    for track_index in 0..visible_tracks {
+        header.push_str(&format!("T{:02} ", track_index + 1));
+    }
+    lines.push(Line::styled(
+        header,
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD),
+    ));
+
+    if song.clip_scenes.is_empty() {
+        lines.push(Line::from("No clip scenes. Use :clip scene add"));
+    } else {
+        for (scene_index, scene) in song
+            .clip_scenes
+            .iter()
+            .enumerate()
+            .skip(start)
+            .take(end.saturating_sub(start))
+        {
+            let marker = if active_scene == Some(scene_index) {
+                ">"
+            } else if queued_scene == Some(scene_index) {
+                "?"
+            } else if selected_scene == scene_index {
+                "+"
+            } else {
+                " "
+            };
+            let mut row = format!(
+                "{marker}{scene_index:02} {:<width$}",
+                truncate(&scene.name, 10),
+                width = 10
+            );
+            for track_index in 0..visible_tracks {
+                let track = &song.tracks[track_index];
+                let has_clip = scene.clips.iter().any(|clip| clip.track == track.id);
+                let selected_cell = selected_scene == scene_index && selected_track == track_index;
+                let symbol = if track.muted {
+                    "M"
+                } else if active_scene == Some(scene_index) && has_clip {
+                    "A"
+                } else if queued_scene == Some(scene_index) && has_clip {
+                    "Q"
+                } else if has_clip {
+                    "■"
+                } else {
+                    "·"
+                };
+                if selected_cell {
+                    row.push_str(&format!("[{symbol}]"));
+                } else {
+                    row.push_str(&format!(" {symbol} "));
+                }
+                row.push(' ');
+            }
+            let style = if active_scene == Some(scene_index) {
+                Style::default()
+                    .fg(Color::Black)
+                    .bg(Color::White)
+                    .add_modifier(Modifier::BOLD)
+            } else if selected_scene == scene_index {
+                Style::default().fg(Color::Cyan)
+            } else {
+                Style::default()
+            };
+            lines.push(Line::styled(row, style));
+        }
+    }
+
+    lines.extend([
+        Line::from(""),
+        Line::from("Arrows select   A add scene   T set clip   R clear clip   Enter queue"),
+        Line::from("States: ■ stopped  A active  Q queued  · empty  M muted"),
+    ]);
+
+    let title = ranged_title("Clip Launcher", start, end, song.clip_scenes.len());
+    let paragraph = Paragraph::new(lines)
+        .block(Block::default().title(title).borders(Borders::ALL))
+        .wrap(Wrap { trim: true });
+    frame.render_widget(paragraph, area);
 }
 
 fn render_track_mixer(frame: &mut Frame<'_>, area: Rect, song: &Song, active_track: usize) {
@@ -2911,6 +3022,9 @@ fn format_note(pitch: u8) -> String {
 #[cfg(test)]
 #[path = "render_tests/ai_chat.rs"]
 mod render_ai_chat_tests;
+#[cfg(test)]
+#[path = "render_tests/clips.rs"]
+mod render_clip_tests;
 #[cfg(test)]
 #[path = "render_tests/display.rs"]
 mod render_display_tests;

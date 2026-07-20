@@ -36,6 +36,7 @@ pub enum ViewCommand {
     Tracker,
     Patterns,
     Sequence,
+    Clips,
     Tracks,
     Sampler,
 }
@@ -51,6 +52,7 @@ pub enum FocusTarget {
     Tracker,
     Patterns,
     Sequence,
+    Clips,
     Tracks,
     Sampler,
     SampleBrowser,
@@ -116,6 +118,7 @@ pub enum CommandDomain {
     Ai,
     Report,
     Graph,
+    Clip,
     Preset,
     Workspace,
     Midi,
@@ -188,6 +191,7 @@ impl SalieriCommand {
             "layout" => parse_layout(&arguments)?,
             "p" | "patterns" => Self::View(ViewCommand::Patterns),
             "se" | "sequence-view" => Self::View(ViewCommand::Sequence),
+            "cl" | "clips" | "clip-view" | "clip-launcher" => Self::View(ViewCommand::Clips),
             "tr" | "tracks" => Self::View(ViewCommand::Tracks),
             "sa" | "sam" | "samples" => Self::View(ViewCommand::Sampler),
             "sb" | "sample-browser" => Self::Browse {
@@ -236,6 +240,7 @@ impl SalieriCommand {
                 domain(CommandDomain::Report, values)
             }
             "graph" | "composition-graph" => domain(CommandDomain::Graph, arguments),
+            "clip" | "scene" | "scenes" => domain(CommandDomain::Clip, arguments),
             "critique" => {
                 let mut values = vec!["critique".to_string()];
                 values.extend(arguments);
@@ -300,6 +305,7 @@ fn parse_focus(arguments: &[String]) -> Result<FocusTarget, CommandParseError> {
         Some("t" | "tracker" | "layout" | "normal") | None => Ok(FocusTarget::Tracker),
         Some("p" | "patterns" | "pattern-manager") => Ok(FocusTarget::Patterns),
         Some("se" | "sequence" | "sequence-view") => Ok(FocusTarget::Sequence),
+        Some("cl" | "clips" | "clip-view" | "clip-launcher") => Ok(FocusTarget::Clips),
         Some("tr" | "tracks") => Ok(FocusTarget::Tracks),
         Some("sa" | "sampler" | "samples") => Ok(FocusTarget::Sampler),
         Some("sb" | "browser" | "sample-browser") => Ok(FocusTarget::SampleBrowser),
@@ -307,7 +313,7 @@ fn parse_focus(arguments: &[String]) -> Result<FocusTarget, CommandParseError> {
             Ok(FocusTarget::ProjectBrowser)
         }
         Some(_) => Err(CommandParseError::InvalidArguments {
-            usage: "Usage: :focus [t|p|se|tr|sa|sb|pr]",
+            usage: "Usage: :focus [t|p|se|cl|tr|sa|sb|pr]",
         }),
     }
 }

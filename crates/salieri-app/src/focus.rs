@@ -5,6 +5,7 @@ use salieri_tui::TuiView;
 pub enum FocusPanel {
     Tracker,
     Sequence,
+    Clips,
     Tracks,
     Patterns,
     Sampler,
@@ -20,6 +21,7 @@ impl FocusPanel {
         match self {
             Self::Tracker => AppMode::Normal,
             Self::Sequence => AppMode::Sequence,
+            Self::Clips => AppMode::Clips,
             Self::Tracks => AppMode::Tracks,
             Self::Patterns => AppMode::Patterns,
             Self::Sampler => AppMode::Sampler,
@@ -35,6 +37,7 @@ impl FocusPanel {
         match self {
             Self::Tracker | Self::MidiSettings => TuiView::Pattern,
             Self::Sequence => TuiView::Sequence,
+            Self::Clips => TuiView::Clips,
             Self::Tracks => TuiView::Tracks,
             Self::Patterns => TuiView::Patterns,
             Self::Sampler => TuiView::Sampler,
@@ -50,6 +53,7 @@ impl FocusPanel {
             FocusTarget::Tracker => Self::Tracker,
             FocusTarget::Patterns => Self::Patterns,
             FocusTarget::Sequence => Self::Sequence,
+            FocusTarget::Clips => Self::Clips,
             FocusTarget::Tracks => Self::Tracks,
             FocusTarget::Sampler => Self::Sampler,
             FocusTarget::SampleBrowser => Self::SampleBrowser,
