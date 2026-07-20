@@ -118,6 +118,7 @@ pub enum CommandDomain {
     Workspace,
     Midi,
     MidiInput,
+    Note,
     Track,
     Pattern,
     Sequence,
@@ -225,6 +226,9 @@ impl SalieriCommand {
             "workspace" | "ws" => domain(CommandDomain::Workspace, arguments),
             "midi" => domain(CommandDomain::Midi, arguments),
             "midi-input" | "midi-in" => domain(CommandDomain::MidiInput, arguments),
+            "note" | "notes" | "lyric" | "lyrics" | "cue" | "cues" => {
+                domain(CommandDomain::Note, arguments)
+            }
             "track" => domain(CommandDomain::Track, arguments),
             "pattern" => domain(CommandDomain::Pattern, arguments),
             "sequence" | "seq" => domain(CommandDomain::Sequence, arguments),

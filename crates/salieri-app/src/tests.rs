@@ -14,6 +14,7 @@ mod patterns_sequence;
 mod persistence;
 mod preset_inventory;
 mod sampler_browsers;
+mod text_notes;
 mod tracks_panels;
 mod workspace_libraries;
 mod workspace_manifest;
