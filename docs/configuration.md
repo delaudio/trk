@@ -41,6 +41,16 @@ show_line_numbers_hex = false
 follow_playhead = true
 display_mode = "adaptive"
 
+[ui.layout]
+default = "balanced"      # compact, balanced, or studio
+show_tracks = true
+show_sequence = true
+show_inspector = false
+show_track_desk = true
+left_width = 28
+inspector_width = 36
+track_desk_height = 10
+
 [theme]
 name = "default"
 
@@ -87,7 +97,20 @@ validation reports all independent problems found in one pass, including:
 - audio channels from 1 through 8;
 - recent project limit from 1 through 100;
 - undo history limit from 1 through 10000 transactions;
+- layout `left_width` from 18 through 56 cells;
+- layout `inspector_width` from 24 through 64 cells;
+- layout `track_desk_height` from 6 through 18 rows;
 - non-empty sample chooser command when configured.
 
 Inside the TUI, `:config` reports the resolved source, keymap profile, theme, and
 display mode through the normal status notification.
+
+## TUI Layout
+
+Tracker layout preferences are user configuration, not portable project data.
+Use `[ui.layout]` to choose the startup layout and representative panel sizes.
+At runtime, `:layout compact`, `:layout balanced`, and `:layout studio` switch
+named presets. `:layout show PANEL`, `:layout hide PANEL`, and
+`:layout toggle PANEL` manage representative panels (`tracks`, `sequence`,
+`inspector`, `track-desk`). `:layout resize PANEL +/-N` adjusts the stored
+runtime size for the left stack, inspector, or track desk.

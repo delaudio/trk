@@ -34,6 +34,7 @@ pub fn test_state<'a>() -> TuiState<'a> {
         sampler_view: None,
         sample_browser: None,
         project_browser: None,
+        tracker_layout: salieri_tui::TrackerLayoutState::default(),
     }
 }
 

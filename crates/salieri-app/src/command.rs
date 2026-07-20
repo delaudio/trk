@@ -10,6 +10,7 @@ pub enum SalieriCommand {
         path: Option<PathBuf>,
     },
     Focus(FocusTarget),
+    Layout(LayoutCommand),
     Quit {
         force: bool,
     },
@@ -52,6 +53,33 @@ pub enum FocusTarget {
     Sampler,
     SampleBrowser,
     ProjectBrowser,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LayoutCommand {
+    Select(LayoutPresetCommand),
+    Toggle(LayoutPanelCommand),
+    Show(LayoutPanelCommand),
+    Hide(LayoutPanelCommand),
+    Resize {
+        panel: LayoutPanelCommand,
+        delta: i16,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LayoutPresetCommand {
+    Compact,
+    Balanced,
+    Studio,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LayoutPanelCommand {
+    Tracks,
+    Sequence,
+    Inspector,
+    TrackDesk,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -147,7 +175,8 @@ impl SalieriCommand {
         let command = match name {
             "h" | "help" => Self::Help,
             "config" => Self::Config,
-            "t" | "tracker" | "layout" | "normal" => Self::View(ViewCommand::Tracker),
+            "t" | "tracker" | "normal" => Self::View(ViewCommand::Tracker),
+            "layout" => parse_layout(&arguments)?,
             "p" | "patterns" => Self::View(ViewCommand::Patterns),
             "se" | "sequence-view" => Self::View(ViewCommand::Sequence),
             "tr" | "tracks" => Self::View(ViewCommand::Tracks),
@@ -243,6 +272,46 @@ fn parse_focus(arguments: &[String]) -> Result<FocusTarget, CommandParseError> {
         Some(_) => Err(CommandParseError::InvalidArguments {
             usage: "Usage: :focus [t|p|se|tr|sa|sb|pr]",
         }),
+    }
+}
+
+fn parse_layout(arguments: &[String]) -> Result<SalieriCommand, CommandParseError> {
+    let usage = "Usage: :layout [compact|balanced|studio|toggle PANEL|show PANEL|hide PANEL|resize PANEL +/-N]";
+    let Some(command) = arguments.first().map(String::as_str) else {
+        return Ok(SalieriCommand::View(ViewCommand::Tracker));
+    };
+    let layout = match command {
+        "compact" | "focused" => LayoutCommand::Select(LayoutPresetCommand::Compact),
+        "balanced" | "default" => LayoutCommand::Select(LayoutPresetCommand::Balanced),
+        "studio" | "full" => LayoutCommand::Select(LayoutPresetCommand::Studio),
+        "toggle" => LayoutCommand::Toggle(parse_layout_panel(arguments.get(1), usage)?),
+        "show" => LayoutCommand::Show(parse_layout_panel(arguments.get(1), usage)?),
+        "hide" => LayoutCommand::Hide(parse_layout_panel(arguments.get(1), usage)?),
+        "resize" => LayoutCommand::Resize {
+            panel: parse_layout_panel(arguments.get(1), usage)?,
+            delta: arguments
+                .get(2)
+                .ok_or(CommandParseError::InvalidArguments { usage })?
+                .parse()
+                .map_err(|_| CommandParseError::InvalidArguments { usage })?,
+        },
+        _ => {
+            return Err(CommandParseError::InvalidArguments { usage });
+        }
+    };
+    Ok(SalieriCommand::Layout(layout))
+}
+
+fn parse_layout_panel(
+    value: Option<&String>,
+    usage: &'static str,
+) -> Result<LayoutPanelCommand, CommandParseError> {
+    match value.map(String::as_str) {
+        Some("tracks" | "track-list" | "left") => Ok(LayoutPanelCommand::Tracks),
+        Some("sequence" | "seq") => Ok(LayoutPanelCommand::Sequence),
+        Some("inspector" | "instrument" | "right") => Ok(LayoutPanelCommand::Inspector),
+        Some("track-desk" | "desk" | "bottom") => Ok(LayoutPanelCommand::TrackDesk),
+        _ => Err(CommandParseError::InvalidArguments { usage }),
     }
 }
 
@@ -357,6 +426,37 @@ mod tests {
             SalieriCommand::parse("tasks"),
             Ok(Some(SalieriCommand::Task(TaskCommand::List)))
         );
+    }
+
+    #[test]
+    fn parses_layout_management_commands() {
+        assert_eq!(
+            SalieriCommand::parse("layout"),
+            Ok(Some(SalieriCommand::View(ViewCommand::Tracker)))
+        );
+        assert_eq!(
+            SalieriCommand::parse("layout studio"),
+            Ok(Some(SalieriCommand::Layout(LayoutCommand::Select(
+                LayoutPresetCommand::Studio
+            ))))
+        );
+        assert_eq!(
+            SalieriCommand::parse("layout toggle inspector"),
+            Ok(Some(SalieriCommand::Layout(LayoutCommand::Toggle(
+                LayoutPanelCommand::Inspector
+            ))))
+        );
+        assert_eq!(
+            SalieriCommand::parse("layout resize track-desk -2"),
+            Ok(Some(SalieriCommand::Layout(LayoutCommand::Resize {
+                panel: LayoutPanelCommand::TrackDesk,
+                delta: -2,
+            })))
+        );
+        assert!(matches!(
+            SalieriCommand::parse("layout resize inspector nope"),
+            Err(CommandParseError::InvalidArguments { .. })
+        ));
     }
 
     #[test]

@@ -43,9 +43,8 @@ use salieri_core::{
 };
 use salieri_sampler::{WaveformBucket, WaveformOverview};
 
-use crate::ViewportAxis;
+use crate::{resolve_tracker_layout, TrackerLayoutPreset, TrackerLayoutState, ViewportAxis};
 
-const TRACK_PANEL_WIDTH: u16 = 27;
 const ROW_GUTTER_WIDTH: usize = 5;
 const PATTERN_CELL_WIDTH: usize = 21;
 const TRACK_LIST_NAME_WIDTH: usize = 11;
@@ -88,6 +87,7 @@ pub struct TuiState<'a> {
     pub sampler_view: Option<SamplerViewState<'a>>,
     pub sample_browser: Option<SampleBrowserViewState<'a>>,
     pub project_browser: Option<ProjectBrowserViewState<'a>>,
+    pub tracker_layout: TrackerLayoutState,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -499,35 +499,29 @@ fn render_body(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'
         return;
     }
 
+    let mut tracker_layout = state.tracker_layout;
     match layout_kind(area.width) {
-        LayoutKind::Large => {
-            let chunks = Layout::default()
-                .direction(LayoutDirection::Horizontal)
-                .constraints([
-                    Constraint::Length(TRACK_PANEL_WIDTH),
-                    Constraint::Min(72),
-                    Constraint::Length(42),
-                ])
-                .split(area);
-            let side = Layout::default()
-                .direction(LayoutDirection::Vertical)
-                .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
-                .split(chunks[0]);
-            render_tracks(frame, side[0], song, state.cursor.track);
-            render_sequence(frame, side[1], song, state.sequence_position);
-            render_pattern_workspace(frame, chunks[1], chunks[2], song, state);
-        }
+        LayoutKind::Large => {}
         LayoutKind::Medium => {
-            let chunks = Layout::default()
-                .direction(LayoutDirection::Horizontal)
-                .constraints([Constraint::Min(48), Constraint::Length(TRACK_PANEL_WIDTH)])
-                .split(area);
-            render_pattern(frame, chunks[0], song, state);
-            render_medium_side(frame, chunks[1], song, state);
+            tracker_layout.inspector_visible = false;
         }
         LayoutKind::Small => {
-            render_pattern(frame, area, song, state);
+            tracker_layout = TrackerLayoutState::from_preset(TrackerLayoutPreset::Compact);
         }
+    }
+    let resolved = resolve_tracker_layout(area, tracker_layout);
+    if let Some(area) = resolved.tracks {
+        render_tracks(frame, area, song, state.cursor.track);
+    }
+    if let Some(area) = resolved.sequence {
+        render_sequence(frame, area, song, state.sequence_position);
+    }
+    render_pattern(frame, resolved.pattern, song, state);
+    if let Some(area) = resolved.track_desk {
+        render_track_properties(frame, area, song, state);
+    }
+    if let Some(area) = resolved.inspector {
+        render_instrument_sidebar(frame, area, song, state);
     }
 }
 
@@ -562,15 +556,6 @@ fn ranged_title(label: &str, start: usize, end: usize, total: usize) -> String {
     } else {
         format!(" {label} ")
     }
-}
-
-fn render_medium_side(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
-    let side = Layout::default()
-        .direction(LayoutDirection::Vertical)
-        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(area);
-    render_tracks(frame, side[0], song, state.cursor.track);
-    render_sequence(frame, side[1], song, state.sequence_position);
 }
 
 fn render_tracks(frame: &mut Frame<'_>, area: Rect, song: &Song, active_track: usize) {
@@ -1362,22 +1347,6 @@ fn render_project_browser(
         .block(Block::default().title(" Details ").borders(Borders::ALL))
         .wrap(Wrap { trim: true });
     frame.render_widget(details, columns[1]);
-}
-
-fn render_pattern_workspace(
-    frame: &mut Frame<'_>,
-    pattern_area: Rect,
-    inspector_area: Rect,
-    song: &Song,
-    state: TuiState<'_>,
-) {
-    let main = Layout::default()
-        .direction(LayoutDirection::Vertical)
-        .constraints([Constraint::Min(12), Constraint::Length(10)])
-        .split(pattern_area);
-    render_pattern(frame, main[0], song, state);
-    render_track_properties(frame, main[1], song, state);
-    render_instrument_sidebar(frame, inspector_area, song, state);
 }
 
 fn render_track_properties(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
@@ -2762,7 +2731,7 @@ fn help_command_lines(mode_label: &str) -> Vec<Line<'static>> {
         Line::from(
             "  Panel focus: :t tracker   :p patterns   :se sequence   :tr tracks   :sa sampler",
         ),
-        Line::from("  :sb [DIR] sample browser   :focus [t|p|se|tr|sa|sb]   :layout multi-panel"),
+        Line::from("  :layout compact|balanced|studio   :layout toggle inspector"),
         Line::from("  Dirty quit asks: [Y]es save, [N]o quit, [C]ancel"),
         Line::from("  :track new   :track duplicate 2   :track delete 2   :track move 2 3"),
         Line::from("  :track mute 2   :track solo 2   :track rename Acid Bass"),

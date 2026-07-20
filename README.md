@@ -215,7 +215,16 @@ F7              Sequence view
 F9              Tracks view
 F10             Patterns view
 Ctrl+J          Sampler view
+Ctrl+P          Command palette
 :               Command mode
+```
+
+Layout commands:
+
+```text
+:layout compact|balanced|studio
+:layout show|hide|toggle tracks|sequence|inspector|track-desk
+:layout resize tracks|inspector|track-desk +/-N
 ```
 
 Help:
