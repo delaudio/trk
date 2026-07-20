@@ -86,6 +86,7 @@ fn command_mode_ai_proposal_reports_missing_command_provider_requirements() {
             model: "codex-cli".to_string(),
             command_path: Some("definitely-missing-salieri-ai-command".to_string()),
             required_env: vec![missing_env.clone()],
+            ..config::AiConfig::default()
         },
         ..AppConfig::default()
     });
@@ -237,4 +238,105 @@ fn ai_chat_reject_shortcut_does_not_mutate_song() {
     assert!(app.ai_thread.messages.iter().any(|message| {
         message.role == AiMessageRole::Progress && message.text == "AI proposal rejected"
     }));
+}
+
+#[test]
+fn ai_chat_session_survives_restart_without_restoring_pending_proposal() {
+    let session_file = ai_session_test_path("roundtrip");
+    let config = AppConfig {
+        ai: config::AiConfig {
+            session_file: Some(session_file.clone()),
+            ..config::AiConfig::default()
+        },
+        ..AppConfig::default()
+    };
+    let mut app = App::new(config.clone());
+
+    enter_command(&mut app, "ai chat");
+    for ch in "persistent chat".chars() {
+        app.handle_key(KeyEvent::new(KeyCode::Char(ch), KeyModifiers::NONE));
+    }
+    app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+    app.wait_for_tasks();
+    assert!(app.pending_ai_proposal.is_some());
+    assert!(session_file.exists());
+
+    let mut restored = App::new(config);
+    restored.load_ai_session_command();
+
+    assert!(restored.pending_ai_proposal.is_none());
+    assert!(restored.ai_thread.messages.iter().any(|message| {
+        message.role == AiMessageRole::User && message.text == "persistent chat"
+    }));
+    assert!(restored.ai_thread.messages.iter().any(|message| {
+        message.role == AiMessageRole::Assistant && message.text.contains("touches")
+    }));
+
+    let _ = std::fs::remove_file(session_file);
+}
+
+#[test]
+fn ai_chat_delete_session_does_not_modify_current_project() {
+    let session_file = ai_session_test_path("delete");
+    let config = AppConfig {
+        ai: config::AiConfig {
+            session_file: Some(session_file.clone()),
+            ..config::AiConfig::default()
+        },
+        ..AppConfig::default()
+    };
+    let mut app = App::new(config);
+    let before = app.song.clone();
+
+    type_command(&mut app, "ai propose delete session only");
+    app.wait_for_tasks();
+    assert!(session_file.exists());
+
+    type_command(&mut app, "ai delete");
+
+    assert_eq!(app.song, before);
+    assert!(app.pending_ai_proposal.is_none());
+    assert!(!session_file.exists());
+    assert_eq!(app.ai_thread.messages.len(), 1);
+    assert_eq!(app.ai_thread.messages[0].role, AiMessageRole::System);
+}
+
+#[test]
+fn ai_chat_retention_keeps_system_message_and_recent_history() {
+    let session_file = ai_session_test_path("retention");
+    let mut app = App::new(AppConfig {
+        ai: config::AiConfig {
+            session_file: Some(session_file.clone()),
+            retention_messages: 3,
+            ..config::AiConfig::default()
+        },
+        ..AppConfig::default()
+    });
+
+    app.push_ai_message(AiMessageRole::User, "first");
+    app.push_ai_message(AiMessageRole::Assistant, "second");
+    app.push_ai_message(AiMessageRole::User, "third");
+    app.push_ai_message(AiMessageRole::Assistant, "fourth");
+
+    assert_eq!(app.ai_thread.messages.len(), 3);
+    assert_eq!(app.ai_thread.messages[0].role, AiMessageRole::System);
+    assert!(app
+        .ai_thread
+        .messages
+        .iter()
+        .any(|message| message.text == "third"));
+    assert!(app
+        .ai_thread
+        .messages
+        .iter()
+        .any(|message| message.text == "fourth"));
+
+    let _ = std::fs::remove_file(session_file);
+}
+
+fn ai_session_test_path(label: &str) -> std::path::PathBuf {
+    std::env::temp_dir().join(format!(
+        "salieri-ai-command-session-{label}-{}.json",
+        std::process::id()
+    ))
 }

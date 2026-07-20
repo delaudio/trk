@@ -78,6 +78,9 @@ fn run(args: CliArgs) -> Result<()> {
             .with_context(|| format!("failed to open project {}", path.display()))?,
         None => App::new(config),
     };
+    if let Err(error) = app.load_ai_session() {
+        tracing::warn!(?error, "failed to load configured AI session");
+    }
     let mut terminal = TerminalGuard::enter()?;
     if std::env::var_os("SALIERI_DEBUG_PANIC_AFTER_TERMINAL_ENTER").is_some() {
         panic!("debug panic after terminal enter");

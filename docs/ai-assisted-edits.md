@@ -21,6 +21,10 @@ In-app workflow:
 :ai show
 :ai accept
 :ai reject
+:ai save
+:ai load
+:ai delete
+:ai retention N
 ```
 
 `:ai chat` opens the tracker-native AI Chat view. The view shows local thread
@@ -57,6 +61,16 @@ and reports the touched cells without mutating the song. `:ai show` repeats the
 summary. `:ai accept` applies the proposal through the normal undo transaction
 mechanism, so `Ctrl+Z` can revert the generated edit. `:ai reject` clears the
 pending proposal without changing the song.
+
+AI chat persistence is local and provider-agnostic. Configure
+`[ai].session_file` to a JSON file path to autosave the thread after each
+message and load it on startup. The saved session stores thread metadata,
+message roles, text blocks, timestamps, status, and linked project path; it does
+not store pending proposals as applied song data. `:ai save` and `:ai load`
+manually persist or restore the configured file, `:ai delete` removes it and
+resets the local thread without mutating the current project, and
+`:ai retention N` trims saved history to the most recent N messages while
+keeping a system message.
 
 CLI integrations should print or serialize proposals before applying them so
 generated changes remain reviewable.

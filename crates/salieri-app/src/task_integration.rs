@@ -7,6 +7,7 @@ use salieri_ai::{
     MockProvider,
 };
 
+use crate::AiMessageRole;
 use crate::{
     app_effect::AppEffect,
     app_event::{AiIntent, AppEvent, AppIntent, AppTaskResult, PreparedAiProposal, RuntimeEvent},
@@ -16,14 +17,10 @@ use crate::{
     task_runtime::{TaskDiagnostic, TaskFailure, TaskId, TaskProgress, TaskSnapshot, TaskUpdate},
     App, DEFAULT_NOTE_VELOCITY,
 };
-use crate::{AiMessage, AiMessageRole};
 
 impl App {
     pub(super) fn create_ai_proposal(&mut self, prompt: String) {
-        self.ai_thread.messages.push(AiMessage {
-            role: AiMessageRole::User,
-            text: prompt.clone(),
-        });
+        self.push_ai_message(AiMessageRole::User, prompt.clone());
         self.dispatch_intent(AppIntent::Ai(AiIntent::Propose(prompt)));
     }
 
@@ -60,10 +57,7 @@ impl App {
                 provider.provider,
                 diagnostics.join("; ")
             );
-            self.ai_thread.messages.push(AiMessage {
-                role: AiMessageRole::Error,
-                text: message.clone(),
-            });
+            self.push_ai_message(AiMessageRole::Error, message.clone());
             self.notify_error(message);
             return;
         }
@@ -100,10 +94,10 @@ impl App {
                 }))
             }),
         );
-        self.ai_thread.messages.push(AiMessage {
-            role: AiMessageRole::Progress,
-            text: format!("Task #{id} queued via {provider_label}"),
-        });
+        self.push_ai_message(
+            AiMessageRole::Progress,
+            format!("Task #{id} queued via {provider_label}"),
+        );
         self.notify_info(format!(
             "Task #{id} queued: AI proposal via {provider_label}"
         ));
@@ -120,18 +114,15 @@ impl App {
         let name = self.task_name(id);
         match update {
             TaskUpdate::Started { .. } => {
-                self.ai_thread.messages.push(AiMessage {
-                    role: AiMessageRole::Progress,
-                    text: format!("Task #{id} running: {name}"),
-                });
+                self.push_ai_message(
+                    AiMessageRole::Progress,
+                    format!("Task #{id} running: {name}"),
+                );
                 self.notify_info(format!("Task #{id} running: {name}"));
             }
             TaskUpdate::Progress { progress, .. } => {
                 let summary = format_task_progress(id, &progress);
-                self.ai_thread.messages.push(AiMessage {
-                    role: AiMessageRole::Progress,
-                    text: summary.clone(),
-                });
+                self.push_ai_message(AiMessageRole::Progress, summary.clone());
                 self.notify_info(summary);
             }
             TaskUpdate::Completed { result, .. } => match result {
@@ -139,26 +130,20 @@ impl App {
                     let summary =
                         format_ai_proposal_summary(&prepared.proposal, &prepared.touched_cells);
                     self.pending_ai_proposal = Some(prepared);
-                    self.ai_thread.messages.push(AiMessage {
-                        role: AiMessageRole::Assistant,
-                        text: summary.clone(),
-                    });
+                    self.push_ai_message(AiMessageRole::Assistant, summary.clone());
                     self.notify_success(format!("Task #{id} completed: {summary}"));
                 }
             },
             TaskUpdate::Failed { diagnostics, .. } => {
                 let failure = format_task_failure(id, &name, &diagnostics);
-                self.ai_thread.messages.push(AiMessage {
-                    role: AiMessageRole::Error,
-                    text: failure.clone(),
-                });
+                self.push_ai_message(AiMessageRole::Error, failure.clone());
                 self.notify_error(failure);
             }
             TaskUpdate::Cancelled { .. } => {
-                self.ai_thread.messages.push(AiMessage {
-                    role: AiMessageRole::Progress,
-                    text: format!("Task #{id} cancelled: {name}"),
-                });
+                self.push_ai_message(
+                    AiMessageRole::Progress,
+                    format!("Task #{id} cancelled: {name}"),
+                );
                 self.notify_warning(format!("Task #{id} cancelled: {name}"));
             }
         }
@@ -200,10 +185,10 @@ impl App {
     fn cancel_task(&mut self, id: TaskId) {
         if self.task_runtime.cancel(id) {
             let name = self.task_name(id);
-            self.ai_thread.messages.push(AiMessage {
-                role: AiMessageRole::Progress,
-                text: format!("Task #{id} cancelling: {name}"),
-            });
+            self.push_ai_message(
+                AiMessageRole::Progress,
+                format!("Task #{id} cancelling: {name}"),
+            );
             self.notify_info(format!("Task #{id} cancellation requested"));
             return;
         }

@@ -45,6 +45,8 @@ pub struct AiConfig {
     pub model: String,
     pub command_path: Option<String>,
     pub required_env: Vec<String>,
+    pub session_file: Option<PathBuf>,
+    pub retention_messages: usize,
 }
 
 impl Default for AiConfig {
@@ -54,6 +56,8 @@ impl Default for AiConfig {
             model: "local-deterministic".to_string(),
             command_path: None,
             required_env: Vec::new(),
+            session_file: None,
+            retention_messages: 200,
         }
     }
 }
@@ -314,6 +318,13 @@ fn validate(config: &AppConfig) -> Result<(), ConfigValidationErrors> {
             required_env,
         );
     }
+    check_range(
+        &mut diagnostics,
+        "ai.retention_messages",
+        config.ai.retention_messages,
+        1,
+        10_000,
+    );
     check_non_empty(&mut diagnostics, "theme.name", &config.theme.name);
     check_range(
         &mut diagnostics,

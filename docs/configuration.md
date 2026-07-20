@@ -78,6 +78,12 @@ default_output = "IAC Driver Bus 1"
 default_input = "IAC Driver Bus 1"
 log_file = "salieri-midi.log"
 
+[ai]
+provider = "local_deterministic"
+model = "local-deterministic"
+session_file = "~/.config/salieri/ai-session.json"
+retention_messages = 200
+
 [sample_browser]
 chooser_command = "yazi --chooser-file $SALIERI_CHOOSER_FILE"
 start_dir = "~/Samples" # legacy fallback; prefer workspace.sample_library
@@ -103,6 +109,8 @@ network service. `mock` is available for tests and scripted dry runs. `command`
 is reserved for future CLI adapters; when selected, Salieri checks
 `command_path` and every `required_env` entry before queuing an AI task and
 reports missing binaries or credentials as normal diagnostics.
+`session_file` enables local JSON chat history autosave/load, and
+`retention_messages` bounds the saved local thread length.
 
 Keymap bindings are grouped by application mode and override built-in shortcuts
 for the same key. Unmapped keys continue to use the built-in defaults. See

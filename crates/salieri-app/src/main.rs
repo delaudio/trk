@@ -1,3 +1,4 @@
+mod ai_session;
 mod app;
 mod app_effect;
 mod app_event;
@@ -226,6 +227,8 @@ struct App {
     recent_project_limit: usize,
     config_metadata: config::ConfigMetadata,
     ai_config: config::AiConfig,
+    ai_session_file: Option<PathBuf>,
+    ai_retention_messages: usize,
     ai_thread: AiThread,
     project_browser_view: Option<AppProjectBrowserView>,
     pending_ai_proposal: Option<PreparedAiProposal>,
@@ -240,32 +243,34 @@ struct AppMidiInput {
     inner: Box<dyn MidiInput>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct AiThread {
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct AiThread {
+    id: String,
+    created_at: u64,
+    updated_at: u64,
+    status: String,
+    linked_project: Option<PathBuf>,
     messages: Vec<AiMessage>,
     composer: String,
 }
 
 impl Default for AiThread {
     fn default() -> Self {
-        Self {
-            messages: vec![AiMessage {
-                role: AiMessageRole::System,
-                text: "Local AI chat is ready. Prompts become reviewable proposals.".to_string(),
-            }],
-            composer: String::new(),
-        }
+        ai_session::default_thread_for_project(None)
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct AiMessage {
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct AiMessage {
     role: AiMessageRole,
     text: String,
+    created_at: u64,
+    status: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum AiMessageRole {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum AiMessageRole {
     System,
     User,
     Assistant,
