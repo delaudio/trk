@@ -14,8 +14,13 @@ use crate::{
     native_filter_key_track_descriptor, native_filter_mix_descriptor,
     native_filter_mode_descriptor, native_filter_resonance_descriptor, native_gain_descriptor,
     native_pan_descriptor, native_phase_invert_left_descriptor,
-    native_phase_invert_right_descriptor, native_width_descriptor, ParameterDescriptor,
-    ParameterId, ParameterValidationError, ParameterValue,
+    native_phase_invert_right_descriptor, native_reverb_damping_descriptor,
+    native_reverb_decay_descriptor, native_reverb_diffusion_descriptor,
+    native_reverb_early_reflections_descriptor, native_reverb_high_cut_descriptor,
+    native_reverb_low_cut_descriptor, native_reverb_mix_descriptor,
+    native_reverb_output_descriptor, native_reverb_predelay_descriptor,
+    native_reverb_size_descriptor, native_reverb_width_descriptor, native_width_descriptor,
+    ParameterDescriptor, ParameterId, ParameterValidationError, ParameterValue,
 };
 
 pub const NATIVE_GAIN_MODULE_ID: &str = "native.effect.gain";
@@ -25,6 +30,7 @@ pub const NATIVE_WIDTH_MODULE_ID: &str = "native.effect.width";
 pub const NATIVE_PHASE_MODULE_ID: &str = "native.effect.phase";
 pub const NATIVE_FILTER_MODULE_ID: &str = "native.effect.filter";
 pub const NATIVE_DELAY_MODULE_ID: &str = "native.effect.delay";
+pub const NATIVE_REVERB_MODULE_ID: &str = "native.effect.reverb";
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -298,6 +304,30 @@ pub fn native_delay_module_descriptor() -> NativeModuleDescriptor {
 }
 
 #[must_use]
+pub fn native_reverb_module_descriptor() -> NativeModuleDescriptor {
+    NativeModuleDescriptor {
+        id: NativeModuleId::from(NATIVE_REVERB_MODULE_ID),
+        name: "Stereo Reverb".to_string(),
+        role: NativeModuleRole::Effect,
+        parameters: vec![
+            native_reverb_size_descriptor(),
+            native_reverb_predelay_descriptor(),
+            native_reverb_decay_descriptor(),
+            native_reverb_damping_descriptor(),
+            native_reverb_low_cut_descriptor(),
+            native_reverb_high_cut_descriptor(),
+            native_reverb_diffusion_descriptor(),
+            native_reverb_width_descriptor(),
+            native_reverb_early_reflections_descriptor(),
+            native_reverb_mix_descriptor(),
+            native_reverb_output_descriptor(),
+        ],
+        latency_frames: 0,
+        realtime_safe: true,
+    }
+}
+
+#[must_use]
 pub fn builtin_native_module_descriptor(id: &NativeModuleId) -> Option<NativeModuleDescriptor> {
     match id.as_str() {
         NATIVE_GAIN_MODULE_ID => Some(native_gain_module_descriptor()),
@@ -307,6 +337,7 @@ pub fn builtin_native_module_descriptor(id: &NativeModuleId) -> Option<NativeMod
         NATIVE_PHASE_MODULE_ID => Some(native_phase_module_descriptor()),
         NATIVE_FILTER_MODULE_ID => Some(native_filter_module_descriptor()),
         NATIVE_DELAY_MODULE_ID => Some(native_delay_module_descriptor()),
+        NATIVE_REVERB_MODULE_ID => Some(native_reverb_module_descriptor()),
         _ => None,
     }
 }
@@ -321,6 +352,7 @@ pub fn builtin_native_effect_descriptors() -> Vec<NativeModuleDescriptor> {
         native_phase_module_descriptor(),
         native_filter_module_descriptor(),
         native_delay_module_descriptor(),
+        native_reverb_module_descriptor(),
     ]
 }
 
@@ -332,7 +364,9 @@ mod tests {
         NATIVE_FILTER_CUTOFF_PARAMETER_ID, NATIVE_FILTER_MODE_PARAMETER_ID,
         NATIVE_FILTER_MODULE_ID, NATIVE_GAIN_PARAMETER_ID, NATIVE_PAN_PARAMETER_ID,
         NATIVE_PHASE_INVERT_LEFT_PARAMETER_ID, NATIVE_PHASE_INVERT_RIGHT_PARAMETER_ID,
-        NATIVE_PHASE_MODULE_ID, NATIVE_WIDTH_MODULE_ID, NATIVE_WIDTH_PARAMETER_ID,
+        NATIVE_PHASE_MODULE_ID, NATIVE_REVERB_DECAY_PARAMETER_ID, NATIVE_REVERB_MIX_PARAMETER_ID,
+        NATIVE_REVERB_MODULE_ID, NATIVE_REVERB_PREDELAY_PARAMETER_ID, NATIVE_WIDTH_MODULE_ID,
+        NATIVE_WIDTH_PARAMETER_ID,
     };
 
     #[test]
@@ -471,5 +505,28 @@ mod tests {
         );
         assert!(serialized.contains(NATIVE_DELAY_MODULE_ID));
         assert!(serialized.contains(NATIVE_DELAY_TIME_LEFT_PARAMETER_ID));
+    }
+
+    #[test]
+    fn native_reverb_module_descriptor_has_stable_defaults() {
+        let descriptor = native_reverb_module_descriptor();
+        let state = NativeModuleState::defaults_for(&descriptor);
+        let serialized = serde_json::to_string(&state).expect("serialize reverb");
+
+        assert_eq!(descriptor.id, NativeModuleId::from(NATIVE_REVERB_MODULE_ID));
+        assert_eq!(descriptor.parameters.len(), 11);
+        assert_eq!(
+            state.parameter_value(&ParameterId::from(NATIVE_REVERB_PREDELAY_PARAMETER_ID)),
+            Some(&ParameterValue::Float(20.0))
+        );
+        assert_eq!(
+            state.parameter_value(&ParameterId::from(NATIVE_REVERB_DECAY_PARAMETER_ID)),
+            Some(&ParameterValue::Seconds(2.5))
+        );
+        assert_eq!(
+            state.parameter_value(&ParameterId::from(NATIVE_REVERB_MIX_PARAMETER_ID)),
+            Some(&ParameterValue::Percentage(0.25))
+        );
+        assert!(serialized.contains(NATIVE_REVERB_MODULE_ID));
     }
 }

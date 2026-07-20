@@ -43,6 +43,17 @@ pub enum NativeEffectParameterValue {
     DelayModDepth(f32),
     DelayMix(f32),
     DelayOutputDb(f32),
+    ReverbSize(f32),
+    ReverbPredelayMs(f32),
+    ReverbDecayS(f32),
+    ReverbDamping(f32),
+    ReverbLowCutHz(f32),
+    ReverbHighCutHz(f32),
+    ReverbDiffusion(f32),
+    ReverbWidth(f32),
+    ReverbEarlyReflections(f32),
+    ReverbMix(f32),
+    ReverbOutputDb(f32),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -325,6 +336,50 @@ impl NativeEffectModule {
                 *output_db = value;
                 Ok(())
             }
+            (DspDeviceKind::Reverb { size, .. }, NativeEffectParameterValue::ReverbSize(value)) => {
+                set_reverb_percentage(size, value, 1.0)
+            }
+            (
+                DspDeviceKind::Reverb { predelay_ms, .. },
+                NativeEffectParameterValue::ReverbPredelayMs(value),
+            ) => set_reverb_range(predelay_ms, value, 0.0, 250.0),
+            (
+                DspDeviceKind::Reverb { decay_s, .. },
+                NativeEffectParameterValue::ReverbDecayS(value),
+            ) => set_reverb_range(decay_s, value, 0.1, 30.0),
+            (
+                DspDeviceKind::Reverb { damping, .. },
+                NativeEffectParameterValue::ReverbDamping(value),
+            ) => set_reverb_percentage(damping, value, 1.0),
+            (
+                DspDeviceKind::Reverb { low_cut_hz, .. },
+                NativeEffectParameterValue::ReverbLowCutHz(value),
+            ) => set_reverb_range(low_cut_hz, value, 20.0, 2_000.0),
+            (
+                DspDeviceKind::Reverb { high_cut_hz, .. },
+                NativeEffectParameterValue::ReverbHighCutHz(value),
+            ) => set_reverb_range(high_cut_hz, value, 1_000.0, 20_000.0),
+            (
+                DspDeviceKind::Reverb { diffusion, .. },
+                NativeEffectParameterValue::ReverbDiffusion(value),
+            ) => set_reverb_percentage(diffusion, value, 1.0),
+            (
+                DspDeviceKind::Reverb { width, .. },
+                NativeEffectParameterValue::ReverbWidth(value),
+            ) => set_reverb_percentage(width, value, 2.0),
+            (
+                DspDeviceKind::Reverb {
+                    early_reflections, ..
+                },
+                NativeEffectParameterValue::ReverbEarlyReflections(value),
+            ) => set_reverb_percentage(early_reflections, value, 1.0),
+            (DspDeviceKind::Reverb { mix, .. }, NativeEffectParameterValue::ReverbMix(value)) => {
+                set_reverb_percentage(mix, value, 1.0)
+            }
+            (
+                DspDeviceKind::Reverb { output_db, .. },
+                NativeEffectParameterValue::ReverbOutputDb(value),
+            ) => set_reverb_range(output_db, value, -60.0, 12.0),
             _ => Err(AudioExportError::InvalidDspParameter),
         }
     }
@@ -455,8 +510,65 @@ fn smooth_kind(current: DspDeviceKind, target: DspDeviceKind) -> DspDeviceKind {
             mix: smooth_value(mix, target_mix, SMOOTHING),
             output_db: smooth_value(output_db, target_output, SMOOTHING),
         },
+        (
+            DspDeviceKind::Reverb {
+                size,
+                predelay_ms,
+                decay_s,
+                damping,
+                low_cut_hz,
+                high_cut_hz,
+                diffusion,
+                width,
+                early_reflections,
+                mix,
+                output_db,
+            },
+            DspDeviceKind::Reverb {
+                size: target_size,
+                predelay_ms: target_predelay,
+                decay_s: target_decay,
+                damping: target_damping,
+                low_cut_hz: target_low_cut,
+                high_cut_hz: target_high_cut,
+                diffusion: target_diffusion,
+                width: target_width,
+                early_reflections: target_early,
+                mix: target_mix,
+                output_db: target_output,
+            },
+        ) => DspDeviceKind::Reverb {
+            size: smooth_value(size, target_size, SMOOTHING),
+            predelay_ms: smooth_value(predelay_ms, target_predelay, SMOOTHING),
+            decay_s: smooth_value(decay_s, target_decay, SMOOTHING),
+            damping: smooth_value(damping, target_damping, SMOOTHING),
+            low_cut_hz: smooth_value(low_cut_hz, target_low_cut, SMOOTHING),
+            high_cut_hz: smooth_value(high_cut_hz, target_high_cut, SMOOTHING),
+            diffusion: smooth_value(diffusion, target_diffusion, SMOOTHING),
+            width: smooth_value(width, target_width, SMOOTHING),
+            early_reflections: smooth_value(early_reflections, target_early, SMOOTHING),
+            mix: smooth_value(mix, target_mix, SMOOTHING),
+            output_db: smooth_value(output_db, target_output, SMOOTHING),
+        },
         _ => target,
     }
+}
+
+fn set_reverb_percentage(target: &mut f32, value: f32, max: f32) -> Result<(), AudioExportError> {
+    set_reverb_range(target, value, 0.0, max)
+}
+
+fn set_reverb_range(
+    target: &mut f32,
+    value: f32,
+    min: f32,
+    max: f32,
+) -> Result<(), AudioExportError> {
+    if !value.is_finite() || !(min..=max).contains(&value) {
+        return Err(AudioExportError::InvalidDspParameter);
+    }
+    *target = value;
+    Ok(())
 }
 
 fn smooth_value(current: f32, target: f32, amount: f32) -> f32 {
@@ -682,78 +794,7 @@ mod tests {
             Err(AudioExportError::InvalidDspParameter)
         ));
     }
-
-    #[test]
-    fn native_effect_module_processes_delay_with_sample_accurate_timing() {
-        let mut module = NativeEffectModule::new(NativeEffectModuleSpec {
-            bypassed: false,
-            kind: DspDeviceKind::Delay {
-                sync: false,
-                time_left_ms: 1.0,
-                time_right_ms: 1.0,
-                link_times: true,
-                feedback: 0.0,
-                ping_pong: false,
-                filter_low_cut_hz: 20.0,
-                filter_high_cut_hz: 20_000.0,
-                mod_rate_hz: 0.0,
-                mod_depth: 0.0,
-                mix: 1.0,
-                output_db: 0.0,
-            },
-        });
-        module
-            .prepare(NativeModulePrepareSpec {
-                sample_rate: 48_000,
-                channels: 2,
-                max_block_frames: 64,
-            })
-            .expect("prepare delay");
-
-        let mut data = vec![0.0; 64 * 2];
-        data[0] = 1.0;
-        module.process_in_place(&mut data).expect("process delay");
-
-        assert_eq!(data[0], 0.0);
-        assert_eq!(data[48 * 2], 1.0);
-        assert_eq!(data[48 * 2 + 1], 0.0);
-    }
-
-    #[test]
-    fn native_effect_module_delay_feedback_and_ping_pong_stay_stable() {
-        let mut module = NativeEffectModule::new(NativeEffectModuleSpec {
-            bypassed: false,
-            kind: DspDeviceKind::Delay {
-                sync: true,
-                time_left_ms: 125.0,
-                time_right_ms: 250.0,
-                link_times: false,
-                feedback: 0.95,
-                ping_pong: true,
-                filter_low_cut_hz: 40.0,
-                filter_high_cut_hz: 12_000.0,
-                mod_rate_hz: 0.5,
-                mod_depth: 0.25,
-                mix: 0.5,
-                output_db: 0.0,
-            },
-        });
-        module
-            .prepare(NativeModulePrepareSpec {
-                sample_rate: 48_000,
-                channels: 2,
-                max_block_frames: 512,
-            })
-            .expect("prepare delay");
-
-        let mut data = vec![0.0; 512 * 2];
-        data[0] = 1.0;
-        module.process_in_place(&mut data).expect("process delay");
-
-        assert!(data.iter().all(|sample| sample.is_finite()));
-        assert!(matches!(
-            module.set_parameter(NativeEffectParameterValue::DelayFeedback(1.0)),
-            Err(AudioExportError::InvalidDspParameter)
-        ));
-    }
 }
+#[cfg(test)]
+#[path = "native_module_stateful_tests.rs"]
+mod stateful_tests;

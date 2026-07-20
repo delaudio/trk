@@ -15,7 +15,12 @@ use crate::{
         native_filter_cutoff_descriptor, native_filter_drive_descriptor,
         native_filter_env_amount_descriptor, native_filter_key_track_descriptor,
         native_filter_mix_descriptor, native_filter_resonance_descriptor, native_gain_descriptor,
-        native_pan_descriptor, native_width_descriptor, sample_gain_descriptor,
+        native_pan_descriptor, native_reverb_damping_descriptor, native_reverb_decay_descriptor,
+        native_reverb_diffusion_descriptor, native_reverb_early_reflections_descriptor,
+        native_reverb_high_cut_descriptor, native_reverb_low_cut_descriptor,
+        native_reverb_mix_descriptor, native_reverb_output_descriptor,
+        native_reverb_predelay_descriptor, native_reverb_size_descriptor,
+        native_reverb_width_descriptor, native_width_descriptor, sample_gain_descriptor,
     },
 };
 
@@ -222,13 +227,42 @@ fn validate_effect_chain(effects: &[EffectDevice]) -> Result<(), ValidationError
             {
                 return Err(ValidationError::InvalidEffectParameter);
             }
+            EffectDeviceKind::Reverb {
+                size,
+                predelay_ms,
+                decay_s,
+                damping,
+                low_cut_hz,
+                high_cut_hz,
+                diffusion,
+                width,
+                early_reflections,
+                mix,
+                output_db,
+            } if !native_reverb_size_descriptor().validate_f32(size)
+                || !native_reverb_predelay_descriptor().validate_f32(predelay_ms)
+                || !native_reverb_decay_descriptor().validate_f32(decay_s)
+                || !native_reverb_damping_descriptor().validate_f32(damping)
+                || !native_reverb_low_cut_descriptor().validate_f32(low_cut_hz)
+                || !native_reverb_high_cut_descriptor().validate_f32(high_cut_hz)
+                || low_cut_hz > high_cut_hz
+                || !native_reverb_diffusion_descriptor().validate_f32(diffusion)
+                || !native_reverb_width_descriptor().validate_f32(width)
+                || !native_reverb_early_reflections_descriptor()
+                    .validate_f32(early_reflections)
+                || !native_reverb_mix_descriptor().validate_f32(mix)
+                || !native_reverb_output_descriptor().validate_f32(output_db) =>
+            {
+                return Err(ValidationError::InvalidEffectParameter);
+            }
             EffectDeviceKind::Gain { .. }
             | EffectDeviceKind::Pan { .. }
             | EffectDeviceKind::Balance { .. }
             | EffectDeviceKind::StereoWidth { .. }
             | EffectDeviceKind::PhaseInvert { .. }
             | EffectDeviceKind::Filter { .. }
-            | EffectDeviceKind::Delay { .. } => {}
+            | EffectDeviceKind::Delay { .. }
+            | EffectDeviceKind::Reverb { .. } => {}
         }
     }
     Ok(())

@@ -56,6 +56,13 @@ impl App {
                     );
                 }
             }
+            ["master", "reverb", size, predelay, decay, mix] => {
+                if let Some(device) = parse_reverb_device(size, predelay, decay, mix) {
+                    self.upsert_master_dsp_device(device);
+                } else {
+                    self.notify_warning("Usage: :dsp master reverb SIZE PREDELAY_MS DECAY_S MIX");
+                }
+            }
             ["track", "clear"] => self.clear_track_dsp_chain(self.cursor.track),
             ["track", "gain", value] => self.set_current_track_dsp_value(
                 value,
@@ -110,6 +117,13 @@ impl App {
                     self.notify_warning(
                         "Usage: :dsp track [TRACK] delay sync|free LEFT_MS RIGHT_MS FEEDBACK MIX [ping]",
                     );
+                }
+            }
+            ["track", "reverb", size, predelay, decay, mix] => {
+                if let Some(device) = parse_reverb_device(size, predelay, decay, mix) {
+                    self.upsert_track_dsp_device(self.cursor.track, device);
+                } else {
+                    self.notify_warning("Usage: :dsp track [TRACK] reverb SIZE PREDELAY_MS DECAY_S MIX");
                 }
             }
             ["track", track, "clear"] => {
@@ -184,8 +198,17 @@ impl App {
                     );
                 }
             }
+            ["track", track, "reverb", size, predelay, decay, mix] => {
+                let track = parse_track_number(track);
+                let device = parse_reverb_device(size, predelay, decay, mix);
+                if let (Some(track), Some(device)) = (track, device) {
+                    self.upsert_track_dsp_device(track, device);
+                } else {
+                    self.notify_warning("Usage: :dsp track [TRACK] reverb SIZE PREDELAY_MS DECAY_S MIX");
+                }
+            }
             _ => self.notify_warning(
-                "Usage: :dsp master gain|pan|balance|width VALUE | phase LEFT RIGHT | filter MODE CUTOFF RES DRIVE MIX | delay sync|free LEFT_MS RIGHT_MS FEEDBACK MIX [ping] | :dsp track [TRACK] ... | :dsp ... clear",
+                "Usage: :dsp master gain|pan|balance|width VALUE | phase LEFT RIGHT | filter MODE CUTOFF RES DRIVE MIX | delay sync|free LEFT_MS RIGHT_MS FEEDBACK MIX [ping] | reverb SIZE PREDELAY_MS DECAY_S MIX | :dsp track [TRACK] ... | :dsp ... clear",
             ),
         }
     }
@@ -284,6 +307,19 @@ fn parse_delay_device(
         spec.ping_pong = parse_bool_flag(ping)?;
     }
     Some(EffectDevice::delay(7, spec))
+}
+
+fn parse_reverb_device(size: &str, predelay: &str, decay: &str, mix: &str) -> Option<EffectDevice> {
+    Some(EffectDevice::reverb(
+        8,
+        ReverbSpec {
+            size: size.parse::<f32>().ok()?,
+            predelay_ms: predelay.parse::<f32>().ok()?,
+            decay_s: decay.parse::<f32>().ok()?,
+            mix: mix.parse::<f32>().ok()?,
+            ..ReverbSpec::default()
+        },
+    ))
 }
 
 fn parse_sync_flag(input: &str) -> Option<bool> {

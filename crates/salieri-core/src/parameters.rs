@@ -3,10 +3,12 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 mod catalog;
+mod reverb_catalog;
 #[cfg(test)]
 mod tests;
 
 pub use catalog::*;
+pub use reverb_catalog::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]

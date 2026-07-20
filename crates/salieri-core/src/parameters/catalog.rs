@@ -1,4 +1,18 @@
 use super::{
+    reverb_catalog::{
+        native_reverb_damping_descriptor, native_reverb_decay_descriptor,
+        native_reverb_diffusion_descriptor, native_reverb_early_reflections_descriptor,
+        native_reverb_high_cut_descriptor, native_reverb_low_cut_descriptor,
+        native_reverb_mix_descriptor, native_reverb_output_descriptor,
+        native_reverb_parameter_descriptors, native_reverb_predelay_descriptor,
+        native_reverb_size_descriptor, native_reverb_width_descriptor,
+        NATIVE_REVERB_DAMPING_PARAMETER_ID, NATIVE_REVERB_DECAY_PARAMETER_ID,
+        NATIVE_REVERB_DIFFUSION_PARAMETER_ID, NATIVE_REVERB_EARLY_REFLECTIONS_PARAMETER_ID,
+        NATIVE_REVERB_HIGH_CUT_PARAMETER_ID, NATIVE_REVERB_LOW_CUT_PARAMETER_ID,
+        NATIVE_REVERB_MIX_PARAMETER_ID, NATIVE_REVERB_OUTPUT_PARAMETER_ID,
+        NATIVE_REVERB_PREDELAY_PARAMETER_ID, NATIVE_REVERB_SIZE_PARAMETER_ID,
+        NATIVE_REVERB_WIDTH_PARAMETER_ID,
+    },
     ParameterChoice, ParameterDescriptor, ParameterFlags, ParameterGroupId, ParameterId,
     ParameterRange, ParameterUnit, ParameterValue, ParameterValueType,
 };
@@ -579,7 +593,7 @@ pub fn mixer_parameter_descriptors() -> Vec<ParameterDescriptor> {
 
 #[must_use]
 pub fn native_effect_parameter_descriptors() -> Vec<ParameterDescriptor> {
-    vec![
+    let mut descriptors = vec![
         native_gain_descriptor(),
         native_pan_descriptor(),
         native_balance_descriptor(),
@@ -605,7 +619,9 @@ pub fn native_effect_parameter_descriptors() -> Vec<ParameterDescriptor> {
         native_delay_mod_depth_descriptor(),
         native_delay_mix_descriptor(),
         native_delay_output_descriptor(),
-    ]
+    ];
+    descriptors.extend(native_reverb_parameter_descriptors());
+    descriptors
 }
 
 #[must_use]
@@ -643,6 +659,19 @@ pub fn builtin_parameter_descriptor(id: &ParameterId) -> Option<ParameterDescrip
         NATIVE_DELAY_MOD_DEPTH_PARAMETER_ID => Some(native_delay_mod_depth_descriptor()),
         NATIVE_DELAY_MIX_PARAMETER_ID => Some(native_delay_mix_descriptor()),
         NATIVE_DELAY_OUTPUT_PARAMETER_ID => Some(native_delay_output_descriptor()),
+        NATIVE_REVERB_SIZE_PARAMETER_ID => Some(native_reverb_size_descriptor()),
+        NATIVE_REVERB_PREDELAY_PARAMETER_ID => Some(native_reverb_predelay_descriptor()),
+        NATIVE_REVERB_DECAY_PARAMETER_ID => Some(native_reverb_decay_descriptor()),
+        NATIVE_REVERB_DAMPING_PARAMETER_ID => Some(native_reverb_damping_descriptor()),
+        NATIVE_REVERB_LOW_CUT_PARAMETER_ID => Some(native_reverb_low_cut_descriptor()),
+        NATIVE_REVERB_HIGH_CUT_PARAMETER_ID => Some(native_reverb_high_cut_descriptor()),
+        NATIVE_REVERB_DIFFUSION_PARAMETER_ID => Some(native_reverb_diffusion_descriptor()),
+        NATIVE_REVERB_WIDTH_PARAMETER_ID => Some(native_reverb_width_descriptor()),
+        NATIVE_REVERB_EARLY_REFLECTIONS_PARAMETER_ID => {
+            Some(native_reverb_early_reflections_descriptor())
+        }
+        NATIVE_REVERB_MIX_PARAMETER_ID => Some(native_reverb_mix_descriptor()),
+        NATIVE_REVERB_OUTPUT_PARAMETER_ID => Some(native_reverb_output_descriptor()),
         _ => None,
     }
 }

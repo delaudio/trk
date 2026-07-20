@@ -164,6 +164,10 @@ impl App {
                 native_delay_output_descriptor(),
                 action,
             ),
+            ["dsp", "track", parameter, action] if reverb_lock_descriptor(parameter).is_some() => {
+                let (parameter, descriptor) = reverb_lock_descriptor(parameter)?;
+                self.track_effect_lock(8, parameter, descriptor, action)
+            }
             ["dsp", "master", "gain", action] => self.master_effect_lock(
                 1,
                 NATIVE_GAIN_PARAMETER_ID,
@@ -286,6 +290,10 @@ impl App {
                 native_delay_output_descriptor(),
                 action,
             ),
+            ["dsp", "master", parameter, action] if reverb_lock_descriptor(parameter).is_some() => {
+                let (parameter, descriptor) = reverb_lock_descriptor(parameter)?;
+                self.master_effect_lock(8, parameter, descriptor, action)
+            }
             _ => None,
         }
     }
@@ -322,5 +330,55 @@ impl App {
             descriptor,
             action,
         )
+    }
+}
+
+fn reverb_lock_descriptor(parameter: &str) -> Option<(&'static str, ParameterDescriptor)> {
+    match parameter {
+        "reverb-size" => Some((
+            NATIVE_REVERB_SIZE_PARAMETER_ID,
+            native_reverb_size_descriptor(),
+        )),
+        "reverb-predelay" | "reverb-pre" => Some((
+            NATIVE_REVERB_PREDELAY_PARAMETER_ID,
+            native_reverb_predelay_descriptor(),
+        )),
+        "reverb-decay" => Some((
+            NATIVE_REVERB_DECAY_PARAMETER_ID,
+            native_reverb_decay_descriptor(),
+        )),
+        "reverb-damping" | "reverb-damp" => Some((
+            NATIVE_REVERB_DAMPING_PARAMETER_ID,
+            native_reverb_damping_descriptor(),
+        )),
+        "reverb-low-cut" => Some((
+            NATIVE_REVERB_LOW_CUT_PARAMETER_ID,
+            native_reverb_low_cut_descriptor(),
+        )),
+        "reverb-high-cut" => Some((
+            NATIVE_REVERB_HIGH_CUT_PARAMETER_ID,
+            native_reverb_high_cut_descriptor(),
+        )),
+        "reverb-diffusion" | "reverb-diff" => Some((
+            NATIVE_REVERB_DIFFUSION_PARAMETER_ID,
+            native_reverb_diffusion_descriptor(),
+        )),
+        "reverb-width" => Some((
+            NATIVE_REVERB_WIDTH_PARAMETER_ID,
+            native_reverb_width_descriptor(),
+        )),
+        "reverb-early" | "reverb-early-reflections" => Some((
+            NATIVE_REVERB_EARLY_REFLECTIONS_PARAMETER_ID,
+            native_reverb_early_reflections_descriptor(),
+        )),
+        "reverb-mix" => Some((
+            NATIVE_REVERB_MIX_PARAMETER_ID,
+            native_reverb_mix_descriptor(),
+        )),
+        "reverb-output" | "reverb-out" => Some((
+            NATIVE_REVERB_OUTPUT_PARAMETER_ID,
+            native_reverb_output_descriptor(),
+        )),
+        _ => None,
     }
 }

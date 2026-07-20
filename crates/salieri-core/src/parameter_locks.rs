@@ -269,7 +269,8 @@ fn effect_descriptor(
         | EffectDeviceKind::StereoWidth { .. }
         | EffectDeviceKind::PhaseInvert { .. }
         | EffectDeviceKind::Filter { .. }
-        | EffectDeviceKind::Delay { .. } => effect
+        | EffectDeviceKind::Delay { .. }
+        | EffectDeviceKind::Reverb { .. } => effect
             .native_module_descriptor()
             .parameter(parameter)
             .cloned(),

@@ -38,7 +38,7 @@ playback, and offline export.
 | Gain, gainer, stereo expander, DC/utility, channel tools | Track insert, master, utility | Implemented | #125 native utility audio devices | Native gain, pan, balance, stereo width, and phase invert cover the initial utility-device suite. Mono/channel swap and DC blocking remain future extensions if justified. |
 | EQ and filters | Track insert, sampler-local | Implemented | #126 native multimode filter; parametric EQ deferred | Multimode LP/HP/BP/notch uses a stable state-variable filter. Sampler-local modulation/key tracking remains coordinated with #121. |
 | Delay, multitap delay, repeater | Track insert, send, master | Implemented | #127 native delay | Stereo delay covers linked/free times, sync quantization, feedback filtering, ping-pong routing, wet/dry mix, and bounded delay memory. |
-| Reverb | Track insert, send, master | Planned | #128 native reverb | First implementation should be deterministic and bounded; convolution is deferred. |
+| Reverb | Track insert, send, master | Implemented | #128 native reverb | Deterministic bounded Schroeder-style reverb; convolution is deferred. |
 | Distortion, cabinet, lo-fi, bit reduction | Track insert, sampler-local | Planned | #129 native drive and degradation effects | Clip/soft-clip and bit/sample-rate reduction are baseline; cabinet/convolution deferred. |
 | Chorus, flanger, phaser, tremolo, ring modulation, autopan | Track insert, master | Planned | #130 native modulation effects | All LFO-driven devices must share deterministic phase/reset behavior for offline and realtime. |
 | Compressor, gate, limiter, maximizer | Track insert, master | Planned | #131 native dynamics effects | Sidechain/key input is deferred until send/routing foundations are real. |
@@ -194,18 +194,37 @@ Purpose: provide a bounded deterministic room/plate-style space effect.
 
 | Device | ID | Placements | Status | Bypass | Wet/dry | Latency | Tail |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Reverb | `native.effect.reverb` | track insert, send, master | Planned | input passthrough; reverb tank muted | yes | 0 | yes |
+| Stereo Reverb | `native.effect.reverb` | track insert, send, master | Implemented | input passthrough; reverb tank muted | yes | 0 | yes |
 
 | Parameter | Type | Range / choices | Default | Step | Unit | Flags |
 | --- | --- | --- | --- | --- | --- | --- |
-| `native.reverb.algorithm` | `Enum` | `room`, `hall`, `plate` | `room` | stepped | none | automatable, stepped |
-| `native.reverb.size` | `PlainFloat` | `0.0..=1.0` | `0.5` | `0.001` | normalized | automatable |
-| `native.reverb.decay_seconds` | `PlainFloat` | `0.1..=20.0` | `2.5` | `0.01` | seconds | automatable, logarithmic |
-| `native.reverb.pre_delay_ms` | `PlainFloat` | `0.0..=250.0` | `20.0` | `0.1` | milliseconds | automatable |
-| `native.reverb.damping` | `PlainFloat` | `0.0..=1.0` | `0.35` | `0.001` | normalized | automatable |
-| `native.reverb.width` | `PlainFloat` | `0.0..=1.0` | `1.0` | `0.001` | percent | automatable |
-| `native.reverb.wet` | `PlainFloat` | `0.0..=1.0` | `0.25` | `0.001` | percent | automatable |
-| `native.reverb.dry` | `PlainFloat` | `0.0..=1.0` | `1.0` | `0.001` | percent | automatable |
+| `native.reverb.size` | `Percentage` | `0.0..=1.0` | `0.5` | `0.001` | percent | automatable |
+| `native.reverb.predelayMs` | `PlainFloat` | `0.0..=250.0` | `20.0` | `0.1` | milliseconds | automatable |
+| `native.reverb.decayS` | `Seconds` | `0.1..=30.0` | `2.5` | `0.01` | seconds | automatable, logarithmic |
+| `native.reverb.damping` | `Percentage` | `0.0..=1.0` | `0.5` | `0.001` | percent | automatable |
+| `native.reverb.lowCutHz` | `FrequencyHertz` | `20.0..=2000.0` | `100.0` | `0.1` | hertz | automatable, logarithmic |
+| `native.reverb.highCutHz` | `FrequencyHertz` | `1000.0..=20000.0` | `16000.0` | `0.1` | hertz | automatable, logarithmic |
+| `native.reverb.diffusion` | `Percentage` | `0.0..=1.0` | `0.75` | `0.001` | percent | automatable |
+| `native.reverb.width` | `Percentage` | `0.0..=2.0` | `1.0` | `0.001` | percent | automatable |
+| `native.reverb.earlyReflections` | `Percentage` | `0.0..=1.0` | `0.5` | `0.001` | percent | automatable |
+| `native.reverb.mix` | `Percentage` | `0.0..=1.0` | `0.25` | `0.001` | percent | automatable |
+| `native.reverb.outputDb` | `Decibels` | `-60.0..=12.0` | `0.0` | `0.1` | decibels | automatable |
+
+Implementation notes:
+
+- The first reverb is a deterministic bounded Schroeder-style design: one
+  bounded predelay line feeds eight bounded feedback lines with damping,
+  diffusion, early-reflection blend, wet tonal shaping, stereo width, wet/dry
+  mix, and output gain.
+- Maximum predelay is 250 ms; each tank line is bounded to 500 ms at the active
+  sample rate. The frame loop does not allocate, lock, log, or touch the
+  filesystem after `prepare`.
+- `decayS` drives the feedback coefficient from an RT60-style estimate and is
+  capped so the tank remains stable. Reset clears the tank and tail; bypass
+  passes input through and does not emit stored tail.
+- Offline and realtime renders share the same DSP implementation and are covered
+  by matching fixtures. Convolution, algorithm selection, and true send-return
+  wet-only presets remain follow-up scope after the routing graph in #84.
 
 ### #129 Native Drive And Degradation Effects
 
