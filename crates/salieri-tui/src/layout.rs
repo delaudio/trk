@@ -63,6 +63,32 @@ pub enum TrackerLayoutPreset {
     Studio,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PatternFieldLayout {
+    #[default]
+    Full,
+    Note,
+    Instrument,
+    Fx,
+    NoteInstrument,
+    NoteFx,
+    InstrumentFx,
+}
+
+impl PatternFieldLayout {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Full => "full",
+            Self::Note => "note",
+            Self::Instrument => "instrument",
+            Self::Fx => "fx",
+            Self::NoteInstrument => "note+instrument",
+            Self::NoteFx => "note+fx",
+            Self::InstrumentFx => "instrument+fx",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TrackerLayoutState {
     pub preset: TrackerLayoutPreset,
@@ -74,6 +100,7 @@ pub struct TrackerLayoutState {
     pub inspector_width: u16,
     pub track_desk_height: u16,
     pub active_panel: ManagedPanelId,
+    pub pattern_fields: PatternFieldLayout,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -139,6 +166,7 @@ impl TrackerLayoutState {
                 inspector_width: 34,
                 track_desk_height: 8,
                 active_panel: ManagedPanelId::Pattern,
+                pattern_fields: PatternFieldLayout::Full,
             },
             TrackerLayoutPreset::Balanced => Self {
                 preset,
@@ -150,6 +178,7 @@ impl TrackerLayoutState {
                 inspector_width: 36,
                 track_desk_height: 10,
                 active_panel: ManagedPanelId::Pattern,
+                pattern_fields: PatternFieldLayout::Full,
             },
             TrackerLayoutPreset::Studio => Self {
                 preset,
@@ -161,6 +190,7 @@ impl TrackerLayoutState {
                 inspector_width: 42,
                 track_desk_height: 10,
                 active_panel: ManagedPanelId::Pattern,
+                pattern_fields: PatternFieldLayout::Full,
             },
         }
     }

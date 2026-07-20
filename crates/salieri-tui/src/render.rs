@@ -47,7 +47,10 @@ use salieri_core::{
 };
 use salieri_sampler::{WaveformBucket, WaveformOverview};
 
-use crate::{resolve_tracker_layout, TrackerLayoutPreset, TrackerLayoutState, ViewportAxis};
+use crate::{
+    resolve_tracker_layout, PatternFieldLayout, TrackerLayoutPreset, TrackerLayoutState,
+    ViewportAxis,
+};
 use browser_views::{render_project_browser, render_sample_browser};
 use help_overlay::render_help_overlay;
 use modal_overlays::{
@@ -1997,6 +2000,7 @@ fn render_pattern(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiStat
         song,
         state.cursor.track,
         viewport.visible_tracks.clone(),
+        state.tracker_layout.pattern_fields,
     ));
 
     let row_state = PatternRowRenderState {
@@ -2008,6 +2012,7 @@ fn render_pattern(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiStat
         pattern_divider_interval: state.pattern_divider_interval,
         pattern_highlight_interval: state.pattern_highlight_interval,
         visible_tracks: viewport.visible_tracks,
+        field_layout: state.tracker_layout.pattern_fields,
     };
 
     for row_index in viewport.visible_rows {
@@ -2016,10 +2021,11 @@ fn render_pattern(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiStat
 
     let title = if state.show_pattern_top_info {
         format!(
-            " Pattern Editor: {} | rows={} | tracks={} ",
+            " Pattern Editor: {} | rows={} | tracks={} | fields={} ",
             pattern.name,
             pattern.row_count(),
-            song.tracks.len()
+            song.tracks.len(),
+            state.tracker_layout.pattern_fields.label()
         )
     } else {
         " Pattern Editor ".to_string()
@@ -2044,7 +2050,8 @@ fn pattern_viewport(
 ) -> PatternViewport {
     let inner_height = area.height.saturating_sub(2) as usize;
     let row_capacity = inner_height.saturating_sub(1);
-    let visible_track_capacity = visible_pattern_tracks(area.width);
+    let visible_track_capacity =
+        visible_pattern_tracks(area.width, state.tracker_layout.pattern_fields);
 
     let mut rows = ViewportAxis::with_offset(row_count, row_capacity, state.row_offset);
     rows.keep_visible(state.cursor.row);
@@ -2063,18 +2070,26 @@ fn active_pattern(song: &Song, pattern_index: usize) -> Option<&Pattern> {
     song.pattern(pattern_index)
 }
 
-fn visible_pattern_tracks(area_width: u16) -> usize {
+fn visible_pattern_tracks(area_width: u16, field_layout: PatternFieldLayout) -> usize {
     let content_width = area_width
         .saturating_sub(2)
         .saturating_sub(ROW_GUTTER_WIDTH as u16);
-    (content_width as usize).div_ceil(PATTERN_CELL_WIDTH).max(1)
+    (content_width as usize)
+        .div_ceil(pattern_cell_width(field_layout))
+        .max(1)
 }
 
-fn pattern_header(song: &Song, active_track: usize, visible_tracks: Range<usize>) -> Line<'static> {
+fn pattern_header(
+    song: &Song,
+    active_track: usize,
+    visible_tracks: Range<usize>,
+    field_layout: PatternFieldLayout,
+) -> Line<'static> {
     let mut spans = vec![Span::styled(
         format!("{:<ROW_GUTTER_WIDTH$}", "ROW"),
         Style::default().fg(Color::DarkGray),
     )];
+    let cell_width = pattern_cell_width(field_layout);
 
     for (track_index, track) in song
         .tracks
@@ -2085,10 +2100,7 @@ fn pattern_header(song: &Song, active_track: usize, visible_tracks: Range<usize>
     {
         let is_active = track_index == active_track;
         spans.push(Span::styled(
-            format!(
-                "{:^PATTERN_CELL_WIDTH$}",
-                truncate(&track.name, PATTERN_CELL_WIDTH)
-            ),
+            format!("{:^cell_width$}", truncate(&track.name, cell_width)),
             if is_active {
                 Style::default()
                     .fg(Color::Black)
@@ -2114,6 +2126,7 @@ struct PatternRowRenderState {
     pattern_divider_interval: usize,
     pattern_highlight_interval: usize,
     visible_tracks: Range<usize>,
+    field_layout: PatternFieldLayout,
 }
 
 fn pattern_row(
@@ -2168,6 +2181,7 @@ fn pattern_row(
             is_selected,
             is_playhead,
             is_active_track,
+            state.field_layout,
         ));
     }
 
@@ -2208,6 +2222,7 @@ fn cell_spans(
     selected: bool,
     playing: bool,
     active_track: bool,
+    field_layout: PatternFieldLayout,
 ) -> Vec<Span<'static>> {
     let note = match cell.note {
         Some(NoteEvent::Note { pitch }) => format_note(pitch),
@@ -2276,24 +2291,66 @@ fn cell_spans(
         normal
     };
 
-    vec![
-        Span::styled(" ", spacer_style),
-        Span::styled(note, style_for_field(CellField::Note)),
-        Span::styled(" ", spacer_style),
-        Span::styled(velocity, style_for_field(CellField::Velocity)),
-        Span::styled(" ", spacer_style),
-        Span::styled(instrument, style_for_field(CellField::Instrument)),
-        Span::styled(" ", spacer_style),
-        Span::styled(volume, style_for_field(CellField::Volume)),
-        Span::styled(" ", spacer_style),
-        Span::styled(pan, style_for_field(CellField::Pan)),
-        Span::styled(" ", spacer_style),
-        Span::styled(delay, style_for_field(CellField::Delay)),
-        Span::styled(" ", spacer_style),
-        Span::styled(command, style_for_field(CellField::Effect)),
-        Span::styled(" ", spacer_style),
-        Span::styled(command2, style_for_field(CellField::Effect2)),
-    ]
+    let mut spans = Vec::new();
+    let mut used_width = 0;
+    let mut push_field = |value: String, field: CellField| {
+        spans.push(Span::styled(" ", spacer_style));
+        spans.push(Span::styled(value.clone(), style_for_field(field)));
+        used_width += 1 + value.len();
+    };
+
+    match field_layout {
+        PatternFieldLayout::Full => {
+            push_field(note, CellField::Note);
+            push_field(velocity, CellField::Velocity);
+            push_field(instrument, CellField::Instrument);
+            push_field(volume, CellField::Volume);
+            push_field(pan, CellField::Pan);
+            push_field(delay, CellField::Delay);
+            push_field(command, CellField::Effect);
+            push_field(command2, CellField::Effect2);
+        }
+        PatternFieldLayout::Note => push_field(note, CellField::Note),
+        PatternFieldLayout::Instrument => push_field(instrument, CellField::Instrument),
+        PatternFieldLayout::Fx => {
+            push_field(command, CellField::Effect);
+            push_field(command2, CellField::Effect2);
+        }
+        PatternFieldLayout::NoteInstrument => {
+            push_field(note, CellField::Note);
+            push_field(instrument, CellField::Instrument);
+        }
+        PatternFieldLayout::NoteFx => {
+            push_field(note, CellField::Note);
+            push_field(command, CellField::Effect);
+            push_field(command2, CellField::Effect2);
+        }
+        PatternFieldLayout::InstrumentFx => {
+            push_field(instrument, CellField::Instrument);
+            push_field(command, CellField::Effect);
+            push_field(command2, CellField::Effect2);
+        }
+    }
+    let cell_width = pattern_cell_width(field_layout);
+    if field_layout != PatternFieldLayout::Full && used_width < cell_width {
+        spans.push(Span::styled(
+            " ".repeat(cell_width - used_width),
+            spacer_style,
+        ));
+    }
+    spans
+}
+
+fn pattern_cell_width(field_layout: PatternFieldLayout) -> usize {
+    match field_layout {
+        PatternFieldLayout::Full => PATTERN_CELL_WIDTH,
+        PatternFieldLayout::Note => 5,
+        PatternFieldLayout::Instrument => 4,
+        PatternFieldLayout::Fx => 9,
+        PatternFieldLayout::NoteInstrument => 8,
+        PatternFieldLayout::NoteFx => 13,
+        PatternFieldLayout::InstrumentFx => 12,
+    }
 }
 
 fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
@@ -2365,11 +2422,17 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
             state.mode_label
         )
     } else {
+        let field_segment = if state.tracker_layout.pattern_fields == PatternFieldLayout::Full {
+            String::new()
+        } else {
+            format!(" | Fields {}", state.tracker_layout.pattern_fields.label())
+        };
         format!(
-            " {}{} | Step {} | Ctrl+P Palette | H Help | Focus :t/:p/:se/:tr/:sa/:sb/:o | F4-MIDI | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern | A/Y/R Seq | : Command | i Edit | V Select | Ctrl+S Save | q Quit ",
+            " {}{} | Step {}{} | Ctrl+P Palette | H Help | Focus :t/:p/:se/:tr/:sa/:sb/:o | F4-MIDI | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern | A/Y/R Seq | : Command | i Edit | V Select | Ctrl+S Save | q Quit ",
             state.mode_label,
             if state.selection.is_some() { " SEL" } else { "" },
-            state.edit_step
+            state.edit_step,
+            field_segment
         )
     };
     let status = Paragraph::new(text);

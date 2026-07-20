@@ -170,3 +170,6 @@ named presets. `:layout show PANEL`, `:layout hide PANEL`, and
 `:layout toggle PANEL` manage representative panels (`tracks`, `sequence`,
 `inspector`, `track-desk`). `:layout resize PANEL +/-N` adjusts the stored
 runtime size for the left stack, inspector, or track desk.
+`:layout fields full|note|instrument|fx|note-instrument|note-fx|instrument-fx`
+switches the pattern grid between full cells and focused field views that fit
+more tracks on screen while preserving the current cursor and scroll offsets.

@@ -77,6 +77,7 @@ fn pattern_divider_and_highlight_intervals_style_row_gutter() {
         pattern_divider_interval: 4,
         pattern_highlight_interval: 16,
         visible_tracks: 0..1,
+        field_layout: PatternFieldLayout::Full,
     };
 
     assert_eq!(pattern_row_gutter_style(16, &state).fg, Some(Color::Yellow));

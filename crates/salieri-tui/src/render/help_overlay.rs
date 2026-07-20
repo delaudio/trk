@@ -259,6 +259,9 @@ fn help_command_lines(mode_label: &str) -> Vec<Line<'static>> {
             "  Panel focus: :t tracker   :p patterns   :se sequence   :tr tracks   :sa sampler",
         ),
         Line::from("  :layout compact|balanced|studio   :layout toggle inspector"),
+        Line::from(
+            "  :layout fields full|note|instrument|fx|note-instrument|note-fx|instrument-fx",
+        ),
         Line::from("  Dirty quit asks: [Y]es save, [N]o quit, [C]ancel"),
         Line::from("  :track new   :track duplicate 2   :track delete 2   :track move 2 3"),
         Line::from("  :track mute 2   :track solo 2   :track rename Acid Bass"),
