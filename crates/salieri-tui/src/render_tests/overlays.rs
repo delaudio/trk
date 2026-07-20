@@ -37,6 +37,7 @@ fn renders_help_overlay_when_requested() {
                     quit_confirmation: false,
                     delete_confirmation: None,
                     midi_settings: None,
+                    command_palette: None,
                     sampler_view: None,
                     sample_browser: None,
                     project_browser: None,
@@ -59,6 +60,87 @@ fn renders_help_overlay_when_requested() {
     assert!(rendered.contains("Commands"));
     assert!(rendered.contains("Navigation"));
     assert!(rendered.contains("Tab/Right next page"));
+}
+
+#[test]
+fn renders_command_palette_overlay() {
+    let song = Song::empty();
+    let backend = TestBackend::new(100, 32);
+    let mut terminal = Terminal::new(backend).expect("test terminal");
+    let entries = [
+        CommandPaletteEntryView {
+            title: "Open Sampler View",
+            category: "View",
+            command: "sampler",
+            shortcut: Some("Ctrl+J"),
+            disabled_reason: None,
+            recent: true,
+        },
+        CommandPaletteEntryView {
+            title: "Stop Playback",
+            category: "Transport",
+            command: "stop",
+            shortcut: Some("F8"),
+            disabled_reason: Some("Playback is stopped"),
+            recent: false,
+        },
+    ];
+
+    terminal
+        .draw(|frame| {
+            render(
+                frame,
+                &song,
+                TuiState {
+                    cursor: Cursor::new(),
+                    row_offset: 0,
+                    track_offset: 0,
+                    pattern_index: 0,
+                    active_view: TuiView::Pattern,
+                    selection: None,
+                    mode_label: "PALETTE",
+                    octave: 4,
+                    dirty: false,
+                    show_line_numbers_hex: false,
+                    command_line: None,
+                    notification: None,
+                    show_help: false,
+                    help_scroll: 0,
+                    help_tab: HelpTab::Basics,
+                    is_playing: false,
+                    loop_pattern: true,
+                    playhead_row: None,
+                    midi_status: "MIDI Disconnected",
+                    sequence_position: None,
+                    quit_confirmation: false,
+                    delete_confirmation: None,
+                    midi_settings: None,
+                    command_palette: Some(CommandPaletteViewState {
+                        query: "sam",
+                        entries: &entries,
+                        selected: 0,
+                    }),
+                    sampler_view: None,
+                    sample_browser: None,
+                    project_browser: None,
+                },
+            );
+        })
+        .expect("draw");
+
+    let rendered = terminal
+        .backend()
+        .buffer()
+        .content
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect::<String>();
+
+    assert!(rendered.contains("Command Palette"));
+    assert!(rendered.contains("Search: sam"));
+    assert!(rendered.contains("Open Sampler View"));
+    assert!(rendered.contains("Ctrl+J"));
+    assert!(rendered.contains("Playback is stopped"));
 }
 
 #[test]
@@ -101,6 +183,7 @@ fn renders_playhead_when_playing() {
                     quit_confirmation: false,
                     delete_confirmation: None,
                     midi_settings: None,
+                    command_palette: None,
                     sampler_view: None,
                     sample_browser: None,
                     project_browser: None,
@@ -158,6 +241,7 @@ fn renders_hex_line_numbers_when_enabled() {
                     quit_confirmation: false,
                     delete_confirmation: None,
                     midi_settings: None,
+                    command_palette: None,
                     sampler_view: None,
                     sample_browser: None,
                     project_browser: None,
@@ -215,6 +299,7 @@ fn renders_status_notification() {
                     quit_confirmation: false,
                     delete_confirmation: None,
                     midi_settings: None,
+                    command_palette: None,
                     sampler_view: None,
                     sample_browser: None,
                     project_browser: None,
@@ -270,6 +355,7 @@ fn renders_quit_confirmation_overlay() {
                     quit_confirmation: true,
                     delete_confirmation: None,
                     midi_settings: None,
+                    command_palette: None,
                     sampler_view: None,
                     sample_browser: None,
                     project_browser: None,
@@ -325,6 +411,7 @@ fn renders_delete_confirmation_overlay() {
                     quit_confirmation: false,
                     delete_confirmation: Some("Delete track 02 Bass?"),
                     midi_settings: None,
+                    command_palette: None,
                     sampler_view: None,
                     sample_browser: None,
                     project_browser: None,
@@ -394,6 +481,7 @@ fn renders_midi_settings_overlay() {
                         selected_port: 1,
                         status: "MIDI Disconnected",
                     }),
+                    command_palette: None,
                     sampler_view: None,
                     sample_browser: None,
                     project_browser: None,

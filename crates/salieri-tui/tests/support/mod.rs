@@ -30,6 +30,7 @@ pub fn test_state<'a>() -> TuiState<'a> {
         quit_confirmation: false,
         delete_confirmation: None,
         midi_settings: None,
+        command_palette: None,
         sampler_view: None,
         sample_browser: None,
         project_browser: None,

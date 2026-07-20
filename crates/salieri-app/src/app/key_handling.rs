@@ -6,7 +6,7 @@ impl App {
             self.dispatch_intent(AppIntent::Command(command));
             return;
         }
-        if self.handle_control_key(key) {
+        if self.mode != AppMode::CommandPalette && self.handle_control_key(key) {
             return;
         }
 
@@ -14,6 +14,7 @@ impl App {
             AppMode::Normal => self.handle_normal_key(key),
             AppMode::Edit => self.handle_edit_key(key),
             AppMode::Command => self.handle_command_key(key),
+            AppMode::CommandPalette => self.handle_command_palette_key(key),
             AppMode::Help => self.handle_help_key(key),
             AppMode::Dialog => self.handle_dialog_key(key),
             AppMode::MidiSettings => self.handle_midi_settings_key(key),
@@ -40,6 +41,7 @@ impl App {
             AppMode::SampleBrowser => self.move_sample_browser_cursor(delta),
             AppMode::ProjectBrowser => self.move_project_browser_cursor(delta),
             AppMode::Sampler => self.pan_sample_waveform(delta.signum()),
+            AppMode::CommandPalette => self.move_command_palette_selection(delta),
             AppMode::Normal | AppMode::Edit => {
                 self.cursor.row = self
                     .cursor
@@ -119,6 +121,12 @@ impl App {
             }
             KeyCode::Char('y') | KeyCode::Char('Y') => {
                 self.redo();
+                true
+            }
+            KeyCode::Char('p') | KeyCode::Char('P')
+                if !key.modifiers.contains(KeyModifiers::SHIFT) =>
+            {
+                self.open_command_palette();
                 true
             }
             KeyCode::Char('p') | KeyCode::Char('P')

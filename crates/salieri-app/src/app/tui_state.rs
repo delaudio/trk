@@ -66,6 +66,36 @@ impl App {
         })
     }
 
+    pub(crate) fn tui_command_palette_entries(&self) -> Vec<CommandPaletteEntryView<'_>> {
+        self.command_palette_results()
+            .into_iter()
+            .map(|result| CommandPaletteEntryView {
+                title: result.action.title,
+                category: result.action.category,
+                command: result.action.command_label(),
+                shortcut: result.action.shortcut,
+                disabled_reason: result.disabled_reason,
+                recent: self
+                    .command_palette_recent
+                    .iter()
+                    .any(|recent| recent == result.action.id),
+            })
+            .collect()
+    }
+
+    pub(crate) fn tui_command_palette<'a>(
+        &'a self,
+        entries: &'a [CommandPaletteEntryView<'a>],
+    ) -> Option<CommandPaletteViewState<'a>> {
+        (self.mode == AppMode::CommandPalette).then_some(CommandPaletteViewState {
+            query: self.command_palette_query.as_str(),
+            entries,
+            selected: self
+                .command_palette_selected
+                .min(entries.len().saturating_sub(1)),
+        })
+    }
+
     pub(crate) fn tui_sampler_view(&self) -> Option<SamplerViewState<'_>> {
         self.sample_view.as_ref().map(|sample| {
             let sample_path = sample.source_path.to_string_lossy();

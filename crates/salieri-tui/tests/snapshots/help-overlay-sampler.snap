@@ -33,4 +33,4 @@
 │     └──────────────────────────────────────────────────────────────────────────────────────────────────────────▼gned │
 │                         ││█████───── auto       Sends 00   FX 00                                ││                   │
 └─────────────────────────┘└──────────────────────────────────────────────────────────────────────┘└───────────────────┘
- HELP | H Help | Focus :t/:p/:se/:tr/:sa/:sb/:o | F4 MIDI | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P
+ HELP | Ctrl+P Palette | H Help | Focus :t/:p/:se/:tr/:sa/:sb/:o | F4-MIDI | Space Play/Stop | Enter Row | Shift+Enter S

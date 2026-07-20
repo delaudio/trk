@@ -33,7 +33,7 @@ profile = "studio"
 
 [keymap.normal]
 q = "bpm 150"
-"ctrl+p" = "play pattern"
+"ctrl+k" = "play pattern"
 
 [keymap.edit]
 "shift+q" = "stop"
@@ -46,6 +46,10 @@ Commands use the same typed syntax as command mode, with or without the leading
 colon. Invalid or empty commands stop startup with a configuration diagnostic.
 Opening the in-app help shows a short summary of the active custom binding
 metadata in the notification bar.
+
+`Ctrl+P` opens the built-in command palette in normal TUI modes. A custom
+binding may override it in a specific keymap layer, but the default behavior is
+reserved for searching and executing registered actions.
 
 ## Key Syntax
 

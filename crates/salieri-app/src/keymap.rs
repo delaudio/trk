@@ -85,6 +85,7 @@ pub enum KeymapMode {
     Normal,
     Edit,
     Command,
+    CommandPalette,
     Help,
     Dialog,
     MidiSettings,

@@ -58,6 +58,7 @@ impl FocusPanel {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FocusCapture {
     Command,
+    CommandPalette,
     Help,
     Dialog,
 }

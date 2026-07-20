@@ -84,6 +84,7 @@ pub struct TuiState<'a> {
     pub quit_confirmation: bool,
     pub delete_confirmation: Option<&'a str>,
     pub midi_settings: Option<MidiSettingsState<'a>>,
+    pub command_palette: Option<CommandPaletteViewState<'a>>,
     pub sampler_view: Option<SamplerViewState<'a>>,
     pub sample_browser: Option<SampleBrowserViewState<'a>>,
     pub project_browser: Option<ProjectBrowserViewState<'a>>,
@@ -98,6 +99,23 @@ pub enum TuiView {
     Sampler,
     SampleBrowser,
     ProjectBrowser,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CommandPaletteViewState<'a> {
+    pub query: &'a str,
+    pub entries: &'a [CommandPaletteEntryView<'a>],
+    pub selected: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CommandPaletteEntryView<'a> {
+    pub title: &'a str,
+    pub category: &'a str,
+    pub command: &'a str,
+    pub shortcut: Option<&'a str>,
+    pub disabled_reason: Option<&'a str>,
+    pub recent: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -335,6 +353,9 @@ pub fn render(frame: &mut Frame<'_>, song: &Song, state: TuiState<'_>) {
     }
     if let Some(midi_settings) = state.midi_settings {
         render_midi_settings_overlay(frame, area, midi_settings);
+    }
+    if let Some(command_palette) = state.command_palette {
+        render_command_palette_overlay(frame, area, command_palette);
     }
     if state.quit_confirmation {
         render_quit_confirmation(frame, area);
@@ -2489,7 +2510,7 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
         )
     } else {
         format!(
-            " {}{} | H Help | Focus :t/:p/:se/:tr/:sa/:sb/:o | F4 MIDI | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern | A/Y/R Seq | {{/}} Track | : Command | i Edit | V Select | Ctrl+S Save | q Quit ",
+            " {}{} | Ctrl+P Palette | H Help | Focus :t/:p/:se/:tr/:sa/:sb/:o | F4-MIDI | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern | A/Y/R Seq | : Command | i Edit | V Select | Ctrl+S Save | q Quit ",
             state.mode_label,
             if state.selection.is_some() { " SEL" } else { "" }
         )
@@ -2586,7 +2607,10 @@ fn help_basics_lines(mode_label: &str) -> Vec<Line<'static>> {
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
         )),
-        Line::from("  ?/H Help   :h/:help Help   q Quit   Space Play/Stop   Shift+Space Start"),
+        Line::from(
+            "  Ctrl+P Command Palette   ?/H Help   :h/:help Help   q Quit   Space Play/Stop",
+        ),
+        Line::from("  Shift+Space Start"),
         Line::from("  Enter Play Row   Shift+Enter Play Sequence From Cursor   L Loop   F8 Stop"),
         Line::from("  F7 Sequence View   F9 Track View   F10 Pattern View   Ctrl+J Sampler View"),
         Line::from("  :t Tracker   :p Patterns   :se Sequence   :tr Tracks   :sa Sampler   :sb Browser"),
@@ -2817,6 +2841,88 @@ fn render_midi_settings_overlay(
         )
         .wrap(Wrap { trim: true })
         .style(Style::default().fg(Color::White));
+    frame.render_widget(Clear, overlay);
+    frame.render_widget(paragraph, overlay);
+}
+
+fn render_command_palette_overlay(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    palette: CommandPaletteViewState<'_>,
+) {
+    let overlay = centered_rect(86, 20, area);
+    let visible_rows = overlay.height.saturating_sub(6) as usize;
+    let selected = palette
+        .selected
+        .min(palette.entries.len().saturating_sub(1));
+    let start = selected.saturating_sub(visible_rows.saturating_sub(1));
+    let mut lines = vec![
+        Line::from(vec![
+            Span::styled(" Search: ", Style::default().fg(Color::Cyan)),
+            Span::styled(
+                if palette.query.is_empty() {
+                    "<type to filter>".to_string()
+                } else {
+                    palette.query.to_string()
+                },
+                Style::default().fg(Color::White),
+            ),
+        ]),
+        Line::from(""),
+    ];
+
+    if palette.entries.is_empty() {
+        lines.push(Line::from("  No matching actions"));
+    } else {
+        for (row, entry) in palette
+            .entries
+            .iter()
+            .enumerate()
+            .skip(start)
+            .take(visible_rows)
+        {
+            let selected_row = row == selected;
+            let disabled = entry.disabled_reason.is_some();
+            let base_style = if disabled {
+                Style::default().fg(Color::DarkGray)
+            } else if selected_row {
+                Style::default()
+                    .fg(Color::Black)
+                    .bg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::White)
+            };
+            let marker = if selected_row { ">" } else { " " };
+            let recent = if entry.recent { " recent" } else { "" };
+            let shortcut = entry.shortcut.unwrap_or("");
+            let detail = entry
+                .disabled_reason
+                .map_or_else(|| entry.command.to_string(), |reason| reason.to_string());
+            lines.push(Line::from(vec![
+                Span::styled(format!("{marker} "), base_style),
+                Span::styled(
+                    format!("{:<11}", entry.category),
+                    base_style.fg(Color::Cyan),
+                ),
+                Span::styled(format!("{:<28}", entry.title), base_style),
+                Span::styled(format!("{:<14}", shortcut), base_style.fg(Color::Green)),
+                Span::styled(detail, base_style.fg(Color::Gray)),
+                Span::styled(recent, base_style.fg(Color::Magenta)),
+            ]));
+        }
+    }
+    lines.push(Line::from(""));
+    lines.push(Line::from("  Enter execute   Esc cancel   ↑/↓ navigate"));
+
+    let paragraph = Paragraph::new(lines)
+        .block(
+            Block::default()
+                .title(" Command Palette ")
+                .borders(Borders::ALL),
+        )
+        .style(Style::default().fg(Color::White))
+        .wrap(Wrap { trim: true });
     frame.render_widget(Clear, overlay);
     frame.render_widget(paragraph, overlay);
 }

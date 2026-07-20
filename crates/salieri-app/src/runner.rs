@@ -100,6 +100,8 @@ fn run(args: CliArgs) -> Result<()> {
             let sample_browser = app.tui_sample_browser_view(&sample_browser_entries);
             let project_browser_entries = app.tui_project_browser_entries();
             let project_browser = app.tui_project_browser_view(&project_browser_entries);
+            let command_palette_entries = app.tui_command_palette_entries();
+            let command_palette = app.tui_command_palette(&command_palette_entries);
             let midi_status = app.tui_midi_status();
             render(
                 frame,
@@ -128,6 +130,7 @@ fn run(args: CliArgs) -> Result<()> {
                     quit_confirmation: app.quit_confirmation(),
                     delete_confirmation: app.delete_confirmation_message(),
                     midi_settings,
+                    command_palette,
                     sampler_view: app.tui_sampler_view(),
                     sample_browser,
                     project_browser,
