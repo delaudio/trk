@@ -4,6 +4,7 @@ mod effect_parameters;
 mod model_validation;
 mod parameter_locks;
 mod selection;
+mod tracker_effects;
 
 pub mod model;
 pub mod native_module;
@@ -31,3 +32,8 @@ pub use playback::{
     PlaybackPosition, SamplerPlaybackEvent,
 };
 pub use selection::{SelectionBounds, SelectionEndpoint, SelectionShape, TrackerSelection};
+pub use tracker_effects::{
+    parse_tracker_command, tracker_command_spec, tracker_command_specs, TrackerCommandDiagnostic,
+    TrackerCommandDiagnosticKind, TrackerCommandDomain, TrackerCommandParseError,
+    TrackerCommandSlot, TrackerCommandSpec, TrackerCommandSupport,
+};

@@ -15,7 +15,10 @@ impl App {
                 };
                 let value = chars.collect::<String>();
                 if let Some(value) = parse_hex_byte(&value) {
-                    self.set_current_fx(Some(TrackerCommand::from_code_char(code, value)));
+                    let Some(command) = self.parse_current_fx(code, value) else {
+                        return;
+                    };
+                    self.set_current_fx(Some(command));
                     self.notify_success(format!("Effect {}{value:02X}", code.to_ascii_uppercase()));
                 } else {
                     self.notify_warning("Usage: :fx CODE VALUE");
@@ -27,7 +30,10 @@ impl App {
                     return;
                 };
                 if let Some(value) = parse_hex_byte(value) {
-                    self.set_current_fx(Some(TrackerCommand::from_code_char(code, value)));
+                    let Some(command) = self.parse_current_fx(code, value) else {
+                        return;
+                    };
+                    self.set_current_fx(Some(command));
                     self.notify_success(format!("Effect {}{value:02X}", code.to_ascii_uppercase()));
                 } else {
                     self.notify_warning("Usage: :fx CODE VALUE");
@@ -51,10 +57,10 @@ impl App {
                 };
                 let value = chars.collect::<String>();
                 if let Some(value) = parse_hex_byte(&value) {
-                    self.set_current_fx_slot(
-                        Some(TrackerCommand::from_code_char(code, value)),
-                        CellField::Effect2,
-                    );
+                    let Some(command) = self.parse_current_fx(code, value) else {
+                        return;
+                    };
+                    self.set_current_fx_slot(Some(command), CellField::Effect2);
                     self.notify_success(format!("FX2 {}{value:02X}", code.to_ascii_uppercase()));
                 } else {
                     self.notify_warning("Usage: :fx2 CODE VALUE");
@@ -66,10 +72,10 @@ impl App {
                     return;
                 };
                 if let Some(value) = parse_hex_byte(value) {
-                    self.set_current_fx_slot(
-                        Some(TrackerCommand::from_code_char(code, value)),
-                        CellField::Effect2,
-                    );
+                    let Some(command) = self.parse_current_fx(code, value) else {
+                        return;
+                    };
+                    self.set_current_fx_slot(Some(command), CellField::Effect2);
                     self.notify_success(format!("FX2 {}{value:02X}", code.to_ascii_uppercase()));
                 } else {
                     self.notify_warning("Usage: :fx2 CODE VALUE");
@@ -100,6 +106,16 @@ impl App {
                 }
             }
         });
+    }
+
+    fn parse_current_fx(&mut self, code: char, value: u8) -> Option<TrackerCommand> {
+        match parse_tracker_command(code, value) {
+            Ok(command) => Some(command),
+            Err(error) => {
+                self.notify_warning(error.to_string());
+                None
+            }
+        }
     }
 
     pub(crate) fn handle_cell_command(&mut self, values: &[&str]) {
@@ -173,8 +189,11 @@ impl App {
                     return;
                 };
                 if let Some(value) = parse_cell_byte(value) {
+                    let Some(command) = self.parse_current_fx(code, value) else {
+                        return;
+                    };
                     self.set_current_cell_field(|cell| {
-                        cell.command = Some(TrackerCommand::from_code_char(code, value));
+                        cell.command = Some(command);
                     });
                     self.notify_success(format!("FX1 {}{value:02X}", code.to_ascii_uppercase()));
                 } else {
@@ -187,8 +206,11 @@ impl App {
                     return;
                 };
                 if let Some(value) = parse_cell_byte(value) {
+                    let Some(command) = self.parse_current_fx(code, value) else {
+                        return;
+                    };
                     self.set_current_cell_field(|cell| {
-                        cell.command2 = Some(TrackerCommand::from_code_char(code, value));
+                        cell.command2 = Some(command);
                     });
                     self.notify_success(format!("FX2 {}{value:02X}", code.to_ascii_uppercase()));
                 } else {

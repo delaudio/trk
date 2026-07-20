@@ -1,8 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
 use salieri_core::{
-    EffectDevice, Instrument, InstrumentId, NoteEvent, PatternCell, SampleEnvelope,
-    SamplePlaybackMode, SampleReference, Song, TrackerCommand,
+    tracker_command_spec, EffectDevice, Instrument, InstrumentId, NoteEvent, PatternCell,
+    SampleEnvelope, SamplePlaybackMode, SampleReference, Song, TrackerCommand,
+    TrackerCommandSupport,
 };
 
 use crate::diagnostics::{
@@ -208,10 +209,9 @@ pub(super) fn parse_xrns_import_model(
                                 code,
                                 value: line.effect_value.take().unwrap_or(0),
                             };
-                            if !matches!(
-                                code,
-                                TrackerCommand::DELAY_CODE | TrackerCommand::RETRIGGER_CODE
-                            ) {
+                            if tracker_command_spec(code)
+                                .is_none_or(|spec| spec.support != TrackerCommandSupport::Supported)
+                            {
                                 diagnostics.push(xrns_diagnostic(
                                     XrnsDiagnosticKind::UnsupportedEffectCommand,
                                     XrnsDiagnosticSeverity::Warning,
