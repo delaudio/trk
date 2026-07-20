@@ -100,6 +100,7 @@ impl App {
             recent_projects,
             recent_project_limit: config.workspace.recent_project_limit,
             config_metadata: config.metadata.clone(),
+            ai_config: config.ai.clone(),
             project_browser_view: None,
             pending_ai_proposal: None,
             dirty: false,

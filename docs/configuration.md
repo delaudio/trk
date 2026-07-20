@@ -36,6 +36,12 @@ profile = "tracker"
 [keymap.sampler]
 b = "sample-browser"
 
+[ai]
+provider = "local_deterministic" # local_deterministic, mock, or command
+model = "local-deterministic"
+required_env = []                # credentials or flags required before use
+# command_path = "/usr/local/bin/codex" # required only for future command providers
+
 [ui]
 show_line_numbers_hex = false
 row_number_format = "decimal" # decimal or hex; show_line_numbers_hex remains a legacy alias
@@ -92,6 +98,12 @@ undo_limit = 100
 `keyboard.edit_step` is the tracker step-jump value used after manual note and
 cell-value entry; `0` keeps the cursor on the edited row.
 
+`[ai]` defaults to the local deterministic provider, which never contacts a
+network service. `mock` is available for tests and scripted dry runs. `command`
+is reserved for future CLI adapters; when selected, Salieri checks
+`command_path` and every `required_env` entry before queuing an AI task and
+reports missing binaries or credentials as normal diagnostics.
+
 Keymap bindings are grouped by application mode and override built-in shortcuts
 for the same key. Unmapped keys continue to use the built-in defaults. See
 [Configurable Keymaps](keymaps.md) for the complete layer and key syntax.
@@ -121,7 +133,9 @@ file resolve against the directory containing that config file.
 Unknown fields and invalid TOML are rejected with the selected file path. Semantic
 validation reports all independent problems found in one pass, including:
 
-- edit step from 1 through 64;
+- edit step from 0 through 64;
+- non-empty AI model, command path when configured, and required environment
+  variable names;
 - octave from 0 through 9;
 - non-empty keymap profile and theme name;
 - valid key names, typed keymap commands, and no normalized conflicts per mode;
@@ -134,8 +148,10 @@ validation reports all independent problems found in one pass, including:
 - layout `track_desk_height` from 6 through 18 rows;
 - non-empty sample chooser command when configured.
 
-Inside the TUI, `:config` reports the resolved source, keymap profile, theme, and
-display mode through the normal status notification.
+Inside the TUI, `:config` reports the resolved source, keymap profile, theme,
+display mode, and AI provider through the normal status notification. `:ai
+provider` reports the configured AI provider, model, and availability before
+submitting a prompt.
 
 ## TUI Layout
 

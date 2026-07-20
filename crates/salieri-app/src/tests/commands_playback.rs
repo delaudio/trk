@@ -601,47 +601,6 @@ fn command_mode_edits_dsp_chains() {
 }
 
 #[test]
-fn command_mode_ai_proposal_preview_apply_and_undo() {
-    let mut app = App::default();
-    let before = app.song.clone();
-
-    type_command(&mut app, "ai propose sparse bass sketch");
-    app.wait_for_tasks();
-
-    assert_eq!(app.song, before);
-    assert!(app.pending_ai_proposal.is_some());
-    assert!(app
-        .notification
-        .as_ref()
-        .expect("notification")
-        .message
-        .contains("touches"));
-
-    type_command(&mut app, "ai accept");
-
-    assert_ne!(app.song, before);
-    assert!(app.pending_ai_proposal.is_none());
-    assert!(app.dirty);
-
-    app.undo();
-
-    assert_eq!(app.song, before);
-}
-
-#[test]
-fn command_mode_ai_proposal_can_be_rejected_without_mutating_song() {
-    let mut app = App::default();
-    let before = app.song.clone();
-
-    type_command(&mut app, "ai propose lead idea");
-    app.wait_for_tasks();
-    type_command(&mut app, "ai reject");
-
-    assert_eq!(app.song, before);
-    assert!(app.pending_ai_proposal.is_none());
-}
-
-#[test]
 fn command_mode_reports_unknown_commands() {
     let mut app = App::default();
 

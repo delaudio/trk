@@ -25,6 +25,7 @@ pub(crate) use preferences::{
 pub struct AppConfig {
     pub keyboard: KeyboardConfig,
     pub keymap: KeymapConfig,
+    pub ai: AiConfig,
     pub ui: UiConfig,
     pub theme: ThemeConfig,
     pub audio: AudioPreferences,
@@ -35,6 +36,45 @@ pub struct AppConfig {
     pub history: HistoryConfig,
     #[serde(skip)]
     pub metadata: ConfigMetadata,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct AiConfig {
+    pub provider: AiProviderKind,
+    pub model: String,
+    pub command_path: Option<String>,
+    pub required_env: Vec<String>,
+}
+
+impl Default for AiConfig {
+    fn default() -> Self {
+        Self {
+            provider: AiProviderKind::LocalDeterministic,
+            model: "local-deterministic".to_string(),
+            command_path: None,
+            required_env: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AiProviderKind {
+    #[default]
+    LocalDeterministic,
+    Mock,
+    Command,
+}
+
+impl fmt::Display for AiProviderKind {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::LocalDeterministic => formatter.write_str("local_deterministic"),
+            Self::Mock => formatter.write_str("mock"),
+            Self::Command => formatter.write_str("command"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -119,6 +159,7 @@ pub struct ConfigMetadata {
     pub keymap_profile: String,
     pub theme_name: String,
     pub display_mode: DisplayMode,
+    pub ai_provider: AiProviderKind,
 }
 
 impl Default for ConfigMetadata {
@@ -128,6 +169,7 @@ impl Default for ConfigMetadata {
             keymap_profile: "tracker".to_string(),
             theme_name: "default".to_string(),
             display_mode: DisplayMode::Adaptive,
+            ai_provider: AiProviderKind::LocalDeterministic,
         }
     }
 }
@@ -139,13 +181,14 @@ impl ConfigMetadata {
             keymap_profile: config.keymap.profile.clone(),
             theme_name: config.theme.name.clone(),
             display_mode: config.ui.display_mode,
+            ai_provider: config.ai.provider,
         }
     }
 
     pub fn summary(&self) -> String {
         format!(
-            "{} | keymap={} | theme={} | display={}",
-            self.source, self.keymap_profile, self.theme_name, self.display_mode
+            "{} | keymap={} | theme={} | display={} | ai={}",
+            self.source, self.keymap_profile, self.theme_name, self.display_mode, self.ai_provider
         )
     }
 }
@@ -260,6 +303,17 @@ fn validate(config: &AppConfig) -> Result<(), ConfigValidationErrors> {
         9,
     );
     check_non_empty(&mut diagnostics, "keymap.profile", &config.keymap.profile);
+    check_non_empty(&mut diagnostics, "ai.model", &config.ai.model);
+    if let Some(command_path) = &config.ai.command_path {
+        check_non_empty(&mut diagnostics, "ai.command_path", command_path);
+    }
+    for (index, required_env) in config.ai.required_env.iter().enumerate() {
+        check_non_empty(
+            &mut diagnostics,
+            &format!("ai.required_env.{index}"),
+            required_env,
+        );
+    }
     check_non_empty(&mut diagnostics, "theme.name", &config.theme.name);
     check_range(
         &mut diagnostics,
@@ -547,7 +601,7 @@ undo_limit = 0
         assert_eq!(
             loaded.metadata().summary(),
             format!(
-                "config {} | keymap=tracker | theme=night | display=adaptive",
+                "config {} | keymap=tracker | theme=night | display=adaptive | ai=local_deterministic",
                 file.0.display()
             )
         );

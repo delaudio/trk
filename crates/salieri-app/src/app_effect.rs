@@ -5,6 +5,7 @@ use salieri_core::Song;
 
 use crate::{
     app_event::{AppEvent, RequestId, RuntimeEvent},
+    config::AiConfig,
     persistence::{load_project, save_project},
     App,
 };
@@ -24,6 +25,7 @@ pub enum AppEffect {
     SubmitAiProposal {
         song: Song,
         request: AiPatternRequest,
+        provider: AiConfig,
     },
 }
 
@@ -78,8 +80,12 @@ impl AppEffectExecutor for RuntimeEffectExecutor {
                     result,
                 }));
             }
-            AppEffect::SubmitAiProposal { song, request } => {
-                app.submit_ai_proposal(song, request);
+            AppEffect::SubmitAiProposal {
+                song,
+                request,
+                provider,
+            } => {
+                app.submit_ai_proposal(song, request, provider);
             }
         }
     }
