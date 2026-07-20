@@ -5,9 +5,13 @@ use crate::{
     SAMPLE_GAIN_PARAMETER_ID,
 };
 
+mod effects;
 mod sampler_selection;
+use effects::{delay_command, retrigger_command};
 use sampler_selection::sample_for_cell;
 
+#[cfg(test)]
+mod fx_tests;
 #[cfg(test)]
 mod zoned_tests;
 
@@ -94,7 +98,12 @@ pub fn pattern_events(song: &Song, pattern: &Pattern) -> Vec<PlaybackEvent> {
                     };
                     events.push(note_on);
                     active_notes[track_index] = Some(pitch);
-                    emit_retrigger_events(&mut events, note_on, row_duration, cell.command);
+                    emit_retrigger_events(
+                        &mut events,
+                        note_on,
+                        row_duration,
+                        retrigger_command(cell),
+                    );
                 }
                 Some(NoteEvent::NoteOff | NoteEvent::NoteCut) => {
                     if let Some(active_pitch) = active_notes[track_index].take() {
@@ -213,7 +222,12 @@ pub fn sampler_events(song: &Song, pattern: &Pattern) -> Vec<SamplerPlaybackEven
                 ),
             };
             events.push(trigger.clone());
-            emit_sampler_retrigger_events(&mut events, trigger, row_duration, cell.command);
+            emit_sampler_retrigger_events(
+                &mut events,
+                trigger,
+                row_duration,
+                retrigger_command(cell),
+            );
         }
     }
 
@@ -229,7 +243,7 @@ fn apply_cell_delay(
     if let Some(delay) = cell.delay {
         return apply_delay_value(position, row_duration, delay);
     }
-    apply_delay_command(position, row_duration, cell.command)
+    apply_delay_command(position, row_duration, delay_command(cell))
 }
 
 fn apply_delay_command(
@@ -515,27 +529,6 @@ mod tests {
 
         assert_eq!(events[0].position.row, 2);
         assert_eq!(events[0].position.offset_micros, 312_500);
-    }
-
-    #[test]
-    fn retrigger_command_emits_repeated_note_events() {
-        let mut song = Song::empty();
-        let pattern = song.current_pattern_mut().expect("pattern");
-        pattern
-            .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x64)
-            .expect("set note");
-        pattern.cell_mut(0, 0).expect("cell").command = Some(TrackerCommand::retrigger(4));
-
-        let events = pattern_events(&song, song.current_pattern().expect("pattern"));
-        let note_on_count = events
-            .iter()
-            .filter(|event| matches!(event.kind, PlaybackEventKind::NoteOn { .. }))
-            .count();
-
-        assert_eq!(note_on_count, 4);
-        assert_eq!(events[1].position.offset_micros, 31_250);
-        assert_eq!(events[2].position.offset_micros, 31_250);
-        assert_eq!(events[3].position.offset_micros, 62_500);
     }
 
     #[test]

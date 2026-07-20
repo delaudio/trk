@@ -57,6 +57,7 @@ impl App {
             SalieriCommand::Domain {
                 domain:
                     domain @ (CommandDomain::Fx
+                    | CommandDomain::Fx2
                     | CommandDomain::Cell
                     | CommandDomain::Automation
                     | CommandDomain::ParameterLock
@@ -386,6 +387,7 @@ impl App {
         let values = command_arguments(arguments);
         match domain {
             CommandDomain::Fx => self.handle_fx_command(&values),
+            CommandDomain::Fx2 => self.handle_fx2_command(&values),
             CommandDomain::Cell => self.handle_cell_command(&values),
             CommandDomain::Automation => self.handle_automation_command(&values),
             CommandDomain::ParameterLock => self.handle_parameter_lock_command(&values),

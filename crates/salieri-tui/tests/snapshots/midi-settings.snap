@@ -2,23 +2,23 @@
 │ BPM 120 | LPB 4 | Pattern 01 | Oct 4 | Row 00 | Play -- | Loop ON | Track 01 | Field NOTE | MIDI │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ┌ Tracks ──────────────────┐┌ Pattern Editor ──────────────────────────────────────────────────────┐
-│> 01 Drums       CH10 --  ││ROW          Drums                Bass                 Lead           │
-│  02 Bass  ┌ MIDI Settings ───────────────────────────────────────────────────────────┐-- -- -- --│
-│  03 Lead  │Output Ports                                                              │-- -- -- --│
-│  04 Pad   │Status: MIDI Disconnected                                                 │-- -- -- --│
-│           │                                                                          │-- -- -- --│
-│           │00 IAC Driver Bus 1                                                       │-- -- -- --│
-│           │> 02 External Synth                                                       │-- -- -- --│
-│           │                                                                          │-- -- -- --│
-│           │Enter connect selected   d disconnect   p panic/all notes off             │-- -- -- --│
-│           │F5/r refresh ports   Esc/q close                                          │-- -- -- --│
-│           │                                                                          │-- -- -- --│
-│           │                                                                          │-- -- -- --│
+│> 01 Drums       CH10 --  ││ROW             Drums                        Bass                     │
+│  02 Bass  ┌ MIDI Settings ───────────────────────────────────────────────────────────┐ --- -- -- │
+│  03 Lead  │Output Ports                                                              │ --- -- -- │
+│  04 Pad   │Status: MIDI Disconnected                                                 │ --- -- -- │
+│           │                                                                          │ --- -- -- │
+│           │00 IAC Driver Bus 1                                                       │ --- -- -- │
+│           │> 02 External Synth                                                       │ --- -- -- │
+│           │                                                                          │ --- -- -- │
+│           │Enter connect selected   d disconnect   p panic/all notes off             │ --- -- -- │
+│           │F5/r refresh ports   Esc/q close                                          │ --- -- -- │
+│           │                                                                          │ --- -- -- │
+│           │                                                                          │ --- -- -- │
 └───────────│                                                                          │───────────┘
 ┌ Sequence ─│                                                                          │───────────┐
 │  00 Patter│                                                                          │           │
 │           │                                                                          │-- Inst -- │
-│           │                                                                          │ Dly -- FX │
+│           │                                                                          │ Dly -- FX1│
 │           │                                                                          │           │
 │           └──────────────────────────────────────────────────────────────────────────┘n          │
 │                          ││Audio --              Mst     +0.0 dB         :cell instrument 01     │

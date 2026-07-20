@@ -489,6 +489,19 @@ fn edit_mode_hex_entry_updates_tracker_subcolumns() {
     let cell = pattern.cell(0, 0).expect("cell");
     assert_eq!(cell.delay, Some(0x20));
     assert_eq!(app.cursor.row, 1);
+
+    app.cursor = Cursor {
+        row: 1,
+        field: CellField::Effect2,
+        ..Cursor::new()
+    };
+    app.handle_key(KeyEvent::new(KeyCode::Char('0'), KeyModifiers::NONE));
+    app.handle_key(KeyEvent::new(KeyCode::Char('4'), KeyModifiers::NONE));
+
+    let pattern = app.song.current_pattern().expect("pattern");
+    let cell = pattern.cell(1, 0).expect("cell");
+    assert_eq!(cell.command2, Some(TrackerCommand::delay(0x04)));
+    assert_eq!(app.cursor.row, 2);
 }
 
 #[test]

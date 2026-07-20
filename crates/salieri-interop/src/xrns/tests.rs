@@ -444,6 +444,7 @@ fn xrns_import_reports_warnings_without_silent_drops() {
             <SourceTick>37</SourceTick>
             <Effect><Code>Z</Code><Value>1</Value></Effect>
             <Effect><Code>D</Code><Value>20</Value></Effect>
+            <Effect><Code>R</Code><Value>04</Value></Effect>
           </Line>
         </Track>
       </Tracks>
@@ -470,6 +471,7 @@ fn xrns_import_reports_warnings_without_silent_drops() {
             value: 1
         })
     );
+    assert_eq!(cell.command2, Some(TrackerCommand::delay(0x20)));
     assert!(report
         .diagnostics
         .iter()

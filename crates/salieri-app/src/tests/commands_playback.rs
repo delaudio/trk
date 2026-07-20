@@ -77,29 +77,29 @@ fn command_mode_sets_and_clears_current_effect_command() {
     let mut app = App::default();
 
     type_command(&mut app, "fx D 20");
+    type_command(&mut app, "fx2 R 04");
 
-    assert_eq!(
-        app.song
-            .current_pattern()
-            .expect("pattern")
-            .cell(0, 0)
-            .expect("cell")
-            .command,
-        Some(TrackerCommand::delay(0x20))
-    );
+    let cell = app
+        .song
+        .current_pattern()
+        .expect("pattern")
+        .cell(0, 0)
+        .expect("cell");
+    assert_eq!(cell.command, Some(TrackerCommand::delay(0x20)));
+    assert_eq!(cell.command2, Some(TrackerCommand::retrigger(0x04)));
     assert!(app.dirty);
 
     type_command(&mut app, "fx clear");
+    type_command(&mut app, "fx2 clear");
 
-    assert_eq!(
-        app.song
-            .current_pattern()
-            .expect("pattern")
-            .cell(0, 0)
-            .expect("cell")
-            .command,
-        None
-    );
+    let cell = app
+        .song
+        .current_pattern()
+        .expect("pattern")
+        .cell(0, 0)
+        .expect("cell");
+    assert_eq!(cell.command, None);
+    assert_eq!(cell.command2, None);
     assert!(!app.dirty);
 }
 
@@ -112,6 +112,7 @@ fn command_mode_sets_and_clears_tracker_cell_columns() {
     type_command(&mut app, "cell pan 7f");
     type_command(&mut app, "cell delay 20");
     type_command(&mut app, "cell effect R 04");
+    type_command(&mut app, "cell effect2 D 10");
 
     let pattern = app.song.current_pattern().expect("pattern");
     let cell = pattern.cell(0, 0).expect("cell");
@@ -120,12 +121,14 @@ fn command_mode_sets_and_clears_tracker_cell_columns() {
     assert_eq!(cell.pan, Some(0x7f));
     assert_eq!(cell.delay, Some(0x20));
     assert_eq!(cell.command, Some(TrackerCommand::retrigger(0x04)));
+    assert_eq!(cell.command2, Some(TrackerCommand::delay(0x10)));
 
     type_command(&mut app, "cell instrument clear");
     type_command(&mut app, "cell volume clear");
     type_command(&mut app, "cell pan clear");
     type_command(&mut app, "cell delay clear");
     type_command(&mut app, "cell effect clear");
+    type_command(&mut app, "cell effect2 clear");
 
     let pattern = app.song.current_pattern().expect("pattern");
     let cell = pattern.cell(0, 0).expect("cell");
@@ -134,6 +137,7 @@ fn command_mode_sets_and_clears_tracker_cell_columns() {
     assert_eq!(cell.pan, None);
     assert_eq!(cell.delay, None);
     assert_eq!(cell.command, None);
+    assert_eq!(cell.command2, None);
 }
 
 #[test]

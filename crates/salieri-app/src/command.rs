@@ -104,6 +104,7 @@ pub enum TaskCommand {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommandDomain {
     Fx,
+    Fx2,
     Cell,
     Automation,
     ParameterLock,
@@ -206,6 +207,7 @@ impl SalieriCommand {
             "stop" => Self::Stop,
             "tasks" | "task" => Self::Task(parse_task(&arguments)?),
             "fx" | "effect" => domain(CommandDomain::Fx, arguments),
+            "fx2" | "effect2" => domain(CommandDomain::Fx2, arguments),
             "cell" => domain(CommandDomain::Cell, arguments),
             "automation" | "auto" => domain(CommandDomain::Automation, arguments),
             "plock" | "parameter-lock" | "param-lock" => {

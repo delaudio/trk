@@ -352,6 +352,7 @@ pub(crate) fn current_cell_hex_value(cell: &PatternCell, field: CellField) -> Op
         CellField::Pan => cell.pan,
         CellField::Delay => cell.delay,
         CellField::Effect => cell.command.map(|command| command.value),
+        CellField::Effect2 => cell.command2.map(|command| command.value),
     }
 }
 
@@ -374,6 +375,12 @@ pub(crate) fn set_current_cell_hex_value(cell: &mut PatternCell, field: CellFiel
                 .command
                 .map_or(TrackerCommand::DELAY_CODE, |command| command.code);
             cell.command = Some(TrackerCommand { code, value });
+        }
+        CellField::Effect2 => {
+            let code = cell
+                .command2
+                .map_or(TrackerCommand::DELAY_CODE, |command| command.code);
+            cell.command2 = Some(TrackerCommand { code, value });
         }
     }
 }
