@@ -132,6 +132,8 @@ See [Configuration](docs/configuration.md) for lookup precedence, all preference
 sections, validation rules, and the `:config` status command.
 For local Renoise demo parity checks, see
 [docs/renoise-parity.md](docs/renoise-parity.md).
+For Polyend Tracker Mini workflow parity, see
+[docs/tracker-mini-parity.md](docs/tracker-mini-parity.md).
 
 Or copy the relevant settings into `~/.config/salieri/config.toml`:
 
