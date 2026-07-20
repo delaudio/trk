@@ -14,6 +14,7 @@ mod midi_actions;
 mod navigation;
 mod pattern_operations;
 mod plock_dsp_commands;
+mod preset_actions;
 mod project_browser;
 mod sample_browser;
 mod sampler_actions;
