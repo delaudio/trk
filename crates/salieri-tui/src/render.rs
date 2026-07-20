@@ -61,6 +61,7 @@ use modal_overlays::{
 const ROW_GUTTER_WIDTH: usize = 5;
 const PATTERN_CELL_WIDTH: usize = 28;
 const TRACK_LIST_NAME_WIDTH: usize = 11;
+const SEQUENCE_SLOT_PATTERN_WIDTH: usize = 18;
 const MEDIUM_MIN_WIDTH: u16 = 80;
 const LARGE_MIN_WIDTH: u16 = 120;
 
@@ -678,23 +679,33 @@ fn render_sequence(
         .skip(start)
         .take(end.saturating_sub(start))
         .map(|(index, pattern_id)| {
-            let name = song
+            let pattern = song
                 .patterns
                 .iter()
-                .find(|pattern| pattern.id == *pattern_id)
-                .map_or("Missing Pattern", |pattern| pattern.name.as_str());
+                .enumerate()
+                .find(|(_, pattern)| pattern.id == *pattern_id);
+            let name = pattern.map_or("Missing Pattern", |(_, pattern)| pattern.name.as_str());
+            let pattern_label = pattern.map_or_else(
+                || "P??".to_string(),
+                |(pattern_index, _)| format!("P{:02}", pattern_index + 1),
+            );
+            let clips = sequence_slot_clips(song, pattern.map(|(_, pattern)| pattern), 8);
             let marker = if active_sequence_position == Some(index) {
                 ">"
             } else {
                 " "
             };
-            Line::from(format!("{marker} {index:02} {name}"))
+            Line::from(format!(
+                "{marker} {index:02} {pattern_label} {:<width$} {clips}",
+                truncate(name, SEQUENCE_SLOT_PATTERN_WIDTH),
+                width = SEQUENCE_SLOT_PATTERN_WIDTH,
+            ))
         })
         .collect::<Vec<_>>();
 
     let sequence = Paragraph::new(lines).block(
         Block::default()
-            .title(ranged_title("Sequence", start, end, song.sequence.len()))
+            .title(ranged_title("Song Slots", start, end, song.sequence.len()))
             .borders(Borders::ALL),
     );
     frame.render_widget(sequence, area);
@@ -709,7 +720,7 @@ fn render_sequence_editor(
     let mut lines = vec![Line::from(vec![
         Span::styled("POS  ", Style::default().fg(Color::DarkGray)),
         Span::styled(
-            "PATTERN",
+            "PATTERN             CLIPS",
             Style::default()
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
@@ -736,17 +747,30 @@ fn render_sequence_editor(
             let pattern = song
                 .patterns
                 .iter()
-                .find(|pattern| pattern.id == *pattern_id);
-            let name = pattern.map_or("Missing Pattern", |pattern| pattern.name.as_str());
+                .enumerate()
+                .find(|(_, pattern)| pattern.id == *pattern_id);
+            let name = pattern.map_or("Missing Pattern", |(_, pattern)| pattern.name.as_str());
+            let pattern_label = pattern.map_or_else(
+                || "P??".to_string(),
+                |(pattern_index, _)| format!("P{:02}", pattern_index + 1),
+            );
+            let clip_capacity = area
+                .width
+                .saturating_sub(34)
+                .saturating_div(2)
+                .max(1)
+                .into();
+            let clips =
+                sequence_slot_clips(song, pattern.map(|(_, pattern)| pattern), clip_capacity);
             let marker = if active_sequence_position == Some(index) {
                 ">"
             } else {
                 " "
             };
             let line = format!(
-                "{marker}{index:02}  {:<24} id {}",
-                truncate(name, 24),
-                pattern_id.0
+                "{marker}{index:02}  {pattern_label} {:<width$} {clips}",
+                truncate(name, SEQUENCE_SLOT_PATTERN_WIDTH),
+                width = SEQUENCE_SLOT_PATTERN_WIDTH,
             );
             if active_sequence_position == Some(index) {
                 lines.push(Line::styled(
@@ -766,6 +790,7 @@ fn render_sequence_editor(
         Line::from(""),
         Line::from("A add current pattern   R remove   Y duplicate   T set current"),
         Line::from("</> move position   Enter play from position   Esc pattern view"),
+        Line::from("Clips: ■ active  · empty  M muted"),
     ]);
 
     let active_index = active_sequence_position.unwrap_or(0);
@@ -776,7 +801,7 @@ fn render_sequence_editor(
         .block(
             Block::default()
                 .title(ranged_title(
-                    "Sequence Editor",
+                    "Song Slot View",
                     start,
                     end,
                     song.sequence.len(),
@@ -785,6 +810,44 @@ fn render_sequence_editor(
         )
         .wrap(Wrap { trim: true });
     frame.render_widget(sequence, area);
+}
+
+fn sequence_slot_clips(song: &Song, pattern: Option<&Pattern>, max_tracks: usize) -> String {
+    let visible_tracks = song.tracks.len().min(max_tracks.max(1));
+    let mut clips = String::from("[");
+    for track_index in 0..visible_tracks {
+        if track_index > 0 {
+            clips.push(' ');
+        }
+        let symbol = if song.tracks[track_index].muted {
+            'M'
+        } else if pattern.is_some_and(|pattern| pattern_track_has_activity(pattern, track_index)) {
+            '■'
+        } else {
+            '·'
+        };
+        clips.push(symbol);
+    }
+    if song.tracks.len() > visible_tracks {
+        clips.push_str(" …");
+    }
+    clips.push(']');
+    clips
+}
+
+fn pattern_track_has_activity(pattern: &Pattern, track_index: usize) -> bool {
+    pattern
+        .rows
+        .iter()
+        .filter_map(|row| row.cells.get(track_index))
+        .any(|cell| {
+            cell.note.is_some()
+                || cell.instrument.is_some()
+                || cell.volume.is_some()
+                || cell.pan.is_some()
+                || cell.command.is_some()
+                || cell.command2.is_some()
+        })
 }
 
 fn render_track_editor(frame: &mut Frame<'_>, area: Rect, song: &Song, active_track: usize) {
@@ -2860,6 +2923,9 @@ mod render_overlay_tests;
 #[cfg(test)]
 #[path = "render_tests/pattern.rs"]
 mod render_pattern_tests;
+#[cfg(test)]
+#[path = "render_tests/sequence.rs"]
+mod render_sequence_tests;
 #[cfg(test)]
 #[path = "render_tests/support.rs"]
 mod render_test_support;

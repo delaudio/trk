@@ -232,7 +232,7 @@ Shift+Enter     Play sequence from selected position
 F8              Stop
 L               Toggle pattern loop
 F4              MIDI settings
-F7              Sequence view
+F7              Song slot / sequence view
 F9              Tracks view
 F10             Patterns view
 Ctrl+J          Sampler view
@@ -300,11 +300,11 @@ N / P / X       New, duplicate, delete pattern
 [ / ]           Previous/next pattern
 F3              Rename pattern command
 F6              Pattern length command
-A               Add current pattern to sequence
-Y               Duplicate sequence position
-R               Remove sequence position
-T               Set sequence position to current pattern
-< / >           Move sequence position up/down
+A               Add current pattern to song slots
+Y               Duplicate selected song slot
+R               Remove selected song slot
+T               Set selected song slot to current pattern
+< / >           Move selected song slot up/down
 ```
 
 ## Command Mode Examples

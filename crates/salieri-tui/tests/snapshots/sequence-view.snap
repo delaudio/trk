@@ -1,13 +1,13 @@
 ┌ Salieri Tracker ─────────────────────────────────────────────────────┐
 │ BPM 120 | LPB 4 | Pattern 01 | Oct 4 | Step 1 | Row 00 | Play -- | Lo│
 └──────────────────────────────────────────────────────────────────────┘
-┌ Sequence Editor ─────────────────────────────────────────────────────┐
-│POS  PATTERN                                                          │
-│>00  Pattern 01               id 1                                    │
+┌ Song Slot View ──────────────────────────────────────────────────────┐
+│POS  PATTERN             CLIPS                                        │
+│>00  P01 Pattern 01         [· · · ·]                                 │
 │                                                                      │
 │A add current pattern   R remove   Y duplicate   T set current        │
 │</> move position   Enter play from position   Esc pattern view       │
-│                                                                      │
+│Clips: ■ active  · empty  M muted                                     │
 │                                                                      │
 │                                                                      │
 │                                                                      │

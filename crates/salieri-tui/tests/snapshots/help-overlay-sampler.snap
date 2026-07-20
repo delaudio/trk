@@ -20,7 +20,7 @@
 │     │  TRACK is 1-based; omitted TRACK means the current track                                                 ║- ---│
 │     │  :sample assignments lists track=sample mappings                                                         ║- ---│
 └─────│                                                                                                          ║- ---│
-┌ Sequ│Instrument Column                                                                                         ║- ---│
+┌ Song│Instrument Column                                                                                         ║- ---│
 │  00 │  Assigning a sample creates a sample-backed instrument for that track                                    ║- ---│
 │     │  Cells can override the track default with INST, e.g. :cell instrument 01                                ║─────┘
 │     │  An empty INST field uses the track instrument or sample assignment                                      ║─────┐
