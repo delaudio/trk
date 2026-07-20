@@ -16,12 +16,12 @@ pub use effect_device::{
 };
 pub use model::{
     AutomationInterpolation, AutomationLane, AutomationPoint, AutomationTarget, CellField, Cursor,
-    Direction, EditError, EffectDevice, EffectDeviceKind, Instrument, InstrumentId, MixerSend,
-    MixerState, NoteEvent, ParameterLock, ParameterLockAction, ParameterLockDiagnostic,
-    ParameterLockTarget, Pattern, PatternCell, PatternId, PatternRow, SampleEnvelope, SampleId,
-    SamplePlaybackMode, SamplePlaybackSettings, SampleReference, Song, SongMetadata, Track,
-    TrackId, TrackInstrumentAssignment, TrackMixerState, TrackSampleAssignment, TrackSendLevel,
-    TrackerCommand, TransportSettings, ValidationError,
+    Direction, EditError, EffectDevice, EffectDeviceKind, Instrument, InstrumentId,
+    InstrumentSampleZone, MixerSend, MixerState, NoteEvent, ParameterLock, ParameterLockAction,
+    ParameterLockDiagnostic, ParameterLockTarget, Pattern, PatternCell, PatternId, PatternRow,
+    SampleEnvelope, SampleId, SamplePlaybackMode, SamplePlaybackSettings, SampleReference, Song,
+    SongMetadata, Track, TrackId, TrackInstrumentAssignment, TrackMixerState,
+    TrackSampleAssignment, TrackSendLevel, TrackerCommand, TransportSettings, ValidationError,
 };
 pub use native_module::*;
 pub use parameter_locks::{parameter_lock_events, ParameterLockEvent};

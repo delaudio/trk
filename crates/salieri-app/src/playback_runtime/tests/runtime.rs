@@ -235,6 +235,50 @@ fn realtime_sample_loader_prepares_cell_instrument_samples() {
 }
 
 #[test]
+fn realtime_sample_loader_prepares_zoned_instrument_samples() {
+    let low_path = std::env::temp_dir().join(format!(
+        "salieri-realtime-zone-low-{}.wav",
+        std::process::id()
+    ));
+    let high_path = std::env::temp_dir().join(format!(
+        "salieri-realtime-zone-high-{}.wav",
+        std::process::id()
+    ));
+    write_test_wav(&low_path, 44_100, 1, &[0, i16::MAX, i16::MIN]);
+    write_test_wav(&high_path, 44_100, 1, &[0, i16::MIN, i16::MAX]);
+    let mut song = Song::empty();
+    let low = song.upsert_sample_reference(low_path.to_string_lossy(), "low.wav");
+    let high = song.upsert_sample_reference(high_path.to_string_lossy(), "high.wav");
+    let instrument = song.upsert_sample_instrument(low).expect("instrument");
+    song.instruments
+        .iter_mut()
+        .find(|candidate| candidate.id == instrument)
+        .expect("instrument")
+        .zones = vec![InstrumentSampleZone {
+        sample: high,
+        key_start: 60,
+        key_end: 127,
+        velocity_start: 0,
+        velocity_end: 127,
+    }];
+    song.current_pattern_mut()
+        .expect("pattern")
+        .set_note(0, 0, NoteEvent::Note { pitch: 72 }, 0x7f)
+        .expect("set note");
+    song.current_pattern_mut().expect("pattern").rows[0].cells[0].instrument = Some(instrument);
+    let (update_tx, update_rx) = mpsc::channel();
+
+    let samples = load_realtime_samples(&song, AudioConfig::default(), &update_tx, None);
+    let _ = std::fs::remove_file(&low_path);
+    let _ = std::fs::remove_file(&high_path);
+
+    let sample_ids = samples.iter().map(|(id, _)| *id).collect::<Vec<_>>();
+    assert!(sample_ids.contains(&low.0));
+    assert!(sample_ids.contains(&high.0));
+    assert!(update_rx.try_iter().collect::<Vec<_>>().is_empty());
+}
+
+#[test]
 fn interrupted_pattern_playback_sends_audio_all_notes_off() {
     let mut song = Song::empty();
     speed_up_transport(&mut song);

@@ -1,9 +1,15 @@
 use crate::{
     parameter_locks::parameter_lock_f32_at, AutomationTarget, NoteEvent, ParameterLockTarget,
-    Pattern, PatternCell, SampleId, SampleReference, Song, TrackId, TrackerCommand,
-    TransportSettings, MIXER_MASTER_GAIN_PARAMETER_ID, MIXER_TRACK_GAIN_PARAMETER_ID,
-    MIXER_TRACK_PAN_PARAMETER_ID, SAMPLE_GAIN_PARAMETER_ID,
+    Pattern, PatternCell, SampleId, Song, TrackId, TrackerCommand, TransportSettings,
+    MIXER_MASTER_GAIN_PARAMETER_ID, MIXER_TRACK_GAIN_PARAMETER_ID, MIXER_TRACK_PAN_PARAMETER_ID,
+    SAMPLE_GAIN_PARAMETER_ID,
 };
+
+mod sampler_selection;
+use sampler_selection::sample_for_cell;
+
+#[cfg(test)]
+mod zoned_tests;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlaybackPosition {
@@ -145,16 +151,15 @@ pub fn sampler_events(song: &Song, pattern: &Pattern) -> Vec<SamplerPlaybackEven
             let Some(cell) = row.cells.get(track_index) else {
                 continue;
             };
-            let Some(sample) = sample_for_cell(song, cell, track.id) else {
+            let Some(NoteEvent::Note { pitch }) = cell.note else {
                 continue;
             };
-
-            let Some(NoteEvent::Note { pitch }) = cell.note else {
+            let velocity = cell.velocity.unwrap_or(0x7f).min(0x7f);
+            let Some(sample) = sample_for_cell(song, cell, track.id, pitch, velocity) else {
                 continue;
             };
 
             let position = apply_cell_delay(position, row_duration, cell);
-            let velocity = cell.velocity.unwrap_or(0x7f).min(0x7f);
             let cell_gain = cell.volume.map_or(1.0, |volume| f32::from(volume) / 127.0);
             let sample_gain = pattern.automation_value_at(
                 AutomationTarget::SampleGain { sample: sample.id },
@@ -214,20 +219,6 @@ pub fn sampler_events(song: &Song, pattern: &Pattern) -> Vec<SamplerPlaybackEven
 
     events.sort_by_key(|event| event.position.offset_micros);
     events
-}
-
-fn sample_for_cell<'a>(
-    song: &'a Song,
-    cell: &PatternCell,
-    track: TrackId,
-) -> Option<&'a SampleReference> {
-    if let Some(instrument_id) = cell.instrument {
-        return song
-            .instrument_for_id(instrument_id)
-            .and_then(|instrument| instrument.sample)
-            .and_then(|sample| song.sample_for_id(sample));
-    }
-    song.sample_for_track(track)
 }
 
 fn apply_cell_delay(

@@ -291,6 +291,105 @@ fn xrns_import_preserves_sample_playback_metadata() {
 }
 
 #[test]
+fn xrns_import_preserves_multisample_keyzones() {
+    let xml = r#"
+<RenoiseSong>
+  <Tracks><Track><Name>Sampler</Name></Track></Tracks>
+  <Patterns>
+    <Pattern><NumberOfLines>1</NumberOfLines><Tracks><Track>
+      <Line><Index>0</Index><Note>C-4</Note><Instrument>00</Instrument></Line>
+    </Track></Tracks></Pattern>
+  </Patterns>
+  <Instruments>
+    <Instrument>
+      <Name>Layered Piano</Name>
+      <Samples>
+        <Sample>
+          <Name>Low layer</Name>
+          <KeyStart>C-2</KeyStart><KeyEnd>B-3</KeyEnd>
+          <VelocityStart>0</VelocityStart><VelocityEnd>80</VelocityEnd>
+        </Sample>
+        <Sample>
+          <Name>High layer</Name>
+          <KeyStart>C-4</KeyStart><KeyEnd>C-6</KeyEnd>
+          <VelocityStart>81</VelocityStart><VelocityEnd>127</VelocityEnd>
+        </Sample>
+      </Samples>
+    </Instrument>
+  </Instruments>
+</RenoiseSong>
+"#;
+    let archive = xrns_archive([
+        xrns_entry("Song.xml", xml.as_bytes()),
+        xrns_entry("SampleData/Instrument00/Sample00.wav", b"RIFF....WAVE"),
+        xrns_entry("SampleData/Instrument00/Sample01.wav", b"RIFF....WAVE"),
+    ]);
+
+    let report = import_xrns(&archive);
+    let song = report.song.expect("imported song");
+
+    song.validate().expect("valid song");
+    assert_eq!(song.samples.len(), 2);
+    assert_eq!(song.samples[0].name, "Low layer");
+    assert_eq!(song.samples[1].name, "High layer");
+    let instrument = song.instruments.first().expect("instrument");
+    assert_eq!(instrument.name, "Layered Piano");
+    assert_eq!(instrument.zones.len(), 2);
+    assert_eq!(instrument.zones[0].sample, song.samples[0].id);
+    assert_eq!(
+        (instrument.zones[0].key_start, instrument.zones[0].key_end),
+        (36, 59)
+    );
+    assert_eq!(
+        (
+            instrument.zones[1].key_start,
+            instrument.zones[1].key_end,
+            instrument.zones[1].velocity_start,
+            instrument.zones[1].velocity_end,
+        ),
+        (60, 84, 81, 127)
+    );
+}
+
+#[test]
+fn xrns_import_defaults_missing_multisample_keyzones_to_full_range() {
+    let xml = r#"
+<RenoiseSong>
+  <Instruments>
+    <Instrument>
+      <Name>Unmapped</Name>
+      <Samples><Sample><Name>A</Name></Sample><Sample><Name>B</Name></Sample></Samples>
+    </Instrument>
+  </Instruments>
+</RenoiseSong>
+"#;
+    let archive = xrns_archive([
+        xrns_entry("Song.xml", xml.as_bytes()),
+        xrns_entry("SampleData/Instrument00/Sample00.wav", b"RIFF....WAVE"),
+        xrns_entry("SampleData/Instrument00/Sample01.wav", b"RIFF....WAVE"),
+    ]);
+
+    let report = import_xrns(&archive);
+    let song = report.song.expect("imported song");
+
+    song.validate().expect("valid song");
+    let zones = &song.instruments[0].zones;
+    assert_eq!(zones.len(), 2);
+    assert!(zones.iter().all(|zone| {
+        (
+            zone.key_start,
+            zone.key_end,
+            zone.velocity_start,
+            zone.velocity_end,
+        ) == (0, 127, 0, 127)
+    }));
+    assert!(report.diagnostics.iter().any(|diagnostic| {
+        diagnostic.kind == XrnsDiagnosticKind::UnsupportedRenoiseFeature
+            && diagnostic.message.contains("no keyzone mapping")
+    }));
+}
+
+#[test]
 fn xrns_import_reads_note_column_values_as_renoise_hex_strings() {
     let xml = r#"
 <RenoiseSong>

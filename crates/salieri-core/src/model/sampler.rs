@@ -115,6 +115,54 @@ pub struct Instrument {
     pub name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sample: Option<SampleId>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub zones: Vec<InstrumentSampleZone>,
+}
+
+impl Instrument {
+    #[must_use]
+    pub fn primary_sample(&self) -> Option<SampleId> {
+        self.sample
+            .or_else(|| self.zones.first().map(|zone| zone.sample))
+    }
+
+    #[must_use]
+    pub fn sample_for_note(&self, pitch: u8, velocity: u8) -> Option<SampleId> {
+        self.zones
+            .iter()
+            .find(|zone| zone.contains(pitch, velocity))
+            .map(|zone| zone.sample)
+            .or_else(|| self.primary_sample())
+    }
+
+    pub fn sample_ids(&self) -> impl Iterator<Item = SampleId> + '_ {
+        self.sample
+            .into_iter()
+            .chain(self.zones.iter().map(|zone| zone.sample))
+    }
+
+    #[must_use]
+    pub fn references_sample(&self, sample: SampleId) -> bool {
+        self.sample_ids().any(|candidate| candidate == sample)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstrumentSampleZone {
+    pub sample: SampleId,
+    pub key_start: u8,
+    pub key_end: u8,
+    pub velocity_start: u8,
+    pub velocity_end: u8,
+}
+
+impl InstrumentSampleZone {
+    #[must_use]
+    pub fn contains(&self, pitch: u8, velocity: u8) -> bool {
+        (self.key_start..=self.key_end).contains(&pitch)
+            && (self.velocity_start..=self.velocity_end).contains(&velocity)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -148,5 +196,34 @@ mod tests {
         assert!(value.get("transposeSemitones").is_none());
         assert!(value.get("fineTuneCents").is_none());
         assert!(value.get("playback").is_none());
+    }
+
+    #[test]
+    fn instrument_zones_select_first_matching_sample() {
+        let instrument = Instrument {
+            id: InstrumentId(1),
+            name: "Piano".to_string(),
+            sample: None,
+            zones: vec![
+                InstrumentSampleZone {
+                    sample: SampleId(1),
+                    key_start: 48,
+                    key_end: 72,
+                    velocity_start: 0,
+                    velocity_end: 127,
+                },
+                InstrumentSampleZone {
+                    sample: SampleId(2),
+                    key_start: 60,
+                    key_end: 84,
+                    velocity_start: 0,
+                    velocity_end: 127,
+                },
+            ],
+        };
+
+        assert_eq!(instrument.sample_for_note(64, 100), Some(SampleId(1)));
+        assert_eq!(instrument.sample_for_note(80, 100), Some(SampleId(2)));
+        assert_eq!(instrument.primary_sample(), Some(SampleId(1)));
     }
 }
