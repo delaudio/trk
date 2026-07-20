@@ -141,6 +141,36 @@ fn command_mode_sets_and_clears_tracker_cell_columns() {
 }
 
 #[test]
+fn command_mode_rejects_deferred_or_invalid_effect_commands() {
+    let mut app = App::default();
+
+    type_command(&mut app, "fx V 40");
+    assert!(app
+        .notification
+        .as_ref()
+        .expect("notification")
+        .message
+        .contains("deferred"));
+    assert_eq!(
+        app.song
+            .current_pattern()
+            .expect("pattern")
+            .cell(0, 0)
+            .expect("cell")
+            .command,
+        None
+    );
+
+    type_command(&mut app, "fx R 00");
+    assert!(app
+        .notification
+        .as_ref()
+        .expect("notification")
+        .message
+        .contains("outside"));
+}
+
+#[test]
 fn command_mode_sets_and_clears_sample_gain_automation() {
     let mut app = App::default();
     let sample = app
