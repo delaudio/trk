@@ -1,7 +1,7 @@
 ┌ Salieri Tracker ─────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ BPM 120 | LPB 4 | Pattern 01 | Oct 4 | Step 1 | Row 00 | Play -- | Loop ON | Track 01 | Field NOTE | HELP | STOP | MI│
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-┌ Trac┌ Help: Sampler 1/3 | Tab/Shift+Tab pages ─────────────────────────────────────────────────────────────────▲─────┐
+┌ Trac┌ Help: Sampler 1/4 | Tab/Shift+Tab pages ─────────────────────────────────────────────────────────────────▲─────┐
 │> 01 │ Basics  |  Editing  |  Sampler  |  MIDI  |  Commands                                                     █     │
 │  02 │  Tab/Right next page   Shift+Tab/Left previous page   Up/Down scroll                                     █- ---│
 │  03 │                                                                                                          █- ---│
@@ -24,12 +24,12 @@
 │  00 │  Assigning a sample creates a sample-backed instrument for that track                                    ║- ---│
 │     │  Cells can override the track default with INST, e.g. :cell instrument 01                                ║─────┘
 │     │  An empty INST field uses the track instrument or sample assignment                                      ║─────┐
+│     │  :preset instrument save|show|load PATH for portable instrument files                                    ║     │
 │     │                                                                                                          ║     │
-│     │Playback Window                                                                                           ║     │
-│     │  :sample start FRAME|clear   :sample end FRAME|clear                                                     ║--   │
+│     │Playback Window                                                                                           ║--   │
+│     │  :sample start FRAME|clear   :sample end FRAME|clear                                                     ║     │
 │     │  :sample loop START END   :sample loop off                                                               ║     │
 │     │  :sample envelope ATTACK DECAY SUSTAIN RELEASE                                                           ║     │
-│     │  :sample settings shows mode, frame window, loop and envelope                                            ║     │
 │     └──────────────────────────────────────────────────────────────────────────────────────────────────────────▼     │
 │                          ││auto                         Sends 00   FX 00                                             │
 └──────────────────────────┘└──────────────────────────────────────────────────────────────────────────────────────────┘

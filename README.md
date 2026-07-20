@@ -407,6 +407,8 @@ T               Set selected song slot to current pattern
 :ai reject
 :preset inventory
 :preset save ./profiles/current.json
+:preset instrument save ./profiles/kick.instrument.json
+:preset instrument load ./profiles/kick.instrument.json
 :workspace init ~/Music/Salieri
 :workspace index ~/Music/Salieri
 :tasks

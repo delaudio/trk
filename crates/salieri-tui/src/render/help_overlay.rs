@@ -205,6 +205,7 @@ fn help_sampler_lines(mode_label: &str) -> Vec<Line<'static>> {
         Line::from("  Assigning a sample creates a sample-backed instrument for that track"),
         Line::from("  Cells can override the track default with INST, e.g. :cell instrument 01"),
         Line::from("  An empty INST field uses the track instrument or sample assignment"),
+        Line::from("  :preset instrument save|show|load PATH for portable instrument files"),
         Line::from(""),
         Line::from(Span::styled(
             "Playback Window",

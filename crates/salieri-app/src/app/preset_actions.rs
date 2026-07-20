@@ -6,6 +6,7 @@ use std::{
 use super::*;
 
 const PRESET_PROFILE_SCHEMA: &str = "salieri.preset-profile.v1";
+const INSTRUMENT_PRESET_SCHEMA: &str = "salieri.instrument-preset.v1";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -65,6 +66,39 @@ struct PresetBridgeStatus {
     note: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct InstrumentPreset {
+    schema: String,
+    name: String,
+    sample: InstrumentPresetSample,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    zones: Vec<InstrumentPresetZone>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct InstrumentPresetSample {
+    name: String,
+    path: String,
+    root_pitch: u8,
+    gain: f32,
+    pan: f32,
+    transpose_semitones: i8,
+    fine_tune_cents: i16,
+    playback: SamplePlaybackSettings,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct InstrumentPresetZone {
+    sample: InstrumentPresetSample,
+    key_start: u8,
+    key_end: u8,
+    velocity_start: u8,
+    velocity_end: u8,
+}
+
 impl App {
     pub(crate) fn handle_preset_command(&mut self, values: &[&str]) {
         match values {
@@ -73,9 +107,16 @@ impl App {
             ["list", path @ ..] => self.list_preset_profiles_command(path),
             ["show" | "analyze", path @ ..] => self.show_preset_profile_command(path),
             ["load" | "apply" | "guide", path @ ..] => self.apply_preset_profile_command(path),
+            ["instrument", "save" | "export", path @ ..] => {
+                self.save_instrument_preset_command(path)
+            }
+            ["instrument", "show", path @ ..] => self.show_instrument_preset_command(path),
+            ["instrument", "load" | "import", path @ ..] => {
+                self.load_instrument_preset_command(path)
+            }
             ["ableton", command @ ..] => self.route_ableton_preset_command(command),
             _ => self.notify_warning(
-                "Usage: :preset inventory | save PATH | list DIR | show PATH | load PATH | ableton status",
+                "Usage: :preset inventory | save PATH | list DIR | show PATH | load PATH | instrument save|show|load PATH | ableton status",
             ),
         }
     }
@@ -160,6 +201,82 @@ impl App {
                 self.notify_success(format!("Preset profile loaded: {label}"));
             }
             Err(error) => self.notify_warning(format!("Preset read failed: {error}")),
+        }
+    }
+
+    fn save_instrument_preset_command(&mut self, values: &[&str]) {
+        let Ok(path) = command_path(values, "instrument preset path is required") else {
+            self.notify_warning("Usage: :preset instrument save PATH");
+            return;
+        };
+        let Some(track) = self.song.tracks.get(self.cursor.track) else {
+            self.notify_warning("Track out of range");
+            return;
+        };
+        let Some(instrument) = self.song.instrument_for_track(track.id) else {
+            self.notify_warning("Current track has no assigned instrument");
+            return;
+        };
+        let Ok(preset) = instrument_preset_from_song(&self.song, instrument) else {
+            self.notify_warning("Instrument preset save failed: missing sample reference");
+            return;
+        };
+        match save_instrument_preset(&path, &preset) {
+            Ok(()) => {
+                self.notify_success(format!("Instrument preset saved: {}", path.display()));
+            }
+            Err(error) => self.notify_warning(format!("Instrument preset save failed: {error}")),
+        }
+    }
+
+    fn show_instrument_preset_command(&mut self, values: &[&str]) {
+        let Ok(path) = command_path(values, "instrument preset path is required") else {
+            self.notify_warning("Usage: :preset instrument show PATH");
+            return;
+        };
+        match read_instrument_preset(&path) {
+            Ok(preset) => {
+                let summary = summarize_instrument_preset(&preset);
+                self.push_ai_message(AiMessageRole::Assistant, summary.clone());
+                self.notify_info(summary);
+            }
+            Err(error) => self.notify_warning(format!("Instrument preset read failed: {error}")),
+        }
+    }
+
+    fn load_instrument_preset_command(&mut self, values: &[&str]) {
+        let Ok(path) = command_path(values, "instrument preset path is required") else {
+            self.notify_warning("Usage: :preset instrument load PATH");
+            return;
+        };
+        let preset = match read_instrument_preset(&path) {
+            Ok(preset) => preset,
+            Err(error) => {
+                self.notify_warning(format!("Instrument preset read failed: {error}"));
+                return;
+            }
+        };
+        let track_index = self.cursor.track;
+        let mut loaded = None;
+        let result =
+            self.try_mutate_song(TransactionSpec::new("Load instrument preset"), |song, _| {
+                let track_id = song
+                    .tracks
+                    .get(track_index)
+                    .ok_or(EditError::TrackOutOfBounds { track: track_index })?
+                    .id;
+                let instrument = import_instrument_preset(song, &preset);
+                song.assign_instrument_to_track(track_id, instrument)?;
+                loaded = Some(instrument);
+                Ok::<(), EditError>(())
+            });
+        match result {
+            Ok(_) => self.notify_success(format!(
+                "Instrument preset loaded: {} as {:02}",
+                preset.name,
+                loaded.map_or(0, |id| id.0)
+            )),
+            Err(error) => self.notify_warning(format!("Instrument preset load failed: {error}")),
         }
     }
 
@@ -283,6 +400,20 @@ fn save_preset_profile(path: &Path, profile: &PresetProfile) -> Result<(), Strin
         .map_err(|error| format!("cannot write {}: {error}", path.display()))
 }
 
+fn save_instrument_preset(path: &Path, preset: &InstrumentPreset) -> Result<(), String> {
+    if let Some(parent) = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("cannot create {}: {error}", parent.display()))?;
+    }
+    let json = serde_json::to_string_pretty(preset)
+        .map_err(|error| format!("cannot encode instrument preset: {error}"))?;
+    fs::write(path, format!("{json}\n"))
+        .map_err(|error| format!("cannot write {}: {error}", path.display()))
+}
+
 fn read_preset_profile(path: &Path) -> Result<PresetProfile, String> {
     let raw = fs::read_to_string(path)
         .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
@@ -295,6 +426,24 @@ fn read_preset_profile(path: &Path) -> Result<PresetProfile, String> {
         ));
     }
     Ok(profile)
+}
+
+fn read_instrument_preset(path: &Path) -> Result<InstrumentPreset, String> {
+    let raw = fs::read_to_string(path)
+        .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+    let preset = serde_json::from_str::<InstrumentPreset>(&raw).map_err(|error| {
+        format!(
+            "invalid instrument preset JSON in {}: {error}",
+            path.display()
+        )
+    })?;
+    if preset.schema != INSTRUMENT_PRESET_SCHEMA {
+        return Err(format!(
+            "unsupported instrument preset schema {:?}",
+            preset.schema
+        ));
+    }
+    Ok(preset)
 }
 
 fn list_preset_profiles(dir: &Path) -> Result<Vec<(PathBuf, String)>, String> {
@@ -355,6 +504,106 @@ fn summarize_preset_profile(profile: &PresetProfile) -> String {
         profile.native_devices.len(),
         profile.midi.output_ports.len(),
         profile.midi.input_ports.len()
+    )
+}
+
+fn summarize_instrument_preset(preset: &InstrumentPreset) -> String {
+    format!(
+        "Instrument preset {}: sample={}, zones={}",
+        preset.name,
+        preset.sample.path,
+        preset.zones.len()
+    )
+}
+
+fn instrument_preset_from_song(
+    song: &Song,
+    instrument: &Instrument,
+) -> Result<InstrumentPreset, String> {
+    let sample = instrument
+        .primary_sample()
+        .and_then(|sample| song.sample_for_id(sample))
+        .ok_or_else(|| "instrument has no primary sample".to_string())?;
+    let zones = instrument
+        .zones
+        .iter()
+        .filter_map(|zone| {
+            let sample = song.sample_for_id(zone.sample)?;
+            Some(InstrumentPresetZone {
+                sample: instrument_preset_sample(sample),
+                key_start: zone.key_start,
+                key_end: zone.key_end,
+                velocity_start: zone.velocity_start,
+                velocity_end: zone.velocity_end,
+            })
+        })
+        .collect();
+    Ok(InstrumentPreset {
+        schema: INSTRUMENT_PRESET_SCHEMA.to_string(),
+        name: instrument.name.clone(),
+        sample: instrument_preset_sample(sample),
+        zones,
+    })
+}
+
+fn instrument_preset_sample(sample: &SampleReference) -> InstrumentPresetSample {
+    InstrumentPresetSample {
+        name: sample.name.clone(),
+        path: sample.path.clone(),
+        root_pitch: sample.root_pitch,
+        gain: sample.gain,
+        pan: sample.pan,
+        transpose_semitones: sample.transpose_semitones,
+        fine_tune_cents: sample.fine_tune_cents,
+        playback: sample.playback,
+    }
+}
+
+fn import_instrument_preset(song: &mut Song, preset: &InstrumentPreset) -> InstrumentId {
+    let primary_sample = import_instrument_preset_sample(song, &preset.sample);
+    let zones = preset
+        .zones
+        .iter()
+        .map(|zone| InstrumentSampleZone {
+            sample: import_instrument_preset_sample(song, &zone.sample),
+            key_start: zone.key_start,
+            key_end: zone.key_end,
+            velocity_start: zone.velocity_start,
+            velocity_end: zone.velocity_end,
+        })
+        .collect();
+    let instrument = Instrument {
+        id: next_imported_instrument_id(song),
+        name: preset.name.clone(),
+        sample: Some(primary_sample),
+        zones,
+    };
+    let id = instrument.id;
+    song.instruments.push(instrument);
+    id
+}
+
+fn import_instrument_preset_sample(song: &mut Song, sample: &InstrumentPresetSample) -> SampleId {
+    let id = song.upsert_sample_reference(sample.path.clone(), sample.name.clone());
+    if let Some(reference) = song.sample_for_id_mut(id) {
+        reference.root_pitch = sample.root_pitch;
+        reference.gain = sample.gain;
+        reference.pan = sample.pan;
+        reference.transpose_semitones = sample.transpose_semitones;
+        reference.fine_tune_cents = sample.fine_tune_cents;
+        reference.playback = sample.playback;
+    }
+    id
+}
+
+fn next_imported_instrument_id(song: &Song) -> InstrumentId {
+    InstrumentId(
+        song.instruments
+            .iter()
+            .map(|instrument| instrument.id.0)
+            .max()
+            .unwrap_or(0)
+            .saturating_add(1),
     )
 }
 
