@@ -1,7 +1,7 @@
 use super::{
     drive_catalog::*, dynamics_catalog::*, modulation_catalog::*, reverb_catalog::*,
-    ParameterChoice, ParameterDescriptor, ParameterFlags, ParameterGroupId, ParameterId,
-    ParameterRange, ParameterUnit, ParameterValue, ParameterValueType,
+    sampler_catalog::*, ParameterChoice, ParameterDescriptor, ParameterFlags, ParameterGroupId,
+    ParameterId, ParameterRange, ParameterUnit, ParameterValue, ParameterValueType,
 };
 
 pub const SAMPLE_GAIN_PARAMETER_ID: &str = "sample.gain";
@@ -565,7 +565,9 @@ pub fn native_delay_output_descriptor() -> ParameterDescriptor {
 
 #[must_use]
 pub fn sampler_parameter_descriptors() -> Vec<ParameterDescriptor> {
-    vec![sample_gain_descriptor()]
+    let mut descriptors = vec![sample_gain_descriptor()];
+    descriptors.extend(sampler_playback_parameter_descriptors());
+    descriptors
 }
 
 #[must_use]
@@ -674,7 +676,8 @@ pub fn builtin_parameter_descriptor(id: &ParameterId) -> Option<ParameterDescrip
         NATIVE_BITCRUSHER_DITHER_PARAMETER_ID => Some(native_bitcrusher_dither_descriptor()),
         NATIVE_BITCRUSHER_MIX_PARAMETER_ID => Some(native_bitcrusher_mix_descriptor()),
         NATIVE_BITCRUSHER_OUTPUT_PARAMETER_ID => Some(native_bitcrusher_output_descriptor()),
-        _ => native_modulation_parameter_descriptor(id.as_str())
+        _ => sampler_playback_parameter_descriptor(id.as_str())
+            .or_else(|| native_modulation_parameter_descriptor(id.as_str()))
             .or_else(|| native_dynamics_parameter_descriptor(id.as_str())),
     }
 }

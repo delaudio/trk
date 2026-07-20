@@ -5,8 +5,8 @@ use crate::{
     },
     parameters::{
         mixer_master_gain_descriptor, mixer_send_gain_descriptor, mixer_track_gain_descriptor,
-        mixer_track_pan_descriptor, sample_gain_descriptor, ParameterDescriptor, ParameterId,
-        ParameterValue,
+        mixer_track_pan_descriptor, sampler_parameter_descriptors, ParameterDescriptor,
+        ParameterId, ParameterValue,
     },
     playback::{row_duration_micros, PlaybackPosition},
     TrackId,
@@ -204,10 +204,10 @@ fn descriptor_for_target(
     match target {
         ParameterLockTarget::Sample { sample } => song
             .sample_for_id(*sample)
-            .and_then(|_| descriptor_by_id(parameter, &[sample_gain_descriptor()])),
+            .and_then(|_| descriptor_by_id(parameter, &sampler_parameter_descriptors())),
         ParameterLockTarget::Instrument { instrument } => song
             .instrument_for_id(*instrument)
-            .and_then(|_| descriptor_by_id(parameter, &[sample_gain_descriptor()])),
+            .and_then(|_| descriptor_by_id(parameter, &sampler_parameter_descriptors())),
         ParameterLockTarget::TrackMixer { track } => song
             .tracks
             .iter()

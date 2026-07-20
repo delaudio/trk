@@ -36,8 +36,10 @@ use salieri_core::{
     native_phaser_sync_descriptor, native_reverb_damping_descriptor,
     native_reverb_decay_descriptor, native_reverb_mix_descriptor, native_reverb_output_descriptor,
     native_reverb_predelay_descriptor, native_reverb_size_descriptor, native_width_descriptor,
-    sample_gain_descriptor, CellField, Cursor, EffectDeviceKind, NoteEvent, ParameterDescriptor,
-    ParameterValue, Pattern, PatternCell, SamplePlaybackMode, Song,
+    sample_envelope_attack_descriptor, sample_envelope_decay_descriptor,
+    sample_envelope_release_descriptor, sample_envelope_sustain_descriptor, sample_gain_descriptor,
+    CellField, Cursor, EffectDeviceKind, NoteEvent, ParameterDescriptor, ParameterValue, Pattern,
+    PatternCell, SamplePlaybackMode, Song,
 };
 use salieri_sampler::{WaveformBucket, WaveformOverview};
 
@@ -1065,25 +1067,41 @@ fn render_sampler_envelope_controls(sampler: SamplerViewState<'_>) -> Line<'stat
         sampler_envelope_span(
             SamplerEnvelopeField::Attack,
             sampler.selected_envelope,
-            format!("A {:.3}s", sampler.envelope.0),
+            format!(
+                "A {}",
+                sample_envelope_attack_descriptor()
+                    .format_value(&ParameterValue::Seconds(sampler.envelope.0))
+            ),
         ),
         Span::raw("  "),
         sampler_envelope_span(
             SamplerEnvelopeField::Decay,
             sampler.selected_envelope,
-            format!("D {:.3}s", sampler.envelope.1),
+            format!(
+                "D {}",
+                sample_envelope_decay_descriptor()
+                    .format_value(&ParameterValue::Seconds(sampler.envelope.1))
+            ),
         ),
         Span::raw("  "),
         sampler_envelope_span(
             SamplerEnvelopeField::Sustain,
             sampler.selected_envelope,
-            format!("S {:.3}", sampler.envelope.2),
+            format!(
+                "S {}",
+                sample_envelope_sustain_descriptor()
+                    .format_value(&ParameterValue::Percentage(sampler.envelope.2))
+            ),
         ),
         Span::raw("  "),
         sampler_envelope_span(
             SamplerEnvelopeField::Release,
             sampler.selected_envelope,
-            format!("R {:.3}s", sampler.envelope.3),
+            format!(
+                "R {}",
+                sample_envelope_release_descriptor()
+                    .format_value(&ParameterValue::Seconds(sampler.envelope.3))
+            ),
         ),
     ])
 }

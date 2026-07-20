@@ -171,3 +171,38 @@ fn builtin_catalogs_have_unique_stable_ids() {
         assert!(builtin_parameter_descriptor(&descriptor.id).is_some());
     }
 }
+
+#[test]
+fn sampler_catalog_describes_persisted_sampler_controls() {
+    let descriptors = sampler_parameter_descriptors();
+    let ids = descriptors
+        .iter()
+        .map(|descriptor| descriptor.id.as_str())
+        .collect::<std::collections::HashSet<_>>();
+
+    for id in [
+        SAMPLE_GAIN_PARAMETER_ID,
+        SAMPLE_ROOT_NOTE_PARAMETER_ID,
+        SAMPLE_PLAYBACK_MODE_PARAMETER_ID,
+        SAMPLE_START_FRAME_PARAMETER_ID,
+        SAMPLE_END_FRAME_PARAMETER_ID,
+        SAMPLE_LOOP_START_FRAME_PARAMETER_ID,
+        SAMPLE_LOOP_END_FRAME_PARAMETER_ID,
+        SAMPLE_ENVELOPE_ATTACK_PARAMETER_ID,
+        SAMPLE_ENVELOPE_DECAY_PARAMETER_ID,
+        SAMPLE_ENVELOPE_SUSTAIN_PARAMETER_ID,
+        SAMPLE_ENVELOPE_RELEASE_PARAMETER_ID,
+    ] {
+        assert!(ids.contains(id), "missing sampler descriptor {id}");
+        assert!(builtin_parameter_descriptor(&ParameterId::from(id)).is_some());
+    }
+
+    assert!(sample_gain_descriptor().flags.automatable);
+    assert!(!sample_envelope_attack_descriptor().flags.automatable);
+    assert!(sample_envelope_attack_descriptor().validate_f32(60.0));
+    assert!(!sample_envelope_attack_descriptor().validate_f32(60.001));
+    assert_eq!(
+        sample_playback_mode_descriptor().format_value(&ParameterValue::Enum("loop".to_string())),
+        "Loop"
+    );
+}

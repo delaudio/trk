@@ -2847,6 +2847,19 @@ mod tests {
             .expect_err("invalid envelope"),
             EditError::InvalidSampleEnvelope
         );
+        assert_eq!(
+            song.set_sample_envelope(
+                sample,
+                SampleEnvelope {
+                    attack_seconds: 60.001,
+                    decay_seconds: 0.0,
+                    sustain: 1.0,
+                    release_seconds: 0.0,
+                },
+            )
+            .expect_err("envelope descriptor maximum applies"),
+            EditError::InvalidSampleEnvelope
+        );
     }
 
     #[test]
