@@ -17,6 +17,7 @@ The primary realtime playback path remains MIDI-first for external instruments, 
 - Realtime sampler playback for assigned WAV samples through the default CPAL output device.
 - Mixer foundations with master gain, per-track audio gain/pan/mute/solo, delay/reverb sends, track-editor display, and offline level metering helpers.
 - Minimal native DSP graph with per-track and master gain/pan devices shared by realtime playback and offline export.
+- Optional C/C++ DSP wrapper boundary for reviewed native modules, with a feature-gated C gain proof of concept and deterministic tests. See [docs/c-dsp-boundary.md](docs/c-dsp-boundary.md).
 - Pattern automation lanes with stepped sample-gain automation observed by realtime playback and offline audio export.
 - Deterministic sampler event contracts for routing assigned samples into audio commands.
 - Offline audio rendering foundations for sampler preview/event buffers and WAV PCM16 encoding.

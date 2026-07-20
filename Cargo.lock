@@ -1067,6 +1067,7 @@ dependencies = [
 name = "salieri-audio"
 version = "0.1.0"
 dependencies = [
+ "cc",
  "cpal",
  "salieri-sampler",
  "thiserror 2.0.18",

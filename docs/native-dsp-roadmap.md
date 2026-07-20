@@ -45,6 +45,7 @@ playback, and offline export.
 | Meta devices, LFO device, hydra, key/velocity trackers | Automation/modulation system | Deferred | Follow-up after #123 and #137 | These control parameters rather than process audio directly. Do not model them as ordinary audio insert devices. |
 | Send device and routing utilities | Mixer routing | Partial | #84 foundation | Audio sends now have routing and deterministic summing rules; expanded send-specific utilities and UI remain follow-up scope. |
 | Native instrument devices | Instrument/module layer | Partial | #116 boundary exists; concrete instruments deferred | Instruments use the same module/state contract but are not part of this effect roadmap except where sampler-local processing overlaps #121. |
+| Reviewed C/C++ DSP wrappers | Native module boundary | Implemented foundation | #115 C/C++ DSP boundary | Optional feature-gated wrappers may adapt vendored, license-reviewed algorithms into Salieri-owned modules. They must expose plain descriptors/state and stay separate from arbitrary binary hosting. |
 | Tracker note/effect commands: delay, retrigger, arpeggio, slides, sample offset | Pattern command library | Partial | #85 expanded per-step FX commands | These are row playback semantics, not DSP devices. They may also write parameter locks once #123 exists. |
 | Third-party plugins | Plugin host boundary | Deferred | Future ADR only | Direct VST/AU/CLAP hosting remains out of scope for this roadmap. |
 
@@ -387,6 +388,10 @@ Implementation notes:
 
 ## Implementation Order
 
+0. **#115 C/C++ DSP boundary**: optional FFI wrapper pattern for reviewed
+   native algorithms. The foundation compiles a project-authored C gain fixture
+   under `c-dsp-boundary`, keeps unsafe calls isolated in `salieri-audio`, and
+   validates deterministic fixed-buffer processing before broader wrappers.
 1. **#125 Utility devices**: lowest DSP risk; hardens descriptor catalog,
    bypass, TUI editing, realtime/offline tests, and state migration patterns.
 2. **#126 Multimode filter**: introduces coefficient/state lifecycle without
