@@ -13,6 +13,9 @@ Commands:
 :preset list DIR
 :preset show PATH
 :preset load PATH
+:preset instrument save PATH
+:preset instrument show PATH
+:preset instrument load PATH
 :preset ableton status
 ```
 
@@ -23,6 +26,15 @@ PATH` reads and summarizes one profile. `:preset load PATH` loads the profile as
 AI guidance so subsequent `:ai propose PROMPT` calls can use the recorded
 instrument and native-device metadata while still going through the normal
 reviewable proposal flow.
+
+`:preset instrument save PATH` exports the current track's assigned
+sample-backed instrument to a portable JSON file using the
+`salieri.instrument-preset.v1` schema. The file stores the instrument name,
+sample path, root note, gain, pan, playback settings, envelope, and key/velocity
+zone metadata. `:preset instrument show PATH` summarizes the file, and
+`:preset instrument load PATH` imports it as a new independent instrument slot
+assigned to the current track. Loading an instrument preset does not remove
+existing tracks, samples, or instruments.
 
 The saved profile includes:
 

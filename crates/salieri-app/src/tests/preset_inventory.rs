@@ -85,6 +85,86 @@ fn preset_list_show_and_load_profile_as_ai_guidance() {
 }
 
 #[test]
+fn instrument_preset_save_show_and_load_assigns_current_track() {
+    let path = preset_profile_dir("instrument").join("kick.instrument.json");
+    let mut app = App::default();
+    let sample = app.song.upsert_sample_reference("samples/kick.wav", "Kick");
+    {
+        let reference = app.song.sample_for_id_mut(sample).expect("sample");
+        reference.root_pitch = 36;
+        reference.gain = 0.75;
+        reference.pan = -0.25;
+        reference.playback.envelope.attack_seconds = 0.01;
+    }
+    app.song
+        .assign_sample_to_track(app.song.tracks[0].id, sample)
+        .expect("assign sample");
+
+    type_command(
+        &mut app,
+        &format!("preset instrument save {}", path.display()),
+    );
+    type_command(
+        &mut app,
+        &format!("preset instrument show {}", path.display()),
+    );
+
+    let json = std::fs::read_to_string(&path).expect("instrument preset saved");
+    let value = serde_json::from_str::<serde_json::Value>(&json).expect("valid json");
+    assert_eq!(value["schema"], "salieri.instrument-preset.v1");
+    assert_eq!(value["name"], "Kick");
+    assert_eq!(value["sample"]["path"], "samples/kick.wav");
+    assert_eq!(value["sample"]["rootPitch"], 36);
+    assert_eq!(value["sample"]["gain"], 0.75);
+    assert!(app.ai_thread.messages.iter().any(|message| {
+        message.role == AiMessageRole::Assistant
+            && message
+                .text
+                .contains("Instrument preset Kick: sample=samples/kick.wav")
+    }));
+
+    let mut loaded = App::default();
+    loaded.cursor.track = 1;
+    type_command(
+        &mut loaded,
+        &format!("preset instrument load {}", path.display()),
+    );
+
+    let assignment = loaded
+        .song
+        .instrument_assignment_for_track(loaded.song.tracks[1].id)
+        .expect("assigned instrument");
+    let instrument = loaded
+        .song
+        .instrument_for_id(assignment.instrument)
+        .expect("instrument");
+    let sample = loaded
+        .song
+        .sample_for_id(instrument.primary_sample().expect("sample"))
+        .expect("sample reference");
+    assert_eq!(instrument.name, "Kick");
+    assert_eq!(sample.path, "samples/kick.wav");
+    assert_eq!(sample.root_pitch, 36);
+    assert_eq!(sample.gain, 0.75);
+    assert_eq!(sample.pan, -0.25);
+    assert_eq!(sample.playback.envelope.attack_seconds, 0.01);
+
+    loaded
+        .song
+        .current_pattern_mut()
+        .expect("pattern")
+        .set_note(0, 1, NoteEvent::Note { pitch: 36 }, 0x7f)
+        .expect("set note");
+    let events = sampler_events(
+        &loaded.song,
+        loaded.song.current_pattern().expect("pattern"),
+    );
+    assert_eq!(events[0].sample_path, "samples/kick.wav");
+
+    let _ = std::fs::remove_file(path);
+}
+
+#[test]
 fn preset_ableton_command_reports_optional_bridge_boundary() {
     let mut app = App::default();
 
