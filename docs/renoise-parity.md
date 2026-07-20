@@ -38,3 +38,8 @@ The JSON report records, per song and in totals:
 Use the report as a local trend line while implementing XRNS/Renoise parity
 issues. CI should use `--synthetic` only; it must not require third-party demo
 assets.
+
+XRNS sample import preserves representable sample playback metadata: root note,
+transpose, fine tune, volume/gain, pan, loop mode/windows, and ADSR-like envelope
+settings. Unsupported sample metadata is reported as an import warning instead
+of being dropped silently.

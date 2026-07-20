@@ -190,6 +190,7 @@ pub fn sampler_events(song: &Song, pattern: &Pattern) -> Vec<SamplerPlaybackEven
                 song.mixer.master_gain,
             );
             let gain = sample_gain * cell_gain * mixer_gain * master_gain;
+            let pan = combine_pan(sample.pan, cell.pan.map_or(mixer_pan, pan_u7_to_float));
             let trigger = SamplerPlaybackEvent {
                 position,
                 track: track.id,
@@ -198,8 +199,13 @@ pub fn sampler_events(song: &Song, pattern: &Pattern) -> Vec<SamplerPlaybackEven
                 pitch,
                 velocity,
                 gain,
-                pan: cell.pan.map_or(mixer_pan, pan_u7_to_float),
-                pitch_ratio: pitch_ratio(pitch, sample.root_pitch),
+                pan,
+                pitch_ratio: pitch_ratio(
+                    pitch,
+                    sample.root_pitch,
+                    sample.transpose_semitones,
+                    sample.fine_tune_cents,
+                ),
             };
             events.push(trigger.clone());
             emit_sampler_retrigger_events(&mut events, trigger, row_duration, cell.command);
@@ -292,8 +298,15 @@ fn emit_sampler_retrigger_events(
     }
 }
 
-fn pitch_ratio(pitch: u8, root_pitch: u8) -> f32 {
-    2.0_f32.powf((f32::from(pitch) - f32::from(root_pitch)) / 12.0)
+fn pitch_ratio(pitch: u8, root_pitch: u8, transpose_semitones: i8, fine_tune_cents: i16) -> f32 {
+    let semitones = f32::from(pitch) - f32::from(root_pitch)
+        + f32::from(transpose_semitones)
+        + f32::from(fine_tune_cents) / 100.0;
+    2.0_f32.powf(semitones / 12.0)
+}
+
+fn combine_pan(sample_pan: f32, event_pan: f32) -> f32 {
+    (sample_pan + event_pan).clamp(-1.0, 1.0)
 }
 
 fn emit_retrigger_events(
@@ -601,6 +614,43 @@ mod tests {
     }
 
     #[test]
+    fn sampler_events_apply_sample_tuning_to_pitch_ratio() {
+        let mut song = Song::empty();
+        let sample_id = song.upsert_sample_reference("samples/lead.wav", "lead.wav");
+        let track_id = song.tracks[0].id;
+        song.samples[0].root_pitch = 60;
+        song.samples[0].transpose_semitones = 12;
+        song.samples[0].fine_tune_cents = -50;
+        song.assign_sample_to_track(track_id, sample_id)
+            .expect("assign sample");
+        song.current_pattern_mut()
+            .expect("pattern")
+            .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x7f)
+            .expect("set note");
+        let events = sampler_events(&song, song.current_pattern().expect("pattern"));
+        let expected = 2.0_f32.powf(11.5 / 12.0);
+        assert!((events[0].pitch_ratio - expected).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn sample_playback_metadata_survives_json_round_trip() {
+        let mut song = Song::empty();
+        song.upsert_sample_reference("samples/lead.wav", "lead.wav");
+        song.samples[0].root_pitch = 72;
+        song.samples[0].transpose_semitones = -12;
+        song.samples[0].fine_tune_cents = 25;
+        song.samples[0].gain = 0.625;
+        song.samples[0].pan = -0.5;
+        let serialized = serde_json::to_string(&song).expect("serialize song");
+        let restored: Song = serde_json::from_str(&serialized).expect("deserialize song");
+        assert_eq!(restored.samples[0].root_pitch, 72);
+        assert_eq!(restored.samples[0].transpose_semitones, -12);
+        assert_eq!(restored.samples[0].fine_tune_cents, 25);
+        assert_eq!(restored.samples[0].gain, 0.625);
+        assert_eq!(restored.samples[0].pan, -0.5);
+    }
+
+    #[test]
     fn sampler_events_apply_stepped_sample_gain_automation() {
         let mut song = Song::empty();
         let sample_id = song.upsert_sample_reference("samples/kick.wav", "kick.wav");
@@ -634,6 +684,7 @@ mod tests {
         let sample_id = song.upsert_sample_reference("samples/kick.wav", "kick.wav");
         let track_id = song.tracks[0].id;
         song.samples[0].gain = 0.5;
+        song.samples[0].pan = -0.25;
         song.set_track_mixer_gain(0, 0.5).expect("track gain");
         song.set_track_mixer_pan(0, 0.75).expect("track pan");
         song.set_master_gain(0.5).expect("master gain");
@@ -648,7 +699,7 @@ mod tests {
 
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].gain, 0.125);
-        assert_eq!(events[0].pan, 0.75);
+        assert_eq!(events[0].pan, 0.5);
     }
 
     #[test]

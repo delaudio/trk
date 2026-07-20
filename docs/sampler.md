@@ -10,7 +10,7 @@ The sampler work is post-MVP and intentionally lives outside `salieri-core`, `sa
 - persistent sample references, sample-backed instruments, playback settings, and assignment metadata for mapping instruments to tracker tracks;
 - deterministic waveform overviews for CLI and TUI rendering.
 
-This keeps the MIDI-first runtime intact. Existing pattern playback still emits MIDI, while `salieri-core::sampler_events` defines the data contract the audio layer consumes: track id, sample id/path, note pitch, velocity, gain, pitch ratio, and scheduled position. The playback runtime loads assigned WAV files, applies sample start/end and amplitude-envelope settings, prepares them for the default CPAL output format, and routes assigned sample events to realtime audio commands for audible sampler playback.
+This keeps the MIDI-first runtime intact. Existing pattern playback still emits MIDI, while `salieri-core::sampler_events` defines the data contract the audio layer consumes: track id, sample id/path, note pitch, velocity, gain, pan, pitch ratio, and scheduled position. The playback runtime loads assigned WAV files, applies sample tuning, gain/pan, sample start/end, and amplitude-envelope settings, prepares them for the default CPAL output format, and routes assigned sample events to realtime audio commands for audible sampler playback.
 
 Users can inspect supported WAV files without opening the tracker UI:
 
@@ -49,6 +49,7 @@ Assignments are saved in `.salieri` project files. Loading old projects with dir
 
 Playback settings are also saved in `.salieri` project files:
 
+- XRNS import preserves representable Renoise sample root note, transpose, fine tune, gain, pan, loop window, and ADSR-style envelope metadata;
 - `start` and `end` set a frame window used by realtime playback and offline audio export;
 - `loop` stores validated loop-point metadata for the sample reference;
 - `envelope` stores attack seconds, decay seconds, sustain level `0..=1`, and release seconds, and is applied to realtime playback and offline audio export;
