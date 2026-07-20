@@ -4,7 +4,14 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
+[features]
+default = []
+c-dsp-boundary = []
+
 [dependencies]
 cpal = "0.15.3"
 salieri-sampler = { path = "../salieri-sampler" }
 thiserror.workspace = true
+
+[build-dependencies]
+cc = "1.2.67"
