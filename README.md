@@ -134,6 +134,8 @@ For local Renoise demo parity checks, see
 [docs/renoise-parity.md](docs/renoise-parity.md).
 For Polyend Tracker Mini workflow parity, see
 [docs/tracker-mini-parity.md](docs/tracker-mini-parity.md).
+For source Salieri monorepo parity, see
+[docs/salieri-monorepo-parity.md](docs/salieri-monorepo-parity.md).
 
 Or copy the relevant settings into `~/.config/salieri/config.toml`:
 
