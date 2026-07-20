@@ -114,6 +114,7 @@ pub enum CommandDomain {
     Mixer,
     Dsp,
     Ai,
+    Report,
     Preset,
     Workspace,
     Midi,
@@ -222,6 +223,17 @@ impl SalieriCommand {
             "mixer" | "mix" => domain(CommandDomain::Mixer, arguments),
             "dsp" | "effect-chain" => domain(CommandDomain::Dsp, arguments),
             "ai" => domain(CommandDomain::Ai, arguments),
+            "report" | "reports" => domain(CommandDomain::Report, arguments),
+            "critique" => {
+                let mut values = vec!["critique".to_string()];
+                values.extend(arguments);
+                domain(CommandDomain::Report, values)
+            }
+            "revise" | "revision" => {
+                let mut values = vec!["revise".to_string()];
+                values.extend(arguments);
+                domain(CommandDomain::Report, values)
+            }
             "preset" | "presets" => domain(CommandDomain::Preset, arguments),
             "workspace" | "ws" => domain(CommandDomain::Workspace, arguments),
             "midi" => domain(CommandDomain::Midi, arguments),

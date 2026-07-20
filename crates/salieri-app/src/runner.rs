@@ -64,6 +64,14 @@ fn run(args: CliArgs) -> Result<()> {
             run_export_strudel(strudel_args)?;
             return Ok(());
         }
+        CliCommand::ReportProject(report_args) => {
+            run_report_project(report_args)?;
+            return Ok(());
+        }
+        CliCommand::ReportCritique(report_args) => {
+            run_report_critique(report_args)?;
+            return Ok(());
+        }
         CliCommand::ImportXrns(import_args) => {
             run_import_xrns(import_args)?;
             return Ok(());
