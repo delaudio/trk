@@ -209,14 +209,7 @@ pub(crate) fn format_touched_cells(touched_cells: &[CellAddress]) -> String {
     let mut cells = touched_cells
         .iter()
         .take(8)
-        .map(|cell| {
-            format!(
-                "p{:02}/r{:02}/t{:02}",
-                cell.pattern + 1,
-                cell.row,
-                cell.track + 1
-            )
-        })
+        .map(format_cell_address)
         .collect::<Vec<_>>();
     if touched_cells.len() > cells.len() {
         cells.push(format!("+{}", touched_cells.len() - cells.len()));
@@ -226,6 +219,65 @@ pub(crate) fn format_touched_cells(touched_cells: &[CellAddress]) -> String {
     } else {
         cells.join(", ")
     }
+}
+
+pub(crate) fn format_all_touched_cells(touched_cells: &[CellAddress]) -> String {
+    let cells = touched_cells
+        .iter()
+        .map(format_cell_address)
+        .collect::<Vec<_>>();
+    if cells.is_empty() {
+        "none".to_string()
+    } else {
+        cells.join(", ")
+    }
+}
+
+pub(crate) fn format_touched_areas(touched_cells: &[CellAddress]) -> String {
+    if touched_cells.is_empty() {
+        return "none".to_string();
+    }
+    let mut patterns = touched_cells
+        .iter()
+        .map(|cell| cell.pattern + 1)
+        .collect::<Vec<_>>();
+    patterns.sort_unstable();
+    patterns.dedup();
+    let mut tracks = touched_cells
+        .iter()
+        .map(|cell| cell.track + 1)
+        .collect::<Vec<_>>();
+    tracks.sort_unstable();
+    tracks.dedup();
+    let mut rows = touched_cells
+        .iter()
+        .map(|cell| cell.row)
+        .collect::<Vec<_>>();
+    rows.sort_unstable();
+    rows.dedup();
+    format!(
+        "patterns {}; tracks {}; rows {}",
+        format_numbers(&patterns),
+        format_numbers(&tracks),
+        format_numbers(&rows)
+    )
+}
+
+fn format_cell_address(cell: &CellAddress) -> String {
+    format!(
+        "p{:02}/r{:02}/t{:02}",
+        cell.pattern + 1,
+        cell.row,
+        cell.track + 1
+    )
+}
+
+fn format_numbers(values: &[usize]) -> String {
+    values
+        .iter()
+        .map(|value| format!("{value:02}"))
+        .collect::<Vec<_>>()
+        .join(",")
 }
 
 pub(crate) fn parse_optional_frame_value(value: &str) -> Option<Option<usize>> {

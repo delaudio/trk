@@ -104,6 +104,7 @@ fn run(args: CliArgs) -> Result<()> {
             let command_palette = app.tui_command_palette(&command_palette_entries);
             let midi_status = app.tui_midi_status();
             let ai_chat_messages = app.tui_ai_chat_messages();
+            let ai_proposal_preview_lines = app.tui_ai_proposal_preview_lines();
             let ai_provider = format!("{} model={}", app.ai_config.provider, app.ai_config.model);
             let ai_provider_status =
                 crate::task_integration::format_ai_provider_status(&app.ai_config);
@@ -116,6 +117,7 @@ fn run(args: CliArgs) -> Result<()> {
             );
             let ai_chat = app.tui_ai_chat_view(
                 &ai_chat_messages,
+                &ai_proposal_preview_lines,
                 ai_provider.as_str(),
                 ai_status.as_str(),
                 ai_context.as_str(),

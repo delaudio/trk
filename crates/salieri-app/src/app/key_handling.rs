@@ -148,6 +148,21 @@ impl App {
         match key.code {
             KeyCode::Esc => self.open_tracker_view(),
             KeyCode::Char('q') if self.ai_thread.composer.is_empty() => self.request_quit(false),
+            KeyCode::Char('a' | 'A')
+                if self.ai_thread.composer.is_empty() && self.pending_ai_proposal.is_some() =>
+            {
+                self.apply_ai_proposal();
+            }
+            KeyCode::Char('r' | 'R')
+                if self.ai_thread.composer.is_empty() && self.pending_ai_proposal.is_some() =>
+            {
+                self.reject_ai_proposal();
+            }
+            KeyCode::Char('p' | 'P')
+                if self.ai_thread.composer.is_empty() && self.pending_ai_proposal.is_some() =>
+            {
+                self.show_ai_proposal();
+            }
             KeyCode::Char('?') | KeyCode::Char('H') => self.open_help(),
             KeyCode::Char(':') => self.open_command_prompt(),
             KeyCode::Enter => self.submit_ai_chat_prompt(),

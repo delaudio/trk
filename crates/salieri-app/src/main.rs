@@ -136,12 +136,12 @@ use salieri_midi::{
 use salieri_sampler::{Sample, WaveformBucket, WaveformOverview};
 use salieri_transform::{apply_euclidean, EuclideanRhythm};
 use salieri_tui::{
-    render, AiChatMessageRole, AiChatMessageView, AiChatViewState, CommandPaletteEntryView,
-    CommandPaletteViewState, HelpTab, ManagedPanelId, MidiPortView, MidiSettingsState,
-    NotificationKind, NotificationView, ProjectBrowserEntryKind, ProjectBrowserEntryView,
-    ProjectBrowserViewState, SampleBrowserEntryKind, SampleBrowserEntryView,
-    SampleBrowserViewState, SamplerEnvelopeField, SamplerViewState, SelectionRect,
-    TrackerLayoutPreset, TrackerLayoutState, TuiState, TuiView, ViewportAxis,
+    render, AiChatMessageRole, AiChatMessageView, AiChatProposalPreviewView, AiChatViewState,
+    CommandPaletteEntryView, CommandPaletteViewState, HelpTab, ManagedPanelId, MidiPortView,
+    MidiSettingsState, NotificationKind, NotificationView, ProjectBrowserEntryKind,
+    ProjectBrowserEntryView, ProjectBrowserViewState, SampleBrowserEntryKind,
+    SampleBrowserEntryView, SampleBrowserViewState, SamplerEnvelopeField, SamplerViewState,
+    SelectionRect, TrackerLayoutPreset, TrackerLayoutState, TuiState, TuiView, ViewportAxis,
 };
 use serde::{Deserialize, Serialize};
 use task_runtime::TaskRuntime;
