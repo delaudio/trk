@@ -3,6 +3,7 @@ use super::*;
 mod ai_actions;
 mod arrangement_actions;
 mod command_mode;
+mod command_palette;
 mod core;
 mod domain_commands;
 mod dsp_commands;

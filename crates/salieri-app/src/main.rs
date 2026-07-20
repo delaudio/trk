@@ -5,6 +5,7 @@ mod app_mode;
 mod browser_io;
 mod cli;
 mod command;
+mod command_palette;
 mod config;
 mod event_handler;
 mod focus;
@@ -50,6 +51,10 @@ use app_mode::AppMode;
 use command::{
     BrowserCommand, CommandDomain, FocusTarget, LoopCommand, PlayCommand, SalieriCommand,
     ViewCommand,
+};
+use command_palette::{
+    command_palette_results, CommandPaletteActionKind, CommandPaletteContext,
+    CommandPaletteInternalAction, CommandPaletteMatch,
 };
 use config::{load_config, AppConfig, ConfigOverrides, ProjectBrowserConfig, SampleBrowserConfig};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers, MouseEventKind};
@@ -131,10 +136,11 @@ use salieri_midi::{
 use salieri_sampler::{Sample, WaveformBucket, WaveformOverview};
 use salieri_transform::{apply_euclidean, EuclideanRhythm};
 use salieri_tui::{
-    render, HelpTab, MidiPortView, MidiSettingsState, NotificationKind, NotificationView,
-    ProjectBrowserEntryKind, ProjectBrowserEntryView, ProjectBrowserViewState,
-    SampleBrowserEntryKind, SampleBrowserEntryView, SampleBrowserViewState, SamplerEnvelopeField,
-    SamplerViewState, SelectionRect, TuiState, TuiView, ViewportAxis,
+    render, CommandPaletteEntryView, CommandPaletteViewState, HelpTab, MidiPortView,
+    MidiSettingsState, NotificationKind, NotificationView, ProjectBrowserEntryKind,
+    ProjectBrowserEntryView, ProjectBrowserViewState, SampleBrowserEntryKind,
+    SampleBrowserEntryView, SampleBrowserViewState, SamplerEnvelopeField, SamplerViewState,
+    SelectionRect, TuiState, TuiView, ViewportAxis,
 };
 use serde::{Deserialize, Serialize};
 use task_runtime::TaskRuntime;
@@ -179,6 +185,9 @@ struct App {
     help_scroll: usize,
     help_tab: HelpTab,
     command_buffer: String,
+    command_palette_query: String,
+    command_palette_selected: usize,
+    command_palette_recent: Vec<String>,
     clipboard: Option<Clipboard>,
     selection: Option<TrackerSelection>,
     history: UndoHistory,

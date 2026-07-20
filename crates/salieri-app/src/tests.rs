@@ -2,6 +2,7 @@ use super::*;
 use salieri_midi::FakeMidiInput;
 
 mod cli_workflows;
+mod command_palette;
 mod commands_playback;
 mod history_transactions;
 mod navigation_editing;
