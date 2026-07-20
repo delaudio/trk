@@ -215,13 +215,15 @@ pub(crate) enum CliCommand {
     MidiTest,
     TransformEuclidean(TransformEuclideanArgs),
     SampleInspect(SampleInspectArgs),
+    ExportPlan(RenderPlanArgs),
     ExportAudio(AudioExportArgs),
+    ExportStems(RenderStemsArgs),
     ImportXrns(ImportXrnsArgs),
 }
 
 pub(crate) fn print_help() {
     println!(
-        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --list-midi-inputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri sample inspect FILE [OPTIONS]\n  salieri import xrns INPUT OUTPUT [OPTIONS]\n  salieri export audio INPUT OUTPUT [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --list-midi-inputs            List available MIDI input ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index (default 1)\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Velocity, 0-127 (default 100)\n\nSample inspect options:\n  --format text|json            Output format (default text)\n  --buckets N, --width N        Waveform bucket count (default 64)\n\nImport options:\n  salieri import xrns INPUT OUTPUT imports an XRNS subset and writes a .salieri project\n  --sample-dir DIR              Extract supported XRNS WAV payloads into DIR\n  --sample-path-prefix PREFIX   Store extracted sample paths with PREFIX in the project\n  --convert-samples-to-wav      Convert FLAC/OGG/AIF payloads to WAV with ffmpeg\n\nAudio export options:\n  --pattern N                   Export 1-based pattern index (default 1)\n  --sequence                    Export the full sequence instead of one pattern\n  --sample-rate HZ              Output sample rate (default 48000)\n  --channels N                  Output channels (default 2)\n\n  --help                        Show this help\n  --version                     Show version"
+        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --list-midi-inputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri sample inspect FILE [OPTIONS]\n  salieri import xrns INPUT OUTPUT [OPTIONS]\n  salieri export plan INPUT [OUTPUT.json] [OPTIONS]\n  salieri export audio INPUT OUTPUT.wav [OPTIONS]\n  salieri export stems INPUT OUT_DIR [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --list-midi-inputs            List available MIDI input ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index (default 1)\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Velocity, 0-127 (default 100)\n\nSample inspect options:\n  --format text|json            Output format (default text)\n  --buckets N, --width N        Waveform bucket count (default 64)\n\nImport options:\n  salieri import xrns INPUT OUTPUT imports an XRNS subset and writes a .salieri project\n  --sample-dir DIR              Extract supported XRNS WAV payloads into DIR\n  --sample-path-prefix PREFIX   Store extracted sample paths with PREFIX in the project\n  --convert-samples-to-wav      Convert FLAC/OGG/AIF payloads to WAV with ffmpeg\n\nRender/export options:\n  --pattern N                   Export 1-based pattern index (default 1)\n  --sequence                    Export the full sequence instead of one pattern\n  --tracks LIST                 Comma-separated 1-based tracks for plans/stems\n  --sample-rate HZ              Output sample rate (default 48000)\n  --channels N                  Output channels (default 2)\n\n  --help                        Show this help\n  --version                     Show version"
     );
 }
 
@@ -244,7 +246,9 @@ pub(crate) fn parse_sample_command(args: impl IntoIterator<Item = String>) -> Cl
 pub(crate) fn parse_export_command(args: impl IntoIterator<Item = String>) -> CliCommand {
     let mut args = args.into_iter();
     match args.next().as_deref() {
+        Some("plan") | Some("render-plan") => CliCommand::ExportPlan(parse_render_plan_args(args)),
         Some("audio") => CliCommand::ExportAudio(parse_audio_export_args(args)),
+        Some("stems") => CliCommand::ExportStems(parse_render_stems_args(args)),
         _ => CliCommand::Help,
     }
 }
@@ -289,6 +293,28 @@ pub(crate) struct AudioExportArgs {
     pub(crate) output_path: Option<PathBuf>,
     pub(crate) pattern: usize,
     pub(crate) sequence: bool,
+    pub(crate) sample_rate: u32,
+    pub(crate) channels: u16,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RenderPlanArgs {
+    pub(crate) input_path: Option<PathBuf>,
+    pub(crate) output_path: Option<PathBuf>,
+    pub(crate) pattern: usize,
+    pub(crate) sequence: bool,
+    pub(crate) tracks: Vec<usize>,
+    pub(crate) sample_rate: u32,
+    pub(crate) channels: u16,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RenderStemsArgs {
+    pub(crate) input_path: Option<PathBuf>,
+    pub(crate) output_dir: Option<PathBuf>,
+    pub(crate) pattern: usize,
+    pub(crate) sequence: bool,
+    pub(crate) tracks: Vec<usize>,
     pub(crate) sample_rate: u32,
     pub(crate) channels: u16,
 }
@@ -341,6 +367,34 @@ impl Default for AudioExportArgs {
             output_path: None,
             pattern: 1,
             sequence: false,
+            sample_rate: AudioConfig::default().sample_rate,
+            channels: AudioConfig::default().channels,
+        }
+    }
+}
+
+impl Default for RenderPlanArgs {
+    fn default() -> Self {
+        Self {
+            input_path: None,
+            output_path: None,
+            pattern: 1,
+            sequence: false,
+            tracks: Vec::new(),
+            sample_rate: AudioConfig::default().sample_rate,
+            channels: AudioConfig::default().channels,
+        }
+    }
+}
+
+impl Default for RenderStemsArgs {
+    fn default() -> Self {
+        Self {
+            input_path: None,
+            output_dir: None,
+            pattern: 1,
+            sequence: false,
+            tracks: Vec::new(),
             sample_rate: AudioConfig::default().sample_rate,
             channels: AudioConfig::default().channels,
         }
@@ -456,6 +510,104 @@ pub(crate) fn parse_audio_export_args(args: impl IntoIterator<Item = String>) ->
     parsed.sample_rate = parsed.sample_rate.max(1);
     parsed.channels = parsed.channels.max(1);
     parsed
+}
+
+pub(crate) fn parse_render_plan_args(args: impl IntoIterator<Item = String>) -> RenderPlanArgs {
+    let common = parse_render_common_args(args);
+    RenderPlanArgs {
+        input_path: common.input_path,
+        output_path: common.output_path,
+        pattern: common.pattern,
+        sequence: common.sequence,
+        tracks: common.tracks,
+        sample_rate: common.sample_rate,
+        channels: common.channels,
+    }
+}
+
+pub(crate) fn parse_render_stems_args(args: impl IntoIterator<Item = String>) -> RenderStemsArgs {
+    let common = parse_render_common_args(args);
+    RenderStemsArgs {
+        input_path: common.input_path,
+        output_dir: common.output_path,
+        pattern: common.pattern,
+        sequence: common.sequence,
+        tracks: common.tracks,
+        sample_rate: common.sample_rate,
+        channels: common.channels,
+    }
+}
+
+struct RenderCommonArgs {
+    input_path: Option<PathBuf>,
+    output_path: Option<PathBuf>,
+    pattern: usize,
+    sequence: bool,
+    tracks: Vec<usize>,
+    sample_rate: u32,
+    channels: u16,
+}
+
+impl Default for RenderCommonArgs {
+    fn default() -> Self {
+        Self {
+            input_path: None,
+            output_path: None,
+            pattern: 1,
+            sequence: false,
+            tracks: Vec::new(),
+            sample_rate: AudioConfig::default().sample_rate,
+            channels: AudioConfig::default().channels,
+        }
+    }
+}
+
+fn parse_render_common_args(args: impl IntoIterator<Item = String>) -> RenderCommonArgs {
+    let mut parsed = RenderCommonArgs::default();
+    let mut args = args.into_iter();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--pattern" => parse_next_usize(&mut args, &mut parsed.pattern),
+            "--sequence" => parsed.sequence = true,
+            "--tracks" => {
+                if let Some(value) = args.next() {
+                    parsed.tracks = parse_track_list(&value);
+                }
+            }
+            "--sample-rate" => parse_next_u32(&mut args, &mut parsed.sample_rate),
+            "--channels" => parse_next_u16(&mut args, &mut parsed.channels),
+            _ if arg.starts_with("--pattern=") => {
+                parse_usize_value(arg.trim_start_matches("--pattern="), &mut parsed.pattern);
+            }
+            _ if arg.starts_with("--tracks=") => {
+                parsed.tracks = parse_track_list(arg.trim_start_matches("--tracks="));
+            }
+            _ if arg.starts_with("--sample-rate=") => {
+                parse_u32_value(
+                    arg.trim_start_matches("--sample-rate="),
+                    &mut parsed.sample_rate,
+                );
+            }
+            _ if arg.starts_with("--channels=") => {
+                parse_u16_value(arg.trim_start_matches("--channels="), &mut parsed.channels);
+            }
+            _ if parsed.input_path.is_none() => parsed.input_path = Some(PathBuf::from(arg)),
+            _ if parsed.output_path.is_none() => parsed.output_path = Some(PathBuf::from(arg)),
+            _ => {}
+        }
+    }
+    parsed.pattern = parsed.pattern.max(1);
+    parsed.sample_rate = parsed.sample_rate.max(1);
+    parsed.channels = parsed.channels.max(1);
+    parsed
+}
+
+fn parse_track_list(value: &str) -> Vec<usize> {
+    value
+        .split(',')
+        .filter_map(|part| part.trim().parse::<usize>().ok())
+        .filter(|track| *track > 0)
+        .collect()
 }
 
 pub(crate) fn parse_import_xrns_args(args: impl IntoIterator<Item = String>) -> ImportXrnsArgs {

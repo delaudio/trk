@@ -449,9 +449,11 @@ Assigned-sample playback can be rendered offline to WAV PCM16:
 ```bash
 salieri export audio input.salieri output.wav --pattern 1
 salieri export audio input.salieri output.wav --sequence --sample-rate 48000 --channels 2
+salieri export plan input.salieri plan.json --pattern 1 --tracks 1,2
+salieri export stems input.salieri stems/ --sequence
 ```
 
-The exporter renders sampler events only. MIDI-only external instruments are not captured in the WAV file. Tracker instrument/volume/pan/delay columns, stepped sample-gain automation, mixer gain/pan, and native DSP gain/pan chains are applied through the same sampler event path used by realtime playback. See [docs/audio-export.md](docs/audio-export.md), [docs/automation.md](docs/automation.md), and [docs/mixer.md](docs/mixer.md).
+The exporter renders sampler events only. MIDI-only external instruments are not captured in the WAV file. Tracker instrument/volume/pan/delay columns, stepped sample-gain automation, mixer gain/pan, and native DSP gain/pan chains are applied through the same sampler event path used by realtime playback. Render plans can be inspected as JSON before writing audio, and stem exports write per-track WAV files plus a manifest. See [docs/audio-export.md](docs/audio-export.md), [docs/automation.md](docs/automation.md), and [docs/mixer.md](docs/mixer.md).
 
 ## Project Files
 

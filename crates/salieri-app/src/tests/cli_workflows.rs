@@ -365,6 +365,149 @@ fn audio_export_writes_sampler_events_to_wav() {
 }
 
 #[test]
+fn render_plan_can_be_inspected_for_pattern_and_sequence_targets() {
+    let mut song = Song::empty();
+    let sample = song.upsert_sample_reference("samples/kick.wav", "Kick");
+    song.assign_sample_to_track(song.tracks[0].id, sample)
+        .expect("assign sample");
+    song.current_pattern_mut()
+        .expect("pattern")
+        .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 127)
+        .expect("set note");
+
+    let pattern_plan = render_plan(
+        &song,
+        &RenderPlanArgs {
+            input_path: None,
+            output_path: None,
+            pattern: 1,
+            sequence: false,
+            tracks: vec![1],
+            sample_rate: 44_100,
+            channels: 1,
+        },
+    )
+    .expect("pattern plan");
+    let sequence_plan = render_plan(
+        &song,
+        &RenderPlanArgs {
+            sequence: true,
+            ..RenderPlanArgs::default()
+        },
+    )
+    .expect("sequence plan");
+
+    assert_eq!(pattern_plan.target, "pattern");
+    assert_eq!(pattern_plan.pattern, Some(1));
+    assert!(pattern_plan.tracks[0].selected);
+    assert_eq!(pattern_plan.tracks[0].sampler_events, 1);
+    assert!(pattern_plan.tracks[0].internal_audio);
+    assert_eq!(sequence_plan.target, "sequence");
+    assert!(sequence_plan.sequence);
+    assert!(sequence_plan
+        .limitations
+        .iter()
+        .any(|limit| limit.contains("External MIDI-only")));
+}
+
+#[test]
+fn stem_export_writes_deterministic_selected_track_wavs_and_manifest() {
+    let base = std::env::temp_dir().join(format!("salieri-stems-{}", std::process::id()));
+    let sample_path = base.with_extension("wav");
+    let first_dir = base.with_extension("stems-a");
+    let second_dir = base.with_extension("stems-b");
+    std::fs::write(
+        &sample_path,
+        wav_pcm16_bytes(44_100, 1, &[i16::MAX, 16_384]),
+    )
+    .expect("write sample");
+
+    let mut song = Song::empty();
+    song.tracks[1].name = "MIDI Only".to_string();
+    let sample = song.upsert_sample_reference(sample_path.to_string_lossy(), "Kick");
+    song.assign_sample_to_track(song.tracks[0].id, sample)
+        .expect("assign sample");
+    song.current_pattern_mut()
+        .expect("pattern")
+        .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 127)
+        .expect("set note");
+    song.current_pattern_mut()
+        .expect("pattern")
+        .set_note(0, 1, NoteEvent::Note { pitch: 64 }, 127)
+        .expect("set midi-only note");
+
+    let args = RenderStemsArgs {
+        input_path: None,
+        output_dir: None,
+        pattern: 1,
+        sequence: false,
+        tracks: vec![1, 2],
+        sample_rate: 44_100,
+        channels: 1,
+    };
+    let first = export_stems(&song, &args, None, &first_dir).expect("first stems");
+    let second = export_stems(&song, &args, None, &second_dir).expect("second stems");
+
+    assert_eq!(first.stems.len(), 2);
+    assert_eq!(first.stems[0].sampler_events, 1);
+    assert_eq!(first.stems[1].sampler_events, 0);
+    assert_eq!(first.stems[1].name, "MIDI Only");
+    assert!(first
+        .limitations
+        .iter()
+        .any(|limit| limit.contains("External MIDI-only")));
+    let first_bytes = std::fs::read(first_dir.join(&first.stems[0].file)).expect("first wav");
+    let second_bytes = std::fs::read(second_dir.join(&second.stems[0].file)).expect("second wav");
+    assert_eq!(first_bytes, second_bytes);
+    assert_eq!(&first_bytes[0..4], b"RIFF");
+    assert_eq!(&first_bytes[8..12], b"WAVE");
+
+    let _ = std::fs::remove_file(sample_path);
+    let _ = std::fs::remove_dir_all(first_dir);
+    let _ = std::fs::remove_dir_all(second_dir);
+}
+
+#[test]
+fn cli_parses_render_plan_and_stem_exports() {
+    assert_eq!(
+        parse_export_command([
+            "plan".to_string(),
+            "song.salieri".to_string(),
+            "plan.json".to_string(),
+            "--sequence".to_string(),
+            "--tracks=1,3".to_string(),
+        ]),
+        CliCommand::ExportPlan(RenderPlanArgs {
+            input_path: Some("song.salieri".into()),
+            output_path: Some("plan.json".into()),
+            pattern: 1,
+            sequence: true,
+            tracks: vec![1, 3],
+            sample_rate: 48_000,
+            channels: 2,
+        })
+    );
+    assert_eq!(
+        parse_export_command([
+            "stems".to_string(),
+            "song.salieri".to_string(),
+            "stems".to_string(),
+            "--tracks".to_string(),
+            "2".to_string(),
+        ]),
+        CliCommand::ExportStems(RenderStemsArgs {
+            input_path: Some("song.salieri".into()),
+            output_dir: Some("stems".into()),
+            pattern: 1,
+            sequence: false,
+            tracks: vec![2],
+            sample_rate: 48_000,
+            channels: 2,
+        })
+    );
+}
+
+#[test]
 fn sample_inspect_reports_invalid_wav_with_context() {
     let path = std::env::temp_dir().join(format!(
         "salieri-sample-inspect-invalid-{}.wav",
