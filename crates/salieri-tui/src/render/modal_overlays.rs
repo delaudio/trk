@@ -3,6 +3,7 @@ use ratatui::{
     prelude::{Color, Frame, Line, Modifier, Span, Style},
     widgets::{Block, Borders, Clear, Paragraph, Wrap},
 };
+use salieri_core::MidiRoutingSettings;
 
 use super::{CommandPaletteViewState, MidiSettingsState};
 
@@ -20,6 +21,11 @@ pub(super) fn render_midi_settings_overlay(
                 .add_modifier(Modifier::BOLD),
         )),
         Line::from(format!("  Status: {}", midi_settings.status)),
+        Line::from(format!("  Input: {}", midi_settings.input_status)),
+        Line::from(format!(
+            "  Routing: {}",
+            format_midi_routing(midi_settings.routing)
+        )),
         Line::from(""),
     ];
 
@@ -67,6 +73,44 @@ pub(super) fn render_midi_settings_overlay(
         .style(Style::default().fg(Color::White));
     frame.render_widget(Clear, overlay);
     frame.render_widget(paragraph, overlay);
+}
+
+fn format_midi_routing(settings: &MidiRoutingSettings) -> String {
+    format!(
+        "clock {}/{}, transport {}/{}, notes {}/{}, cc {}/{}, ch {}/{}, C={}, delay={}ms",
+        on_off(settings.clock_in),
+        on_off(settings.clock_out),
+        on_off(settings.transport_in),
+        on_off(settings.transport_out),
+        on_off(settings.notes_in),
+        on_off(settings.notes_out),
+        on_off(settings.cc_in),
+        on_off(settings.cc_out),
+        format_channel_filter(&settings.input_channels),
+        format_channel_filter(&settings.output_channels),
+        settings.middle_c,
+        settings.clock_sync_delay_ms,
+    )
+}
+
+fn on_off(value: bool) -> &'static str {
+    if value {
+        "ON"
+    } else {
+        "OFF"
+    }
+}
+
+fn format_channel_filter(channels: &[u8]) -> String {
+    if channels.is_empty() {
+        "all".to_string()
+    } else {
+        channels
+            .iter()
+            .map(u8::to_string)
+            .collect::<Vec<_>>()
+            .join(",")
+    }
 }
 
 pub(super) fn render_command_palette_overlay(

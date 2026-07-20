@@ -6,15 +6,15 @@
 │  02 Bass  ┌ MIDI Settings ───────────────────────────────────────────────────────────┐ --- -- -- │
 │  03 Lead  │Output Ports                                                              │ --- -- -- │
 │  04 Pad   │Status: MIDI Disconnected                                                 │ --- -- -- │
+│           │Input: MIDI In Disconnected                                               │ --- -- -- │
+│           │Routing: clock OFF/OFF, transport OFF/OFF, notes ON/ON, cc OFF/OFF, ch    │ --- -- -- │
+│           │all/all, C=60, delay=0ms                                                  │ --- -- -- │
 │           │                                                                          │ --- -- -- │
 │           │00 IAC Driver Bus 1                                                       │ --- -- -- │
 │           │> 02 External Synth                                                       │ --- -- -- │
 │           │                                                                          │ --- -- -- │
 │           │Enter connect selected   d disconnect   p panic/all notes off             │ --- -- -- │
-│           │F5/r refresh ports   Esc/q close                                          │ --- -- -- │
-│           │                                                                          │ --- -- -- │
-│           │                                                                          │ --- -- -- │
-└───────────│                                                                          │───────────┘
+└───────────│F5/r refresh ports   Esc/q close                                          │───────────┘
 ┌ Song Slots│                                                                          │───────────┐
 │  00 P01 Pa│                                                                          │           │
 │           │                                                                          │-- Inst -- │

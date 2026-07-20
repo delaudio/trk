@@ -42,8 +42,8 @@ use salieri_core::{
     native_reverb_predelay_descriptor, native_reverb_size_descriptor, native_width_descriptor,
     sample_envelope_attack_descriptor, sample_envelope_decay_descriptor,
     sample_envelope_release_descriptor, sample_envelope_sustain_descriptor, sample_gain_descriptor,
-    CellField, Cursor, EffectDeviceKind, NoteEvent, ParameterDescriptor, ParameterValue, Pattern,
-    PatternCell, SamplePlaybackMode, Song,
+    CellField, Cursor, EffectDeviceKind, MidiRoutingSettings, NoteEvent, ParameterDescriptor,
+    ParameterValue, Pattern, PatternCell, SamplePlaybackMode, Song,
 };
 use salieri_sampler::{WaveformBucket, WaveformOverview};
 
@@ -353,6 +353,8 @@ pub struct MidiSettingsState<'a> {
     pub ports: &'a [MidiPortView<'a>],
     pub selected_port: usize,
     pub status: &'a str,
+    pub input_status: &'a str,
+    pub routing: &'a MidiRoutingSettings,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

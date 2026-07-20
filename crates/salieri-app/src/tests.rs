@@ -10,6 +10,7 @@ mod commands_playback;
 mod composition_graph;
 mod history_transactions;
 mod layout_commands;
+mod midi_routing;
 mod navigation_editing;
 mod pattern_commands;
 mod pattern_operations;

@@ -81,6 +81,9 @@ pub(super) fn run_pattern(
                 if !mark_event_for_started_playback(&mut active_sent_notes, event) {
                     continue;
                 }
+                if !midi_event_allowed(song, event.midi_channel) {
+                    continue;
+                }
                 if let Err(error) =
                     send_playback_event_logged(context.output, context.midi_logger, *event)
                 {
@@ -212,6 +215,12 @@ pub(super) fn run_sequence(
     send_all_audio_notes_off(context.audio_output);
     let _ = context.update_tx.send(PlaybackUpdate::Stopped);
     None
+}
+
+fn midi_event_allowed(song: &Song, midi_channel: u8) -> bool {
+    song.midi.notes_out
+        && (song.midi.output_channels.is_empty()
+            || song.midi.output_channels.contains(&midi_channel))
 }
 
 fn mark_event_for_started_playback(
