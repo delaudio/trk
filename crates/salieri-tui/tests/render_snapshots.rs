@@ -1,7 +1,8 @@
 use salieri_core::{Cursor, NoteEvent, Song};
 use salieri_sampler::{WaveformBucket, WaveformOverview};
 use salieri_tui::{
-    HelpTab, MidiPortView, MidiSettingsState, SamplerViewState, SelectionRect, TuiState, TuiView,
+    HelpTab, MidiPortView, MidiSettingsState, PatternFieldLayout, SamplerViewState, SelectionRect,
+    TuiState, TuiView,
 };
 
 mod support;
@@ -136,6 +137,33 @@ fn snapshots_partially_visible_track_fields() {
                     track_start: 2,
                     track_end: 3,
                 }),
+                ..test_state()
+            },
+            56,
+            18,
+        ),
+    );
+}
+
+#[test]
+fn snapshots_focused_note_pattern_fields() {
+    let tracker_layout = salieri_tui::TrackerLayoutState {
+        pattern_fields: PatternFieldLayout::Note,
+        ..Default::default()
+    };
+
+    assert_snapshot(
+        "focused-note-pattern-fields",
+        render_snapshot(
+            large_tracker_song(64, 12),
+            TuiState {
+                cursor: Cursor {
+                    row: 4,
+                    track: 8,
+                    field: salieri_core::CellField::Note,
+                    digit: 0,
+                },
+                tracker_layout,
                 ..test_state()
             },
             56,

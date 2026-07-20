@@ -225,6 +225,7 @@ Layout commands:
 
 ```text
 :layout compact|balanced|studio
+:layout fields full|note|instrument|fx|note-instrument|note-fx|instrument-fx
 :layout show|hide|toggle tracks|sequence|inspector|track-desk
 :layout resize tracks|inspector|track-desk +/-N
 ```

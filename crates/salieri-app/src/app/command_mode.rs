@@ -410,6 +410,11 @@ impl App {
                 self.open_tracker_view();
                 self.notify_success(format!("Layout set to {:?}", self.tracker_layout.preset));
             }
+            LayoutCommand::Fields(fields) => {
+                self.tracker_layout.pattern_fields = fields;
+                self.open_tracker_view();
+                self.notify_success(format!("Pattern fields set to {}", fields.label()));
+            }
             LayoutCommand::Toggle(panel) => {
                 let panel = layout_panel_id(panel);
                 self.tracker_layout.toggle_panel(panel);

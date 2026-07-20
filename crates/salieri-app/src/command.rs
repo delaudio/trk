@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use salieri_tui::PatternFieldLayout;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SalieriCommand {
     Help,
@@ -58,6 +60,7 @@ pub enum FocusTarget {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LayoutCommand {
     Select(LayoutPresetCommand),
+    Fields(PatternFieldLayout),
     Toggle(LayoutPanelCommand),
     Show(LayoutPanelCommand),
     Hide(LayoutPanelCommand),
@@ -278,7 +281,7 @@ fn parse_focus(arguments: &[String]) -> Result<FocusTarget, CommandParseError> {
 }
 
 fn parse_layout(arguments: &[String]) -> Result<SalieriCommand, CommandParseError> {
-    let usage = "Usage: :layout [compact|balanced|studio|toggle PANEL|show PANEL|hide PANEL|resize PANEL +/-N]";
+    let usage = "Usage: :layout [compact|balanced|studio|fields full|note|instrument|fx|note-instrument|note-fx|instrument-fx|toggle PANEL|show PANEL|hide PANEL|resize PANEL +/-N]";
     let Some(command) = arguments.first().map(String::as_str) else {
         return Ok(SalieriCommand::View(ViewCommand::Tracker));
     };
@@ -286,6 +289,9 @@ fn parse_layout(arguments: &[String]) -> Result<SalieriCommand, CommandParseErro
         "compact" | "focused" => LayoutCommand::Select(LayoutPresetCommand::Compact),
         "balanced" | "default" => LayoutCommand::Select(LayoutPresetCommand::Balanced),
         "studio" | "full" => LayoutCommand::Select(LayoutPresetCommand::Studio),
+        "fields" | "field" | "pattern-fields" => {
+            LayoutCommand::Fields(parse_pattern_field_layout(arguments.get(1), usage)?)
+        }
         "toggle" => LayoutCommand::Toggle(parse_layout_panel(arguments.get(1), usage)?),
         "show" => LayoutCommand::Show(parse_layout_panel(arguments.get(1), usage)?),
         "hide" => LayoutCommand::Hide(parse_layout_panel(arguments.get(1), usage)?),
@@ -302,6 +308,26 @@ fn parse_layout(arguments: &[String]) -> Result<SalieriCommand, CommandParseErro
         }
     };
     Ok(SalieriCommand::Layout(layout))
+}
+
+fn parse_pattern_field_layout(
+    value: Option<&String>,
+    usage: &'static str,
+) -> Result<PatternFieldLayout, CommandParseError> {
+    match value.map(String::as_str) {
+        Some("full" | "all") => Ok(PatternFieldLayout::Full),
+        Some("note" | "notes") => Ok(PatternFieldLayout::Note),
+        Some("instrument" | "inst" | "instruments") => Ok(PatternFieldLayout::Instrument),
+        Some("fx" | "effect" | "effects") => Ok(PatternFieldLayout::Fx),
+        Some("note-instrument" | "note-inst" | "notes-inst" | "note+instrument") => {
+            Ok(PatternFieldLayout::NoteInstrument)
+        }
+        Some("note-fx" | "note-effect" | "notes-fx" | "note+fx") => Ok(PatternFieldLayout::NoteFx),
+        Some("instrument-fx" | "inst-fx" | "instrument+fx" | "inst+fx") => {
+            Ok(PatternFieldLayout::InstrumentFx)
+        }
+        _ => Err(CommandParseError::InvalidArguments { usage }),
+    }
 }
 
 fn parse_layout_panel(
@@ -454,6 +480,12 @@ mod tests {
                 panel: LayoutPanelCommand::TrackDesk,
                 delta: -2,
             })))
+        );
+        assert_eq!(
+            SalieriCommand::parse("layout fields note-fx"),
+            Ok(Some(SalieriCommand::Layout(LayoutCommand::Fields(
+                PatternFieldLayout::NoteFx
+            ))))
         );
         assert!(matches!(
             SalieriCommand::parse("layout resize inspector nope"),

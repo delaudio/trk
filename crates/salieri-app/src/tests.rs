@@ -6,6 +6,7 @@ mod cli_workflows;
 mod command_palette;
 mod commands_playback;
 mod history_transactions;
+mod layout_commands;
 mod navigation_editing;
 mod pattern_commands;
 mod patterns_sequence;
