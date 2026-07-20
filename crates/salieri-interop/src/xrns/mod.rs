@@ -441,11 +441,23 @@ fn inspect_xml_events(events: &[XmlEvent], inspection: &mut XrnsInspection) {
     let mut current_device_chain: Option<XrnsDeviceChainInfo> = None;
     let mut current_device: Option<String> = None;
     let mut reported_features = HashSet::new();
+    let mut phrase_count = 0_usize;
 
     for event in events {
         match event {
             XmlEvent::Start(name) => {
-                if is_unsupported_feature_tag(name) && reported_features.insert(name.clone()) {
+                if name == "Phrase" {
+                    phrase_count += 1;
+                    inspection.diagnostics.push(xrns_diagnostic(
+                        XrnsDiagnosticKind::UnsupportedRenoiseFeature,
+                        XrnsDiagnosticSeverity::Warning,
+                        Some(xml_location(&stack, name)),
+                        format!(
+                            "unsupported Renoise phrase #{phrase_count}: phrase playback is a blocking parity gap and was left untranslated"
+                        ),
+                    ));
+                } else if is_unsupported_feature_tag(name) && reported_features.insert(name.clone())
+                {
                     inspection.diagnostics.push(xrns_diagnostic(
                         XrnsDiagnosticKind::UnsupportedRenoiseFeature,
                         XrnsDiagnosticSeverity::Warning,
@@ -599,7 +611,6 @@ fn is_unsupported_feature_tag(name: &str) -> bool {
             | "AuPlugin"
             | "MetaDevice"
             | "AutomationEnvelope"
-            | "Phrase"
             | "Phrases"
     )
 }

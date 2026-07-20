@@ -131,6 +131,57 @@ fn xrns_inspector_reports_malformed_archive_and_unsupported_song_xml_compression
 }
 
 #[test]
+fn xrns_inspector_and_import_report_phrase_playback_as_blocking_gap() {
+    let xml = r#"
+<RenoiseSong>
+  <Tracks><Track><Name>Phrase Track</Name></Track></Tracks>
+  <Patterns>
+    <Pattern><NumberOfLines>1</NumberOfLines><Tracks><Track>
+      <Line><Index>0</Index><Note>C-4</Note><Instrument>00</Instrument></Line>
+    </Track></Tracks></Pattern>
+  </Patterns>
+  <Instruments>
+    <Instrument>
+      <Name>Phrase Instrument</Name>
+      <Phrases>
+        <Phrase><Name>Intro</Name><Lines><Line><Note>C-5</Note></Line></Lines></Phrase>
+        <Phrase><Name>Reply</Name><Lines><Line><Note>G-4</Note></Line></Lines></Phrase>
+      </Phrases>
+    </Instrument>
+  </Instruments>
+</RenoiseSong>
+"#;
+    let archive = xrns_archive([xrns_entry("Song.xml", xml.as_bytes())]);
+
+    let inspection = inspect_xrns(&archive);
+    let phrase_warnings = inspection
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| {
+            diagnostic.kind == XrnsDiagnosticKind::UnsupportedRenoiseFeature
+                && diagnostic.message.contains("phrase playback")
+                && diagnostic.message.contains("blocking parity gap")
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(phrase_warnings.len(), 2);
+    assert!(phrase_warnings
+        .iter()
+        .all(|diagnostic| diagnostic.severity == XrnsDiagnosticSeverity::Warning));
+
+    let report = import_xrns(&archive);
+    assert!(report.song.is_some());
+    assert_eq!(
+        report
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.message.contains("phrase playback"))
+            .count(),
+        2
+    );
+}
+
+#[test]
 fn xrns_import_accepts_deflated_song_xml() {
     let xml = r#"
 <RenoiseSong>
@@ -194,6 +245,10 @@ fn imports_minimal_xrns_subset_to_valid_song() {
     let song = report.song.expect("imported song");
 
     song.validate().expect("valid song");
+    assert!(!report
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.message.contains("phrase playback")));
     assert_eq!(song.transport.bpm, 172);
     assert_eq!(song.transport.lines_per_beat, 8);
     assert_eq!(song.tracks.len(), 2);
