@@ -9,6 +9,7 @@ mod history_transactions;
 mod layout_commands;
 mod navigation_editing;
 mod pattern_commands;
+mod pattern_operations;
 mod patterns_sequence;
 mod persistence;
 mod sampler_browsers;

@@ -159,6 +159,7 @@ fn help_editing_lines(mode_label: &str, edit_step: usize) -> Vec<Line<'static>> 
         Line::from(
             "  N new pattern   P duplicate pattern   X delete pattern   F3 rename   F6 length",
         ),
+        Line::from("  :pattern fill/copy/paste/invert/expand/shrink/duplicate-selection"),
         Line::from("  Pattern view: 1/2/3/4/5 set length 16/32/64/128/256"),
         Line::from("  A add current pattern to sequence   ,/. move sequence cursor"),
         Line::from("  Y duplicate sequence position   R remove   T set to current pattern"),
@@ -273,6 +274,7 @@ fn help_command_lines(mode_label: &str) -> Vec<Line<'static>> {
         Line::from("  :play pattern   :play sequence [position]   :stop"),
         Line::from("  :tasks   :task cancel ID"),
         Line::from("  :pattern new   :pattern duplicate   :pattern delete   :pattern length 128"),
+        Line::from("  :pattern fill|copy|paste|invert|expand|shrink|duplicate-selection"),
         Line::from("  :pattern rename Intro   :pattern 1   [ previous pattern   ] next pattern"),
         Line::from("  :sequence add   :sequence remove 0   :sequence duplicate 0"),
         Line::from("  :sequence set 0 2   :sequence move 1 0"),
