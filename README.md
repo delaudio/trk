@@ -87,6 +87,8 @@ salieri report project INPUT [OUTPUT.md]
 salieri report critique INPUT [OUTPUT.md]
 salieri analyze INPUT [OUTPUT] [--format text|json]
 salieri compare LEFT RIGHT [OUTPUT] [--format text|json]
+salieri graph validate GRAPH.json
+salieri graph compile GRAPH.json INPUT.salieri OUTPUT.salieri
 salieri --help
 salieri --version
 ```
@@ -110,6 +112,8 @@ salieri report project song.salieri reports/project.md
 salieri report critique song.salieri reports/critique.md
 salieri analyze song.salieri reports/style.json --format json
 salieri compare draft.salieri final.salieri reports/compare.txt
+salieri graph validate arrangement.graph.json
+salieri graph compile arrangement.graph.json song.salieri arranged.salieri
 ```
 
 `--midi-test-output` accepts either a port index or a port name. Configured MIDI output and input names are normalized, so `IAC Driver`, `IAC Driver Bus 1`, and `IAC Driver (Bus 1)` can match the same CoreMIDI port when available.
@@ -442,7 +446,7 @@ Deterministic transforms live in `salieri-transform` and can be used from the CL
 salieri transform euclidean input.salieri output.salieri --pattern 1 --track 1 --steps 16 --pulses 5 --rotation 0 --pitch 36 --velocity 100
 ```
 
-AI-assisted composition lives behind `salieri-ai` and is available in the TUI through the local deterministic provider: `:ai propose PROMPT`, `:ai show`, `:ai accept`, and `:ai reject`. Optional local guidance files from `[ai].guidance_dirs` can be listed, inspected, and applied with `:ai guidance list/show/apply/clear` before proposing. Project reports and critique reports can be generated with `:report project`, `:report critique`, or saved under workspace reports with `:report critique workspace ROOT`; `:revise PROMPT` turns the current critique context into a reviewable AI proposal. Proposals are previewed as touched cells before application, and accepted proposals use the normal undo transaction history. No network provider is invoked implicitly. Preset inventory profiles can also be saved and loaded as AI guidance with `:preset save` and `:preset load`. See [docs/generative-transforms.md](docs/generative-transforms.md), [docs/ai-assisted-edits.md](docs/ai-assisted-edits.md), [docs/report-workflows.md](docs/report-workflows.md), [docs/preset-inventory.md](docs/preset-inventory.md), and [docs/undo-history.md](docs/undo-history.md).
+AI-assisted composition lives behind `salieri-ai` and is available in the TUI through the local deterministic provider: `:ai propose PROMPT`, `:ai show`, `:ai accept`, and `:ai reject`. Optional local guidance files from `[ai].guidance_dirs` can be listed, inspected, and applied with `:ai guidance list/show/apply/clear` before proposing. Project reports and critique reports can be generated with `:report project`, `:report critique`, or saved under workspace reports with `:report critique workspace ROOT`; `:revise PROMPT` turns the current critique context into a reviewable AI proposal. Composition graph drafts can be reviewed with `:graph draft PROMPT`, `:graph show`, `:graph reject`, and `:graph apply`, while CLI graph files can be validated and compiled deterministically into tracker sequence slots. Proposals are previewed before application, and accepted proposals use the normal undo transaction history. No network provider is invoked implicitly. Preset inventory profiles can also be saved and loaded as AI guidance with `:preset save` and `:preset load`. See [docs/generative-transforms.md](docs/generative-transforms.md), [docs/ai-assisted-edits.md](docs/ai-assisted-edits.md), [docs/report-workflows.md](docs/report-workflows.md), [docs/composition-graph.md](docs/composition-graph.md), [docs/preset-inventory.md](docs/preset-inventory.md), and [docs/undo-history.md](docs/undo-history.md).
 
 Keyboard commands can be overridden per application mode while all unmapped shortcuts retain their defaults. See [docs/keymaps.md](docs/keymaps.md) for the available layers, key syntax, and conflict diagnostics.
 

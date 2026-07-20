@@ -18,7 +18,7 @@ Status meanings:
 
 | Source Salieri surface | Source role | Tracker status | Tracker mapping | References |
 | --- | --- | --- | --- | --- |
-| `packages/core` | Symbolic song model, arrangement, style analysis, critique inputs | Partial | Tracker has its own Rust `salieri-core` model for patterns, sequence, mixer, samples, MIDI, and playback. Narrative/song graph concepts stay separate until they can map cleanly to tracker patterns. | #99 |
+| `packages/core` | Symbolic song model, arrangement, style analysis, critique inputs | Partial | Tracker has its own Rust `salieri-core` model for patterns, sequence, mixer, samples, MIDI, and playback. CompositionGraph now maps narrative sections onto existing tracker patterns and sequence slots without replacing the pattern editor. | #99 |
 | `packages/formats` | MIDI, MusicXML, and Renoise-oriented interchange | Partial | Tracker has MIDI and XRNS foundations. MusicXML import/export and round-trip validation are tracked separately. | #88, delaudio/salieri#4, delaudio/salieri#5, delaudio/salieri#6 |
 | `packages/cli` | Command surface for generate, analyze, compare, split, compile, import/export, Live bridge, presets, research, reports | Partial | Tracker CLI is Rust-native and focuses on project load/save, MIDI, XRNS, sample inspect/export, audio export, and TUI commands. Non-tracker workflows are mapped individually below. | existing |
 | `packages/ai` | Provider-backed generation, critique, revise | Implemented / Partial | Tracker supports explicit, reviewable AI proposals, persisted chat sessions, deterministic report/critique artifacts, and revise prompts that produce pending proposals before mutation. External provider adapters remain tracked separately. | #68, #69, #70, #98 |
@@ -47,7 +47,7 @@ Status meanings:
 | Research dossiers and operational palettes | Source `research`, tutorial dossiers, prompt/profile assets | Implemented / Partial | Tracker can list, inspect, and apply local `.md`, `.txt`, and `.json` guidance files to steer reviewable AI proposals. Remote collection and transcription remain out of default scope. | #92, delaudio/salieri#11, delaudio/salieri#16 |
 | Lyrics | Source lyrics roadmap and MusicXML fixture examples | Implemented / Partial | Tracker stores project notes, pattern-row lyrics, sequence cue markers, and compact annotation reports locally. MusicXML lyric import/export remains tracked separately. | #96, delaudio/salieri#25 |
 | Strudel/live coding | Source Strudel export target proposal | Implemented / Partial | Tracker can export deterministic Strudel sketches for selected patterns or the sequence, with unsupported sampler, mixer, clip, automation, and tracker-effect diagnostics. | #97, delaudio/salieri#20 |
-| CompositionGraph | Source narrative graph, round-trip, evidence, and Ableton command compilation issues | Tracked | Valuable for arrangement planning, but it must compile into tracker patterns/sequence without replacing the pattern editor. | #99, delaudio/salieri#59, delaudio/salieri#60, delaudio/salieri#61, delaudio/salieri#64 |
+| CompositionGraph | Source narrative graph, round-trip, evidence, and Ableton command compilation issues | Implemented / Partial | Tracker validates `salieri.composition-graph.v1` files independently, compiles sections deterministically into sequence slots, and supports reviewable TUI graph draft/show/reject/apply before mutation. Clip-scene and Ableton command compilation remain tracked separately. | #99, #87, #89, delaudio/salieri#59, delaudio/salieri#60, delaudio/salieri#61, delaudio/salieri#64 |
 | Local render/audio/stems | Source render plans and stem workflows | Tracked | Tracker has audio export foundations; render-plan, render-audio, and stem export workflows are tracked explicitly. | #95, delaudio/salieri#14, delaudio/salieri#15 |
 | Transcription and source separation | Source audio-analysis and separation workflows | Out of scope by default | These require heavyweight providers and/or external models. They should stay opt-in and outside the default tracker scope. | delaudio/salieri#12, delaudio/salieri#13, delaudio/salieri#26 |
 | Desktop IPC/Tauri parity | Source desktop IPC and contract-check issues | Deferred | Tracker is terminal-first; only reusable patterns such as typed events and domain boundaries should be adapted. | delaudio/salieri#62, delaudio/salieri#63 |
@@ -62,7 +62,8 @@ default tracker scope:
 - mandatory external AI providers;
 - desktop-only IPC surfaces;
 - website/product surfaces;
-- broad symbolic CompositionGraph replacement of the tracker pattern model.
+- broad symbolic CompositionGraph replacement of the tracker pattern model beyond
+  the current pattern/sequence compile target.
 
 Each excluded area can become an opt-in workflow later, but it should not be a
 dependency for opening, editing, playing, exporting, or validating `.salieri`

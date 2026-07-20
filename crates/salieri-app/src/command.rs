@@ -115,6 +115,7 @@ pub enum CommandDomain {
     Dsp,
     Ai,
     Report,
+    Graph,
     Preset,
     Workspace,
     Midi,
@@ -234,6 +235,7 @@ impl SalieriCommand {
                 values.extend(arguments);
                 domain(CommandDomain::Report, values)
             }
+            "graph" | "composition-graph" => domain(CommandDomain::Graph, arguments),
             "critique" => {
                 let mut values = vec!["critique".to_string()];
                 values.extend(arguments);

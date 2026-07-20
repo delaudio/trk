@@ -80,6 +80,14 @@ fn run(args: CliArgs) -> Result<()> {
             run_compare(compare_args)?;
             return Ok(());
         }
+        CliCommand::GraphValidate(graph_args) => {
+            run_graph_validate(graph_args)?;
+            return Ok(());
+        }
+        CliCommand::GraphCompile(graph_args) => {
+            run_graph_compile(graph_args)?;
+            return Ok(());
+        }
         CliCommand::ImportXrns(import_args) => {
             run_import_xrns(import_args)?;
             return Ok(());

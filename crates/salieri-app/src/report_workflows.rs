@@ -37,6 +37,43 @@ pub(crate) fn run_compare(args: &CompareArgs) -> Result<()> {
     write_or_print_analysis(args.output_path.as_deref(), "comparison", &output)
 }
 
+pub(crate) fn run_graph_validate(args: &GraphValidateArgs) -> Result<()> {
+    let graph_path = args
+        .graph_path
+        .as_deref()
+        .context("missing graph path: usage is salieri graph validate GRAPH.json")?;
+    let graph = load_composition_graph(graph_path)?;
+    println!(
+        "Composition graph valid: {} section(s)",
+        graph.sections.len()
+    );
+    Ok(())
+}
+
+pub(crate) fn run_graph_compile(args: &GraphCompileArgs) -> Result<()> {
+    let graph_path = args
+        .graph_path
+        .as_deref()
+        .context("missing graph path: usage is salieri graph compile GRAPH INPUT OUTPUT")?;
+    let input_path = args
+        .input_path
+        .as_deref()
+        .context("missing graph compile input project")?;
+    let output_path = args
+        .output_path
+        .as_deref()
+        .context("missing graph compile output project")?;
+    let graph = load_composition_graph(graph_path)?;
+    let song = load_project(input_path)?;
+    let compiled = compile_composition_graph(&song, &graph)?;
+    save_project(output_path, &compiled)?;
+    println!(
+        "Compiled composition graph to {} sequence position(s)",
+        compiled.sequence.len()
+    );
+    Ok(())
+}
+
 fn run_report(args: &ReportArgs, label: &str, formatter: fn(&Song) -> String) -> Result<()> {
     let input_path = args
         .input_path

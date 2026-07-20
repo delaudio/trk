@@ -6,6 +6,7 @@ mod ai_session;
 mod arrangement_actions;
 mod command_mode;
 mod command_palette;
+mod composition_graph_actions;
 mod core;
 mod domain_commands;
 mod dsp_commands;
