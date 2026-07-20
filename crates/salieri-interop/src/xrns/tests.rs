@@ -1,6 +1,6 @@
 use salieri_core::{
-    pattern_events, row_duration_micros, sampler_events, EffectDevice, InstrumentId, NoteEvent,
-    PlaybackEventKind, SamplePlaybackMode, TrackerCommand,
+    pattern_events, row_duration_micros, sampler_events, EffectDevice, EffectDeviceKind,
+    InstrumentId, NoteEvent, PlaybackEventKind, SamplePlaybackMode, TrackerCommand,
 };
 
 use super::*;
@@ -23,7 +23,7 @@ fn inspects_representative_xrns_archive() {
   </Instruments>
   <DeviceChain>
     <Device><Name>Gainer</Name></Device>
-    <Device><Name>Comb Filter</Name></Device>
+    <Device><Name>Ring Modulator</Name></Device>
   </DeviceChain>
   <PluginDevice><Name>Third Party</Name></PluginDevice>
 </RenoiseSong>
@@ -47,16 +47,91 @@ fn inspects_representative_xrns_archive() {
     assert!(!inspection.sample_payloads[1].supported);
     assert_eq!(
         inspection.device_chains[0].devices,
-        vec!["Gainer".to_string(), "Comb Filter".to_string()]
+        vec!["Gainer".to_string(), "Ring Modulator".to_string()]
     );
     assert!(inspection.diagnostics.iter().any(|diagnostic| {
         diagnostic.kind == XrnsDiagnosticKind::UnsupportedRenoiseFeature
-            && diagnostic.message.contains("Comb Filter")
+            && diagnostic.message.contains("Ring Modulator")
     }));
     assert!(inspection
         .diagnostics
         .iter()
         .any(|diagnostic| { diagnostic.kind == XrnsDiagnosticKind::UnsupportedSampleFormat }));
+}
+
+#[test]
+fn xrns_import_maps_supported_filter_delay_and_modulation_devices() {
+    let xml = r#"
+<RenoiseSong>
+  <Tracks>
+    <Track>
+      <Name>FX Track</Name>
+      <Device>Filter</Device>
+      <Device>Delay</Device>
+      <Device>Chorus</Device>
+    </Track>
+  </Tracks>
+  <Patterns>
+    <Pattern><NumberOfLines>1</NumberOfLines><Tracks><Track>
+      <Line><Index>0</Index><Note>C-4</Note></Line>
+    </Track></Tracks></Pattern>
+  </Patterns>
+</RenoiseSong>
+"#;
+    let archive = xrns_archive([xrns_entry("Song.xml", xml.as_bytes())]);
+
+    let report = import_xrns(&archive);
+    let song = report.song.expect("imported song");
+    let mixer = song.track_mixer_for_track(song.tracks[0].id);
+
+    assert_eq!(mixer.effects.len(), 3);
+    assert!(matches!(
+        mixer.effects[0].kind,
+        EffectDeviceKind::Filter { .. }
+    ));
+    assert!(matches!(
+        mixer.effects[1].kind,
+        EffectDeviceKind::Delay { .. }
+    ));
+    assert!(matches!(
+        mixer.effects[2].kind,
+        EffectDeviceKind::Chorus { .. }
+    ));
+    assert!(!report
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.message.contains("unsupported Renoise device")));
+}
+
+#[test]
+fn xrns_inspector_reports_lfo_meta_and_automation_gaps() {
+    let xml = r#"
+<RenoiseSong>
+  <Tracks>
+    <Track>
+      <Name>Automated</Name>
+      <Device>Filter</Device>
+      <Device>Delay</Device>
+      <AutomationEnvelope><Target>Filter Cutoff</Target></AutomationEnvelope>
+      <MetaDevice><Name>Hydra</Name></MetaDevice>
+      <LFODevice><Name>LFO</Name></LFODevice>
+    </Track>
+  </Tracks>
+</RenoiseSong>
+"#;
+    let archive = xrns_archive([xrns_entry("Song.xml", xml.as_bytes())]);
+
+    let inspection = inspect_xrns(&archive);
+
+    for expected in ["AutomationEnvelope", "MetaDevice", "LFODevice"] {
+        assert!(
+            inspection
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "missing diagnostic for {expected}"
+        );
+    }
 }
 
 #[test]
@@ -612,7 +687,7 @@ fn xrns_import_preserves_deferred_high_priority_effects_with_diagnostics() {
 fn xrns_import_reports_warnings_without_silent_drops() {
     let xml = r#"
 <RenoiseSong>
-  <Tracks><Track><Name>Lead</Name><Device>Comb Filter</Device></Track></Tracks>
+  <Tracks><Track><Name>Lead</Name><Device>Ring Modulator</Device></Track></Tracks>
   <Patterns>
     <Pattern>
       <NumberOfLines>4</NumberOfLines>
@@ -659,7 +734,7 @@ fn xrns_import_reports_warnings_without_silent_drops() {
         .any(|diagnostic| diagnostic.kind == XrnsDiagnosticKind::UnsupportedSampleFormat));
     assert!(report.diagnostics.iter().any(|diagnostic| {
         diagnostic.kind == XrnsDiagnosticKind::UnsupportedRenoiseFeature
-            && diagnostic.message.contains("Comb Filter")
+            && diagnostic.message.contains("Ring Modulator")
     }));
     assert!(report
         .diagnostics

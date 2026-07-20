@@ -58,9 +58,9 @@ the generated `.salieri`, sample payloads, and JSON trend reports under
 | Renoise effect columns | FX1/FX2 are preserved; supported timing effects `0Q`/`0R` translate to Salieri delay/retrigger playback. Deferred high-priority commands such as pitch slides and sample offset remain visible tracker commands. | Medium: supported timing improves, but deferred commands still do not affect playback. | `UnsupportedEffectCommand` means preserved-without-playback when stored in FX1/FX2; `DroppedExtraEffectColumn` means actual dropped playback data beyond FX2. | #145 completed the current timing slice; broader command behavior remains under #85 follow-ups. |
 | Sample playback metadata and keyzones | Root note, tuning, gain, pan, loop windows, envelopes, and multisample key/velocity zones are imported where representable. | Medium for sliced or phrase-driven instruments. | Unsupported sample metadata is warned; unsupported sample formats remain explicit. | #76, #77, #143. |
 | Renoise phrases | Not translated into instrument sub-pattern playback yet; each XRNS phrase now emits an explicit unsupported/blocking parity diagnostic. | High for phrase-backed instruments because triggering a note can play different material in Renoise. | Phrase diagnostics state unsupported/blocking; silent ignore is not acceptable. | #143 for future deterministic playback. |
-| Device chains and native DSP | Basic gain/pan-style foundations import; broader filter, delay, modulation, drive, dynamics, LFO/meta devices, and automation are not parity-complete. | High for demo songs using LFOs, filters, delays, modulation, sidechain, or meta devices. | Unsupported device diagnostics are preserved; they must not imply successful playback parity. | #147, #84. |
-| Automation and parameter locks | Salieri has automation/parameter-lock primitives, but XRNS automation envelopes are not imported broadly yet. | High for evolving filter/delay/modulation demos. | Unsupported automation is dropped playback behavior unless converted into Salieri automation or locks. | #147. |
-| Send/master routing | Send metadata exists but audio routing is not equivalent to Renoise send/master graphs. | High for cross-track routing and sidechain demos. | Unsupported routing should be explicit in import reports. | #84, #147. |
+| Device chains and native DSP | Supported native utility, filter, delay/reverb, drive/bitcrusher, modulation, and dynamics devices import into mixer DSP chains by recognized name; LFO/meta devices and automation are not parity-complete. | Medium to high for demo songs using unsupported LFOs, meta modulation, sidechain, or complex device parameters. | Unsupported device diagnostics are preserved; they must not imply successful playback parity. | Broader automation and routing work remains separate from native device-shell import. |
+| Automation and parameter locks | Salieri has automation/parameter-lock primitives, but XRNS automation envelopes are not imported broadly yet. | High for evolving filter/delay/modulation demos. | Unsupported automation is dropped playback behavior unless converted into Salieri automation or locks. | Requires equivalent target mapping before import can be lossless. |
+| Send/master routing | Send metadata exists but audio routing is not equivalent to Renoise send/master graphs. | High for cross-track routing and sidechain demos. | Unsupported routing should be explicit in import reports. | #84. |
 
 ## Danoise LFO Baseline
 
@@ -69,10 +69,11 @@ the exact areas that distinguish a simple note/sample import from Renoise
 playback: LFO/meta-device modulation, native device chains, automation, sampler
 metadata, and routing.
 
-Before #147 and #143 land, expected differences for this song are:
+Current expected differences for this song are:
 
-- LFO/meta devices and automated filter/delay/modulation behavior are imported
-  only as visible unsupported device/feature diagnostics, not as equivalent DSP
+- Recognized filter/delay/modulation device shells import as native DSP devices,
+  but LFO/meta control, automation envelopes, and complex parameter modulation
+  are still visible unsupported feature diagnostics rather than equivalent DSP
   modulation.
 - Any phrase-backed instrument behavior is reported as an unsupported/blocking
   parity gap unless represented by ordinary imported notes and sample zones.

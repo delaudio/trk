@@ -12,6 +12,7 @@ use crate::diagnostics::{
 mod keyzones;
 mod samples;
 
+use super::devices::effect_device_from_name;
 use super::effects::{
     effect_command_needs_warning, effect_command_warning_message, normalize_xrns_effect_code,
     translate_xrns_effect_command,
@@ -776,18 +777,6 @@ fn sample_payload_sample_index(path: &str) -> Option<usize> {
     let segment = path.split('/').find(|segment| segment.strip_prefix("Sample").and_then(|suffix| suffix.chars().next()).is_some_and(|char| char.is_ascii_digit()))?;
     let digits = segment.trim_start_matches("Sample").chars().take_while(char::is_ascii_digit).collect::<String>();
     digits.parse::<usize>().ok()
-}
-
-fn effect_device_from_name(id: u32, name: &str) -> Option<EffectDevice> {
-    let normalized = name.to_ascii_lowercase();
-    if normalized.contains("gain") || normalized.contains("gainer") || normalized.contains("volume")
-    {
-        Some(EffectDevice::gain(id, 1.0))
-    } else if normalized.contains("pan") {
-        Some(EffectDevice::pan(id, 0.0))
-    } else {
-        None
-    }
 }
 
 fn sample_name(path: &str) -> String {

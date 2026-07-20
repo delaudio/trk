@@ -1,3 +1,4 @@
+mod devices;
 mod effects;
 mod import;
 
@@ -23,6 +24,7 @@ use crate::{
 };
 
 use self::import::{build_song_from_xrns_model, parse_xrns_import_model};
+use devices::is_supported_native_device;
 
 const ZIP_LOCAL_FILE_HEADER: u32 = 0x0403_4b50;
 const ZIP_CENTRAL_DIRECTORY_HEADER: u32 = 0x0201_4b50;
@@ -609,18 +611,15 @@ fn is_unsupported_feature_tag(name: &str) -> bool {
             | "VSTPlugin"
             | "AudioUnitPlugin"
             | "AuPlugin"
+            | "HydraDevice"
+            | "KeyTracker"
+            | "LfoDevice"
+            | "LFODevice"
             | "MetaDevice"
+            | "VelocityTracker"
             | "AutomationEnvelope"
             | "Phrases"
     )
-}
-
-fn is_supported_native_device(device: &str) -> bool {
-    let normalized = device.to_ascii_lowercase();
-    normalized.contains("gain")
-        || normalized.contains("gainer")
-        || normalized.contains("volume")
-        || normalized.contains("pan")
 }
 
 fn stack_contains(stack: &[String], name: &str) -> bool {
