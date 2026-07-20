@@ -23,6 +23,7 @@ mod render_workflows;
 mod report_workflows;
 mod runner;
 mod strudel_export;
+mod style_analysis;
 mod task_integration;
 mod task_runtime;
 mod terminal;
@@ -39,6 +40,7 @@ use project_reports::*;
 use render_workflows::*;
 use report_workflows::*;
 use strudel_export::*;
+use style_analysis::*;
 use workflows::*;
 
 use std::{

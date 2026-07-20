@@ -16,6 +16,7 @@ mod preset_inventory;
 mod report_workflows;
 mod sampler_browsers;
 mod strudel_export;
+mod style_analysis;
 mod text_notes;
 mod tracks_panels;
 mod workspace_libraries;
