@@ -1,26 +1,40 @@
 use crate::{
     model::{EditError, EffectDevice, EffectDeviceKind},
     native_module::{
-        native_balance_module_descriptor, native_filter_module_descriptor,
-        native_gain_module_descriptor, native_pan_module_descriptor,
-        native_phase_module_descriptor, native_width_module_descriptor, NativeModuleDescriptor,
-        NativeModuleId, NativeModuleParameter, NativeModuleState, NATIVE_BALANCE_MODULE_ID,
+        native_balance_module_descriptor, native_delay_module_descriptor,
+        native_filter_module_descriptor, native_gain_module_descriptor,
+        native_pan_module_descriptor, native_phase_module_descriptor,
+        native_width_module_descriptor, NativeModuleDescriptor, NativeModuleId,
+        NativeModuleParameter, NativeModuleState, NATIVE_BALANCE_MODULE_ID, NATIVE_DELAY_MODULE_ID,
         NATIVE_FILTER_MODULE_ID, NATIVE_GAIN_MODULE_ID, NATIVE_PAN_MODULE_ID,
         NATIVE_PHASE_MODULE_ID, NATIVE_WIDTH_MODULE_ID,
     },
     parameters::{
-        native_balance_descriptor, native_filter_cutoff_descriptor, native_filter_drive_descriptor,
-        native_filter_env_amount_descriptor, native_filter_key_track_descriptor,
-        native_filter_mix_descriptor, native_filter_mode_descriptor,
-        native_filter_resonance_descriptor, native_gain_descriptor, native_pan_descriptor,
-        native_phase_invert_left_descriptor, native_phase_invert_right_descriptor,
-        native_width_descriptor, ParameterDescriptor, ParameterId, ParameterValue,
-        NATIVE_BALANCE_PARAMETER_ID, NATIVE_FILTER_CUTOFF_PARAMETER_ID,
-        NATIVE_FILTER_DRIVE_PARAMETER_ID, NATIVE_FILTER_ENV_AMOUNT_PARAMETER_ID,
-        NATIVE_FILTER_KEY_TRACK_PARAMETER_ID, NATIVE_FILTER_MIX_PARAMETER_ID,
-        NATIVE_FILTER_MODE_PARAMETER_ID, NATIVE_FILTER_RESONANCE_PARAMETER_ID,
-        NATIVE_GAIN_PARAMETER_ID, NATIVE_PAN_PARAMETER_ID, NATIVE_PHASE_INVERT_LEFT_PARAMETER_ID,
-        NATIVE_PHASE_INVERT_RIGHT_PARAMETER_ID, NATIVE_WIDTH_PARAMETER_ID,
+        native_balance_descriptor, native_delay_feedback_descriptor,
+        native_delay_filter_high_cut_descriptor, native_delay_filter_low_cut_descriptor,
+        native_delay_link_times_descriptor, native_delay_mix_descriptor,
+        native_delay_mod_depth_descriptor, native_delay_mod_rate_descriptor,
+        native_delay_output_descriptor, native_delay_ping_pong_descriptor,
+        native_delay_sync_descriptor, native_delay_time_left_descriptor,
+        native_delay_time_right_descriptor, native_filter_cutoff_descriptor,
+        native_filter_drive_descriptor, native_filter_env_amount_descriptor,
+        native_filter_key_track_descriptor, native_filter_mix_descriptor,
+        native_filter_mode_descriptor, native_filter_resonance_descriptor, native_gain_descriptor,
+        native_pan_descriptor, native_phase_invert_left_descriptor,
+        native_phase_invert_right_descriptor, native_width_descriptor, ParameterDescriptor,
+        ParameterId, ParameterValue, NATIVE_BALANCE_PARAMETER_ID,
+        NATIVE_DELAY_FEEDBACK_PARAMETER_ID, NATIVE_DELAY_FILTER_HIGH_CUT_PARAMETER_ID,
+        NATIVE_DELAY_FILTER_LOW_CUT_PARAMETER_ID, NATIVE_DELAY_LINK_TIMES_PARAMETER_ID,
+        NATIVE_DELAY_MIX_PARAMETER_ID, NATIVE_DELAY_MOD_DEPTH_PARAMETER_ID,
+        NATIVE_DELAY_MOD_RATE_PARAMETER_ID, NATIVE_DELAY_OUTPUT_PARAMETER_ID,
+        NATIVE_DELAY_PING_PONG_PARAMETER_ID, NATIVE_DELAY_SYNC_PARAMETER_ID,
+        NATIVE_DELAY_TIME_LEFT_PARAMETER_ID, NATIVE_DELAY_TIME_RIGHT_PARAMETER_ID,
+        NATIVE_FILTER_CUTOFF_PARAMETER_ID, NATIVE_FILTER_DRIVE_PARAMETER_ID,
+        NATIVE_FILTER_ENV_AMOUNT_PARAMETER_ID, NATIVE_FILTER_KEY_TRACK_PARAMETER_ID,
+        NATIVE_FILTER_MIX_PARAMETER_ID, NATIVE_FILTER_MODE_PARAMETER_ID,
+        NATIVE_FILTER_RESONANCE_PARAMETER_ID, NATIVE_GAIN_PARAMETER_ID, NATIVE_PAN_PARAMETER_ID,
+        NATIVE_PHASE_INVERT_LEFT_PARAMETER_ID, NATIVE_PHASE_INVERT_RIGHT_PARAMETER_ID,
+        NATIVE_WIDTH_PARAMETER_ID,
     },
     FilterMode,
 };
@@ -45,6 +59,20 @@ impl EffectDevice {
                 native_filter_key_track_descriptor(),
                 native_filter_env_amount_descriptor(),
                 native_filter_mix_descriptor(),
+            ],
+            EffectDeviceKind::Delay { .. } => vec![
+                native_delay_sync_descriptor(),
+                native_delay_time_left_descriptor(),
+                native_delay_time_right_descriptor(),
+                native_delay_link_times_descriptor(),
+                native_delay_feedback_descriptor(),
+                native_delay_ping_pong_descriptor(),
+                native_delay_filter_low_cut_descriptor(),
+                native_delay_filter_high_cut_descriptor(),
+                native_delay_mod_rate_descriptor(),
+                native_delay_mod_depth_descriptor(),
+                native_delay_mix_descriptor(),
+                native_delay_output_descriptor(),
             ],
         }
     }
@@ -93,6 +121,49 @@ impl EffectDevice {
             ) => Some(ParameterValue::Percentage(env_amount)),
             (NATIVE_FILTER_MIX_PARAMETER_ID, EffectDeviceKind::Filter { mix, .. }) => {
                 Some(ParameterValue::Percentage(mix))
+            }
+            (NATIVE_DELAY_SYNC_PARAMETER_ID, EffectDeviceKind::Delay { sync, .. }) => {
+                Some(ParameterValue::Bool(sync))
+            }
+            (NATIVE_DELAY_TIME_LEFT_PARAMETER_ID, EffectDeviceKind::Delay { time_left_ms, .. }) => {
+                Some(ParameterValue::Float(time_left_ms))
+            }
+            (
+                NATIVE_DELAY_TIME_RIGHT_PARAMETER_ID,
+                EffectDeviceKind::Delay { time_right_ms, .. },
+            ) => Some(ParameterValue::Float(time_right_ms)),
+            (NATIVE_DELAY_LINK_TIMES_PARAMETER_ID, EffectDeviceKind::Delay { link_times, .. }) => {
+                Some(ParameterValue::Bool(link_times))
+            }
+            (NATIVE_DELAY_FEEDBACK_PARAMETER_ID, EffectDeviceKind::Delay { feedback, .. }) => {
+                Some(ParameterValue::Percentage(feedback))
+            }
+            (NATIVE_DELAY_PING_PONG_PARAMETER_ID, EffectDeviceKind::Delay { ping_pong, .. }) => {
+                Some(ParameterValue::Bool(ping_pong))
+            }
+            (
+                NATIVE_DELAY_FILTER_LOW_CUT_PARAMETER_ID,
+                EffectDeviceKind::Delay {
+                    filter_low_cut_hz, ..
+                },
+            ) => Some(ParameterValue::FrequencyHertz(filter_low_cut_hz)),
+            (
+                NATIVE_DELAY_FILTER_HIGH_CUT_PARAMETER_ID,
+                EffectDeviceKind::Delay {
+                    filter_high_cut_hz, ..
+                },
+            ) => Some(ParameterValue::FrequencyHertz(filter_high_cut_hz)),
+            (NATIVE_DELAY_MOD_RATE_PARAMETER_ID, EffectDeviceKind::Delay { mod_rate_hz, .. }) => {
+                Some(ParameterValue::FrequencyHertz(mod_rate_hz))
+            }
+            (NATIVE_DELAY_MOD_DEPTH_PARAMETER_ID, EffectDeviceKind::Delay { mod_depth, .. }) => {
+                Some(ParameterValue::Percentage(mod_depth))
+            }
+            (NATIVE_DELAY_MIX_PARAMETER_ID, EffectDeviceKind::Delay { mix, .. }) => {
+                Some(ParameterValue::Percentage(mix))
+            }
+            (NATIVE_DELAY_OUTPUT_PARAMETER_ID, EffectDeviceKind::Delay { output_db, .. }) => {
+                Some(ParameterValue::Decibels(output_db))
             }
             _ => None,
         }
@@ -214,6 +285,112 @@ impl EffectDevice {
                 *mix = value.as_f32().expect("validated mix is numeric");
                 Ok(())
             }
+            (NATIVE_DELAY_SYNC_PARAMETER_ID, EffectDeviceKind::Delay { sync, .. }) => {
+                native_delay_sync_descriptor()
+                    .validate(&value)
+                    .map_err(|_| EditError::InvalidParameterValue)?;
+                let ParameterValue::Bool(value) = value else {
+                    return Err(EditError::InvalidParameterValue);
+                };
+                *sync = value;
+                Ok(())
+            }
+            (NATIVE_DELAY_TIME_LEFT_PARAMETER_ID, EffectDeviceKind::Delay { time_left_ms, .. }) => {
+                native_delay_time_left_descriptor()
+                    .validate(&value)
+                    .map_err(|_| EditError::InvalidParameterValue)?;
+                *time_left_ms = value.as_f32().expect("validated left time is numeric");
+                Ok(())
+            }
+            (
+                NATIVE_DELAY_TIME_RIGHT_PARAMETER_ID,
+                EffectDeviceKind::Delay { time_right_ms, .. },
+            ) => {
+                native_delay_time_right_descriptor()
+                    .validate(&value)
+                    .map_err(|_| EditError::InvalidParameterValue)?;
+                *time_right_ms = value.as_f32().expect("validated right time is numeric");
+                Ok(())
+            }
+            (NATIVE_DELAY_LINK_TIMES_PARAMETER_ID, EffectDeviceKind::Delay { link_times, .. }) => {
+                native_delay_link_times_descriptor()
+                    .validate(&value)
+                    .map_err(|_| EditError::InvalidParameterValue)?;
+                let ParameterValue::Bool(value) = value else {
+                    return Err(EditError::InvalidParameterValue);
+                };
+                *link_times = value;
+                Ok(())
+            }
+            (NATIVE_DELAY_FEEDBACK_PARAMETER_ID, EffectDeviceKind::Delay { feedback, .. }) => {
+                native_delay_feedback_descriptor()
+                    .validate(&value)
+                    .map_err(|_| EditError::InvalidParameterValue)?;
+                *feedback = value.as_f32().expect("validated feedback is numeric");
+                Ok(())
+            }
+            (NATIVE_DELAY_PING_PONG_PARAMETER_ID, EffectDeviceKind::Delay { ping_pong, .. }) => {
+                native_delay_ping_pong_descriptor()
+                    .validate(&value)
+                    .map_err(|_| EditError::InvalidParameterValue)?;
+                let ParameterValue::Bool(value) = value else {
+                    return Err(EditError::InvalidParameterValue);
+                };
+                *ping_pong = value;
+                Ok(())
+            }
+            (
+                NATIVE_DELAY_FILTER_LOW_CUT_PARAMETER_ID,
+                EffectDeviceKind::Delay {
+                    filter_low_cut_hz, ..
+                },
+            ) => {
+                native_delay_filter_low_cut_descriptor()
+                    .validate(&value)
+                    .map_err(|_| EditError::InvalidParameterValue)?;
+                *filter_low_cut_hz = value.as_f32().expect("validated low cut is numeric");
+                Ok(())
+            }
+            (
+                NATIVE_DELAY_FILTER_HIGH_CUT_PARAMETER_ID,
+                EffectDeviceKind::Delay {
+                    filter_high_cut_hz, ..
+                },
+            ) => {
+                native_delay_filter_high_cut_descriptor()
+                    .validate(&value)
+                    .map_err(|_| EditError::InvalidParameterValue)?;
+                *filter_high_cut_hz = value.as_f32().expect("validated high cut is numeric");
+                Ok(())
+            }
+            (NATIVE_DELAY_MOD_RATE_PARAMETER_ID, EffectDeviceKind::Delay { mod_rate_hz, .. }) => {
+                native_delay_mod_rate_descriptor()
+                    .validate(&value)
+                    .map_err(|_| EditError::InvalidParameterValue)?;
+                *mod_rate_hz = value.as_f32().expect("validated mod rate is numeric");
+                Ok(())
+            }
+            (NATIVE_DELAY_MOD_DEPTH_PARAMETER_ID, EffectDeviceKind::Delay { mod_depth, .. }) => {
+                native_delay_mod_depth_descriptor()
+                    .validate(&value)
+                    .map_err(|_| EditError::InvalidParameterValue)?;
+                *mod_depth = value.as_f32().expect("validated mod depth is numeric");
+                Ok(())
+            }
+            (NATIVE_DELAY_MIX_PARAMETER_ID, EffectDeviceKind::Delay { mix, .. }) => {
+                native_delay_mix_descriptor()
+                    .validate(&value)
+                    .map_err(|_| EditError::InvalidParameterValue)?;
+                *mix = value.as_f32().expect("validated mix is numeric");
+                Ok(())
+            }
+            (NATIVE_DELAY_OUTPUT_PARAMETER_ID, EffectDeviceKind::Delay { output_db, .. }) => {
+                native_delay_output_descriptor()
+                    .validate(&value)
+                    .map_err(|_| EditError::InvalidParameterValue)?;
+                *output_db = value.as_f32().expect("validated output is numeric");
+                Ok(())
+            }
             _ => Err(EditError::UnknownParameter),
         }
     }
@@ -227,6 +404,7 @@ impl EffectDevice {
             EffectDeviceKind::StereoWidth { .. } => native_width_module_descriptor(),
             EffectDeviceKind::PhaseInvert { .. } => native_phase_module_descriptor(),
             EffectDeviceKind::Filter { .. } => native_filter_module_descriptor(),
+            EffectDeviceKind::Delay { .. } => native_delay_module_descriptor(),
         }
     }
 
@@ -318,6 +496,72 @@ impl EffectDevice {
                     },
                 ],
             ),
+            EffectDeviceKind::Delay {
+                sync,
+                time_left_ms,
+                time_right_ms,
+                link_times,
+                feedback,
+                ping_pong,
+                filter_low_cut_hz,
+                filter_high_cut_hz,
+                mod_rate_hz,
+                mod_depth,
+                mix,
+                output_db,
+            } => (
+                NativeModuleId::from(NATIVE_DELAY_MODULE_ID),
+                vec![
+                    NativeModuleParameter {
+                        id: ParameterId::from(NATIVE_DELAY_SYNC_PARAMETER_ID),
+                        value: ParameterValue::Bool(sync),
+                    },
+                    NativeModuleParameter {
+                        id: ParameterId::from(NATIVE_DELAY_TIME_LEFT_PARAMETER_ID),
+                        value: ParameterValue::Float(time_left_ms),
+                    },
+                    NativeModuleParameter {
+                        id: ParameterId::from(NATIVE_DELAY_TIME_RIGHT_PARAMETER_ID),
+                        value: ParameterValue::Float(time_right_ms),
+                    },
+                    NativeModuleParameter {
+                        id: ParameterId::from(NATIVE_DELAY_LINK_TIMES_PARAMETER_ID),
+                        value: ParameterValue::Bool(link_times),
+                    },
+                    NativeModuleParameter {
+                        id: ParameterId::from(NATIVE_DELAY_FEEDBACK_PARAMETER_ID),
+                        value: ParameterValue::Percentage(feedback),
+                    },
+                    NativeModuleParameter {
+                        id: ParameterId::from(NATIVE_DELAY_PING_PONG_PARAMETER_ID),
+                        value: ParameterValue::Bool(ping_pong),
+                    },
+                    NativeModuleParameter {
+                        id: ParameterId::from(NATIVE_DELAY_FILTER_LOW_CUT_PARAMETER_ID),
+                        value: ParameterValue::FrequencyHertz(filter_low_cut_hz),
+                    },
+                    NativeModuleParameter {
+                        id: ParameterId::from(NATIVE_DELAY_FILTER_HIGH_CUT_PARAMETER_ID),
+                        value: ParameterValue::FrequencyHertz(filter_high_cut_hz),
+                    },
+                    NativeModuleParameter {
+                        id: ParameterId::from(NATIVE_DELAY_MOD_RATE_PARAMETER_ID),
+                        value: ParameterValue::FrequencyHertz(mod_rate_hz),
+                    },
+                    NativeModuleParameter {
+                        id: ParameterId::from(NATIVE_DELAY_MOD_DEPTH_PARAMETER_ID),
+                        value: ParameterValue::Percentage(mod_depth),
+                    },
+                    NativeModuleParameter {
+                        id: ParameterId::from(NATIVE_DELAY_MIX_PARAMETER_ID),
+                        value: ParameterValue::Percentage(mix),
+                    },
+                    NativeModuleParameter {
+                        id: ParameterId::from(NATIVE_DELAY_OUTPUT_PARAMETER_ID),
+                        value: ParameterValue::Decibels(output_db),
+                    },
+                ],
+            ),
         };
         NativeModuleState {
             module,
@@ -344,193 +588,5 @@ impl EffectDevice {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::FilterSpec;
-
-    #[test]
-    fn effect_devices_expose_and_validate_parameter_values() {
-        let mut gain = EffectDevice::gain(1, 1.0);
-        let descriptor = gain
-            .parameter_descriptors()
-            .into_iter()
-            .next()
-            .expect("gain descriptor");
-
-        assert_eq!(descriptor.id, ParameterId::from(NATIVE_GAIN_PARAMETER_ID));
-        assert_eq!(
-            gain.parameter_value(&descriptor.id),
-            Some(ParameterValue::Float(1.0))
-        );
-
-        gain.set_parameter_value(&descriptor.id, ParameterValue::Float(0.5))
-            .expect("set gain parameter");
-        assert_eq!(gain.kind, EffectDeviceKind::Gain { gain: 0.5 });
-        assert_eq!(
-            gain.set_parameter_value(&descriptor.id, ParameterValue::Float(3.0))
-                .expect_err("gain outside descriptor range"),
-            EditError::InvalidParameterValue
-        );
-
-        let mut width = EffectDevice::stereo_width(4, 1.0);
-        assert_eq!(
-            width.parameter_value(&ParameterId::from(NATIVE_WIDTH_PARAMETER_ID)),
-            Some(ParameterValue::Percentage(1.0))
-        );
-        width
-            .set_parameter_value(
-                &ParameterId::from(NATIVE_WIDTH_PARAMETER_ID),
-                ParameterValue::Percentage(2.0),
-            )
-            .expect("set width");
-        assert_eq!(width.kind, EffectDeviceKind::StereoWidth { width: 2.0 });
-
-        let mut phase = EffectDevice::phase_invert(5, false, false);
-        phase
-            .set_parameter_value(
-                &ParameterId::from(NATIVE_PHASE_INVERT_LEFT_PARAMETER_ID),
-                ParameterValue::Bool(true),
-            )
-            .expect("set phase invert left");
-        assert_eq!(
-            phase.kind,
-            EffectDeviceKind::PhaseInvert {
-                invert_left: true,
-                invert_right: false
-            }
-        );
-
-        let mut filter = EffectDevice::filter(6, FilterSpec::default());
-        assert_eq!(
-            filter.parameter_value(&ParameterId::from(NATIVE_FILTER_MODE_PARAMETER_ID)),
-            Some(ParameterValue::Enum("lowPass".to_string()))
-        );
-        filter
-            .set_parameter_value(
-                &ParameterId::from(NATIVE_FILTER_MODE_PARAMETER_ID),
-                ParameterValue::Enum("highPass".to_string()),
-            )
-            .expect("set filter mode");
-        filter
-            .set_parameter_value(
-                &ParameterId::from(NATIVE_FILTER_CUTOFF_PARAMETER_ID),
-                ParameterValue::FrequencyHertz(2_000.0),
-            )
-            .expect("set cutoff");
-        assert_eq!(
-            filter.kind,
-            EffectDeviceKind::Filter {
-                mode: FilterMode::HighPass,
-                cutoff_hz: 2_000.0,
-                resonance: 0.25,
-                drive_db: 0.0,
-                key_track: 0.0,
-                env_amount: 0.0,
-                mix: 1.0
-            }
-        );
-        assert_eq!(
-            filter
-                .set_parameter_value(
-                    &ParameterId::from(NATIVE_FILTER_RESONANCE_PARAMETER_ID),
-                    ParameterValue::Normalized(1.5),
-                )
-                .expect_err("reject invalid resonance"),
-            EditError::InvalidParameterValue
-        );
-    }
-
-    #[test]
-    fn effect_devices_round_trip_native_module_state() {
-        let mut gain = EffectDevice::gain(1, 1.0);
-        let mut state = gain.native_module_state();
-
-        state.bypassed = true;
-        state
-            .set_parameter(
-                &gain.native_module_descriptor(),
-                ParameterId::from(NATIVE_GAIN_PARAMETER_ID),
-                ParameterValue::Float(0.25),
-            )
-            .expect("set native module parameter");
-
-        gain.apply_native_module_state(&state)
-            .expect("apply module state");
-
-        assert!(gain.bypassed);
-        assert_eq!(gain.kind, EffectDeviceKind::Gain { gain: 0.25 });
-    }
-
-    #[test]
-    fn effect_devices_round_trip_multi_parameter_native_module_state() {
-        let mut phase = EffectDevice::phase_invert(5, false, false);
-        let mut state = phase.native_module_state();
-
-        assert_eq!(state.parameters.len(), 2);
-        state
-            .set_parameter(
-                &phase.native_module_descriptor(),
-                ParameterId::from(NATIVE_PHASE_INVERT_LEFT_PARAMETER_ID),
-                ParameterValue::Bool(true),
-            )
-            .expect("set phase left");
-        state
-            .set_parameter(
-                &phase.native_module_descriptor(),
-                ParameterId::from(NATIVE_PHASE_INVERT_RIGHT_PARAMETER_ID),
-                ParameterValue::Bool(true),
-            )
-            .expect("set phase right");
-
-        phase
-            .apply_native_module_state(&state)
-            .expect("apply phase state");
-
-        assert_eq!(
-            phase.kind,
-            EffectDeviceKind::PhaseInvert {
-                invert_left: true,
-                invert_right: true
-            }
-        );
-    }
-
-    #[test]
-    fn effect_devices_round_trip_filter_native_module_state() {
-        let mut filter = EffectDevice::filter(6, FilterSpec::default());
-        let mut state = filter.native_module_state();
-
-        assert_eq!(state.parameters.len(), 7);
-        state
-            .set_parameter(
-                &filter.native_module_descriptor(),
-                ParameterId::from(NATIVE_FILTER_MODE_PARAMETER_ID),
-                ParameterValue::Enum("notch".to_string()),
-            )
-            .expect("set mode");
-        state
-            .set_parameter(
-                &filter.native_module_descriptor(),
-                ParameterId::from(NATIVE_FILTER_MIX_PARAMETER_ID),
-                ParameterValue::Percentage(0.5),
-            )
-            .expect("set mix");
-
-        filter
-            .apply_native_module_state(&state)
-            .expect("apply filter state");
-
-        assert_eq!(
-            filter.kind,
-            EffectDeviceKind::Filter {
-                mode: FilterMode::Notch,
-                cutoff_hz: 12_000.0,
-                resonance: 0.25,
-                drive_db: 0.0,
-                key_track: 0.0,
-                env_amount: 0.0,
-                mix: 0.5
-            }
-        );
-    }
-}
+#[path = "effect_parameters_tests.rs"]
+mod tests;

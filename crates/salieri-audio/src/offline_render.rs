@@ -205,6 +205,7 @@ fn mix_sample_event(
     let mut source_frame = 0.0_f32;
     let mut output_frame = context.output_start_frame;
     let mut processor = DspFrameProcessor::default();
+    processor.prepare(context.sample_rate, context.channels, track_devices);
     while output_frame < context.output_frames && source_frame < sample.frames as f32 {
         let output_offset = output_frame * context.channels;
         if context.channels == 1 {

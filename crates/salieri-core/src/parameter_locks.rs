@@ -268,7 +268,8 @@ fn effect_descriptor(
         | EffectDeviceKind::Balance { .. }
         | EffectDeviceKind::StereoWidth { .. }
         | EffectDeviceKind::PhaseInvert { .. }
-        | EffectDeviceKind::Filter { .. } => effect
+        | EffectDeviceKind::Filter { .. }
+        | EffectDeviceKind::Delay { .. } => effect
             .native_module_descriptor()
             .parameter(parameter)
             .cloned(),

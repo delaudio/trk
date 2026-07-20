@@ -3,13 +3,19 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    native_balance_descriptor, native_filter_cutoff_descriptor, native_filter_drive_descriptor,
-    native_filter_env_amount_descriptor, native_filter_key_track_descriptor,
-    native_filter_mix_descriptor, native_filter_mode_descriptor,
-    native_filter_resonance_descriptor, native_gain_descriptor, native_pan_descriptor,
-    native_phase_invert_left_descriptor, native_phase_invert_right_descriptor,
-    native_width_descriptor, ParameterDescriptor, ParameterId, ParameterValidationError,
-    ParameterValue,
+    native_balance_descriptor, native_delay_feedback_descriptor,
+    native_delay_filter_high_cut_descriptor, native_delay_filter_low_cut_descriptor,
+    native_delay_link_times_descriptor, native_delay_mix_descriptor,
+    native_delay_mod_depth_descriptor, native_delay_mod_rate_descriptor,
+    native_delay_output_descriptor, native_delay_ping_pong_descriptor,
+    native_delay_sync_descriptor, native_delay_time_left_descriptor,
+    native_delay_time_right_descriptor, native_filter_cutoff_descriptor,
+    native_filter_drive_descriptor, native_filter_env_amount_descriptor,
+    native_filter_key_track_descriptor, native_filter_mix_descriptor,
+    native_filter_mode_descriptor, native_filter_resonance_descriptor, native_gain_descriptor,
+    native_pan_descriptor, native_phase_invert_left_descriptor,
+    native_phase_invert_right_descriptor, native_width_descriptor, ParameterDescriptor,
+    ParameterId, ParameterValidationError, ParameterValue,
 };
 
 pub const NATIVE_GAIN_MODULE_ID: &str = "native.effect.gain";
@@ -18,6 +24,7 @@ pub const NATIVE_BALANCE_MODULE_ID: &str = "native.effect.balance";
 pub const NATIVE_WIDTH_MODULE_ID: &str = "native.effect.width";
 pub const NATIVE_PHASE_MODULE_ID: &str = "native.effect.phase";
 pub const NATIVE_FILTER_MODULE_ID: &str = "native.effect.filter";
+pub const NATIVE_DELAY_MODULE_ID: &str = "native.effect.delay";
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -266,6 +273,31 @@ pub fn native_filter_module_descriptor() -> NativeModuleDescriptor {
 }
 
 #[must_use]
+pub fn native_delay_module_descriptor() -> NativeModuleDescriptor {
+    NativeModuleDescriptor {
+        id: NativeModuleId::from(NATIVE_DELAY_MODULE_ID),
+        name: "Stereo Delay".to_string(),
+        role: NativeModuleRole::Effect,
+        parameters: vec![
+            native_delay_sync_descriptor(),
+            native_delay_time_left_descriptor(),
+            native_delay_time_right_descriptor(),
+            native_delay_link_times_descriptor(),
+            native_delay_feedback_descriptor(),
+            native_delay_ping_pong_descriptor(),
+            native_delay_filter_low_cut_descriptor(),
+            native_delay_filter_high_cut_descriptor(),
+            native_delay_mod_rate_descriptor(),
+            native_delay_mod_depth_descriptor(),
+            native_delay_mix_descriptor(),
+            native_delay_output_descriptor(),
+        ],
+        latency_frames: 0,
+        realtime_safe: true,
+    }
+}
+
+#[must_use]
 pub fn builtin_native_module_descriptor(id: &NativeModuleId) -> Option<NativeModuleDescriptor> {
     match id.as_str() {
         NATIVE_GAIN_MODULE_ID => Some(native_gain_module_descriptor()),
@@ -274,6 +306,7 @@ pub fn builtin_native_module_descriptor(id: &NativeModuleId) -> Option<NativeMod
         NATIVE_WIDTH_MODULE_ID => Some(native_width_module_descriptor()),
         NATIVE_PHASE_MODULE_ID => Some(native_phase_module_descriptor()),
         NATIVE_FILTER_MODULE_ID => Some(native_filter_module_descriptor()),
+        NATIVE_DELAY_MODULE_ID => Some(native_delay_module_descriptor()),
         _ => None,
     }
 }
@@ -287,6 +320,7 @@ pub fn builtin_native_effect_descriptors() -> Vec<NativeModuleDescriptor> {
         native_width_module_descriptor(),
         native_phase_module_descriptor(),
         native_filter_module_descriptor(),
+        native_delay_module_descriptor(),
     ]
 }
 
@@ -294,6 +328,7 @@ pub fn builtin_native_effect_descriptors() -> Vec<NativeModuleDescriptor> {
 mod tests {
     use super::*;
     use crate::{
+        NATIVE_DELAY_MIX_PARAMETER_ID, NATIVE_DELAY_MODULE_ID, NATIVE_DELAY_TIME_LEFT_PARAMETER_ID,
         NATIVE_FILTER_CUTOFF_PARAMETER_ID, NATIVE_FILTER_MODE_PARAMETER_ID,
         NATIVE_FILTER_MODULE_ID, NATIVE_GAIN_PARAMETER_ID, NATIVE_PAN_PARAMETER_ID,
         NATIVE_PHASE_INVERT_LEFT_PARAMETER_ID, NATIVE_PHASE_INVERT_RIGHT_PARAMETER_ID,
@@ -416,5 +451,25 @@ mod tests {
         );
         assert!(serialized.contains(NATIVE_FILTER_MODULE_ID));
         assert!(serialized.contains(NATIVE_FILTER_MODE_PARAMETER_ID));
+    }
+
+    #[test]
+    fn native_delay_module_descriptor_has_stable_defaults() {
+        let descriptor = native_delay_module_descriptor();
+        let state = NativeModuleState::defaults_for(&descriptor);
+        let serialized = serde_json::to_string(&state).expect("serialize delay");
+
+        assert_eq!(descriptor.id, NativeModuleId::from(NATIVE_DELAY_MODULE_ID));
+        assert_eq!(descriptor.parameters.len(), 12);
+        assert_eq!(
+            state.parameter_value(&ParameterId::from(NATIVE_DELAY_TIME_LEFT_PARAMETER_ID)),
+            Some(&ParameterValue::Float(500.0))
+        );
+        assert_eq!(
+            state.parameter_value(&ParameterId::from(NATIVE_DELAY_MIX_PARAMETER_ID)),
+            Some(&ParameterValue::Percentage(0.25))
+        );
+        assert!(serialized.contains(NATIVE_DELAY_MODULE_ID));
+        assert!(serialized.contains(NATIVE_DELAY_TIME_LEFT_PARAMETER_ID));
     }
 }

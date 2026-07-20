@@ -21,6 +21,18 @@ pub const NATIVE_FILTER_DRIVE_PARAMETER_ID: &str = "native.filter.driveDb";
 pub const NATIVE_FILTER_KEY_TRACK_PARAMETER_ID: &str = "native.filter.keyTrack";
 pub const NATIVE_FILTER_ENV_AMOUNT_PARAMETER_ID: &str = "native.filter.envAmount";
 pub const NATIVE_FILTER_MIX_PARAMETER_ID: &str = "native.filter.mix";
+pub const NATIVE_DELAY_SYNC_PARAMETER_ID: &str = "native.delay.sync";
+pub const NATIVE_DELAY_TIME_LEFT_PARAMETER_ID: &str = "native.delay.timeLeftMs";
+pub const NATIVE_DELAY_TIME_RIGHT_PARAMETER_ID: &str = "native.delay.timeRightMs";
+pub const NATIVE_DELAY_LINK_TIMES_PARAMETER_ID: &str = "native.delay.linkTimes";
+pub const NATIVE_DELAY_FEEDBACK_PARAMETER_ID: &str = "native.delay.feedback";
+pub const NATIVE_DELAY_PING_PONG_PARAMETER_ID: &str = "native.delay.pingPong";
+pub const NATIVE_DELAY_FILTER_LOW_CUT_PARAMETER_ID: &str = "native.delay.filterLowCutHz";
+pub const NATIVE_DELAY_FILTER_HIGH_CUT_PARAMETER_ID: &str = "native.delay.filterHighCutHz";
+pub const NATIVE_DELAY_MOD_RATE_PARAMETER_ID: &str = "native.delay.modRateHz";
+pub const NATIVE_DELAY_MOD_DEPTH_PARAMETER_ID: &str = "native.delay.modDepth";
+pub const NATIVE_DELAY_MIX_PARAMETER_ID: &str = "native.delay.mix";
+pub const NATIVE_DELAY_OUTPUT_PARAMETER_ID: &str = "native.delay.outputDb";
 
 #[must_use]
 pub fn sample_gain_descriptor() -> ParameterDescriptor {
@@ -341,6 +353,216 @@ pub fn native_filter_mix_descriptor() -> ParameterDescriptor {
 }
 
 #[must_use]
+pub fn native_delay_sync_descriptor() -> ParameterDescriptor {
+    bool_descriptor(BoolDescriptorSpec {
+        id: NATIVE_DELAY_SYNC_PARAMETER_ID,
+        name: "Sync",
+        short_name: Some("Sync"),
+        default: true,
+        flags: ParameterFlags {
+            stepped: true,
+            ..ParameterFlags::automatable()
+        },
+        group: Some("native.delay"),
+        order: 10,
+    })
+}
+
+#[must_use]
+pub fn native_delay_time_left_descriptor() -> ParameterDescriptor {
+    continuous_descriptor(ContinuousDescriptorSpec {
+        id: NATIVE_DELAY_TIME_LEFT_PARAMETER_ID,
+        name: "Left Time",
+        short_name: Some("L Time"),
+        value_type: ParameterValueType::PlainFloat,
+        default: ParameterValue::Float(500.0),
+        min: 1.0,
+        max: 4_000.0,
+        step: Some(0.1),
+        unit: ParameterUnit::Milliseconds,
+        flags: ParameterFlags::automatable_logarithmic(),
+        group: Some("native.delay"),
+        order: 20,
+    })
+}
+
+#[must_use]
+pub fn native_delay_time_right_descriptor() -> ParameterDescriptor {
+    continuous_descriptor(ContinuousDescriptorSpec {
+        id: NATIVE_DELAY_TIME_RIGHT_PARAMETER_ID,
+        name: "Right Time",
+        short_name: Some("R Time"),
+        value_type: ParameterValueType::PlainFloat,
+        default: ParameterValue::Float(500.0),
+        min: 1.0,
+        max: 4_000.0,
+        step: Some(0.1),
+        unit: ParameterUnit::Milliseconds,
+        flags: ParameterFlags::automatable_logarithmic(),
+        group: Some("native.delay"),
+        order: 30,
+    })
+}
+
+#[must_use]
+pub fn native_delay_link_times_descriptor() -> ParameterDescriptor {
+    bool_descriptor(BoolDescriptorSpec {
+        id: NATIVE_DELAY_LINK_TIMES_PARAMETER_ID,
+        name: "Link Times",
+        short_name: Some("Link"),
+        default: true,
+        flags: ParameterFlags {
+            stepped: true,
+            ..ParameterFlags::automatable()
+        },
+        group: Some("native.delay"),
+        order: 40,
+    })
+}
+
+#[must_use]
+pub fn native_delay_feedback_descriptor() -> ParameterDescriptor {
+    continuous_descriptor(ContinuousDescriptorSpec {
+        id: NATIVE_DELAY_FEEDBACK_PARAMETER_ID,
+        name: "Feedback",
+        short_name: Some("Fbk"),
+        value_type: ParameterValueType::Percentage,
+        default: ParameterValue::Percentage(0.35),
+        min: 0.0,
+        max: 0.95,
+        step: Some(0.001),
+        unit: ParameterUnit::Percent,
+        flags: ParameterFlags::automatable(),
+        group: Some("native.delay"),
+        order: 50,
+    })
+}
+
+#[must_use]
+pub fn native_delay_ping_pong_descriptor() -> ParameterDescriptor {
+    bool_descriptor(BoolDescriptorSpec {
+        id: NATIVE_DELAY_PING_PONG_PARAMETER_ID,
+        name: "Ping Pong",
+        short_name: Some("Ping"),
+        default: false,
+        flags: ParameterFlags {
+            stepped: true,
+            ..ParameterFlags::automatable()
+        },
+        group: Some("native.delay"),
+        order: 60,
+    })
+}
+
+#[must_use]
+pub fn native_delay_filter_low_cut_descriptor() -> ParameterDescriptor {
+    continuous_descriptor(ContinuousDescriptorSpec {
+        id: NATIVE_DELAY_FILTER_LOW_CUT_PARAMETER_ID,
+        name: "Low Cut",
+        short_name: Some("LoCut"),
+        value_type: ParameterValueType::FrequencyHertz,
+        default: ParameterValue::FrequencyHertz(20.0),
+        min: 20.0,
+        max: 20_000.0,
+        step: Some(0.1),
+        unit: ParameterUnit::Hertz,
+        flags: ParameterFlags::automatable_logarithmic(),
+        group: Some("native.delay"),
+        order: 70,
+    })
+}
+
+#[must_use]
+pub fn native_delay_filter_high_cut_descriptor() -> ParameterDescriptor {
+    continuous_descriptor(ContinuousDescriptorSpec {
+        id: NATIVE_DELAY_FILTER_HIGH_CUT_PARAMETER_ID,
+        name: "High Cut",
+        short_name: Some("HiCut"),
+        value_type: ParameterValueType::FrequencyHertz,
+        default: ParameterValue::FrequencyHertz(20_000.0),
+        min: 20.0,
+        max: 20_000.0,
+        step: Some(0.1),
+        unit: ParameterUnit::Hertz,
+        flags: ParameterFlags::automatable_logarithmic(),
+        group: Some("native.delay"),
+        order: 80,
+    })
+}
+
+#[must_use]
+pub fn native_delay_mod_rate_descriptor() -> ParameterDescriptor {
+    continuous_descriptor(ContinuousDescriptorSpec {
+        id: NATIVE_DELAY_MOD_RATE_PARAMETER_ID,
+        name: "Mod Rate",
+        short_name: Some("Rate"),
+        value_type: ParameterValueType::FrequencyHertz,
+        default: ParameterValue::FrequencyHertz(0.0),
+        min: 0.0,
+        max: 20.0,
+        step: Some(0.01),
+        unit: ParameterUnit::Hertz,
+        flags: ParameterFlags::automatable(),
+        group: Some("native.delay"),
+        order: 90,
+    })
+}
+
+#[must_use]
+pub fn native_delay_mod_depth_descriptor() -> ParameterDescriptor {
+    continuous_descriptor(ContinuousDescriptorSpec {
+        id: NATIVE_DELAY_MOD_DEPTH_PARAMETER_ID,
+        name: "Mod Depth",
+        short_name: Some("Depth"),
+        value_type: ParameterValueType::Percentage,
+        default: ParameterValue::Percentage(0.0),
+        min: 0.0,
+        max: 1.0,
+        step: Some(0.001),
+        unit: ParameterUnit::Percent,
+        flags: ParameterFlags::automatable(),
+        group: Some("native.delay"),
+        order: 100,
+    })
+}
+
+#[must_use]
+pub fn native_delay_mix_descriptor() -> ParameterDescriptor {
+    continuous_descriptor(ContinuousDescriptorSpec {
+        id: NATIVE_DELAY_MIX_PARAMETER_ID,
+        name: "Mix",
+        short_name: Some("Mix"),
+        value_type: ParameterValueType::Percentage,
+        default: ParameterValue::Percentage(0.25),
+        min: 0.0,
+        max: 1.0,
+        step: Some(0.001),
+        unit: ParameterUnit::Percent,
+        flags: ParameterFlags::automatable(),
+        group: Some("native.delay"),
+        order: 110,
+    })
+}
+
+#[must_use]
+pub fn native_delay_output_descriptor() -> ParameterDescriptor {
+    continuous_descriptor(ContinuousDescriptorSpec {
+        id: NATIVE_DELAY_OUTPUT_PARAMETER_ID,
+        name: "Output",
+        short_name: Some("Out"),
+        value_type: ParameterValueType::Decibels,
+        default: ParameterValue::Decibels(0.0),
+        min: -60.0,
+        max: 12.0,
+        step: Some(0.1),
+        unit: ParameterUnit::Decibels,
+        flags: ParameterFlags::automatable(),
+        group: Some("native.delay"),
+        order: 120,
+    })
+}
+
+#[must_use]
 pub fn sampler_parameter_descriptors() -> Vec<ParameterDescriptor> {
     vec![sample_gain_descriptor()]
 }
@@ -371,6 +593,18 @@ pub fn native_effect_parameter_descriptors() -> Vec<ParameterDescriptor> {
         native_filter_key_track_descriptor(),
         native_filter_env_amount_descriptor(),
         native_filter_mix_descriptor(),
+        native_delay_sync_descriptor(),
+        native_delay_time_left_descriptor(),
+        native_delay_time_right_descriptor(),
+        native_delay_link_times_descriptor(),
+        native_delay_feedback_descriptor(),
+        native_delay_ping_pong_descriptor(),
+        native_delay_filter_low_cut_descriptor(),
+        native_delay_filter_high_cut_descriptor(),
+        native_delay_mod_rate_descriptor(),
+        native_delay_mod_depth_descriptor(),
+        native_delay_mix_descriptor(),
+        native_delay_output_descriptor(),
     ]
 }
 
@@ -395,6 +629,20 @@ pub fn builtin_parameter_descriptor(id: &ParameterId) -> Option<ParameterDescrip
         NATIVE_FILTER_KEY_TRACK_PARAMETER_ID => Some(native_filter_key_track_descriptor()),
         NATIVE_FILTER_ENV_AMOUNT_PARAMETER_ID => Some(native_filter_env_amount_descriptor()),
         NATIVE_FILTER_MIX_PARAMETER_ID => Some(native_filter_mix_descriptor()),
+        NATIVE_DELAY_SYNC_PARAMETER_ID => Some(native_delay_sync_descriptor()),
+        NATIVE_DELAY_TIME_LEFT_PARAMETER_ID => Some(native_delay_time_left_descriptor()),
+        NATIVE_DELAY_TIME_RIGHT_PARAMETER_ID => Some(native_delay_time_right_descriptor()),
+        NATIVE_DELAY_LINK_TIMES_PARAMETER_ID => Some(native_delay_link_times_descriptor()),
+        NATIVE_DELAY_FEEDBACK_PARAMETER_ID => Some(native_delay_feedback_descriptor()),
+        NATIVE_DELAY_PING_PONG_PARAMETER_ID => Some(native_delay_ping_pong_descriptor()),
+        NATIVE_DELAY_FILTER_LOW_CUT_PARAMETER_ID => Some(native_delay_filter_low_cut_descriptor()),
+        NATIVE_DELAY_FILTER_HIGH_CUT_PARAMETER_ID => {
+            Some(native_delay_filter_high_cut_descriptor())
+        }
+        NATIVE_DELAY_MOD_RATE_PARAMETER_ID => Some(native_delay_mod_rate_descriptor()),
+        NATIVE_DELAY_MOD_DEPTH_PARAMETER_ID => Some(native_delay_mod_depth_descriptor()),
+        NATIVE_DELAY_MIX_PARAMETER_ID => Some(native_delay_mix_descriptor()),
+        NATIVE_DELAY_OUTPUT_PARAMETER_ID => Some(native_delay_output_descriptor()),
         _ => None,
     }
 }

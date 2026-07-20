@@ -189,6 +189,8 @@ fn command_mode_sets_resets_and_clears_parameter_locks() {
     type_command(&mut app, "plock dsp track width 1.500");
     type_command(&mut app, "plock dsp track filter-cutoff 2000");
     type_command(&mut app, "plock dsp track filter-mode High-pass");
+    type_command(&mut app, "plock dsp track delay-left 250");
+    type_command(&mut app, "plock dsp track delay-mix 0.500");
 
     let cell = app
         .song
@@ -196,7 +198,7 @@ fn command_mode_sets_resets_and_clears_parameter_locks() {
         .expect("pattern")
         .cell(0, 0)
         .expect("cell");
-    assert_eq!(cell.parameter_locks.len(), 7);
+    assert_eq!(cell.parameter_locks.len(), 9);
     assert_eq!(
         cell.parameter_locks[0].parameter,
         ParameterId::from(SAMPLE_GAIN_PARAMETER_ID)
@@ -229,6 +231,18 @@ fn command_mode_sets_resets_and_clears_parameter_locks() {
         cell.parameter_locks[6].parameter,
         ParameterId::from(NATIVE_FILTER_MODE_PARAMETER_ID)
     );
+    assert_eq!(
+        cell.parameter_locks[7].parameter,
+        ParameterId::from(NATIVE_DELAY_TIME_LEFT_PARAMETER_ID)
+    );
+    assert_eq!(
+        cell.parameter_locks[7].target,
+        ParameterLockTarget::TrackEffect { track, device: 7 }
+    );
+    assert_eq!(
+        cell.parameter_locks[8].parameter,
+        ParameterId::from(NATIVE_DELAY_MIX_PARAMETER_ID)
+    );
 
     type_command(&mut app, "plock sample-gain reset");
     let cell = app
@@ -249,7 +263,7 @@ fn command_mode_sets_resets_and_clears_parameter_locks() {
         .expect("pattern")
         .cell(0, 0)
         .expect("cell");
-    assert_eq!(cell.parameter_locks.len(), 6);
+    assert_eq!(cell.parameter_locks.len(), 8);
     assert!(app.dirty);
 
     app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
@@ -259,7 +273,7 @@ fn command_mode_sets_resets_and_clears_parameter_locks() {
         .expect("pattern")
         .cell(0, 0)
         .expect("cell");
-    assert_eq!(cell.parameter_locks.len(), 7);
+    assert_eq!(cell.parameter_locks.len(), 9);
 }
 
 #[test]
@@ -298,14 +312,16 @@ fn command_mode_edits_dsp_chains() {
         &mut app,
         "dsp track 2 filter lowpass 2000 0.500 3.000 0.750",
     );
+    type_command(&mut app, "dsp track 2 delay free 250 500 0.350 0.250 ping");
     type_command(&mut app, "dsp master gain 0.800");
     type_command(&mut app, "dsp master width 0.750");
     type_command(&mut app, "dsp master phase false true");
     type_command(&mut app, "dsp master filter notch 4000 0.250 0.000 0.500");
+    type_command(&mut app, "dsp master delay sync 500 500 0.250 0.500");
 
     let track_id = app.song.tracks[1].id;
     let mixer = app.song.track_mixer_for_track(track_id);
-    assert_eq!(mixer.effects.len(), 6);
+    assert_eq!(mixer.effects.len(), 7);
     assert_eq!(mixer.effects[0].kind, EffectDeviceKind::Gain { gain: 0.5 });
     assert_eq!(mixer.effects[1].kind, EffectDeviceKind::Pan { pan: -0.25 });
     assert_eq!(
@@ -335,7 +351,24 @@ fn command_mode_edits_dsp_chains() {
             mix: 0.75
         }
     );
-    assert_eq!(app.song.mixer.master_effects.len(), 4);
+    assert_eq!(
+        mixer.effects[6].kind,
+        EffectDeviceKind::Delay {
+            sync: false,
+            time_left_ms: 250.0,
+            time_right_ms: 500.0,
+            link_times: false,
+            feedback: 0.35,
+            ping_pong: true,
+            filter_low_cut_hz: 20.0,
+            filter_high_cut_hz: 20_000.0,
+            mod_rate_hz: 0.0,
+            mod_depth: 0.0,
+            mix: 0.25,
+            output_db: 0.0
+        }
+    );
+    assert_eq!(app.song.mixer.master_effects.len(), 5);
     assert_eq!(
         app.song.mixer.master_effects[0].kind,
         EffectDeviceKind::Gain { gain: 0.8 }
@@ -361,6 +394,23 @@ fn command_mode_edits_dsp_chains() {
             key_track: 0.0,
             env_amount: 0.0,
             mix: 0.5
+        }
+    );
+    assert_eq!(
+        app.song.mixer.master_effects[4].kind,
+        EffectDeviceKind::Delay {
+            sync: true,
+            time_left_ms: 500.0,
+            time_right_ms: 500.0,
+            link_times: true,
+            feedback: 0.25,
+            ping_pong: false,
+            filter_low_cut_hz: 20.0,
+            filter_high_cut_hz: 20_000.0,
+            mod_rate_hz: 0.0,
+            mod_depth: 0.0,
+            mix: 0.5,
+            output_db: 0.0
         }
     );
     assert!(app.dirty);

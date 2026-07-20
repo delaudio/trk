@@ -312,6 +312,65 @@ fn renders_sampler_events_through_native_filter_modes() {
 }
 
 #[test]
+fn renders_sampler_events_through_native_delay_timing() {
+    let samples = vec![OfflineSamplerSample {
+        sample_id: 7,
+        buffer: PreviewBuffer {
+            sample_rate: 48_000,
+            channels: 2,
+            frames: 1,
+            data: vec![1.0, 0.0],
+        },
+    }];
+    let events = vec![OfflineSamplerEvent {
+        track_id: 2,
+        sample_id: 7,
+        frame: 0,
+        gain: 1.0,
+        pan: 0.0,
+        pitch_ratio: 1.0,
+        velocity: 127,
+    }];
+    let graph = DspGraphSpec {
+        track_chains: Vec::new(),
+        master: vec![DspDeviceSpec {
+            bypassed: false,
+            kind: DspDeviceKind::Delay {
+                sync: false,
+                time_left_ms: 1.0,
+                time_right_ms: 1.0,
+                link_times: true,
+                feedback: 0.0,
+                ping_pong: false,
+                filter_low_cut_hz: 20.0,
+                filter_high_cut_hz: 20_000.0,
+                mod_rate_hz: 0.0,
+                mod_depth: 0.0,
+                mix: 1.0,
+                output_db: 0.0,
+            },
+        }],
+    };
+
+    let rendered = render_sampler_events_with_dsp(
+        &samples,
+        &events,
+        OfflineRenderSpec {
+            sample_rate: 48_000,
+            channels: 2,
+            frames: 64,
+        },
+        &graph,
+    )
+    .expect("render delay");
+
+    assert_eq!(rendered.data[0], 0.0);
+    assert_approx_eq(rendered.data[48 * 2], 1.0);
+    assert_eq!(rendered.data[48 * 2 + 1], 0.0);
+    assert!(rendered.data.iter().all(|sample| sample.is_finite()));
+}
+
+#[test]
 fn bypassed_dsp_devices_do_not_process_audio() {
     let samples = vec![OfflineSamplerSample {
         sample_id: 7,

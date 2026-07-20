@@ -401,6 +401,7 @@ fn mix_realtime_voice(
     };
     let track_devices = track_dsp_chain(voice.track_id, dsp_graph);
     let mut processor = DspFrameProcessor::default();
+    processor.prepare(window.sample_rate, channels, track_devices);
 
     for absolute_frame in mix_start..mix_end {
         let output_frame = (absolute_frame - window.start) as usize;

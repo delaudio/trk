@@ -38,6 +38,24 @@ impl App {
                     self.notify_warning("Usage: :dsp master filter MODE CUTOFF RES DRIVE MIX");
                 }
             }
+            ["master", "delay", sync, left, right, feedback, mix] => {
+                if let Some(device) = parse_delay_device(sync, left, right, feedback, mix, None) {
+                    self.upsert_master_dsp_device(device);
+                } else {
+                    self.notify_warning(
+                        "Usage: :dsp master delay sync|free LEFT_MS RIGHT_MS FEEDBACK MIX [ping]",
+                    );
+                }
+            }
+            ["master", "delay", sync, left, right, feedback, mix, ping] => {
+                if let Some(device) = parse_delay_device(sync, left, right, feedback, mix, Some(ping)) {
+                    self.upsert_master_dsp_device(device);
+                } else {
+                    self.notify_warning(
+                        "Usage: :dsp master delay sync|free LEFT_MS RIGHT_MS FEEDBACK MIX [ping]",
+                    );
+                }
+            }
             ["track", "clear"] => self.clear_track_dsp_chain(self.cursor.track),
             ["track", "gain", value] => self.set_current_track_dsp_value(
                 value,
@@ -74,6 +92,24 @@ impl App {
                     self.upsert_track_dsp_device(self.cursor.track, device);
                 } else {
                     self.notify_warning("Usage: :dsp track [TRACK] filter MODE CUTOFF RES DRIVE MIX");
+                }
+            }
+            ["track", "delay", sync, left, right, feedback, mix] => {
+                if let Some(device) = parse_delay_device(sync, left, right, feedback, mix, None) {
+                    self.upsert_track_dsp_device(self.cursor.track, device);
+                } else {
+                    self.notify_warning(
+                        "Usage: :dsp track [TRACK] delay sync|free LEFT_MS RIGHT_MS FEEDBACK MIX [ping]",
+                    );
+                }
+            }
+            ["track", "delay", sync, left, right, feedback, mix, ping] => {
+                if let Some(device) = parse_delay_device(sync, left, right, feedback, mix, Some(ping)) {
+                    self.upsert_track_dsp_device(self.cursor.track, device);
+                } else {
+                    self.notify_warning(
+                        "Usage: :dsp track [TRACK] delay sync|free LEFT_MS RIGHT_MS FEEDBACK MIX [ping]",
+                    );
                 }
             }
             ["track", track, "clear"] => {
@@ -126,8 +162,30 @@ impl App {
                     self.notify_warning("Usage: :dsp track [TRACK] filter MODE CUTOFF RES DRIVE MIX");
                 }
             }
+            ["track", track, "delay", sync, left, right, feedback, mix] => {
+                let track = parse_track_number(track);
+                let device = parse_delay_device(sync, left, right, feedback, mix, None);
+                if let (Some(track), Some(device)) = (track, device) {
+                    self.upsert_track_dsp_device(track, device);
+                } else {
+                    self.notify_warning(
+                        "Usage: :dsp track [TRACK] delay sync|free LEFT_MS RIGHT_MS FEEDBACK MIX [ping]",
+                    );
+                }
+            }
+            ["track", track, "delay", sync, left, right, feedback, mix, ping] => {
+                let track = parse_track_number(track);
+                let device = parse_delay_device(sync, left, right, feedback, mix, Some(ping));
+                if let (Some(track), Some(device)) = (track, device) {
+                    self.upsert_track_dsp_device(track, device);
+                } else {
+                    self.notify_warning(
+                        "Usage: :dsp track [TRACK] delay sync|free LEFT_MS RIGHT_MS FEEDBACK MIX [ping]",
+                    );
+                }
+            }
             _ => self.notify_warning(
-                "Usage: :dsp master gain|pan|balance|width VALUE | phase LEFT RIGHT | filter MODE CUTOFF RES DRIVE MIX | :dsp track [TRACK] gain|pan|balance|width VALUE | phase LEFT RIGHT | filter MODE CUTOFF RES DRIVE MIX | :dsp ... clear",
+                "Usage: :dsp master gain|pan|balance|width VALUE | phase LEFT RIGHT | filter MODE CUTOFF RES DRIVE MIX | delay sync|free LEFT_MS RIGHT_MS FEEDBACK MIX [ping] | :dsp track [TRACK] ... | :dsp ... clear",
             ),
         }
     }
@@ -198,9 +256,41 @@ fn parse_filter_device(
 
 fn parse_bool_flag(input: &str) -> Option<bool> {
     match input.to_ascii_lowercase().as_str() {
-        "1" | "on" | "true" | "yes" => Some(true),
+        "1" | "on" | "true" | "yes" | "ping" | "pong" | "ping-pong" | "ping_pong" => Some(true),
         "0" | "off" | "false" | "no" => Some(false),
         _ => None,
+    }
+}
+
+fn parse_delay_device(
+    sync: &str,
+    left: &str,
+    right: &str,
+    feedback: &str,
+    mix: &str,
+    ping: Option<&&str>,
+) -> Option<EffectDevice> {
+    let sync = parse_sync_flag(sync)?;
+    let mut spec = DelaySpec {
+        sync,
+        time_left_ms: left.parse::<f32>().ok()?,
+        time_right_ms: right.parse::<f32>().ok()?,
+        feedback: feedback.parse::<f32>().ok()?,
+        mix: mix.parse::<f32>().ok()?,
+        ..DelaySpec::default()
+    };
+    spec.link_times = (spec.time_left_ms - spec.time_right_ms).abs() < f32::EPSILON;
+    if let Some(ping) = ping {
+        spec.ping_pong = parse_bool_flag(ping)?;
+    }
+    Some(EffectDevice::delay(7, spec))
+}
+
+fn parse_sync_flag(input: &str) -> Option<bool> {
+    match input.to_ascii_lowercase().as_str() {
+        "sync" | "synced" | "tempo" => Some(true),
+        "free" | "ms" | "time" => Some(false),
+        _ => parse_bool_flag(input),
     }
 }
 

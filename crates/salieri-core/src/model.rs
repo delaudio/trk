@@ -1431,6 +1431,20 @@ pub enum EffectDeviceKind {
         env_amount: f32,
         mix: f32,
     },
+    Delay {
+        sync: bool,
+        time_left_ms: f32,
+        time_right_ms: f32,
+        link_times: bool,
+        feedback: f32,
+        ping_pong: bool,
+        filter_low_cut_hz: f32,
+        filter_high_cut_hz: f32,
+        mod_rate_hz: f32,
+        mod_depth: f32,
+        mix: f32,
+        output_db: f32,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
