@@ -25,7 +25,9 @@ compatibility assignment and the instrument assignment in sync.
 
 Each sample reference may include optional playback settings. Omitted playback
 settings default to one-shot playback with no frame window, no loop points, and a
-neutral envelope:
+neutral envelope. Supported `mode` values are `oneShot`, legacy `loop`
+(treated as forward loop), `forwardLoop`, `backwardLoop`, `pingPongLoop`, and
+`reverse`:
 
 ```json
 {

@@ -353,6 +353,28 @@ impl App {
         }
     }
 
+    pub(crate) fn set_loaded_sample_mode(&mut self, mode: SamplePlaybackMode) {
+        let Some(mut settings) = self.loaded_sample_playback_settings() else {
+            self.focus_panel(FocusPanel::Sampler);
+            self.notify_warning("Load a sample before editing playback settings");
+            return;
+        };
+
+        settings.mode = mode;
+        if !sample_mode_requires_loop_window(mode) {
+            settings.loop_start_frame = None;
+            settings.loop_end_frame = None;
+        }
+
+        if let Err(message) = validate_sample_playback_settings(settings) {
+            self.notify_warning(message);
+            return;
+        }
+        if self.store_loaded_sample_playback_settings(settings) {
+            self.notify_success(format!("Sample mode {}", format_sample_playback_mode(mode)));
+        }
+    }
+
     pub(crate) fn set_loaded_sample_envelope(&mut self, envelope: SampleEnvelope) {
         let Some(mut settings) = self.loaded_sample_playback_settings() else {
             self.focus_panel(FocusPanel::Sampler);
@@ -503,6 +525,7 @@ fn render_selection_audio(
             pan: event.pan,
             pitch_ratio: event.pitch_ratio,
             velocity: event.velocity,
+            playback: audio_sampler_playback_settings(event.playback),
         })
         .collect::<Vec<_>>();
     let samples = load_offline_export_samples(song, sample_rate, channels, sample_base_dir)?;

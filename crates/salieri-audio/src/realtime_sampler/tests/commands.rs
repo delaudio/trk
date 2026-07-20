@@ -9,6 +9,7 @@ fn realtime_commands_are_plain_data_messages() {
         gain: 0.5,
         pan: 0.0,
         pitch_ratio: 2.0,
+        playback: AudioSamplerPlaybackSettings::default(),
     };
 
     assert_eq!(
@@ -20,6 +21,7 @@ fn realtime_commands_are_plain_data_messages() {
             gain: 0.5,
             pan: 0.0,
             pitch_ratio: 2.0,
+            playback: AudioSamplerPlaybackSettings::default(),
         }
     );
 }

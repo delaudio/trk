@@ -1,7 +1,7 @@
 ┌ Salieri Tracker ─────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ BPM 120 | LPB 4 | Pattern 01 | Oct 4 | Step 1 | Row 00 | Play -- | Loop ON | Track 01 | Field NOTE | HELP | STOP | MI│
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-┌ Trac┌ Help: Sampler 1/4 | Tab/Shift+Tab pages ─────────────────────────────────────────────────────────────────▲─────┐
+┌ Trac┌ Help: Sampler 1/5 | Tab/Shift+Tab pages ─────────────────────────────────────────────────────────────────▲─────┐
 │> 01 │ Basics  |  Editing  |  Sampler  |  MIDI  |  Commands                                                     █     │
 │  02 │  Tab/Right next page   Shift+Tab/Left previous page   Up/Down scroll                                     █- ---│
 │  03 │                                                                                                          █- ---│
@@ -28,8 +28,8 @@
 │     │                                                                                                          ║     │
 │     │Playback Window                                                                                           ║--   │
 │     │  :sample start FRAME|clear   :sample end FRAME|clear                                                     ║     │
-│     │  :sample loop START END   :sample loop off                                                               ║     │
-│     │  :sample envelope ATTACK DECAY SUSTAIN RELEASE                                                           ║     │
+│     │  :sample loop [backward|pingpong] START END   :sample loop off                                           ║     │
+│     │  :sample mode one-shot|forward-loop|backward-loop|pingpong-loop|reverse                                  ║     │
 │     └──────────────────────────────────────────────────────────────────────────────────────────────────────────▼     │
 │                          ││auto                         Sends 00   FX 00                                             │
 └──────────────────────────┘└──────────────────────────────────────────────────────────────────────────────────────────┘

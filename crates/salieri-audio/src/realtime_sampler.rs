@@ -10,7 +10,7 @@ use crate::{
         DspGraphSpec, MixParams,
     },
     errors::AudioExportError,
-    offline_render::{OfflineRenderSpec, RenderedAudio},
+    offline_render::{AudioSamplerPlaybackSettings, OfflineRenderSpec, RenderedAudio},
     shared::{
         converted_channel_sample, interpolated_sample, validate_sampler_render_sample,
         validated_pitch_ratio,
@@ -29,6 +29,7 @@ pub enum RealtimeAudioCommand {
         gain: f32,
         pan: f32,
         pitch_ratio: f32,
+        playback: AudioSamplerPlaybackSettings,
     },
     StopVoice {
         voice_id: u64,
@@ -65,6 +66,7 @@ struct RealtimeSamplerVoice {
     gain: f32,
     pan: f32,
     pitch_ratio: f32,
+    playback: AudioSamplerPlaybackSettings,
 }
 
 impl RealtimeSamplerVoice {
@@ -147,6 +149,7 @@ impl RealtimeSampler {
                 gain,
                 pan,
                 pitch_ratio,
+                playback,
             } => {
                 if !self.samples.contains_key(&sample_id) {
                     return Err(AudioExportError::MissingSample { sample_id });
@@ -168,6 +171,7 @@ impl RealtimeSampler {
                     gain: gain.max(0.0),
                     pan: pan.clamp(-1.0, 1.0),
                     pitch_ratio,
+                    playback,
                 });
                 Ok(Some(voice_id))
             }
@@ -193,6 +197,7 @@ impl RealtimeSampler {
                 gain,
                 pan,
                 pitch_ratio,
+                playback,
                 ..
             } => RealtimeAudioCommand::TriggerSample {
                 track_id,
@@ -201,6 +206,7 @@ impl RealtimeSampler {
                 gain,
                 pan,
                 pitch_ratio,
+                playback,
             },
             RealtimeAudioCommand::StopVoice { voice_id, .. } => RealtimeAudioCommand::StopVoice {
                 voice_id,
@@ -299,10 +305,7 @@ impl RealtimeSampler {
         let samples = &self.samples;
         self.voices.retain(|voice| {
             samples.get(&voice.sample_id).is_some_and(|sample| {
-                match voice_end_frame(voice, sample) {
-                    Some(end_frame) => end_frame > current_frame,
-                    None => true,
-                }
+                voice_end_frame(voice, sample).is_none_or(|end_frame| end_frame > current_frame)
             })
         });
     }
@@ -454,6 +457,13 @@ fn mix_realtime_voice(
     for absolute_frame in mix_start..mix_end {
         let output_frame = (absolute_frame - window.start) as usize;
         let source_frame = (absolute_frame - voice.start_frame) as f32 * voice.pitch_ratio;
+        let Some(source_frame) = crate::offline_render::resolve_playback_source_frame(
+            sample,
+            voice.playback,
+            source_frame,
+        ) else {
+            continue;
+        };
         let context = RealtimeFrameContext {
             output_offset: output_frame * channels,
             channels,
@@ -524,6 +534,9 @@ fn mix_realtime_frame(
 fn voice_end_frame(voice: &RealtimeSamplerVoice, sample: &PreviewBuffer) -> Option<u64> {
     if sample.frames == 0 {
         return Some(voice.start_frame);
+    }
+    if crate::offline_render::valid_loop_window(sample, voice.playback).is_some() {
+        return None;
     }
     let rendered_frames = ((sample.frames as f32) / voice.pitch_ratio).ceil();
     if !rendered_frames.is_finite() || rendered_frames <= 0.0 {

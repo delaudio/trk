@@ -19,6 +19,7 @@ fn renders_sampler_events_through_native_dynamics_effects() {
         pan: 0.0,
         pitch_ratio: 1.0,
         velocity: 127,
+        playback: AudioSamplerPlaybackSettings::default(),
     }];
     let graph = DspGraphSpec {
         sends: Vec::new(),

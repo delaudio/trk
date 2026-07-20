@@ -65,4 +65,4 @@ successfully, and can assign it immediately to a target track. It uses the same
 internal sampler/native audio path and the same external MIDI-only limitation as
 CLI audio export.
 
-The current renderer is deliberately small because Salieri is still MIDI-first. It renders sampler-backed tracks only; MIDI output sent to DAWs, external synths, or plugin hosts is not captured. Persisted loop points are not yet rendered as sustained loop playback. Future internal instruments, mixer routing, broader DSP devices, plugin render/freeze, and higher-quality resampling should render into `RenderedAudio` or a streaming equivalent, then reuse the same export format boundary.
+The current renderer is deliberately small because Salieri is still MIDI-first. It renders sampler-backed tracks only; MIDI output sent to DAWs or external synths is not captured. Forward, backward, ping-pong, and reverse sample playback modes match the realtime sampler. Future internal instruments, mixer routing, broader DSP devices, freeze-style export, and higher-quality resampling should render into `RenderedAudio` or a streaming equivalent, then reuse the same export format boundary.

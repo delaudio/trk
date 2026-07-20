@@ -36,6 +36,10 @@ pub enum SamplePlaybackMode {
     #[default]
     OneShot,
     Loop,
+    ForwardLoop,
+    BackwardLoop,
+    PingPongLoop,
+    Reverse,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]

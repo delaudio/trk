@@ -25,10 +25,10 @@ Status meanings:
 | Gain | Implemented | `sample.gain`, automatable through existing sample-gain automation and parameter-lock commands. |
 | Amplitude ADSR | Implemented | `sample.envelope.attackS`, `decayS`, `sustain`, `releaseS`, edited by `:sample envelope`, persisted, shown in Sampler View, and applied by realtime/offline rendering. |
 | Root note | Partial | `sample.rootNote` is persisted with sample references and included in the stable descriptor catalog; dedicated editing UI remains planned. |
-| Forward loop metadata | Partial | `sample.playback.loopStartFrame` / `loopEndFrame` and loop mode are persisted and displayed; sustained loop rendering remains planned. |
-| Reverse playback | Planned | Requires direction-aware sampler cursor and reverse-safe interpolation. |
-| Backward and ping-pong loops | Planned | Requires loop direction state and click-safe boundary handling. |
-| Loop crossfade | Planned | Requires loop-rendering support first, then crossfade window descriptors. |
+| Forward loop playback | Implemented | `sample.playback.mode = forwardLoop` with `loopStartFrame` / `loopEndFrame`, rendered by realtime sampler and offline export. Legacy `loop` project values map to the same forward-loop renderer. |
+| Reverse playback | Implemented | `sample.playback.mode = reverse`, rendered by the shared direction-aware sampler cursor. |
+| Backward and ping-pong loops | Implemented | `backwardLoop` and `pingPongLoop` sustain over valid loop windows in realtime and offline rendering. |
+| Loop crossfade | Planned | Requires a separate crossfade window descriptor and click-reduction policy. |
 | Interpolation quality | Planned | Current rendering uses deterministic interpolation; selectable quality tiers need descriptors and a runtime switch. |
 | Transpose/fine tune/pitch tracking | Planned | Event pitch ratio exists; persistent sample-level pitch controls need model fields, descriptors, and commands. |
 | Mono/polyphony/legato/glide/choke/voice limits | Planned | Requires explicit voice allocation policy in realtime and offline sampler paths. |
@@ -51,7 +51,7 @@ Implemented and partial sampler controls now have stable built-in descriptors:
 | --- | --- | --- | --- |
 | `sample.gain` | `PlainFloat` | `0..=2`, default `1` | yes |
 | `sample.rootNote` | `Note` | `0..=127`, default `60` | no |
-| `sample.playback.mode` | `Enum` | `oneShot`, `loop`; default `oneShot` | no |
+| `sample.playback.mode` | `Enum` | `oneShot`, `loop`, `forwardLoop`, `backwardLoop`, `pingPongLoop`, `reverse`; default `oneShot` | no |
 | `sample.playback.startFrame` | `Integer` | `0..=2147483647`, default `0` | no |
 | `sample.playback.endFrame` | `Integer` | `0..=2147483647`, default `0` | no |
 | `sample.playback.loopStartFrame` | `Integer` | `0..=2147483647`, default `0` | no |

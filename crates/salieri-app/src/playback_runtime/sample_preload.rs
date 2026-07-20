@@ -6,8 +6,9 @@ use std::{
 
 use salieri_audio::{
     apply_preview_envelope, prepare_realtime_sample, slice_preview_buffer, AudioConfig,
+    AudioSamplerPlaybackMode, AudioSamplerPlaybackSettings,
 };
-use salieri_core::{SamplePlaybackSettings, Song};
+use salieri_core::{SamplePlaybackMode, SamplePlaybackSettings, Song};
 use salieri_sampler::{PreviewBuffer, PreviewSettings, Sample};
 
 use super::transport::PlaybackUpdate;
@@ -48,13 +49,17 @@ pub(super) fn load_realtime_samples(
             let path = resolve_sample_path(&reference.path, sample_base_dir);
             match Sample::load_wav(&path) {
                 Ok(sample) => {
-                    let preview = apply_sample_playback_settings(
+                    let prepared = apply_sample_playback_settings(
                         &sample.preview(PreviewSettings::default()),
                         reference.playback,
                     );
                     Some((
                         reference.id.0,
-                        prepare_realtime_sample(&preview, config.sample_rate, config.channels),
+                        prepare_realtime_sample(
+                            &prepared.buffer,
+                            config.sample_rate,
+                            config.channels,
+                        ),
                     ))
                 }
                 Err(error) => {
@@ -80,20 +85,51 @@ pub(crate) fn resolve_sample_path(
     sample_base_dir.map_or_else(|| path.to_path_buf(), |base_dir| base_dir.join(path))
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct PreparedSamplePlayback {
+    pub(crate) buffer: PreviewBuffer,
+}
+
 pub(crate) fn apply_sample_playback_settings(
     preview: &PreviewBuffer,
     settings: SamplePlaybackSettings,
-) -> PreviewBuffer {
+) -> PreparedSamplePlayback {
     let sliced = slice_preview_buffer(preview, settings.start_frame, settings.end_frame);
     let sample_rate = sliced.sample_rate as f32;
     let envelope = settings.envelope;
-    apply_preview_envelope(
+    let buffer = apply_preview_envelope(
         &sliced,
         seconds_to_frames(envelope.attack_seconds, sample_rate),
         seconds_to_frames(envelope.decay_seconds, sample_rate),
         envelope.sustain,
         seconds_to_frames(envelope.release_seconds, sample_rate),
-    )
+    );
+    PreparedSamplePlayback { buffer }
+}
+
+pub(crate) fn audio_sampler_playback_settings(
+    settings: SamplePlaybackSettings,
+) -> AudioSamplerPlaybackSettings {
+    let start_frame = settings.start_frame.unwrap_or(0);
+    let loop_start_frame = settings
+        .loop_start_frame
+        .map(|frame| frame.saturating_sub(start_frame));
+    let loop_end_frame = settings
+        .loop_end_frame
+        .map(|frame| frame.saturating_sub(start_frame));
+    AudioSamplerPlaybackSettings {
+        mode: match settings.mode {
+            SamplePlaybackMode::OneShot => AudioSamplerPlaybackMode::OneShot,
+            SamplePlaybackMode::Loop | SamplePlaybackMode::ForwardLoop => {
+                AudioSamplerPlaybackMode::ForwardLoop
+            }
+            SamplePlaybackMode::BackwardLoop => AudioSamplerPlaybackMode::BackwardLoop,
+            SamplePlaybackMode::PingPongLoop => AudioSamplerPlaybackMode::PingPongLoop,
+            SamplePlaybackMode::Reverse => AudioSamplerPlaybackMode::Reverse,
+        },
+        loop_start_frame,
+        loop_end_frame,
+    }
 }
 
 fn seconds_to_frames(seconds: f32, sample_rate: f32) -> usize {

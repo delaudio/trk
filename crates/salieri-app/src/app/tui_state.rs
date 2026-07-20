@@ -144,6 +144,10 @@ impl App {
                 playback_mode: match playback.mode {
                     SamplePlaybackMode::OneShot => "one-shot",
                     SamplePlaybackMode::Loop => "loop",
+                    SamplePlaybackMode::ForwardLoop => "forward-loop",
+                    SamplePlaybackMode::BackwardLoop => "backward-loop",
+                    SamplePlaybackMode::PingPongLoop => "ping-pong-loop",
+                    SamplePlaybackMode::Reverse => "reverse",
                 },
                 start_frame: playback.start_frame,
                 end_frame: playback.end_frame,

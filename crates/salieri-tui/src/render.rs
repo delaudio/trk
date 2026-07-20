@@ -2020,6 +2020,10 @@ fn render_selected_track_inspector(
                 match sample.playback.mode {
                     SamplePlaybackMode::OneShot => "one-shot",
                     SamplePlaybackMode::Loop => "loop",
+                    SamplePlaybackMode::ForwardLoop => "forward-loop",
+                    SamplePlaybackMode::BackwardLoop => "backward-loop",
+                    SamplePlaybackMode::PingPongLoop => "ping-pong-loop",
+                    SamplePlaybackMode::Reverse => "reverse",
                 },
                 format_loop_window(
                     sample.playback.loop_start_frame,

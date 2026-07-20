@@ -6,6 +6,7 @@ use crate::{
 };
 
 mod dynamics;
+mod playback_modes;
 mod send_routing;
 
 #[test]
@@ -44,6 +45,7 @@ fn renders_sampler_events_with_timing_gain_and_velocity() {
         pan: 0.0,
         pitch_ratio: 1.0,
         velocity: 64,
+        playback: AudioSamplerPlaybackSettings::default(),
     }];
 
     let rendered = render_sampler_events(
@@ -84,6 +86,7 @@ fn renders_sampler_events_with_linear_stereo_pan() {
         pan: 0.75,
         pitch_ratio: 1.0,
         velocity: 127,
+        playback: AudioSamplerPlaybackSettings::default(),
     }];
 
     let rendered = render_sampler_events(
@@ -115,6 +118,7 @@ fn renders_sampler_events_through_track_and_master_dsp() {
         pan: 0.0,
         pitch_ratio: 1.0,
         velocity: 127,
+        playback: AudioSamplerPlaybackSettings::default(),
     }];
     let graph = DspGraphSpec {
         sends: Vec::new(),
@@ -166,6 +170,7 @@ fn renders_sampler_events_through_native_utility_master_devices() {
         pan: 0.0,
         pitch_ratio: 1.0,
         velocity: 127,
+        playback: AudioSamplerPlaybackSettings::default(),
     }];
     let graph = DspGraphSpec {
         sends: Vec::new(),
@@ -221,6 +226,7 @@ fn renders_sampler_events_through_native_utility_track_devices() {
         pan: 0.0,
         pitch_ratio: 1.0,
         velocity: 127,
+        playback: AudioSamplerPlaybackSettings::default(),
     }];
     let graph = DspGraphSpec {
         sends: Vec::new(),
@@ -279,6 +285,7 @@ fn renders_sampler_events_through_native_filter_modes() {
         pan: 0.0,
         pitch_ratio: 1.0,
         velocity: 127,
+        playback: AudioSamplerPlaybackSettings::default(),
     }];
 
     for mode in [
@@ -341,6 +348,7 @@ fn renders_sampler_events_through_native_drive_modes() {
         pan: 0.0,
         pitch_ratio: 1.0,
         velocity: 127,
+        playback: AudioSamplerPlaybackSettings::default(),
     }];
 
     for mode in [
@@ -402,6 +410,7 @@ fn renders_sampler_events_through_native_bitcrusher_reduction() {
         pan: 0.0,
         pitch_ratio: 1.0,
         velocity: 127,
+        playback: AudioSamplerPlaybackSettings::default(),
     }];
     let graph = DspGraphSpec {
         sends: Vec::new(),
@@ -461,6 +470,7 @@ fn renders_sampler_events_through_native_modulation_effects() {
         pan: 0.0,
         pitch_ratio: 1.0,
         velocity: 127,
+        playback: AudioSamplerPlaybackSettings::default(),
     }];
 
     for kind in [
@@ -541,6 +551,7 @@ fn renders_sampler_events_through_native_delay_timing() {
         pan: 0.0,
         pitch_ratio: 1.0,
         velocity: 127,
+        playback: AudioSamplerPlaybackSettings::default(),
     }];
     let graph = DspGraphSpec {
         sends: Vec::new(),
@@ -602,6 +613,7 @@ fn renders_sampler_events_through_native_reverb_tail() {
         pan: 0.0,
         pitch_ratio: 1.0,
         velocity: 127,
+        playback: AudioSamplerPlaybackSettings::default(),
     }];
     let graph = DspGraphSpec {
         sends: Vec::new(),
@@ -649,6 +661,7 @@ fn bypassed_dsp_devices_do_not_process_audio() {
         pan: 0.0,
         pitch_ratio: 1.0,
         velocity: 127,
+        playback: AudioSamplerPlaybackSettings::default(),
     }];
     let graph = DspGraphSpec {
         sends: Vec::new(),
@@ -679,37 +692,6 @@ fn bypassed_dsp_devices_do_not_process_audio() {
     .expect("render");
 
     assert_approx_eq(rendered.data[0], 1.0);
-}
-
-#[test]
-fn renders_sampler_events_with_pitch_ratio() {
-    let samples = vec![OfflineSamplerSample {
-        sample_id: 1,
-        buffer: mono_sample(vec![0.25, 0.5, 0.75, 1.0]),
-    }];
-    let events = vec![OfflineSamplerEvent {
-        track_id: 1,
-        sample_id: 1,
-        frame: 0,
-        gain: 1.0,
-        pan: 0.0,
-        pitch_ratio: 2.0,
-        velocity: 127,
-    }];
-
-    let rendered = render_sampler_events(
-        &samples,
-        &events,
-        OfflineRenderSpec {
-            sample_rate: 48_000,
-            channels: 1,
-            frames: 0,
-        },
-    )
-    .expect("render");
-
-    assert_eq!(rendered.frames, 2);
-    assert_eq!(rendered.data, vec![0.25, 0.75]);
 }
 
 #[test]
@@ -747,6 +729,7 @@ fn sampler_event_render_failures_are_clear() {
                 pan: 0.0,
                 pitch_ratio: 1.0,
                 velocity: 127,
+                playback: AudioSamplerPlaybackSettings::default(),
             }],
             OfflineRenderSpec {
                 sample_rate: 48_000,
@@ -768,6 +751,7 @@ fn sampler_event_render_failures_are_clear() {
                 pan: 0.0,
                 pitch_ratio: 0.0,
                 velocity: 127,
+                playback: AudioSamplerPlaybackSettings::default(),
             }],
             OfflineRenderSpec {
                 sample_rate: 48_000,

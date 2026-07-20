@@ -1,8 +1,8 @@
 use crate::{
     parameter_locks::parameter_lock_f32_at, AutomationTarget, NoteEvent, ParameterLockTarget,
-    Pattern, PatternCell, SampleId, Song, TrackId, TrackerCommand, TransportSettings,
-    MIXER_MASTER_GAIN_PARAMETER_ID, MIXER_TRACK_GAIN_PARAMETER_ID, MIXER_TRACK_PAN_PARAMETER_ID,
-    SAMPLE_GAIN_PARAMETER_ID,
+    Pattern, PatternCell, SampleId, SamplePlaybackSettings, Song, TrackId, TrackerCommand,
+    TransportSettings, MIXER_MASTER_GAIN_PARAMETER_ID, MIXER_TRACK_GAIN_PARAMETER_ID,
+    MIXER_TRACK_PAN_PARAMETER_ID, SAMPLE_GAIN_PARAMETER_ID,
 };
 
 mod effects;
@@ -46,6 +46,7 @@ pub struct SamplerPlaybackEvent {
     pub gain: f32,
     pub pan: f32,
     pub pitch_ratio: f32,
+    pub playback: SamplePlaybackSettings,
 }
 
 #[must_use]
@@ -220,6 +221,7 @@ pub fn sampler_events(song: &Song, pattern: &Pattern) -> Vec<SamplerPlaybackEven
                     sample.transpose_semitones,
                     sample.fine_tune_cents,
                 ),
+                playback: sample.playback,
             };
             events.push(trigger.clone());
             emit_sampler_retrigger_events(

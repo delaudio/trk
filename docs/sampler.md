@@ -35,7 +35,10 @@ After loading a WAV, assign it to the current track:
 :sample end 48000
 :sample end clear
 :sample loop 2400 12000
+:sample loop backward 2400 12000
+:sample loop pingpong 2400 12000
 :sample loop off
+:sample mode reverse
 :sample envelope 0.005 0.040 0.800 0.080
 :sample render-selection bounces/loop.wav
 :sample render-selection bounces/loop.wav --assign 2
@@ -82,10 +85,10 @@ Current limitations:
 
 - realtime sampler output uses the default CPAL output device only;
 - no streaming for large samples;
-- loop points are persisted and displayed but are not yet rendered as sustained loop playback;
+- forward, backward, ping-pong, and reverse playback modes render in realtime playback and offline export;
 - no choking, keyzones, or velocity layers;
 - no effects, realtime level meter transport, or device selection yet.
 
 Next sampler playback steps:
 
-- add sustained loop playback, choking, keyzones, and velocity layers.
+- add loop crossfade, choking, keyzones, and velocity layers.
