@@ -1,14 +1,17 @@
+use std::{env, path::Path};
 #[cfg(test)]
 use std::{thread, time::Duration};
 
 use salieri_ai::{
     preview_proposal, AiPatternRequest, AiProposalProvider, LocalDeterministicProvider,
+    MockProvider,
 };
 
 use crate::{
     app_effect::AppEffect,
     app_event::{AiIntent, AppEvent, AppIntent, AppTaskResult, PreparedAiProposal, RuntimeEvent},
     command::TaskCommand,
+    config::{AiConfig, AiProviderKind},
     format_ai_proposal_summary,
     task_runtime::{TaskDiagnostic, TaskFailure, TaskId, TaskProgress, TaskSnapshot, TaskUpdate},
     App, DEFAULT_NOTE_VELOCITY,
@@ -35,6 +38,7 @@ impl App {
         Some(AppEffect::SubmitAiProposal {
             song: self.song.clone(),
             request,
+            provider: self.ai_config.clone(),
         })
     }
 
@@ -42,13 +46,23 @@ impl App {
         &mut self,
         song: salieri_core::Song,
         request: AiPatternRequest,
+        provider: AiConfig,
     ) {
+        let diagnostics = ai_provider_diagnostics(&provider);
+        if !diagnostics.is_empty() {
+            self.notify_error(format!(
+                "AI provider {} unavailable: {}",
+                provider.provider,
+                diagnostics.join("; ")
+            ));
+            return;
+        }
+        let provider_label = ai_provider_label(&provider);
         let id = self.task_runtime.submit(
-            "AI proposal",
+            format!("AI proposal via {provider_label}"),
             Box::new(move |context| {
                 context.report_progress(TaskProgress::new(0, Some(2), "generating proposal"));
-                let proposal = LocalDeterministicProvider
-                    .propose(&song, &request)
+                let proposal = propose_with_configured_provider(&provider, &song, &request)
                     .map_err(|error| TaskFailure::error(format!("AI proposal failed: {error}")))?;
                 context.check_cancelled()?;
                 context.report_progress(TaskProgress::new(1, Some(2), "validating preview"));
@@ -63,7 +77,9 @@ impl App {
                 }))
             }),
         );
-        self.notify_info(format!("Task #{id} queued: AI proposal"));
+        self.notify_info(format!(
+            "Task #{id} queued: AI proposal via {provider_label}"
+        ));
     }
 
     pub(super) fn drain_task_updates(&mut self) {
@@ -162,6 +178,72 @@ impl App {
         }
         panic!("tasks did not finish");
     }
+}
+
+pub(crate) fn format_ai_provider_status(config: &AiConfig) -> String {
+    let label = ai_provider_label(config);
+    let diagnostics = ai_provider_diagnostics(config);
+    if diagnostics.is_empty() {
+        format!("AI provider {label} available")
+    } else {
+        format!(
+            "AI provider {label} unavailable: {}",
+            diagnostics.join("; ")
+        )
+    }
+}
+
+fn ai_provider_label(config: &AiConfig) -> String {
+    format!("{} model={}", config.provider, config.model)
+}
+
+fn propose_with_configured_provider(
+    config: &AiConfig,
+    song: &salieri_core::Song,
+    request: &AiPatternRequest,
+) -> Result<salieri_ai::AiProposal, salieri_ai::AiError> {
+    match config.provider {
+        AiProviderKind::LocalDeterministic => LocalDeterministicProvider.propose(song, request),
+        AiProviderKind::Mock => MockProvider::new(config.model.clone()).propose(song, request),
+        AiProviderKind::Command => Err(salieri_ai::AiError::ProviderUnavailable(
+            "command provider adapters are not implemented yet".to_string(),
+        )),
+    }
+}
+
+fn ai_provider_diagnostics(config: &AiConfig) -> Vec<String> {
+    let mut diagnostics = Vec::new();
+    for required_env in &config.required_env {
+        if env::var_os(required_env)
+            .filter(|value| !value.is_empty())
+            .is_none()
+        {
+            diagnostics.push(format!(
+                "missing required environment variable {required_env}"
+            ));
+        }
+    }
+    if config.provider == AiProviderKind::Command {
+        match config.command_path.as_deref().map(str::trim) {
+            Some(command) if command_is_available(command) => {}
+            Some(command) if !command.is_empty() => {
+                diagnostics.push(format!("command binary not found: {command}"));
+            }
+            _ => diagnostics.push("ai.command_path is required".to_string()),
+        }
+        diagnostics
+            .push("command provider adapters are reserved for future integrations".to_string());
+    }
+    diagnostics
+}
+
+fn command_is_available(command: &str) -> bool {
+    let path = Path::new(command);
+    if path.components().count() > 1 || path.is_absolute() {
+        return path.is_file();
+    }
+    env::var_os("PATH")
+        .is_some_and(|paths| env::split_paths(&paths).any(|entry| entry.join(command).is_file()))
 }
 
 fn format_task_snapshot(task: &TaskSnapshot) -> String {

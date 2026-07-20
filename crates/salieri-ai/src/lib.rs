@@ -21,6 +21,7 @@ pub struct AiProposal {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AiSource {
     LocalDeterministic,
+    Mock { model: String },
     External { provider: String },
 }
 
@@ -59,6 +60,19 @@ pub trait AiProposalProvider {
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct LocalDeterministicProvider;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MockProvider {
+    model: String,
+}
+
+impl MockProvider {
+    pub fn new(model: impl Into<String>) -> Self {
+        Self {
+            model: model.into(),
+        }
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum AiError {
     #[error("pattern {0} does not exist")]
@@ -71,6 +85,8 @@ pub enum AiError {
     EmptyPrompt,
     #[error("proposal contains no edits")]
     EmptyProposal,
+    #[error("AI provider unavailable: {0}")]
+    ProviderUnavailable(String),
 }
 
 impl AiProposalProvider for LocalDeterministicProvider {
@@ -122,6 +138,35 @@ impl AiProposalProvider for LocalDeterministicProvider {
                 edits.len()
             ),
             edits,
+        })
+    }
+}
+
+impl AiProposalProvider for MockProvider {
+    fn propose(&self, song: &Song, request: &AiPatternRequest) -> Result<AiProposal, AiError> {
+        if request.prompt.trim().is_empty() {
+            return Err(AiError::EmptyPrompt);
+        }
+        let pattern = song
+            .pattern(request.pattern)
+            .ok_or(AiError::MissingPattern(request.pattern))?;
+        if request.track >= song.tracks.len() {
+            return Err(AiError::MissingTrack(request.track));
+        }
+        let row = request.rows.min(pattern.row_count()).saturating_sub(1);
+        Ok(AiProposal {
+            source: AiSource::Mock {
+                model: self.model.clone(),
+            },
+            prompt: request.prompt.clone(),
+            summary: format!("Mock AI provider {} preview", self.model),
+            edits: vec![AiEdit::SetNote {
+                pattern: request.pattern,
+                row,
+                track: request.track,
+                pitch: request.root_pitch.min(127),
+                velocity: request.velocity.min(127),
+            }],
         })
     }
 }
@@ -293,6 +338,33 @@ mod tests {
 
         song = before.clone();
         assert_eq!(song, before);
+    }
+
+    #[test]
+    fn mock_provider_returns_reviewable_local_proposals() {
+        let song = Song::empty();
+        let request = AiPatternRequest {
+            prompt: "mock idea".to_string(),
+            pattern: 0,
+            track: 0,
+            rows: 4,
+            root_pitch: 60,
+            velocity: 80,
+        };
+
+        let proposal = MockProvider::new("fixture-mock")
+            .propose(&song, &request)
+            .expect("proposal");
+        let preview = preview_proposal(&song, &proposal).expect("preview");
+
+        assert_eq!(
+            proposal.source,
+            AiSource::Mock {
+                model: "fixture-mock".to_string()
+            }
+        );
+        assert_eq!(preview.touched_cells.len(), 1);
+        assert_eq!(preview.touched_cells[0].row, 3);
     }
 
     #[test]

@@ -102,6 +102,28 @@ edit_step = 0
 }
 
 #[test]
+fn loads_ai_provider_preferences() {
+    let file = TestFile::new(
+        "ai-provider",
+        r#"
+[ai]
+provider = "mock"
+model = "fixture-mock"
+command_path = "codex"
+required_env = ["SALIERI_AI_TOKEN"]
+"#,
+    );
+
+    let loaded = load_config(Some(&file.0), ConfigOverrides::default()).expect("load config");
+    let ai = &loaded.config().ai;
+
+    assert_eq!(ai.provider, AiProviderKind::Mock);
+    assert_eq!(ai.model, "fixture-mock");
+    assert_eq!(ai.command_path.as_deref(), Some("codex"));
+    assert_eq!(ai.required_env, vec!["SALIERI_AI_TOKEN".to_string()]);
+}
+
+#[test]
 fn loads_workspace_library_paths_relative_to_config_file() {
     let file = TestFile::new(
         "workspace",
@@ -199,6 +221,7 @@ undo_limit = 250
     assert!(!config.ui.follow_playhead);
     assert!(!config.ui.show_line_numbers_hex);
     assert_eq!(config.audio, AudioPreferences::default());
+    assert_eq!(config.ai, AiConfig::default());
     assert_eq!(config.midi.default_output, "IAC Driver");
     assert_eq!(config.history.undo_limit, 250);
     assert_eq!(
@@ -238,6 +261,30 @@ track_desk_height = 2
     assert!(fields.contains(&"ui.layout.left_width"));
     assert!(fields.contains(&"ui.layout.inspector_width"));
     assert!(fields.contains(&"ui.layout.track_desk_height"));
+}
+
+#[test]
+fn validates_ai_provider_preferences() {
+    let file = TestFile::new(
+        "invalid-ai",
+        r#"
+[ai]
+model = " "
+command_path = " "
+required_env = ["SALIERI_AI_TOKEN", ""]
+"#,
+    );
+
+    let error = load_config(Some(&file.0), ConfigOverrides::default()).expect_err("invalid");
+    let ConfigLoadError::Validation(error) = error else {
+        panic!("expected validation error");
+    };
+    let rendered = error.to_string();
+
+    assert_eq!(error.diagnostics.len(), 3);
+    assert!(rendered.contains("ai.model"));
+    assert!(rendered.contains("ai.command_path"));
+    assert!(rendered.contains("ai.required_env.1"));
 }
 
 #[test]

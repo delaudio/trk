@@ -224,6 +224,7 @@ struct App {
     recent_projects: Vec<PathBuf>,
     recent_project_limit: usize,
     config_metadata: config::ConfigMetadata,
+    ai_config: config::AiConfig,
     project_browser_view: Option<AppProjectBrowserView>,
     pending_ai_proposal: Option<PreparedAiProposal>,
     dirty: bool,

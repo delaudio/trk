@@ -2,7 +2,7 @@
 
 AI-assisted composition is post-MVP and optional. The initial boundary is the `salieri-ai` crate, which models requests, reviewable proposals, and explicit application of edits to a `salieri-core::Song`.
 
-The crate does not contact network services. External providers can be added later behind an explicit provider implementation, but project data must not leave the machine unless the user invokes that provider intentionally.
+The crate does not contact network services. External providers can be added later behind an explicit provider implementation, but project data must not leave the machine unless the user invokes that provider intentionally. The built-in default is `local_deterministic`; `mock` is available for tests and dry runs. Future command-backed providers must pass configured binary and environment checks before Salieri queues work.
 
 Current foundation:
 
@@ -15,19 +15,23 @@ Current foundation:
 In-app workflow:
 
 ```text
+:ai provider
 :ai propose PROMPT
 :ai show
 :ai accept
 :ai reject
 ```
 
-`:ai propose` submits `LocalDeterministicProvider` to the application
-[task runtime](tasks.md) with the current pattern and track as context. The TUI
-remains responsive while generation and preview validation run. A successful
-task stores a pending proposal and reports the touched cells without mutating
-the song. `:ai show` repeats the summary. `:ai accept` applies the proposal
-through the normal undo transaction mechanism, so `Ctrl+Z` can revert the generated
-edit. `:ai reject` clears the pending proposal without changing the song.
+`:ai provider` reports the configured provider, model, and availability before a
+prompt is submitted. `:ai propose` submits the configured local or mock provider
+to the application [task runtime](tasks.md) with the current pattern and track as
+context. Missing credentials or missing CLI binaries are reported before any task
+is queued. The TUI remains responsive while generation and preview validation
+run. A successful task stores a pending proposal and reports the touched cells
+without mutating the song. `:ai show` repeats the summary. `:ai accept` applies
+the proposal through the normal undo transaction mechanism, so `Ctrl+Z` can
+revert the generated edit. `:ai reject` clears the pending proposal without
+changing the song.
 
 CLI integrations should print or serialize proposals before applying them so
 generated changes remain reviewable.

@@ -1,8 +1,12 @@
 use super::*;
+use crate::task_integration::format_ai_provider_status;
 
 impl App {
     pub(crate) fn handle_ai_command(&mut self, values: &[&str]) {
         match values {
+            [] | ["provider"] | ["status"] => {
+                self.notify_info(format_ai_provider_status(&self.ai_config));
+            }
             ["propose", prompt @ ..] | ["sketch", prompt @ ..] => {
                 let prompt = prompt.join(" ");
                 self.create_ai_proposal(prompt);
@@ -16,8 +20,9 @@ impl App {
                     self.notify_warning("No pending AI proposal");
                 }
             }
-            _ => self
-                .notify_warning("Usage: :ai propose PROMPT | :ai show | :ai accept | :ai reject"),
+            _ => self.notify_warning(
+                "Usage: :ai provider | :ai propose PROMPT | :ai show | :ai accept | :ai reject",
+            ),
         }
     }
 
