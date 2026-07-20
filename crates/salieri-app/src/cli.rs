@@ -218,12 +218,13 @@ pub(crate) enum CliCommand {
     ExportPlan(RenderPlanArgs),
     ExportAudio(AudioExportArgs),
     ExportStems(RenderStemsArgs),
+    ExportStrudel(StrudelExportArgs),
     ImportXrns(ImportXrnsArgs),
 }
 
 pub(crate) fn print_help() {
     println!(
-        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --list-midi-inputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri sample inspect FILE [OPTIONS]\n  salieri import xrns INPUT OUTPUT [OPTIONS]\n  salieri export plan INPUT [OUTPUT.json] [OPTIONS]\n  salieri export audio INPUT OUTPUT.wav [OPTIONS]\n  salieri export stems INPUT OUT_DIR [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --list-midi-inputs            List available MIDI input ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index (default 1)\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Velocity, 0-127 (default 100)\n\nSample inspect options:\n  --format text|json            Output format (default text)\n  --buckets N, --width N        Waveform bucket count (default 64)\n\nImport options:\n  salieri import xrns INPUT OUTPUT imports an XRNS subset and writes a .salieri project\n  --sample-dir DIR              Extract supported XRNS WAV payloads into DIR\n  --sample-path-prefix PREFIX   Store extracted sample paths with PREFIX in the project\n  --convert-samples-to-wav      Convert FLAC/OGG/AIF payloads to WAV with ffmpeg\n\nRender/export options:\n  --pattern N                   Export 1-based pattern index (default 1)\n  --sequence                    Export the full sequence instead of one pattern\n  --tracks LIST                 Comma-separated 1-based tracks for plans/stems\n  --sample-rate HZ              Output sample rate (default 48000)\n  --channels N                  Output channels (default 2)\n\n  --help                        Show this help\n  --version                     Show version"
+        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --list-midi-inputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri sample inspect FILE [OPTIONS]\n  salieri import xrns INPUT OUTPUT [OPTIONS]\n  salieri export plan INPUT [OUTPUT.json] [OPTIONS]\n  salieri export audio INPUT OUTPUT.wav [OPTIONS]\n  salieri export stems INPUT OUT_DIR [OPTIONS]\n  salieri export strudel INPUT [OUTPUT.js] [OPTIONS]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --list-midi-inputs            List available MIDI input ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index (default 1)\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Velocity, 0-127 (default 100)\n\nSample inspect options:\n  --format text|json            Output format (default text)\n  --buckets N, --width N        Waveform bucket count (default 64)\n\nImport options:\n  salieri import xrns INPUT OUTPUT imports an XRNS subset and writes a .salieri project\n  --sample-dir DIR              Extract supported XRNS WAV payloads into DIR\n  --sample-path-prefix PREFIX   Store extracted sample paths with PREFIX in the project\n  --convert-samples-to-wav      Convert FLAC/OGG/AIF payloads to WAV with ffmpeg\n\nRender/export options:\n  --pattern N                   Export 1-based pattern index (default 1)\n  --patterns LIST               Comma-separated 1-based patterns for Strudel\n  --sequence                    Export the full sequence instead of one pattern\n  --tracks LIST                 Comma-separated 1-based tracks for plans/stems\n  --sample-rate HZ              Output sample rate (default 48000)\n  --channels N                  Output channels (default 2)\n\n  --help                        Show this help\n  --version                     Show version"
     );
 }
 
@@ -249,6 +250,7 @@ pub(crate) fn parse_export_command(args: impl IntoIterator<Item = String>) -> Cl
         Some("plan") | Some("render-plan") => CliCommand::ExportPlan(parse_render_plan_args(args)),
         Some("audio") => CliCommand::ExportAudio(parse_audio_export_args(args)),
         Some("stems") => CliCommand::ExportStems(parse_render_stems_args(args)),
+        Some("strudel") => CliCommand::ExportStrudel(parse_strudel_export_args(args)),
         _ => CliCommand::Help,
     }
 }
@@ -317,6 +319,15 @@ pub(crate) struct RenderStemsArgs {
     pub(crate) tracks: Vec<usize>,
     pub(crate) sample_rate: u32,
     pub(crate) channels: u16,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct StrudelExportArgs {
+    pub(crate) input_path: Option<PathBuf>,
+    pub(crate) output_path: Option<PathBuf>,
+    pub(crate) pattern: usize,
+    pub(crate) patterns: Vec<usize>,
+    pub(crate) sequence: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -397,6 +408,18 @@ impl Default for RenderStemsArgs {
             tracks: Vec::new(),
             sample_rate: AudioConfig::default().sample_rate,
             channels: AudioConfig::default().channels,
+        }
+    }
+}
+
+impl Default for StrudelExportArgs {
+    fn default() -> Self {
+        Self {
+            input_path: None,
+            output_path: None,
+            pattern: 1,
+            patterns: Vec::new(),
+            sequence: false,
         }
     }
 }
@@ -536,6 +559,35 @@ pub(crate) fn parse_render_stems_args(args: impl IntoIterator<Item = String>) ->
         sample_rate: common.sample_rate,
         channels: common.channels,
     }
+}
+
+pub(crate) fn parse_strudel_export_args(
+    args: impl IntoIterator<Item = String>,
+) -> StrudelExportArgs {
+    let mut parsed = StrudelExportArgs::default();
+    let mut args = args.into_iter();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--pattern" => parse_next_usize(&mut args, &mut parsed.pattern),
+            "--patterns" => {
+                if let Some(value) = args.next() {
+                    parsed.patterns = parse_track_list(&value);
+                }
+            }
+            "--sequence" => parsed.sequence = true,
+            _ if arg.starts_with("--pattern=") => {
+                parse_usize_value(arg.trim_start_matches("--pattern="), &mut parsed.pattern);
+            }
+            _ if arg.starts_with("--patterns=") => {
+                parsed.patterns = parse_track_list(arg.trim_start_matches("--patterns="));
+            }
+            _ if parsed.input_path.is_none() => parsed.input_path = Some(PathBuf::from(arg)),
+            _ if parsed.output_path.is_none() => parsed.output_path = Some(PathBuf::from(arg)),
+            _ => {}
+        }
+    }
+    parsed.pattern = parsed.pattern.max(1);
+    parsed
 }
 
 struct RenderCommonArgs {

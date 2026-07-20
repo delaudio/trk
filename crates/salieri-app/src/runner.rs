@@ -60,6 +60,10 @@ fn run(args: CliArgs) -> Result<()> {
             run_export_stems(stems_args)?;
             return Ok(());
         }
+        CliCommand::ExportStrudel(strudel_args) => {
+            run_export_strudel(strudel_args)?;
+            return Ok(());
+        }
         CliCommand::ImportXrns(import_args) => {
             run_import_xrns(import_args)?;
             return Ok(());

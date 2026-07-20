@@ -51,7 +51,7 @@ Status meanings:
 | Import/export | MusicXML and notation round-trip validation | Deferred | Useful cross-format workflow but not required for Tracker Mini hardware parity. | #88 |
 | DAW integration | Ableton-style clip launcher and Live bridge | Deferred | These extend Salieri beyond Tracker Mini parity and depend on a distinct clip model. | #87, #89 |
 | AI and cloud | Cloud transcription, source separation, non-local AI services | Out of scope | Default Tracker Mini parity excludes non-local AI or cloud media processing. Optional AI-assisted edits remain explicit, reviewable, and provider-configured. | #68, #69, #70 |
-| Research | Style analysis, reports, dossiers, lyrics, live-coding export, composition graph | Partial | Text notes, lyric lines, cue markers, and compact annotation reports are implemented as optional project data. Style analysis, broader reports/dossiers, live-coding export, and composition graph remain deferred. | #90, #92, #96, #97, #98, #99 |
+| Research | Style analysis, reports, dossiers, lyrics, live-coding export, composition graph | Partial | Text notes, lyric lines, cue markers, compact annotation reports, and deterministic Strudel text export are implemented as optional workflows. Style analysis, broader reports/dossiers, and composition graph remain deferred. | #90, #92, #96, #97, #98, #99 |
 
 ## Hardware-to-host mapping
 

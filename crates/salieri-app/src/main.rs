@@ -20,6 +20,7 @@ mod persistence;
 mod playback_runtime;
 mod render_workflows;
 mod runner;
+mod strudel_export;
 mod task_integration;
 mod task_runtime;
 mod terminal;
@@ -33,6 +34,7 @@ use cli::*;
 use helpers::*;
 use midi_cli::*;
 use render_workflows::*;
+use strudel_export::*;
 use workflows::*;
 
 use std::{
