@@ -194,7 +194,7 @@ fn pattern_viewport_derives_visible_ranges_from_offsets_and_cursor() {
     );
 
     assert_eq!(viewport.visible_rows, 116..121);
-    assert_eq!(viewport.visible_tracks, 4..7);
+    assert_eq!(viewport.visible_tracks, 4..6);
 }
 
 #[test]
@@ -345,7 +345,7 @@ fn virtualized_pattern_render_omits_offscreen_rows_and_tracks() {
 
     assert!(rendered.contains("1003"));
     assert!(rendered.contains("Track 06"));
-    assert!(rendered.contains("Track 08"));
+    assert!(rendered.contains("Track 07"));
     assert!(!rendered.contains(" 000 "));
     assert!(!rendered.contains("4095"));
     assert!(!rendered.contains("Track 01"));

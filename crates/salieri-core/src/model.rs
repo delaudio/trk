@@ -1458,7 +1458,7 @@ mod tests {
             cursor.move_in(Direction::Right, 64, 4);
         }
         assert_eq!(cursor.track, 3);
-        assert_eq!(cursor.field, CellField::Effect);
+        assert_eq!(cursor.field, CellField::Effect2);
     }
 
     #[test]
@@ -1479,9 +1479,11 @@ mod tests {
         assert_eq!(cursor.field, CellField::Delay);
         cursor.move_in(Direction::Right, 64, 4);
         assert_eq!(cursor.field, CellField::Effect);
+        cursor.move_in(Direction::Right, 64, 4);
+        assert_eq!(cursor.field, CellField::Effect2);
 
         cursor.move_in(Direction::Left, 64, 4);
-        assert_eq!(cursor.field, CellField::Delay);
+        assert_eq!(cursor.field, CellField::Effect);
 
         cursor.move_in(Direction::Right, 64, 4);
         cursor.move_in(Direction::Right, 64, 4);

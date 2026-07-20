@@ -315,8 +315,16 @@ pub struct PatternCell {
     pub gate: Option<u8>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub command: Option<TrackerCommand>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub command2: Option<TrackerCommand>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub parameter_locks: Vec<ParameterLock>,
+}
+
+impl PatternCell {
+    pub fn commands(&self) -> impl Iterator<Item = TrackerCommand> {
+        self.command.into_iter().chain(self.command2)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -413,9 +421,10 @@ impl Cursor {
             CellField::Pan => self.field = CellField::Volume,
             CellField::Delay => self.field = CellField::Pan,
             CellField::Effect => self.field = CellField::Delay,
+            CellField::Effect2 => self.field = CellField::Effect,
             CellField::Note if self.track > 0 => {
                 self.track -= 1;
-                self.field = CellField::Effect;
+                self.field = CellField::Effect2;
             }
             CellField::Note => {}
         }
@@ -429,11 +438,12 @@ impl Cursor {
             CellField::Volume => self.field = CellField::Pan,
             CellField::Pan => self.field = CellField::Delay,
             CellField::Delay => self.field = CellField::Effect,
-            CellField::Effect if self.track + 1 < track_count => {
+            CellField::Effect => self.field = CellField::Effect2,
+            CellField::Effect2 if self.track + 1 < track_count => {
                 self.track += 1;
                 self.field = CellField::Note;
             }
-            CellField::Effect => {}
+            CellField::Effect2 => {}
         }
     }
 }
@@ -453,6 +463,7 @@ pub enum CellField {
     Pan,
     Delay,
     Effect,
+    Effect2,
 }
 
 impl fmt::Display for CellField {
@@ -464,7 +475,8 @@ impl fmt::Display for CellField {
             CellField::Volume => f.write_str("VOL"),
             CellField::Pan => f.write_str("PAN"),
             CellField::Delay => f.write_str("DLY"),
-            CellField::Effect => f.write_str("FX"),
+            CellField::Effect => f.write_str("FX1"),
+            CellField::Effect2 => f.write_str("FX2"),
         }
     }
 }
@@ -475,4 +487,24 @@ pub enum Direction {
     Down,
     Left,
     Right,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pattern_cell_command2_is_backward_compatible() {
+        let legacy = r#"{"command":{"code":68,"value":32}}"#;
+        let mut cell: PatternCell = serde_json::from_str(legacy).expect("legacy cell");
+        assert_eq!(cell.command, Some(TrackerCommand::delay(32)));
+        assert_eq!(cell.command2, None);
+
+        let serialized = serde_json::to_string(&cell).expect("serialize");
+        assert!(!serialized.contains("command2"));
+
+        cell.command2 = Some(TrackerCommand::retrigger(4));
+        let serialized = serde_json::to_string(&cell).expect("serialize command2");
+        assert!(serialized.contains("command2"));
+    }
 }

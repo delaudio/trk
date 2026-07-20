@@ -46,7 +46,7 @@ use salieri_sampler::{WaveformBucket, WaveformOverview};
 use crate::{resolve_tracker_layout, TrackerLayoutPreset, TrackerLayoutState, ViewportAxis};
 
 const ROW_GUTTER_WIDTH: usize = 5;
-const PATTERN_CELL_WIDTH: usize = 21;
+const PATTERN_CELL_WIDTH: usize = 28;
 const TRACK_LIST_NAME_WIDTH: usize = 11;
 const MEDIUM_MIN_WIDTH: u16 = 80;
 const LARGE_MIN_WIDTH: u16 = 120;
@@ -2139,9 +2139,13 @@ fn format_cell_summary_lines(cell: &PatternCell) -> [String; 2] {
         || "---".to_string(),
         |command| format!("{}{:02X}", command.display_code(), command.value),
     );
+    let command2 = cell.command2.map_or_else(
+        || "---".to_string(),
+        |command| format!("{}{:02X}", command.display_code(), command.value),
+    );
     [
         format!("Note {note} Vel {velocity} Inst {instrument}"),
-        format!("Vol {volume} Pan {pan} Dly {delay} FX {command}"),
+        format!("Vol {volume} Pan {pan} Dly {delay} FX1 {command} FX2 {command2}"),
     ]
 }
 
@@ -2359,6 +2363,10 @@ fn cell_spans(
         || "---".to_string(),
         |command| format!("{}{:02X}", command.display_code(), command.value),
     );
+    let command2 = cell.command2.map_or_else(
+        || "---".to_string(),
+        |command| format!("{}{:02X}", command.display_code(), command.value),
+    );
 
     let normal = Style::default().fg(Color::White);
     let focused_style = Style::default()
@@ -2411,6 +2419,8 @@ fn cell_spans(
         Span::styled(delay, style_for_field(CellField::Delay)),
         Span::styled(" ", spacer_style),
         Span::styled(command, style_for_field(CellField::Effect)),
+        Span::styled(" ", spacer_style),
+        Span::styled(command2, style_for_field(CellField::Effect2)),
     ]
 }
 

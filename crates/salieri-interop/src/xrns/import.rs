@@ -222,15 +222,17 @@ pub(super) fn parse_xrns_import_model(
                                     ),
                                 ));
                             }
-                            if line.cell.command.is_some() {
+                            if line.cell.command.is_none() {
+                                line.cell.command = Some(command);
+                            } else if line.cell.command2.is_none() {
+                                line.cell.command2 = Some(command);
+                            } else {
                                 diagnostics.push(xrns_diagnostic(
                                     XrnsDiagnosticKind::DroppedExtraEffectColumn,
                                     XrnsDiagnosticSeverity::Warning,
                                     Some(xml_location(&stack, &name)),
                                     "extra XRNS effect column was dropped",
                                 ));
-                            } else {
-                                line.cell.command = Some(command);
                             }
                         }
                     }

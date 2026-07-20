@@ -37,11 +37,66 @@ impl App {
         }
     }
 
+    pub(crate) fn handle_fx2_command(&mut self, values: &[&str]) {
+        match values {
+            ["clear"] | ["off"] | ["none"] => {
+                self.set_current_fx_slot(None, CellField::Effect2);
+                self.notify_success("FX2 cleared");
+            }
+            [packed] if packed.len() >= 2 => {
+                let mut chars = packed.chars();
+                let Some(code) = chars.next() else {
+                    self.notify_warning("Usage: :fx2 CODE VALUE");
+                    return;
+                };
+                let value = chars.collect::<String>();
+                if let Some(value) = parse_hex_byte(&value) {
+                    self.set_current_fx_slot(
+                        Some(TrackerCommand::from_code_char(code, value)),
+                        CellField::Effect2,
+                    );
+                    self.notify_success(format!("FX2 {}{value:02X}", code.to_ascii_uppercase()));
+                } else {
+                    self.notify_warning("Usage: :fx2 CODE VALUE");
+                }
+            }
+            [code, value] => {
+                let Some(code) = code.chars().next() else {
+                    self.notify_warning("Usage: :fx2 CODE VALUE");
+                    return;
+                };
+                if let Some(value) = parse_hex_byte(value) {
+                    self.set_current_fx_slot(
+                        Some(TrackerCommand::from_code_char(code, value)),
+                        CellField::Effect2,
+                    );
+                    self.notify_success(format!("FX2 {}{value:02X}", code.to_ascii_uppercase()));
+                } else {
+                    self.notify_warning("Usage: :fx2 CODE VALUE");
+                }
+            }
+            _ => self.notify_warning("Usage: :fx2 CODE VALUE or :fx2 clear"),
+        }
+    }
+
     pub(crate) fn set_current_fx(&mut self, command: Option<TrackerCommand>) {
+        let field = self.cursor.field;
+        self.set_current_fx_slot(command, field);
+    }
+
+    pub(crate) fn set_current_fx_slot(
+        &mut self,
+        command: Option<TrackerCommand>,
+        field: CellField,
+    ) {
         self.mutate_song(|song, cursor| {
             if let Some(pattern) = song.current_pattern_mut() {
                 if let Some(cell) = pattern.cell_mut(cursor.row, cursor.track) {
-                    cell.command = command;
+                    if field == CellField::Effect2 {
+                        cell.command2 = command;
+                    } else {
+                        cell.command = command;
+                    }
                 }
             }
         });
@@ -106,7 +161,11 @@ impl App {
             }
             ["effect" | "fx", "clear" | "off" | "none"] => {
                 self.set_current_cell_field(|cell| cell.command = None);
-                self.notify_success("Effect column cleared");
+                self.notify_success("FX1 column cleared");
+            }
+            ["effect2" | "fx2", "clear" | "off" | "none"] => {
+                self.set_current_cell_field(|cell| cell.command2 = None);
+                self.notify_success("FX2 column cleared");
             }
             ["effect" | "fx", code, value] => {
                 let Some(code) = code.chars().next() else {
@@ -117,13 +176,27 @@ impl App {
                     self.set_current_cell_field(|cell| {
                         cell.command = Some(TrackerCommand::from_code_char(code, value));
                     });
-                    self.notify_success(format!("Effect {}{value:02X}", code.to_ascii_uppercase()));
+                    self.notify_success(format!("FX1 {}{value:02X}", code.to_ascii_uppercase()));
                 } else {
                     self.notify_warning("Usage: :cell effect CODE HEX");
                 }
             }
+            ["effect2" | "fx2", code, value] => {
+                let Some(code) = code.chars().next() else {
+                    self.notify_warning("Usage: :cell effect2 CODE HEX");
+                    return;
+                };
+                if let Some(value) = parse_cell_byte(value) {
+                    self.set_current_cell_field(|cell| {
+                        cell.command2 = Some(TrackerCommand::from_code_char(code, value));
+                    });
+                    self.notify_success(format!("FX2 {}{value:02X}", code.to_ascii_uppercase()));
+                } else {
+                    self.notify_warning("Usage: :cell effect2 CODE HEX");
+                }
+            }
             _ => self.notify_warning(
-                "Usage: :cell instrument|volume|pan|delay|effect VALUE or :cell FIELD clear",
+                "Usage: :cell instrument|volume|pan|delay|effect|effect2 VALUE or :cell FIELD clear",
             ),
         }
     }
