@@ -1,0 +1,51 @@
+<RenoiseSong>
+  <GlobalSongData>
+    <BeatsPerMin>132</BeatsPerMin>
+    <LinesPerBeat>4</LinesPerBeat>
+  </GlobalSongData>
+  <Tracks>
+    <SequencerTrack type="SequencerTrack">
+      <Name>Smoke Drums</Name>
+      <Volume>0.800</Volume>
+      <Pan>-0.100</Pan>
+      <DeviceChain>
+        <Device>Gainer</Device>
+        <Device>Comb Filter</Device>
+      </DeviceChain>
+    </SequencerTrack>
+    <SequencerTrack type="SequencerTrack">
+      <Name>Smoke Bass</Name>
+    </SequencerTrack>
+  </Tracks>
+  <PatternSequence>
+    <SequenceEntry><Pattern>0</Pattern></SequenceEntry>
+  </PatternSequence>
+  <Patterns>
+    <Pattern>
+      <NumberOfLines>4</NumberOfLines>
+      <Tracks>
+        <PatternTrack type="PatternTrack">
+          <Line>
+            <Index>0</Index>
+            <Note>C-4</Note>
+            <Instrument>00</Instrument>
+            <Volume>70</Volume>
+            <Effect><Number>R</Number><Value>04</Value></Effect>
+            <Effect><Number>Z</Number><Value>10</Value></Effect>
+          </Line>
+        </PatternTrack>
+        <PatternTrack type="PatternTrack">
+          <Line>
+            <Index>1</Index>
+            <Note>F-2</Note>
+            <Instrument>00</Instrument>
+            <Delay>20</Delay>
+          </Line>
+        </PatternTrack>
+      </Tracks>
+    </Pattern>
+  </Patterns>
+  <Instruments>
+    <Instrument><Name>Smoke Kit</Name></Instrument>
+  </Instruments>
+</RenoiseSong>
