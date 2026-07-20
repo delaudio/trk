@@ -31,6 +31,7 @@ impl App {
                 FocusTarget::ProjectBrowser => self.open_project_browser_view(None),
                 target => self.focus_panel(FocusPanel::from_target(target)),
             },
+            SalieriCommand::Layout(command) => self.handle_layout_command(command),
             SalieriCommand::Quit { force: false } => self.request_quit(false),
             SalieriCommand::Quit { force: true } => self.force_quit(),
             SalieriCommand::Write(path) => match path {
@@ -394,5 +395,59 @@ impl App {
             CommandDomain::MidiInput => self.handle_midi_input_command(&values),
             _ => unreachable!("domain handled by dedicated executor"),
         }
+    }
+
+    fn handle_layout_command(&mut self, command: LayoutCommand) {
+        match command {
+            LayoutCommand::Select(preset) => {
+                self.tracker_layout = TrackerLayoutState::from_preset(match preset {
+                    LayoutPresetCommand::Compact => TrackerLayoutPreset::Compact,
+                    LayoutPresetCommand::Balanced => TrackerLayoutPreset::Balanced,
+                    LayoutPresetCommand::Studio => TrackerLayoutPreset::Studio,
+                });
+                self.open_tracker_view();
+                self.notify_success(format!("Layout set to {:?}", self.tracker_layout.preset));
+            }
+            LayoutCommand::Toggle(panel) => {
+                let panel = layout_panel_id(panel);
+                self.tracker_layout.toggle_panel(panel);
+                self.open_tracker_view();
+                self.notify_info(format!(
+                    "Layout panel {panel:?} {}",
+                    if self.tracker_layout.panel_visible(panel) {
+                        "shown"
+                    } else {
+                        "hidden"
+                    }
+                ));
+            }
+            LayoutCommand::Show(panel) => {
+                let panel = layout_panel_id(panel);
+                self.tracker_layout.set_panel_visible(panel, true);
+                self.open_tracker_view();
+                self.notify_info(format!("Layout panel {panel:?} shown"));
+            }
+            LayoutCommand::Hide(panel) => {
+                let panel = layout_panel_id(panel);
+                self.tracker_layout.set_panel_visible(panel, false);
+                self.open_tracker_view();
+                self.notify_info(format!("Layout panel {panel:?} hidden"));
+            }
+            LayoutCommand::Resize { panel, delta } => {
+                let panel = layout_panel_id(panel);
+                self.tracker_layout.resize_panel(panel, delta);
+                self.open_tracker_view();
+                self.notify_info(format!("Layout panel {panel:?} resized by {delta}"));
+            }
+        }
+    }
+}
+
+fn layout_panel_id(panel: LayoutPanelCommand) -> ManagedPanelId {
+    match panel {
+        LayoutPanelCommand::Tracks => ManagedPanelId::Tracks,
+        LayoutPanelCommand::Sequence => ManagedPanelId::Sequence,
+        LayoutPanelCommand::Inspector => ManagedPanelId::Inspector,
+        LayoutPanelCommand::TrackDesk => ManagedPanelId::TrackDesk,
     }
 }

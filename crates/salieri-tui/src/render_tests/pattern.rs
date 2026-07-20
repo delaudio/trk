@@ -132,6 +132,7 @@ fn renders_default_pattern_without_panic() {
                     sampler_view: None,
                     sample_browser: None,
                     project_browser: None,
+                    tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );
         })
@@ -188,6 +189,7 @@ fn pattern_viewport_derives_visible_ranges_from_offsets_and_cursor() {
             sampler_view: None,
             sample_browser: None,
             project_browser: None,
+            tracker_layout: crate::TrackerLayoutState::default(),
         },
     );
 
@@ -269,6 +271,7 @@ fn track_desk_renders_sampler_mixer_and_native_effect_parameters_from_descriptor
                 sampler_view: None,
                 sample_browser: None,
                 project_browser: None,
+                tracker_layout: crate::TrackerLayoutState::default(),
             };
             render_track_properties(frame, Rect::new(0, 0, 100, 12), &song, state);
             render_selected_track_inspector(frame, Rect::new(0, 12, 100, 12), &song, state);
@@ -332,6 +335,7 @@ fn virtualized_pattern_render_omits_offscreen_rows_and_tracks() {
                     sampler_view: None,
                     sample_browser: None,
                     project_browser: None,
+                    tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );
         })
@@ -455,6 +459,7 @@ fn renders_tracker_cell_subcolumns() {
                     sampler_view: None,
                     sample_browser: None,
                     project_browser: None,
+                    tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );
         })
@@ -554,6 +559,7 @@ fn renders_sample_browser_view() {
                         message: None,
                     }),
                     project_browser: None,
+                    tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );
         })
@@ -622,6 +628,7 @@ fn renders_project_browser_view() {
                         selected: 1,
                         message: Some("Enter opens a project"),
                     }),
+                    tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );
         })
@@ -672,6 +679,7 @@ fn renders_small_layout_as_single_pattern_view() {
                     sampler_view: None,
                     sample_browser: None,
                     project_browser: None,
+                    tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );
         })
@@ -729,6 +737,7 @@ fn renders_medium_layout_with_compact_side_panel() {
                     sampler_view: None,
                     sample_browser: None,
                     project_browser: None,
+                    tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );
         })

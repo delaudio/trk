@@ -3,34 +3,34 @@
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ┌ Trac┌ Help: Basics | Tab/Shift+Tab pages ──────────────────────────────────────────────────────────────────────┐─────┐
 │> 01 │ Basics  |  Editing  |  Sampler  |  MIDI  |  Commands                                                     │     │
-│  02 │  Tab/Right next page   Shift+Tab/Left previous page   Up/Down scroll                                     │     │
-│  03 │                                                                                                          │     │
-│  04 │Global                                                                                                    │     │
-│     │  Ctrl+P Command Palette   ?/H Help   :h/:help Help   q Quit   Space Play/Stop                            │     │
-│     │  Shift+Space Start                                                                                       │     │
-│     │  Enter Play Row   Shift+Enter Play Sequence From Cursor   L Loop   F8 Stop                               │     │
-│     │  F7 Sequence View   F9 Track View   F10 Pattern View   Ctrl+J Sampler View                               │     │
-│     │  :t Tracker   :p Patterns   :se Sequence   :tr Tracks   :sa Sampler   :sb Browser                        │     │
-│     │  Esc returns from focused views                                                                          │     │
-│     │  :play pattern from start   :play sequence arrangement                                                   │─────┘
-│     │  Ctrl+S Save   Ctrl+Shift+S Save As   Ctrl+Z Undo   Ctrl+Y Redo   Ctrl+Arrows BPM/LPB                    │─────┐
-│     │                                                                                                          │     │
-│     │Navigation                                                                                                │ded  │
-│     │  Arrows or h/j/k/l move   Tab/Shift+Tab track   PageUp/PageDown jump                                     │     │
-│     │  Home/End pattern bounds   gg first row   G last row                                                     │     │
-│     │                                                                                                          │     │
-└─────│Mode: HELP   Close: Esc, q, or ?                                                                          │     │
-┌ Sequ│                                                                                                          │     │
-│  00 │                                                                                                          │     │
+│  02 │  Tab/Right next page   Shift+Tab/Left previous page   Up/Down scroll                                     │-- --│
+│  03 │                                                                                                          │-- --│
+│  04 │Global                                                                                                    │-- --│
+│     │  Ctrl+P Command Palette   ?/H Help   :h/:help Help   q Quit   Space Play/Stop                            │-- --│
+│     │  Shift+Space Start                                                                                       │-- --│
+│     │  Enter Play Row   Shift+Enter Play Sequence From Cursor   L Loop   F8 Stop                               │-- --│
+│     │  F7 Sequence View   F9 Track View   F10 Pattern View   Ctrl+J Sampler View                               │-- --│
+│     │  :t Tracker   :p Patterns   :se Sequence   :tr Tracks   :sa Sampler   :sb Browser                        │-- --│
+│     │  Esc returns from focused views                                                                          │-- --│
+│     │  :play pattern from start   :play sequence arrangement                                                   │-- --│
+│     │  Ctrl+S Save   Ctrl+Shift+S Save As   Ctrl+Z Undo   Ctrl+Y Redo   Ctrl+Arrows BPM/LPB                    │-- --│
+│     │                                                                                                          │-- --│
+│     │Navigation                                                                                                │-- --│
+│     │  Arrows or h/j/k/l move   Tab/Shift+Tab track   PageUp/PageDown jump                                     │-- --│
+│     │  Home/End pattern bounds   gg first row   G last row                                                     │-- --│
+│     │                                                                                                          │-- --│
+└─────│Mode: HELP   Close: Esc, q, or ?                                                                          │-- --│
+┌ Sequ│                                                                                                          │-- --│
+│  00 │                                                                                                          │-- --│
 │     │                                                                                                          │─────┘
 │     │                                                                                                          │─────┐
-│     │                                                                                                          │s    │
-│     │                                                                                                          │B    │
-│     │                                                                                                          │o    │
-│     │                                                                                                          │C    │
-│     │                                                                                                          │o    │
 │     │                                                                                                          │     │
-│     └──────────────────────────────────────────────────────────────────────────────────────────────────────────┘gned │
-│                         ││█████───── auto       Sends 00   FX 00                                ││                   │
-└─────────────────────────┘└──────────────────────────────────────────────────────────────────────┘└───────────────────┘
+│     │                                                                                                          │     │
+│     │                                                                                                          │-    │
+│     │                                                                                                          │     │
+│     │                                                                                                          │     │
+│     │                                                                                                          │     │
+│     └──────────────────────────────────────────────────────────────────────────────────────────────────────────┘     │
+│                          ││auto                         Sends 00   FX 00                                             │
+└──────────────────────────┘└──────────────────────────────────────────────────────────────────────────────────────────┘
  HELP | Ctrl+P Palette | H Help | Focus :t/:p/:se/:tr/:sa/:sb/:o | F4-MIDI | Space Play/Stop | Enter Row | Shift+Enter S

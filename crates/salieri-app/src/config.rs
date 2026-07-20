@@ -282,6 +282,27 @@ fn validate(config: &AppConfig) -> Result<(), ConfigValidationErrors> {
         1,
         10_000,
     );
+    check_range(
+        &mut diagnostics,
+        "ui.layout.left_width",
+        usize::from(config.ui.layout.left_width),
+        18,
+        56,
+    );
+    check_range(
+        &mut diagnostics,
+        "ui.layout.inspector_width",
+        usize::from(config.ui.layout.inspector_width),
+        24,
+        64,
+    );
+    check_range(
+        &mut diagnostics,
+        "ui.layout.track_desk_height",
+        usize::from(config.ui.layout.track_desk_height),
+        6,
+        18,
+    );
     if let Some(command) = &config.sample_browser.chooser_command {
         check_non_empty(&mut diagnostics, "sample_browser.chooser_command", command);
     }
@@ -339,6 +360,9 @@ fn default_config_path_for(
         .or_else(|| home.map(PathBuf::from).map(|path| path.join(".config")))
         .map(|root| root.join("salieri").join("config.toml"))
 }
+
+#[cfg(test)]
+mod config_tests;
 
 #[cfg(test)]
 mod tests {

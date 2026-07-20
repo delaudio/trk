@@ -43,6 +43,7 @@ impl App {
             pending_goto_start: false,
             follow_playhead: config.ui.follow_playhead,
             show_line_numbers_hex: config.ui.show_line_numbers_hex,
+            tracker_layout: config.ui.layout.tracker_layout(),
             help_scroll: 0,
             help_tab: HelpTab::Basics,
             command_buffer: String::new(),

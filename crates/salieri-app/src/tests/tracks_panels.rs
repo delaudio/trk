@@ -493,6 +493,26 @@ fn command_mode_panel_aliases_focus_views_and_restore_tracker_layout() {
 }
 
 #[test]
+fn command_mode_layout_commands_manage_tracker_panels() {
+    let mut app = App::default();
+
+    enter_command(&mut app, "layout studio");
+    assert_eq!(app.mode, AppMode::Normal);
+    assert_eq!(app.tracker_layout.preset, TrackerLayoutPreset::Studio);
+    assert!(app.tracker_layout.inspector_visible);
+
+    enter_command(&mut app, "layout hide inspector");
+    assert!(!app.tracker_layout.inspector_visible);
+
+    enter_command(&mut app, "layout toggle inspector");
+    assert!(app.tracker_layout.inspector_visible);
+
+    let previous = app.tracker_layout.inspector_width;
+    enter_command(&mut app, "layout resize inspector 4");
+    assert_eq!(app.tracker_layout.inspector_width, previous + 4);
+}
+
+#[test]
 fn command_mode_sample_browser_alias_accepts_optional_directory() {
     let mut app = App::default();
 

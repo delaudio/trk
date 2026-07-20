@@ -1,6 +1,12 @@
+pub mod layout;
 pub mod render;
 pub mod viewport;
 
+pub use layout::{
+    resolve_managed_layout, resolve_tracker_layout, LayoutDiagnostic, ManagedLayoutDirection,
+    ManagedLayoutNode, ManagedPanelId, ManagedSize, ResolvedManagedLayout, ResolvedPanel,
+    ResolvedTrackerLayout, TrackerLayoutPreset, TrackerLayoutState,
+};
 pub use render::{
     render, render_waveform_overview, render_waveform_overview_with_glyphs,
     CommandPaletteEntryView, CommandPaletteViewState, HelpTab, MidiPortView, MidiSettingsState,

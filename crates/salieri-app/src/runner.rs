@@ -134,6 +134,7 @@ fn run(args: CliArgs) -> Result<()> {
                     sampler_view: app.tui_sampler_view(),
                     sample_browser,
                     project_browser,
+                    tracker_layout: app.tracker_layout,
                 },
             );
         })?;

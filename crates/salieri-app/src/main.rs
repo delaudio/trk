@@ -49,8 +49,8 @@ use app_event::{
 };
 use app_mode::AppMode;
 use command::{
-    BrowserCommand, CommandDomain, FocusTarget, LoopCommand, PlayCommand, SalieriCommand,
-    ViewCommand,
+    BrowserCommand, CommandDomain, FocusTarget, LayoutCommand, LayoutPanelCommand,
+    LayoutPresetCommand, LoopCommand, PlayCommand, SalieriCommand, ViewCommand,
 };
 use command_palette::{
     command_palette_results, CommandPaletteActionKind, CommandPaletteContext,
@@ -136,11 +136,11 @@ use salieri_midi::{
 use salieri_sampler::{Sample, WaveformBucket, WaveformOverview};
 use salieri_transform::{apply_euclidean, EuclideanRhythm};
 use salieri_tui::{
-    render, CommandPaletteEntryView, CommandPaletteViewState, HelpTab, MidiPortView,
-    MidiSettingsState, NotificationKind, NotificationView, ProjectBrowserEntryKind,
+    render, CommandPaletteEntryView, CommandPaletteViewState, HelpTab, ManagedPanelId,
+    MidiPortView, MidiSettingsState, NotificationKind, NotificationView, ProjectBrowserEntryKind,
     ProjectBrowserEntryView, ProjectBrowserViewState, SampleBrowserEntryKind,
     SampleBrowserEntryView, SampleBrowserViewState, SamplerEnvelopeField, SamplerViewState,
-    SelectionRect, TuiState, TuiView, ViewportAxis,
+    SelectionRect, TrackerLayoutPreset, TrackerLayoutState, TuiState, TuiView, ViewportAxis,
 };
 use serde::{Deserialize, Serialize};
 use task_runtime::TaskRuntime;
@@ -182,6 +182,7 @@ struct App {
     pending_goto_start: bool,
     follow_playhead: bool,
     show_line_numbers_hex: bool,
+    tracker_layout: TrackerLayoutState,
     help_scroll: usize,
     help_tab: HelpTab,
     command_buffer: String,
