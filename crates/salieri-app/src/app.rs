@@ -22,3 +22,4 @@ mod state;
 mod tracker_actions;
 mod tui_state;
 mod view_key_handling;
+mod workspace_actions;

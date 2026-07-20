@@ -373,6 +373,8 @@ T               Set sequence position to current pattern
 :ai reject
 :preset inventory
 :preset save ./profiles/current.json
+:workspace init ~/Music/Salieri
+:workspace index ~/Music/Salieri
 :tasks
 :task cancel 1
 :stop
@@ -426,6 +428,8 @@ salieri transform euclidean input.salieri output.salieri --pattern 1 --track 1 -
 AI-assisted composition lives behind `salieri-ai` and is available in the TUI through the local deterministic provider: `:ai propose PROMPT`, `:ai show`, `:ai accept`, and `:ai reject`. Optional local guidance files from `[ai].guidance_dirs` can be listed, inspected, and applied with `:ai guidance list/show/apply/clear` before proposing. Proposals are previewed as touched cells before application, and accepted proposals use the normal undo transaction history. No network provider is invoked implicitly. Preset inventory profiles can also be saved and loaded as AI guidance with `:preset save` and `:preset load`. See [docs/generative-transforms.md](docs/generative-transforms.md), [docs/ai-assisted-edits.md](docs/ai-assisted-edits.md), [docs/preset-inventory.md](docs/preset-inventory.md), and [docs/undo-history.md](docs/undo-history.md).
 
 Keyboard commands can be overridden per application mode while all unmapped shortcuts retain their defaults. See [docs/keymaps.md](docs/keymaps.md) for the available layers, key syntax, and conflict diagnostics.
+
+Workspace manifests provide a portable root for projects, samples, preset profiles, reports, and guidance files. Use `:workspace init ROOT`, `:workspace index ROOT`, and non-destructive `:workspace trash/restore` operations to manage local artifacts. See [docs/workspace-manifest.md](docs/workspace-manifest.md).
 
 ## Interoperability
 

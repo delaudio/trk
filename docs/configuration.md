@@ -118,6 +118,10 @@ dossiers, and operational palettes for `:ai guidance` commands. Relative paths
 are resolved against the config file location; normal AI use never requires
 fetching remote data.
 
+For multi-directory artifact management, use a portable workspace manifest with
+`:workspace init ROOT`. The manifest keeps project, sample, preset, report, and
+guidance roots relative to `ROOT`; see [Workspace Manifest](workspace-manifest.md).
+
 Keymap bindings are grouped by application mode and override built-in shortcuts
 for the same key. Unmapped keys continue to use the built-in defaults. See
 [Configurable Keymaps](keymaps.md) for the complete layer and key syntax.
