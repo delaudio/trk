@@ -33,8 +33,10 @@ impl App {
                 format_critique_report,
             ),
             ["revise" | "revision", prompt @ ..] => self.create_revision_proposal(prompt),
+            ["analyze" | "analysis"] => self.show_style_analysis(),
+            ["compare", path @ ..] => self.show_style_comparison(path),
             _ => self.notify_warning(
-                "Usage: :report project|critique [save PATH|workspace ROOT] | :revise PROMPT",
+                "Usage: :report project|critique [save PATH|workspace ROOT] | :analyze | :compare PATH | :revise PROMPT",
             ),
         }
     }
@@ -108,6 +110,29 @@ impl App {
             "Revision workflow. Keep changes reviewable and do not mutate directly.\n\n{critique}\nRevision request: {request}"
         );
         self.create_ai_proposal(prompt);
+    }
+
+    fn show_style_analysis(&mut self) {
+        let analysis = analyze_style(&self.song);
+        let report = format_style_analysis_text(&analysis);
+        self.push_ai_message(AiMessageRole::Assistant, report);
+        self.notify_info(style_analysis_summary(&analysis));
+    }
+
+    fn show_style_comparison(&mut self, path: &[&str]) {
+        let Some(path) = report_command_path(path) else {
+            self.notify_warning("Usage: :compare PATH");
+            return;
+        };
+        match load_project(&path) {
+            Ok(other) => {
+                let comparison = compare_styles(&self.song, &other);
+                let report = format_style_comparison_text(&comparison);
+                self.push_ai_message(AiMessageRole::Assistant, report);
+                self.notify_info(style_comparison_summary(&comparison));
+            }
+            Err(error) => self.notify_warning(format!("Compare failed: {error}")),
+        }
     }
 }
 

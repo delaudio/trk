@@ -224,6 +224,16 @@ impl SalieriCommand {
             "dsp" | "effect-chain" => domain(CommandDomain::Dsp, arguments),
             "ai" => domain(CommandDomain::Ai, arguments),
             "report" | "reports" => domain(CommandDomain::Report, arguments),
+            "analyze" | "analysis" => {
+                let mut values = vec!["analyze".to_string()];
+                values.extend(arguments);
+                domain(CommandDomain::Report, values)
+            }
+            "compare" => {
+                let mut values = vec!["compare".to_string()];
+                values.extend(arguments);
+                domain(CommandDomain::Report, values)
+            }
             "critique" => {
                 let mut values = vec!["critique".to_string()];
                 values.extend(arguments);

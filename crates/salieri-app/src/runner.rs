@@ -72,6 +72,14 @@ fn run(args: CliArgs) -> Result<()> {
             run_report_critique(report_args)?;
             return Ok(());
         }
+        CliCommand::Analyze(analysis_args) => {
+            run_analyze(analysis_args)?;
+            return Ok(());
+        }
+        CliCommand::Compare(compare_args) => {
+            run_compare(compare_args)?;
+            return Ok(());
+        }
         CliCommand::ImportXrns(import_args) => {
             run_import_xrns(import_args)?;
             return Ok(());

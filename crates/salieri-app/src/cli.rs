@@ -101,6 +101,26 @@ impl CliArgs {
                         midi_test,
                     }
                 }
+                "analyze" | "analysis" => {
+                    return Self {
+                        command: CliCommand::Analyze(parse_analysis_args(args)),
+                        project_path: None,
+                        config_path,
+                        log_level,
+                        midi_log_path,
+                        midi_test,
+                    }
+                }
+                "compare" => {
+                    return Self {
+                        command: CliCommand::Compare(parse_compare_args(args)),
+                        project_path: None,
+                        config_path,
+                        log_level,
+                        midi_log_path,
+                        midi_test,
+                    }
+                }
                 "import" => {
                     return Self {
                         command: parse_import_command(args),
@@ -231,12 +251,14 @@ pub(crate) enum CliCommand {
     ExportStrudel(StrudelExportArgs),
     ReportProject(ReportArgs),
     ReportCritique(ReportArgs),
+    Analyze(AnalysisArgs),
+    Compare(CompareArgs),
     ImportXrns(ImportXrnsArgs),
 }
 
 pub(crate) fn print_help() {
     println!(
-        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --list-midi-inputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri sample inspect FILE [OPTIONS]\n  salieri import xrns INPUT OUTPUT [OPTIONS]\n  salieri export plan INPUT [OUTPUT.json] [OPTIONS]\n  salieri export audio INPUT OUTPUT.wav [OPTIONS]\n  salieri export stems INPUT OUT_DIR [OPTIONS]\n  salieri export strudel INPUT [OUTPUT.js] [OPTIONS]\n  salieri report project INPUT [OUTPUT.md]\n  salieri report critique INPUT [OUTPUT.md]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --list-midi-inputs            List available MIDI input ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index (default 1)\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Velocity, 0-127 (default 100)\n\nSample inspect options:\n  --format text|json            Output format (default text)\n  --buckets N, --width N        Waveform bucket count (default 64)\n\nImport options:\n  salieri import xrns INPUT OUTPUT imports an XRNS subset and writes a .salieri project\n  --sample-dir DIR              Extract supported XRNS WAV payloads into DIR\n  --sample-path-prefix PREFIX   Store extracted sample paths with PREFIX in the project\n  --convert-samples-to-wav      Convert FLAC/OGG/AIF payloads to WAV with ffmpeg\n\nRender/export options:\n  --pattern N                   Export 1-based pattern index (default 1)\n  --patterns LIST               Comma-separated 1-based patterns for Strudel\n  --sequence                    Export the full sequence instead of one pattern\n  --tracks LIST                 Comma-separated 1-based tracks for plans/stems\n  --sample-rate HZ              Output sample rate (default 48000)\n  --channels N                  Output channels (default 2)\n\n  --help                        Show this help\n  --version                     Show version"
+        "Salieri Tracker\n\nUsage:\n  salieri [OPTIONS] [FILE]\n  salieri --list-midi-outputs\n  salieri --list-midi-inputs\n  salieri --midi-test-output NAME_OR_INDEX [OPTIONS]\n  salieri transform euclidean INPUT OUTPUT [OPTIONS]\n  salieri sample inspect FILE [OPTIONS]\n  salieri import xrns INPUT OUTPUT [OPTIONS]\n  salieri export plan INPUT [OUTPUT.json] [OPTIONS]\n  salieri export audio INPUT OUTPUT.wav [OPTIONS]\n  salieri export stems INPUT OUT_DIR [OPTIONS]\n  salieri export strudel INPUT [OUTPUT.js] [OPTIONS]\n  salieri report project INPUT [OUTPUT.md]\n  salieri report critique INPUT [OUTPUT.md]\n  salieri analyze INPUT [OUTPUT] [--format text|json]\n  salieri compare LEFT RIGHT [OUTPUT] [--format text|json]\n  salieri --help\n  salieri --version\n\nOptions:\n  --config PATH                 Load config from PATH\n  --log-level LEVEL             Set tracing filter, e.g. debug or salieri=debug\n  --midi-log PATH               Write sent MIDI messages to PATH\n  --list-midi-outputs           List available MIDI output ports\n  --list-midi-inputs            List available MIDI input ports\n  --midi-test-output VALUE      Send one test note to a MIDI output name or index\n  --midi-test-channel CHANNEL   Test channel, 1-16 (default 1)\n  --midi-test-note NOTE         Test MIDI note, 0-127 (default 60)\n  --midi-test-duration-ms MS    Test note length (default 1000)\n\nTransform options:\n  --pattern N                   1-based pattern index (default 1)\n  --track N                     1-based track index (default 1)\n  --steps N                     Euclidean step count (default 16)\n  --pulses N                    Euclidean pulse count (default 4)\n  --rotation N                  Euclidean rotation (default 0)\n  --pitch NOTE                  MIDI note, 0-127 (default 36)\n  --velocity VALUE              Velocity, 0-127 (default 100)\n\nSample inspect options:\n  --format text|json            Output format (default text)\n  --buckets N, --width N        Waveform bucket count (default 64)\n\nAnalysis options:\n  --format text|json            Output format for analyze/compare (default text)\n\nImport options:\n  salieri import xrns INPUT OUTPUT imports an XRNS subset and writes a .salieri project\n  --sample-dir DIR              Extract supported XRNS WAV payloads into DIR\n  --sample-path-prefix PREFIX   Store extracted sample paths with PREFIX in the project\n  --convert-samples-to-wav      Convert FLAC/OGG/AIF payloads to WAV with ffmpeg\n\nRender/export options:\n  --pattern N                   Export 1-based pattern index (default 1)\n  --patterns LIST               Comma-separated 1-based patterns for Strudel\n  --sequence                    Export the full sequence instead of one pattern\n  --tracks LIST                 Comma-separated 1-based tracks for plans/stems\n  --sample-rate HZ              Output sample rate (default 48000)\n  --channels N                  Output channels (default 2)\n\n  --help                        Show this help\n  --version                     Show version"
     );
 }
 
@@ -355,6 +377,48 @@ pub(crate) struct StrudelExportArgs {
 pub(crate) struct ReportArgs {
     pub(crate) input_path: Option<PathBuf>,
     pub(crate) output_path: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AnalysisOutputFormat {
+    Text,
+    Json,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct AnalysisArgs {
+    pub(crate) input_path: Option<PathBuf>,
+    pub(crate) output_path: Option<PathBuf>,
+    pub(crate) format: AnalysisOutputFormat,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CompareArgs {
+    pub(crate) left_path: Option<PathBuf>,
+    pub(crate) right_path: Option<PathBuf>,
+    pub(crate) output_path: Option<PathBuf>,
+    pub(crate) format: AnalysisOutputFormat,
+}
+
+impl Default for AnalysisArgs {
+    fn default() -> Self {
+        Self {
+            input_path: None,
+            output_path: None,
+            format: AnalysisOutputFormat::Text,
+        }
+    }
+}
+
+impl Default for CompareArgs {
+    fn default() -> Self {
+        Self {
+            left_path: None,
+            right_path: None,
+            output_path: None,
+            format: AnalysisOutputFormat::Text,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -627,6 +691,55 @@ pub(crate) fn parse_report_args(args: impl IntoIterator<Item = String>) -> Repor
         }
     }
     parsed
+}
+
+pub(crate) fn parse_analysis_args(args: impl IntoIterator<Item = String>) -> AnalysisArgs {
+    let mut parsed = AnalysisArgs::default();
+    for arg in args {
+        match arg.as_str() {
+            "--format" => {}
+            "text" if parsed.input_path.is_some() => parsed.format = AnalysisOutputFormat::Text,
+            "json" if parsed.input_path.is_some() => parsed.format = AnalysisOutputFormat::Json,
+            _ if arg.starts_with("--format=") => {
+                parse_analysis_format(arg.trim_start_matches("--format="), &mut parsed.format);
+            }
+            _ if parsed.input_path.is_none() => parsed.input_path = Some(PathBuf::from(arg)),
+            _ if parsed.output_path.is_none() => parsed.output_path = Some(PathBuf::from(arg)),
+            _ => {}
+        }
+    }
+    parsed
+}
+
+pub(crate) fn parse_compare_args(args: impl IntoIterator<Item = String>) -> CompareArgs {
+    let mut parsed = CompareArgs::default();
+    let mut expect_format = false;
+    for arg in args {
+        if expect_format {
+            parse_analysis_format(&arg, &mut parsed.format);
+            expect_format = false;
+            continue;
+        }
+        match arg.as_str() {
+            "--format" => expect_format = true,
+            _ if arg.starts_with("--format=") => {
+                parse_analysis_format(arg.trim_start_matches("--format="), &mut parsed.format);
+            }
+            _ if parsed.left_path.is_none() => parsed.left_path = Some(PathBuf::from(arg)),
+            _ if parsed.right_path.is_none() => parsed.right_path = Some(PathBuf::from(arg)),
+            _ if parsed.output_path.is_none() => parsed.output_path = Some(PathBuf::from(arg)),
+            _ => {}
+        }
+    }
+    parsed
+}
+
+fn parse_analysis_format(value: &str, target: &mut AnalysisOutputFormat) {
+    match value {
+        "text" => *target = AnalysisOutputFormat::Text,
+        "json" => *target = AnalysisOutputFormat::Json,
+        _ => {}
+    }
 }
 
 struct RenderCommonArgs {

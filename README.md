@@ -85,6 +85,8 @@ salieri export audio INPUT OUTPUT [OPTIONS]
 salieri export strudel INPUT [OUTPUT.js] [OPTIONS]
 salieri report project INPUT [OUTPUT.md]
 salieri report critique INPUT [OUTPUT.md]
+salieri analyze INPUT [OUTPUT] [--format text|json]
+salieri compare LEFT RIGHT [OUTPUT] [--format text|json]
 salieri --help
 salieri --version
 ```
@@ -106,6 +108,8 @@ salieri export audio song.salieri song.wav --sequence --sample-rate 48000 --chan
 salieri export strudel song.salieri song.js --patterns 1,2
 salieri report project song.salieri reports/project.md
 salieri report critique song.salieri reports/critique.md
+salieri analyze song.salieri reports/style.json --format json
+salieri compare draft.salieri final.salieri reports/compare.txt
 ```
 
 `--midi-test-output` accepts either a port index or a port name. Configured MIDI output and input names are normalized, so `IAC Driver`, `IAC Driver Bus 1`, and `IAC Driver (Bus 1)` can match the same CoreMIDI port when available.
@@ -470,6 +474,8 @@ salieri export strudel input.salieri strudel.js --sequence
 The exporter renders sampler events only. MIDI-only external instruments are not captured in the WAV file. Tracker instrument/volume/pan/delay columns, stepped sample-gain automation, mixer gain/pan, and native DSP gain/pan chains are applied through the same sampler event path used by realtime playback. Render plans can be inspected as JSON before writing audio, and stem exports write per-track WAV files plus a manifest. See [docs/audio-export.md](docs/audio-export.md), [docs/automation.md](docs/automation.md), and [docs/mixer.md](docs/mixer.md).
 
 `export strudel` writes or prints a deterministic browser live-coding sketch for selected patterns or the song sequence. It preserves tempo, track comments, pattern lengths, notes, velocity, and simple volume/pan columns, with unsupported sampler, mixer, clip, and tracker-effect features listed as diagnostics. See [docs/strudel-export.md](docs/strudel-export.md).
+
+`analyze` and `compare` produce deterministic style/profile reports for one or two projects in text or JSON. The TUI equivalents are `:analyze` and `:compare PATH`; see [docs/style-analysis.md](docs/style-analysis.md).
 
 ## Project Files
 
