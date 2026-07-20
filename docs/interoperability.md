@@ -13,7 +13,7 @@ Current XRNS support is library-level and intentionally lossy:
 
 - inspect XRNS ZIP archives, locate root stored-or-deflated `Song.xml`, enumerate sample payloads, and report track, pattern, instrument, sample, and device metadata;
 - import a constrained XML subset into a validated `.salieri` `Song`;
-- map track names, pattern row counts, sequence order, note/velocity/instrument/volume/pan/delay cells, the first two effect commands, instrument IDs, supported WAV sample payloads, mixer gain/pan, and recognized native gain/pan devices;
+- map track names, pattern row counts, sequence order, note/velocity/instrument/volume/pan/delay cells, the first two effect commands, instrument IDs, supported WAV sample payloads, mixer gain/pan, and recognized native DSP device chains;
 - report unsupported samples, devices, extra effect columns, unknown effect commands, quantized timing, malformed archives/XML, nested/encrypted archives, and validation failures as structured diagnostics.
 
 The CLI can write the supported subset directly to a Salieri project:
@@ -51,7 +51,7 @@ References used for this decision:
 | Velocity/volume/pan/delay/effect columns | XRNS note/effect columns plus supported FX1/FX2 timing commands | Deferred Renoise effect commands as preserved tracker commands with warnings | Effect columns beyond FX2 and DSP/device parameter commands without a Salieri equivalent |
 | WAV/AIFF/FLAC sample references embedded in XRNS | WAV samples after extraction/normalization | Non-WAV sample formats after decode support exists | Plugin instruments and generator devices |
 | Instruments and sample mappings | Single-sample instruments and simple key mapping | Multi-sample instruments as multiple Salieri instruments | Keyzones, velocity layers, slicing, modulation sets |
-| Mixer gain/pan and native DSP gain/pan | Directly mappable when present | Renoise device chains reduced to supported gain/pan devices | Third-party plugins, complex DSP devices, meta/modulation devices |
+| Mixer gain/pan and native DSP chains | Directly mappable utility, filter, delay/reverb, drive/bitcrusher, modulation, and dynamics devices by supported name | Unsupported Renoise device chains reported with original names | Third-party plugins, meta-device modulation, LFO control devices, and routing-only devices |
 | Automation | None lossless yet | Sample gain or mixer/DSP automation after Salieri automation targets expand | Arbitrary device automation |
 | Arrangement/sequence | Pattern order can map to Salieri sequence | Pattern aliases/clips flattened with warnings | Renoise features without Salieri sequence equivalents |
 
@@ -75,7 +75,7 @@ Accept initially:
 - at most two effect commands mapped to Salieri's FX1/FX2 tracker commands per cell;
 - pattern sequence/order that can map to Salieri sequence entries;
 - sample-backed instruments whose sample payload can be loaded by `salieri-sampler` after extraction/preparation;
-- mixer track gain/pan and native gain/pan DSP devices when they can be recognized safely.
+- mixer track gain/pan and native DSP devices when they can be recognized safely.
 
 Warn and preserve where possible:
 
@@ -83,7 +83,7 @@ Warn and preserve where possible:
 - unknown or deferred effect commands that can be preserved without playback semantics;
 - pattern timing that does not divide cleanly into Salieri row timing;
 - unsupported sample formats that may become available after decoder support;
-- device chains with unsupported native devices.
+- device chains with unsupported native, LFO/meta, automation, or routing devices.
 
 Reject with explicit errors:
 
