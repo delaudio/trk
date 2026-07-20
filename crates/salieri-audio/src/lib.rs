@@ -29,7 +29,8 @@ pub use native_module::{
 };
 pub use offline_render::{
     render_sampler_events, render_sampler_events_with_dsp, render_sampler_preview,
-    OfflineRenderSpec, OfflineSamplerEvent, OfflineSamplerSample, RenderedAudio,
+    AudioSamplerPlaybackMode, AudioSamplerPlaybackSettings, OfflineRenderSpec, OfflineSamplerEvent,
+    OfflineSamplerSample, RenderedAudio,
 };
 pub use realtime_sampler::{
     apply_preview_envelope, prepare_realtime_sample, slice_preview_buffer, RealtimeAudioCommand,

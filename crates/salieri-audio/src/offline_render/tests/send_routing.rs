@@ -17,6 +17,7 @@ fn renders_sampler_events_through_send_bus_before_master() {
         pan: 0.0,
         pitch_ratio: 1.0,
         velocity: 127,
+        playback: AudioSamplerPlaybackSettings::default(),
     }];
     let graph = DspGraphSpec {
         sends: vec![SendDspBusSpec {

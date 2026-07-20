@@ -2,7 +2,7 @@
 
 Salieri Tracker is a MIDI-first music tracker that runs in the terminal. The current app is a Rust workspace with a Ratatui/Crossterm TUI, pattern editing, sequence playback, project persistence, undo/redo, MIDI output through `midir`, sample inspection and assignment workflows, deterministic transforms, and the first internal audio/AI foundations.
 
-The primary realtime playback path remains MIDI-first for external instruments, but assigned WAV samples can also play through the internal CPAL audio backend on the default output device. Internal audio is still early: sampler playback is intentionally minimal and does not yet include device selection, sustained loop playback, or a full DSP device set.
+The primary realtime playback path remains MIDI-first for external instruments, but assigned WAV samples can also play through the internal CPAL audio backend on the default output device. Internal audio is still early: sampler playback does not yet include device selection, sample choking, or a full DSP device set.
 
 ## Current Capabilities
 
@@ -445,13 +445,14 @@ Ctrl+J                      Open sampler view
 :sample unassign [TRACK]    Remove a track assignment
 :sample start FRAME|clear   Set or clear the sample start frame
 :sample end FRAME|clear     Set or clear the sample end frame
-:sample loop START END|off  Set or clear loop-point metadata
+:sample loop [backward|pingpong] START END|off
+:sample mode MODE           one-shot, forward-loop, backward-loop, pingpong-loop, reverse
 :sample envelope A D S R    Set attack/decay/sustain/release
 :sample settings            Show playback settings for the loaded sample
 :sample cleanup             Remove unused sample references
 ```
 
-Assigned samples are routed into the internal realtime audio command boundary during playback and rendered through the default CPAL output device. Samples are sliced by start/end frame, shaped by the configured envelope, and prepared for the output sample rate and channel count before playback/export. `:sample render-selection PATH [--assign TRACK]` bounces the active tracker selection to a WAV sample reference and can assign it immediately. Loop points are persisted and displayed but are not yet rendered as sustained loop playback. See [docs/sampler.md](docs/sampler.md), [docs/audio-engine.md](docs/audio-engine.md), and [docs/audio-export.md](docs/audio-export.md).
+Assigned samples are routed into the internal realtime audio command boundary during playback and rendered through the default CPAL output device. Samples are sliced by start/end frame, shaped by the configured envelope, and prepared for the output sample rate and channel count before playback/export. Forward, backward, ping-pong, and reverse playback modes are shared by realtime and offline rendering. `:sample render-selection PATH [--assign TRACK]` bounces the active tracker selection to a WAV sample reference and can assign it immediately. See [docs/sampler.md](docs/sampler.md), [docs/audio-engine.md](docs/audio-engine.md), and [docs/audio-export.md](docs/audio-export.md).
 
 ## Generative And AI Foundations
 

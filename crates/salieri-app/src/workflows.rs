@@ -337,6 +337,7 @@ pub(crate) fn pattern_export_events(
             pan: event.pan,
             pitch_ratio: event.pitch_ratio,
             velocity: event.velocity,
+            playback: audio_sampler_playback_settings(event.playback),
         })
         .collect())
 }
@@ -682,13 +683,13 @@ pub(crate) fn load_offline_export_samples(
             let path = resolve_sample_path(&reference.path, sample_base_dir);
             let sample = Sample::load_wav(&path)
                 .with_context(|| format!("failed to load sample {}", path.display()))?;
-            let preview = apply_sample_playback_settings(
+            let prepared = apply_sample_playback_settings(
                 &sample.preview(Default::default()),
                 reference.playback,
             );
             Ok(OfflineSamplerSample {
                 sample_id: reference.id.0,
-                buffer: prepare_realtime_sample(&preview, sample_rate, channels),
+                buffer: prepare_realtime_sample(&prepared.buffer, sample_rate, channels),
             })
         })
         .collect()

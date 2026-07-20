@@ -46,6 +46,7 @@ fn realtime_and_offline_match_for_native_chorus_fixture() {
             pan: 0.0,
             pitch_ratio: 1.0,
             velocity: 127,
+            playback: AudioSamplerPlaybackSettings::default(),
         }],
         OfflineRenderSpec {
             sample_rate: 48_000,
@@ -73,6 +74,7 @@ fn realtime_and_offline_match_for_native_chorus_fixture() {
             gain: 1.0,
             pan: 0.0,
             pitch_ratio: 1.0,
+            playback: AudioSamplerPlaybackSettings::default(),
         })
         .expect("trigger");
     let rendered = realtime.render(64);

@@ -374,17 +374,33 @@ impl App {
                     Some("off") | Some("none") | Some("clear") => {
                         self.set_loaded_sample_loop(SamplePlaybackMode::OneShot, None, None);
                     }
+                    Some("backward" | "reverse-loop" | "backward-loop") => {
+                        let start = parts.next().and_then(|value| value.parse::<usize>().ok());
+                        let end = parts.next().and_then(|value| value.parse::<usize>().ok());
+                        self.set_loaded_sample_loop(SamplePlaybackMode::BackwardLoop, start, end);
+                    }
+                    Some("pingpong" | "ping-pong" | "ping_pong" | "pingpong-loop") => {
+                        let start = parts.next().and_then(|value| value.parse::<usize>().ok());
+                        let end = parts.next().and_then(|value| value.parse::<usize>().ok());
+                        self.set_loaded_sample_loop(SamplePlaybackMode::PingPongLoop, start, end);
+                    }
                     Some("on") => {
                         let start = parts.next().and_then(|value| value.parse::<usize>().ok());
                         let end = parts.next().and_then(|value| value.parse::<usize>().ok());
-                        self.set_loaded_sample_loop(SamplePlaybackMode::Loop, start, end);
+                        self.set_loaded_sample_loop(SamplePlaybackMode::ForwardLoop, start, end);
                     }
                     Some(start) => {
                         let start = start.parse::<usize>().ok();
                         let end = parts.next().and_then(|value| value.parse::<usize>().ok());
-                        self.set_loaded_sample_loop(SamplePlaybackMode::Loop, start, end);
+                        self.set_loaded_sample_loop(SamplePlaybackMode::ForwardLoop, start, end);
                     }
                     None => self.show_loaded_sample_settings(),
+                },
+                Some("mode") => match parts.next().and_then(parse_sample_playback_mode) {
+                    Some(mode) => self.set_loaded_sample_mode(mode),
+                    None => self.notify_warning(
+                        "Usage: :sample mode one-shot|forward-loop|backward-loop|pingpong-loop|reverse",
+                    ),
                 },
                 Some("envelope") | Some("env") => {
                     let envelope = (
@@ -407,7 +423,7 @@ impl App {
                 Some("settings") | Some("info") => self.show_loaded_sample_settings(),
                 None => self.open_sampler_view(),
                 Some(_) => self.notify_warning(
-                    "Usage: :sample view PATH | render-selection PATH [--assign TRACK] | assign [TRACK] | start FRAME|clear | end FRAME|clear | loop START END|off | envelope A D S R",
+                    "Usage: :sample view PATH | render-selection PATH [--assign TRACK] | assign [TRACK] | start FRAME|clear | end FRAME|clear | loop [backward|pingpong] START END|off | mode MODE | envelope A D S R",
                 ),
                 }
             }
@@ -520,4 +536,21 @@ fn parse_sample_render_selection_args(values: &[&str]) -> Option<(PathBuf, Optio
         index += 1;
     }
     (!path_parts.is_empty()).then(|| (PathBuf::from(path_parts.join(" ")), assign_track))
+}
+
+fn parse_sample_playback_mode(value: &str) -> Option<SamplePlaybackMode> {
+    match value.to_ascii_lowercase().as_str() {
+        "one-shot" | "oneshot" | "one_shot" | "off" => Some(SamplePlaybackMode::OneShot),
+        "loop" | "forward" | "forward-loop" | "forward_loop" => {
+            Some(SamplePlaybackMode::ForwardLoop)
+        }
+        "backward" | "backward-loop" | "backward_loop" | "reverse-loop" => {
+            Some(SamplePlaybackMode::BackwardLoop)
+        }
+        "pingpong" | "ping-pong" | "ping_pong" | "pingpong-loop" | "ping-pong-loop" => {
+            Some(SamplePlaybackMode::PingPongLoop)
+        }
+        "reverse" => Some(SamplePlaybackMode::Reverse),
+        _ => None,
+    }
 }

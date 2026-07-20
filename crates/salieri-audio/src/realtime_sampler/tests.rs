@@ -8,6 +8,7 @@ use crate::{
 mod commands;
 mod dynamics;
 mod modulation;
+mod playback_modes;
 mod send_routing;
 
 #[test]
@@ -83,6 +84,7 @@ fn realtime_sampler_renders_triggered_voices() {
             gain: 0.5,
             pan: 0.0,
             pitch_ratio: 2.0,
+            playback: AudioSamplerPlaybackSettings::default(),
         })
         .expect("trigger");
 
@@ -129,6 +131,7 @@ fn realtime_sampler_applies_dsp_graph() {
             gain: 1.0,
             pan: 0.0,
             pitch_ratio: 1.0,
+            playback: AudioSamplerPlaybackSettings::default(),
         })
         .expect("trigger");
 
@@ -193,6 +196,7 @@ fn realtime_and_offline_match_for_native_utility_master_devices() {
             pan: 0.0,
             pitch_ratio: 1.0,
             velocity: 127,
+            playback: AudioSamplerPlaybackSettings::default(),
         }],
         OfflineRenderSpec {
             sample_rate: 48_000,
@@ -220,6 +224,7 @@ fn realtime_and_offline_match_for_native_utility_master_devices() {
             gain: 1.0,
             pan: 0.0,
             pitch_ratio: 1.0,
+            playback: AudioSamplerPlaybackSettings::default(),
         })
         .expect("trigger");
     let rendered = realtime.render(1);
@@ -273,6 +278,7 @@ fn realtime_and_offline_match_for_native_utility_track_devices() {
             pan: 0.0,
             pitch_ratio: 1.0,
             velocity: 127,
+            playback: AudioSamplerPlaybackSettings::default(),
         }],
         OfflineRenderSpec {
             sample_rate: 48_000,
@@ -300,6 +306,7 @@ fn realtime_and_offline_match_for_native_utility_track_devices() {
             gain: 1.0,
             pan: 0.0,
             pitch_ratio: 1.0,
+            playback: AudioSamplerPlaybackSettings::default(),
         })
         .expect("trigger");
     let rendered = realtime.render(1);
@@ -349,6 +356,7 @@ fn realtime_and_offline_match_for_native_filter_fixture() {
             pan: 0.0,
             pitch_ratio: 1.0,
             velocity: 127,
+            playback: AudioSamplerPlaybackSettings::default(),
         }],
         OfflineRenderSpec {
             sample_rate: 48_000,
@@ -376,6 +384,7 @@ fn realtime_and_offline_match_for_native_filter_fixture() {
             gain: 1.0,
             pan: 0.0,
             pitch_ratio: 1.0,
+            playback: AudioSamplerPlaybackSettings::default(),
         })
         .expect("trigger");
     let rendered = realtime.render(4);
@@ -430,6 +439,7 @@ fn realtime_and_offline_match_for_native_delay_fixture() {
             pan: 0.0,
             pitch_ratio: 1.0,
             velocity: 127,
+            playback: AudioSamplerPlaybackSettings::default(),
         }],
         OfflineRenderSpec {
             sample_rate: 48_000,
@@ -457,6 +467,7 @@ fn realtime_and_offline_match_for_native_delay_fixture() {
             gain: 1.0,
             pan: 0.0,
             pitch_ratio: 1.0,
+            playback: AudioSamplerPlaybackSettings::default(),
         })
         .expect("trigger");
     let rendered = realtime.render(64);
@@ -505,6 +516,7 @@ fn realtime_and_offline_match_for_native_drive_fixture() {
             pan: 0.0,
             pitch_ratio: 1.0,
             velocity: 127,
+            playback: AudioSamplerPlaybackSettings::default(),
         }],
         OfflineRenderSpec {
             sample_rate: 48_000,
@@ -532,6 +544,7 @@ fn realtime_and_offline_match_for_native_drive_fixture() {
             gain: 1.0,
             pan: 0.0,
             pitch_ratio: 1.0,
+            playback: AudioSamplerPlaybackSettings::default(),
         })
         .expect("trigger");
     let rendered = realtime.render(4);
@@ -579,6 +592,7 @@ fn realtime_and_offline_match_for_native_bitcrusher_fixture() {
             pan: 0.0,
             pitch_ratio: 1.0,
             velocity: 127,
+            playback: AudioSamplerPlaybackSettings::default(),
         }],
         OfflineRenderSpec {
             sample_rate: 48_000,
@@ -606,6 +620,7 @@ fn realtime_and_offline_match_for_native_bitcrusher_fixture() {
             gain: 1.0,
             pan: 0.0,
             pitch_ratio: 1.0,
+            playback: AudioSamplerPlaybackSettings::default(),
         })
         .expect("trigger");
     let rendered = realtime.render(4);
@@ -647,6 +662,7 @@ fn realtime_and_offline_match_for_native_reverb_fixture() {
             pan: 0.0,
             pitch_ratio: 1.0,
             velocity: 127,
+            playback: AudioSamplerPlaybackSettings::default(),
         }],
         OfflineRenderSpec {
             sample_rate: 48_000,
@@ -674,6 +690,7 @@ fn realtime_and_offline_match_for_native_reverb_fixture() {
             gain: 1.0,
             pan: 0.0,
             pitch_ratio: 1.0,
+            playback: AudioSamplerPlaybackSettings::default(),
         })
         .expect("trigger");
     let rendered = realtime.render(2_048);
@@ -711,6 +728,7 @@ fn realtime_sampler_can_trigger_at_current_callback_frame() {
             gain: 1.0,
             pan: 0.0,
             pitch_ratio: 1.0,
+            playback: AudioSamplerPlaybackSettings::default(),
         })
         .expect("trigger now");
 
@@ -736,6 +754,7 @@ fn realtime_sampler_bounds_and_clears_voices() {
             gain: 1.0,
             pan: 0.0,
             pitch_ratio: 1.0,
+            playback: AudioSamplerPlaybackSettings::default(),
         })
         .expect("trigger first")
         .expect("first voice id");
@@ -747,6 +766,7 @@ fn realtime_sampler_bounds_and_clears_voices() {
             gain: 1.0,
             pan: 0.0,
             pitch_ratio: 1.0,
+            playback: AudioSamplerPlaybackSettings::default(),
         })
         .expect("trigger second")
         .expect("second voice id");
@@ -770,6 +790,7 @@ fn realtime_sampler_bounds_and_clears_voices() {
             gain: 1.0,
             pan: 0.0,
             pitch_ratio: 1.0,
+            playback: AudioSamplerPlaybackSettings::default(),
         })
         .expect("trigger third");
     sampler

@@ -11,6 +11,7 @@ use super::{
     audio_dispatch::{send_all_audio_notes_off, send_audio_command, PlaybackAudioOutput},
     logging::{send_all_notes_off_logged, send_playback_event_logged, MidiLogger},
     midi_dispatch::PlaybackOutput,
+    sample_preload::audio_sampler_playback_settings,
     transport::{PlaybackCommand, PlaybackCursor, PlaybackUpdate},
 };
 
@@ -114,6 +115,7 @@ pub(super) fn run_pattern(
                     gain: event.gain * (f32::from(event.velocity.min(0x7f)) / 127.0),
                     pan: event.pan,
                     pitch_ratio: event.pitch_ratio,
+                    playback: audio_sampler_playback_settings(event.playback),
                 };
                 send_audio_command(context.audio_output, command);
             }

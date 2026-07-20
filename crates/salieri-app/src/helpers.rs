@@ -303,7 +303,7 @@ pub(crate) fn validate_sample_playback_settings(
             return Err("Sample start must be before end");
         }
     }
-    if settings.mode == SamplePlaybackMode::Loop {
+    if sample_mode_requires_loop_window(settings.mode) {
         match (settings.loop_start_frame, settings.loop_end_frame) {
             (Some(start), Some(end)) if start < end => {}
             (Some(_), Some(_)) => return Err("Sample loop start must be before loop end"),
@@ -321,6 +321,16 @@ pub(crate) fn validate_sample_playback_settings(
     Ok(())
 }
 
+pub(crate) fn sample_mode_requires_loop_window(mode: SamplePlaybackMode) -> bool {
+    matches!(
+        mode,
+        SamplePlaybackMode::Loop
+            | SamplePlaybackMode::ForwardLoop
+            | SamplePlaybackMode::BackwardLoop
+            | SamplePlaybackMode::PingPongLoop
+    )
+}
+
 pub(crate) fn format_optional_frame(frame: Option<usize>) -> String {
     frame.map_or_else(|| "clear".to_string(), |frame| frame.to_string())
 }
@@ -331,7 +341,9 @@ pub(crate) fn format_sample_loop(settings: SamplePlaybackSettings) -> String {
         settings.loop_start_frame,
         settings.loop_end_frame,
     ) {
-        (SamplePlaybackMode::Loop, Some(start), Some(end)) => format!("{start}-{end}"),
+        (mode, Some(start), Some(end)) if sample_mode_requires_loop_window(mode) => {
+            format!("{start}-{end}")
+        }
         _ => "off".to_string(),
     }
 }
@@ -346,15 +358,23 @@ pub(crate) fn format_sample_envelope(envelope: SampleEnvelope) -> String {
 pub(crate) fn format_sample_playback_settings(settings: SamplePlaybackSettings) -> String {
     format!(
         "Sample settings: mode={} start={} end={} loop={} env={}",
-        match settings.mode {
-            SamplePlaybackMode::OneShot => "one-shot",
-            SamplePlaybackMode::Loop => "loop",
-        },
+        format_sample_playback_mode(settings.mode),
         format_optional_frame(settings.start_frame),
         format_optional_frame(settings.end_frame),
         format_sample_loop(settings),
         format_sample_envelope(settings.envelope)
     )
+}
+
+pub(crate) fn format_sample_playback_mode(mode: SamplePlaybackMode) -> &'static str {
+    match mode {
+        SamplePlaybackMode::OneShot => "one-shot",
+        SamplePlaybackMode::Loop => "loop",
+        SamplePlaybackMode::ForwardLoop => "forward-loop",
+        SamplePlaybackMode::BackwardLoop => "backward-loop",
+        SamplePlaybackMode::PingPongLoop => "ping-pong-loop",
+        SamplePlaybackMode::Reverse => "reverse",
+    }
 }
 
 pub(crate) fn sampler_envelope_field_label(field: SamplerEnvelopeField) -> &'static str {

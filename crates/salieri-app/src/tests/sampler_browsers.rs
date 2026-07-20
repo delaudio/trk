@@ -219,13 +219,13 @@ fn sampler_commands_edit_playback_settings() {
         .expect("sample reference");
     assert_eq!(sample.playback.start_frame, Some(1));
     assert_eq!(sample.playback.end_frame, Some(4));
-    assert_eq!(sample.playback.mode, SamplePlaybackMode::Loop);
+    assert_eq!(sample.playback.mode, SamplePlaybackMode::ForwardLoop);
     assert_eq!(sample.playback.loop_start_frame, Some(1));
     assert_eq!(sample.playback.loop_end_frame, Some(3));
     assert_eq!(sample.playback.envelope.sustain, 0.5);
 
     let sampler = app.tui_sampler_view().expect("sampler view");
-    assert_eq!(sampler.playback_mode, "loop");
+    assert_eq!(sampler.playback_mode, "forward-loop");
     assert_eq!(sampler.start_frame, Some(1));
     assert_eq!(sampler.end_frame, Some(4));
     assert_eq!(sampler.loop_start_frame, Some(1));
@@ -245,6 +245,16 @@ fn sampler_commands_edit_playback_settings() {
     enter_command(&mut app, "sample loop off");
     let sample = app.song.samples.first().expect("sample reference");
     assert_eq!(sample.playback.mode, SamplePlaybackMode::OneShot);
+    assert_eq!(sample.playback.loop_start_frame, None);
+    assert_eq!(sample.playback.loop_end_frame, None);
+
+    enter_command(&mut app, "sample loop pingpong 1 3");
+    let sample = app.song.samples.first().expect("sample reference");
+    assert_eq!(sample.playback.mode, SamplePlaybackMode::PingPongLoop);
+
+    enter_command(&mut app, "sample mode reverse");
+    let sample = app.song.samples.first().expect("sample reference");
+    assert_eq!(sample.playback.mode, SamplePlaybackMode::Reverse);
     assert_eq!(sample.playback.loop_start_frame, None);
     assert_eq!(sample.playback.loop_end_frame, None);
     let _ = std::fs::remove_file(&path);

@@ -22,8 +22,9 @@ pub(crate) fn validate_sample_playback_settings(
         settings.loop_start_frame,
         settings.loop_end_frame,
     ) {
-        (SamplePlaybackMode::Loop, Some(loop_start), Some(loop_end)) if loop_start < loop_end => {}
-        (SamplePlaybackMode::Loop, _, _) => {
+        (mode, Some(loop_start), Some(loop_end))
+            if sample_mode_requires_loop_window(mode) && loop_start < loop_end => {}
+        (mode, _, _) if sample_mode_requires_loop_window(mode) => {
             return Err(ValidationError::InvalidSampleLoopWindow { sample_index });
         }
         (_, Some(loop_start), Some(loop_end)) if loop_start < loop_end => {}
@@ -41,6 +42,16 @@ pub(crate) fn validate_sample_playback_settings(
         return Err(ValidationError::InvalidSampleEnvelope { sample_index });
     }
     Ok(())
+}
+
+fn sample_mode_requires_loop_window(mode: SamplePlaybackMode) -> bool {
+    matches!(
+        mode,
+        SamplePlaybackMode::Loop
+            | SamplePlaybackMode::ForwardLoop
+            | SamplePlaybackMode::BackwardLoop
+            | SamplePlaybackMode::PingPongLoop
+    )
 }
 
 pub(crate) fn validate_pattern_automation(

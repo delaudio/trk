@@ -77,7 +77,9 @@ use history::{SongTransaction, TransactionSpec, UndoHistory};
 use keymap::Keymap;
 use persistence::{load_project, save_project};
 use playback_runtime::PlaybackRuntime;
-use playback_runtime::{apply_sample_playback_settings, resolve_sample_path};
+use playback_runtime::{
+    apply_sample_playback_settings, audio_sampler_playback_settings, resolve_sample_path,
+};
 use salieri_ai::{apply_proposal, AiProposal, CellAddress};
 use salieri_audio::{
     encode_audio, prepare_realtime_sample, render_sampler_events_with_dsp, AudioConfig,
