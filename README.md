@@ -2,7 +2,7 @@
 
 Salieri Tracker is a MIDI-first music tracker that runs in the terminal. The current app is a Rust workspace with a Ratatui/Crossterm TUI, pattern editing, sequence playback, project persistence, undo/redo, MIDI output through `midir`, sample inspection and assignment workflows, deterministic transforms, and the first internal audio/AI foundations.
 
-The primary realtime playback path remains MIDI-first for external instruments, but assigned WAV samples can also play through the internal CPAL audio backend on the default output device. Internal audio is still early: sampler playback is intentionally minimal and does not yet include device selection, sustained loop playback, sends, or a full DSP device set.
+The primary realtime playback path remains MIDI-first for external instruments, but assigned WAV samples can also play through the internal CPAL audio backend on the default output device. Internal audio is still early: sampler playback is intentionally minimal and does not yet include device selection, sustained loop playback, or a full DSP device set.
 
 ## Current Capabilities
 
@@ -15,7 +15,7 @@ The primary realtime playback path remains MIDI-first for external instruments, 
 - Project persistence as JSON `.salieri` files with validation and atomic writes.
 - WAV sample loading, waveform inspection, in-app sample browser, external chooser integration, sample-backed instruments, track assignment, replacement, unassignment, unload, cleanup, frame windows, loop-point metadata, and ADSR-style amplitude envelopes.
 - Realtime sampler playback for assigned WAV samples through the default CPAL output device.
-- Mixer foundations with master gain, per-track audio gain/pan/mute/solo, track-editor display, and offline level metering helpers.
+- Mixer foundations with master gain, per-track audio gain/pan/mute/solo, delay/reverb sends, track-editor display, and offline level metering helpers.
 - Minimal native DSP graph with per-track and master gain/pan devices shared by realtime playback and offline export.
 - Pattern automation lanes with stepped sample-gain automation observed by realtime playback and offline audio export.
 - Deterministic sampler event contracts for routing assigned samples into audio commands.
@@ -392,6 +392,10 @@ T               Set selected song slot to current pattern
 :mixer mute 2
 :mixer solo 2
 :mixer master 0.900
+:mixer send delay
+:mixer send delay gain 2 0.350
+:mixer send delay pre
+:mixer send reverb
 :dsp track 2 gain 0.500
 :dsp track 2 pan -0.250
 :dsp master gain 0.800
@@ -484,7 +488,7 @@ salieri export stems input.salieri stems/ --sequence
 salieri export strudel input.salieri strudel.js --sequence
 ```
 
-The exporter renders sampler events only. MIDI-only external instruments are not captured in the WAV file. Tracker instrument/volume/pan/delay columns, stepped sample-gain automation, mixer gain/pan, and native DSP gain/pan chains are applied through the same sampler event path used by realtime playback. Render plans can be inspected as JSON before writing audio, and stem exports write per-track WAV files plus a manifest. See [docs/audio-export.md](docs/audio-export.md), [docs/automation.md](docs/automation.md), and [docs/mixer.md](docs/mixer.md).
+The exporter renders sampler events only. MIDI-only external instruments are not captured in the WAV file. Tracker instrument/volume/pan/delay columns, stepped sample-gain automation, mixer gain/pan, delay/reverb sends, and native DSP chains are applied through the same sampler event path used by realtime playback. Render plans can be inspected as JSON before writing audio, and stem exports write per-track WAV files plus a manifest. See [docs/audio-export.md](docs/audio-export.md), [docs/automation.md](docs/automation.md), and [docs/mixer.md](docs/mixer.md).
 
 `export strudel` writes or prints a deterministic browser live-coding sketch for selected patterns or the song sequence. It preserves tempo, track comments, pattern lengths, notes, velocity, and simple volume/pan columns, with unsupported sampler, mixer, clip, and tracker-effect features listed as diagnostics. Clip launcher scenes can be edited locally with `:clips` and `:clip ...` commands; Ableton push/pull/clear dry-run plans are available with `:ableton ...`. See [docs/strudel-export.md](docs/strudel-export.md), [docs/clip-launcher.md](docs/clip-launcher.md), and [docs/ableton-live-bridge.md](docs/ableton-live-bridge.md).
 
@@ -499,4 +503,4 @@ The app tracks dirty state. Quitting with unsaved changes prompts for save, disc
 
 ## Roadmap Gaps
 
-Salieri is not yet a full Renoise-class workstation. The largest missing product areas are keyzones/velocity layers, sustained sampler loop playback and choking, multiple effect columns with DSP device parameter mapping, a broader DSP device set, sends/routing, graphical mixer and automation views, richer MIDI input mapping/quantization, and external-provider AI integration.
+Salieri is not yet a full Renoise-class workstation. The largest missing product areas are keyzones/velocity layers, sustained sampler loop playback and choking, multiple effect columns with DSP device parameter mapping, a broader DSP device set, graphical mixer/send and automation views, richer MIDI input mapping/quantization, and external-provider AI integration.

@@ -24,6 +24,14 @@ pub(crate) fn parse_track_number(value: &str) -> Option<usize> {
         .map(|number| number.saturating_sub(1))
 }
 
+pub(crate) fn parse_send_id(value: &str) -> Option<u32> {
+    match value.to_ascii_lowercase().as_str() {
+        "delay" => Some(1),
+        "reverb" => Some(2),
+        _ => value.parse::<u32>().ok(),
+    }
+}
+
 pub(crate) fn upsert_effect_device(chain: &mut Vec<EffectDevice>, device: EffectDevice) {
     if let Some(existing) = chain.iter_mut().find(|existing| existing.id == device.id) {
         *existing = device;

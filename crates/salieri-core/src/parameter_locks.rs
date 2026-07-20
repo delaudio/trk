@@ -340,6 +340,8 @@ mod tests {
         song.mixer.sends.push(MixerSend {
             id: 1,
             name: "Send A".to_string(),
+            pre_fader: false,
+            effects: Vec::new(),
         });
         song.mixer.tracks[0]
             .sends

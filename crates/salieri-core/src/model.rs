@@ -1587,6 +1587,16 @@ pub enum ValidationError {
     InvalidMixerTrackGain { track_id: TrackId },
     #[error("mixer track {track_id:?} has invalid pan")]
     InvalidMixerTrackPan { track_id: TrackId },
+    #[error("mixer send {send_id} name cannot be empty")]
+    EmptyMixerSend { send_id: u32 },
+    #[error("mixer has duplicate send {send_id}")]
+    DuplicateMixerSend { send_id: u32 },
+    #[error("mixer track {track_id:?} references missing send {send_id}")]
+    MixerSendNotFound { track_id: TrackId, send_id: u32 },
+    #[error("mixer track {track_id:?} has duplicate send {send_id}")]
+    DuplicateTrackSend { track_id: TrackId, send_id: u32 },
+    #[error("mixer track {track_id:?} send {send_id} has invalid gain")]
+    InvalidMixerSendGain { track_id: TrackId, send_id: u32 },
     #[error("effect chain has duplicate device id {device_id}")]
     DuplicateEffectDevice { device_id: u32 },
     #[error("effect device has invalid parameter")]
@@ -2006,6 +2016,16 @@ mod tests {
         song.mixer.tracks[0]
             .effects
             .push(EffectDevice::gain(1, 0.5));
+        song.mixer.sends.push(MixerSend {
+            id: 1,
+            name: "Delay".to_string(),
+            pre_fader: true,
+            effects: vec![EffectDevice::delay(1, crate::DelaySpec::default())],
+        });
+        song.mixer.tracks[0].sends.push(TrackSendLevel {
+            send: 1,
+            gain: 0.25,
+        });
         song.mixer.master_effects.push(EffectDevice::pan(1, 0.25));
 
         let mixer = song.track_mixer_for_track(song.tracks[0].id);
@@ -2014,6 +2034,15 @@ mod tests {
         assert!(mixer.muted);
         assert!(mixer.solo);
         assert_eq!(mixer.effects, vec![EffectDevice::gain(1, 0.5)]);
+        assert_eq!(
+            mixer.sends,
+            vec![TrackSendLevel {
+                send: 1,
+                gain: 0.25
+            }]
+        );
+        assert_eq!(song.mixer.sends[0].name, "Delay");
+        assert!(song.mixer.sends[0].pre_fader);
         assert_eq!(song.mixer.master_effects, vec![EffectDevice::pan(1, 0.25)]);
         assert_eq!(song.mixer.master_gain, 0.8);
         song.validate().expect("valid mixer");
@@ -2037,6 +2066,16 @@ mod tests {
             invalid.validate().expect_err("invalid effect"),
             ValidationError::InvalidEffectParameter
         );
+
+        let mut invalid = Song::empty();
+        invalid.mixer.tracks[0].sends.push(TrackSendLevel {
+            send: 99,
+            gain: 0.5,
+        });
+        assert!(matches!(
+            invalid.validate().expect_err("missing send"),
+            ValidationError::MixerSendNotFound { send_id: 99, .. }
+        ));
     }
 
     #[test]

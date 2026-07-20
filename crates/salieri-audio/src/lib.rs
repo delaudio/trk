@@ -19,7 +19,7 @@ pub use backend::{
 pub use cpal_backend::CpalAudioBackend;
 pub use dsp::{
     DspDeviceKind, DspDeviceSpec, DspDriveMode, DspDynamicsDetector, DspFilterMode, DspGraphSpec,
-    TrackDspChainSpec,
+    SendDspBusSpec, TrackDspChainSpec, TrackSendSpec,
 };
 pub use errors::{AudioError, AudioExportError};
 pub use export::{encode_audio, supported_audio_export_formats, AudioExportFormat};

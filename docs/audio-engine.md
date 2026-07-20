@@ -38,4 +38,4 @@ Shutdown must stop the backend before the thread exits. Errors are reported as u
 
 - no user-facing device enumeration or selection;
 - no sample choking or sustained sampler loop playback;
-- no send routing, realtime meter transport, or effects beyond native gain/pan on internal sampler output yet.
+- no realtime meter transport or graphical meter rendering yet.

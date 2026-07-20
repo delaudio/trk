@@ -361,6 +361,12 @@ fn command_mode_edits_mixer_state() {
     type_command(&mut app, "mixer mute 2");
     type_command(&mut app, "mixer solo 2");
     type_command(&mut app, "mixer master 0.800");
+    type_command(&mut app, "mixer send delay");
+    type_command(&mut app, "mixer send delay pre");
+    type_command(&mut app, "mixer send delay gain 2 0.375");
+    type_command(&mut app, "mixer send reverb");
+    type_command(&mut app, "mixer send reverb gain 0.250");
+    type_command(&mut app, "mixer send list");
 
     let track_id = app.song.tracks[1].id;
     let mixer = app.song.track_mixer_for_track(track_id);
@@ -368,6 +374,22 @@ fn command_mode_edits_mixer_state() {
     assert_eq!(mixer.pan, -0.25);
     assert!(mixer.muted);
     assert!(mixer.solo);
+    assert_eq!(app.song.mixer.sends.len(), 2);
+    assert!(app.song.mixer.sends[0].pre_fader);
+    assert_eq!(app.song.mixer.sends[0].name, "Delay");
+    assert!(matches!(
+        app.song.mixer.sends[0].effects[0].kind,
+        EffectDeviceKind::Delay { .. }
+    ));
+    assert!(matches!(
+        app.song.mixer.sends[1].effects[0].kind,
+        EffectDeviceKind::Reverb { .. }
+    ));
+    assert_eq!(mixer.sends[0].send, 1);
+    assert_eq!(mixer.sends[0].gain, 0.375);
+    let current_track_mixer = app.song.track_mixer_for_track(app.song.tracks[0].id);
+    assert_eq!(current_track_mixer.sends[0].send, 2);
+    assert_eq!(current_track_mixer.sends[0].gain, 0.25);
     assert_eq!(app.song.mixer.master_gain, 0.8);
     assert!(app.dirty);
 

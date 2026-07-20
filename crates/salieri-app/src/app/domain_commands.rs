@@ -530,8 +530,38 @@ impl App {
                     self.notify_warning("Usage: :mixer solo [TRACK]");
                 }
             }
+            ["send", "list" | "status"] => self.show_mixer_sends(),
+            ["send", "delay"] => self.ensure_mixer_send(
+                1,
+                "Delay",
+                EffectDevice::delay(1, DelaySpec::default()),
+            ),
+            ["send", "reverb"] => self.ensure_mixer_send(
+                2,
+                "Reverb",
+                EffectDevice::reverb(1, ReverbSpec::default()),
+            ),
+            ["send", send, "pre"] => self.set_mixer_send_mode(send, true),
+            ["send", send, "post"] => self.set_mixer_send_mode(send, false),
+            ["send", send, "clear"] => self.clear_mixer_send(send),
+            ["send", send, "gain", value] => {
+                if let Ok(gain) = value.parse::<f32>() {
+                    self.set_track_send_gain(send, self.cursor.track, gain);
+                } else {
+                    self.notify_warning("Usage: :mixer send SEND gain [TRACK] GAIN");
+                }
+            }
+            ["send", send, "gain", track, value] => {
+                let track = parse_track_number(track);
+                let gain = value.parse::<f32>().ok();
+                if let (Some(track), Some(gain)) = (track, gain) {
+                    self.set_track_send_gain(send, track, gain);
+                } else {
+                    self.notify_warning("Usage: :mixer send SEND gain [TRACK] GAIN");
+                }
+            }
             _ => self.notify_warning(
-                "Usage: :mixer master GAIN | gain [TRACK] GAIN | pan [TRACK] PAN | mute [TRACK] | solo [TRACK]",
+                "Usage: :mixer master GAIN | gain [TRACK] GAIN | pan [TRACK] PAN | mute [TRACK] | solo [TRACK] | send delay|reverb|list | send SEND pre|post|clear|gain [TRACK] GAIN",
             ),
         }
     }
@@ -634,6 +664,158 @@ impl App {
             Ok(_) => self.notify_success(format!("Master gain = {gain:.2}")),
             Err(error) => self.notify_warning(format!("Mixer failed: {error}")),
         }
+    }
+
+    pub(crate) fn ensure_mixer_send(&mut self, id: u32, name: &str, device: EffectDevice) {
+        if !effect_device_is_valid(&device) {
+            self.notify_warning("Send DSP parameter out of range");
+            return;
+        }
+        let name = name.to_string();
+        self.mutate_song(|song, _| {
+            if let Some(send) = song.mixer.sends.iter_mut().find(|send| send.id == id) {
+                send.name = name.clone();
+                upsert_effect_device(&mut send.effects, device.clone());
+            } else {
+                song.mixer.sends.push(MixerSend {
+                    id,
+                    name: name.clone(),
+                    pre_fader: false,
+                    effects: vec![device.clone()],
+                });
+            }
+        });
+        self.notify_success(format!("Mixer send {id} {name} ready"));
+    }
+
+    pub(crate) fn set_mixer_send_mode(&mut self, send: &str, pre_fader: bool) {
+        let Some(send_id) = parse_send_id(send) else {
+            self.notify_warning("Usage: :mixer send SEND pre|post");
+            return;
+        };
+        let mut updated = false;
+        self.mutate_song(|song, _| {
+            if let Some(send) = song.mixer.sends.iter_mut().find(|send| send.id == send_id) {
+                send.pre_fader = pre_fader;
+                updated = true;
+            }
+        });
+        if updated {
+            self.notify_success(format!(
+                "Mixer send {send_id} {}",
+                if pre_fader { "pre-fader" } else { "post-fader" }
+            ));
+        } else {
+            self.notify_warning("Mixer send not found");
+        }
+    }
+
+    pub(crate) fn clear_mixer_send(&mut self, send: &str) {
+        let Some(send_id) = parse_send_id(send) else {
+            self.notify_warning("Usage: :mixer send SEND clear");
+            return;
+        };
+        self.mutate_song(|song, _| {
+            song.mixer.sends.retain(|send| send.id != send_id);
+            for track in &mut song.mixer.tracks {
+                track.sends.retain(|send| send.send != send_id);
+            }
+        });
+        self.notify_success(format!("Mixer send {send_id} cleared"));
+    }
+
+    pub(crate) fn set_track_send_gain(&mut self, send: &str, track_index: usize, gain: f32) {
+        let Some(send_id) = parse_send_id(send) else {
+            self.notify_warning("Usage: :mixer send SEND gain [TRACK] GAIN");
+            return;
+        };
+        if !mixer_send_gain_descriptor().validate_f32(gain) {
+            self.notify_warning("Mixer send gain out of range");
+            return;
+        }
+        let mut track_name = None;
+        let mut updated = false;
+        self.mutate_song(|song, _| {
+            if !song.mixer.sends.iter().any(|send| send.id == send_id) {
+                return;
+            }
+            let Some(track) = song.tracks.get(track_index) else {
+                return;
+            };
+            let track_id = track.id;
+            track_name = Some(track.name.clone());
+            song.ensure_mixer_for_tracks();
+            let Some(mixer) = song
+                .mixer
+                .tracks
+                .iter_mut()
+                .find(|mixer| mixer.track == track_id)
+            else {
+                return;
+            };
+            if let Some(send) = mixer.sends.iter_mut().find(|send| send.send == send_id) {
+                send.gain = gain;
+            } else {
+                mixer.sends.push(TrackSendLevel {
+                    send: send_id,
+                    gain,
+                });
+            }
+            updated = true;
+        });
+        if updated {
+            self.notify_success(format!(
+                "Mixer send {send_id} {} = {gain:.2}",
+                track_name.unwrap_or_else(|| format!("{:02}", track_index + 1))
+            ));
+        } else {
+            self.notify_warning("Mixer send or track not found");
+        }
+    }
+
+    pub(crate) fn show_mixer_sends(&mut self) {
+        if self.song.mixer.sends.is_empty() {
+            self.notify_info("Mixer sends: none");
+            return;
+        }
+        let sends = self
+            .song
+            .mixer
+            .sends
+            .iter()
+            .map(|send| {
+                let mode = if send.pre_fader { "pre" } else { "post" };
+                let routed_tracks = self
+                    .song
+                    .mixer
+                    .tracks
+                    .iter()
+                    .filter_map(|track| {
+                        let level = track.sends.iter().find(|level| level.send == send.id)?;
+                        if level.gain <= 0.0 {
+                            return None;
+                        }
+                        Some(format!("T{}={:.2}", track.track.0, level.gain))
+                    })
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let routed_tracks = if routed_tracks.is_empty() {
+                    "no tracks".to_string()
+                } else {
+                    routed_tracks
+                };
+                format!(
+                    "{}:{} {} {} devices {}",
+                    send.id,
+                    send.name,
+                    mode,
+                    send.effects.len(),
+                    routed_tracks
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(" | ");
+        self.notify_info(format!("Mixer sends: {sends}"));
     }
 
     pub(crate) fn upsert_master_dsp_device(&mut self, device: EffectDevice) {

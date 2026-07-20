@@ -9,6 +9,8 @@ fn realtime_and_offline_match_for_native_compressor_fixture() {
         data: vec![0.1, -0.1, 0.9, -0.9, 0.4, -0.4, 0.2, -0.2],
     };
     let graph = DspGraphSpec {
+        sends: Vec::new(),
+        track_sends: Vec::new(),
         track_chains: Vec::new(),
         master: vec![DspDeviceSpec {
             bypassed: false,

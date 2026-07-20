@@ -6,6 +6,7 @@ use crate::{
 };
 
 mod dynamics;
+mod send_routing;
 
 #[test]
 fn renders_sampler_preview_deterministically() {
@@ -116,6 +117,8 @@ fn renders_sampler_events_through_track_and_master_dsp() {
         velocity: 127,
     }];
     let graph = DspGraphSpec {
+        sends: Vec::new(),
+        track_sends: Vec::new(),
         track_chains: vec![TrackDspChainSpec {
             track_id: 2,
             devices: vec![DspDeviceSpec {
@@ -165,6 +168,8 @@ fn renders_sampler_events_through_native_utility_master_devices() {
         velocity: 127,
     }];
     let graph = DspGraphSpec {
+        sends: Vec::new(),
+        track_sends: Vec::new(),
         track_chains: Vec::new(),
         master: vec![
             DspDeviceSpec {
@@ -218,6 +223,8 @@ fn renders_sampler_events_through_native_utility_track_devices() {
         velocity: 127,
     }];
     let graph = DspGraphSpec {
+        sends: Vec::new(),
+        track_sends: Vec::new(),
         track_chains: vec![TrackDspChainSpec {
             track_id: 2,
             devices: vec![
@@ -281,6 +288,8 @@ fn renders_sampler_events_through_native_filter_modes() {
         DspFilterMode::Notch,
     ] {
         let graph = DspGraphSpec {
+            sends: Vec::new(),
+            track_sends: Vec::new(),
             track_chains: Vec::new(),
             master: vec![DspDeviceSpec {
                 bypassed: false,
@@ -341,6 +350,8 @@ fn renders_sampler_events_through_native_drive_modes() {
         DspDriveMode::SoftClip,
     ] {
         let graph = DspGraphSpec {
+            sends: Vec::new(),
+            track_sends: Vec::new(),
             track_chains: Vec::new(),
             master: vec![DspDeviceSpec {
                 bypassed: false,
@@ -393,6 +404,8 @@ fn renders_sampler_events_through_native_bitcrusher_reduction() {
         velocity: 127,
     }];
     let graph = DspGraphSpec {
+        sends: Vec::new(),
+        track_sends: Vec::new(),
         track_chains: Vec::new(),
         master: vec![DspDeviceSpec {
             bypassed: false,
@@ -494,6 +507,8 @@ fn renders_sampler_events_through_native_modulation_effects() {
                 frames: 64,
             },
             &DspGraphSpec {
+                sends: Vec::new(),
+                track_sends: Vec::new(),
                 track_chains: Vec::new(),
                 master: vec![DspDeviceSpec {
                     bypassed: false,
@@ -528,6 +543,8 @@ fn renders_sampler_events_through_native_delay_timing() {
         velocity: 127,
     }];
     let graph = DspGraphSpec {
+        sends: Vec::new(),
+        track_sends: Vec::new(),
         track_chains: Vec::new(),
         master: vec![DspDeviceSpec {
             bypassed: false,
@@ -587,6 +604,8 @@ fn renders_sampler_events_through_native_reverb_tail() {
         velocity: 127,
     }];
     let graph = DspGraphSpec {
+        sends: Vec::new(),
+        track_sends: Vec::new(),
         track_chains: Vec::new(),
         master: vec![DspDeviceSpec {
             bypassed: false,
@@ -632,6 +651,8 @@ fn bypassed_dsp_devices_do_not_process_audio() {
         velocity: 127,
     }];
     let graph = DspGraphSpec {
+        sends: Vec::new(),
+        track_sends: Vec::new(),
         track_chains: vec![TrackDspChainSpec {
             track_id: 2,
             devices: vec![DspDeviceSpec {

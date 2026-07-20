@@ -16,7 +16,7 @@ playback, and offline export.
 | Surface | Owner | Native DSP relationship | Status |
 | --- | --- | --- | --- |
 | Track insert effects | Mixer track `effects` chains | Main implementation path for utility, filter, delay, reverb, drive, modulation, and dynamics devices | gain/pan implemented; broader suite planned |
-| Send effects and buses | Mixer `sends` plus future routing graph | Send bus metadata exists, but audio routing and send-return processing are not implemented yet | planned by #84 before send DSP closure |
+| Send effects and buses | Mixer `sends` plus future routing graph | Delay/reverb send buses route audio in realtime/offline paths before the master chain | implemented foundation by #84 |
 | Master effects | Mixer `masterEffects` chain | Same native devices as track inserts, rendered after track mixing | gain/pan implemented |
 | Sampler/instrument-local processing | Sample-backed instruments and future instrument modules | Filters, envelopes, LFOs, keyzones, and sample-local modulation belong to sampler/instrument scope when they change voice behavior before mixer inserts | coordinated with #121 |
 | Per-step tracker commands | Pattern cell command/effect columns and automation lanes | Row commands can control, trigger, or lock device parameters, but tracker commands such as retrigger and note delay are not insert devices | coordinated with #85 and #123 |
@@ -43,7 +43,7 @@ playback, and offline export.
 | Chorus, flanger, phaser, tremolo, ring modulation, autopan | Track insert, master | Partial | #130 native modulation effects | Chorus, flanger, and phaser are implemented with shared deterministic modulation state; tremolo, ring modulation, and autopan remain follow-up scope. |
 | Compressor, gate, limiter, maximizer | Track insert, master | Planned | #131 native dynamics effects | Sidechain/key input is deferred until send/routing foundations are real. |
 | Meta devices, LFO device, hydra, key/velocity trackers | Automation/modulation system | Deferred | Follow-up after #123 and #137 | These control parameters rather than process audio directly. Do not model them as ordinary audio insert devices. |
-| Send device and routing utilities | Mixer routing | Partial | #84 before expanded send devices | Current send metadata is placeholder-only. Audio sends need routing and deterministic summing rules first. |
+| Send device and routing utilities | Mixer routing | Partial | #84 foundation | Audio sends now have routing and deterministic summing rules; expanded send-specific utilities and UI remain follow-up scope. |
 | Native instrument devices | Instrument/module layer | Partial | #116 boundary exists; concrete instruments deferred | Instruments use the same module/state contract but are not part of this effect roadmap except where sampler-local processing overlaps #121. |
 | Tracker note/effect commands: delay, retrigger, arpeggio, slides, sample offset | Pattern command library | Partial | #85 expanded per-step FX commands | These are row playback semantics, not DSP devices. They may also write parameter locks once #123 exists. |
 | Third-party plugins | Plugin host boundary | Deferred | Future ADR only | Direct VST/AU/CLAP hosting remains out of scope for this roadmap. |
@@ -425,9 +425,9 @@ shared gates below.
 
 ## Relationship To Other Work
 
-- #84 owns send and master FX routing foundations. This roadmap can list send
-  placements, but send devices cannot be complete until audio send routing
-  exists.
+- #84 owns send and master FX routing foundations. Audio send routing now
+  exists; follow-up send devices should build on the same deterministic
+  realtime/offline bus path.
 - #85 owns tracker-native per-step commands. Commands such as retrigger, delay,
   arpeggio, and slides remain row-event semantics rather than native insert
   devices.

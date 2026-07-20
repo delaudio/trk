@@ -6,7 +6,8 @@ use crate::{
     backend::AudioConfig,
     dsp::{
         apply_dsp_chain_to_buffer, apply_dsp_chain_to_frame, apply_dsp_gain_to_aux_sample,
-        pan_gain, track_dsp_chain, DspDeviceSpec, DspFrameProcessor, DspGraphSpec, MixParams,
+        pan_gain, send_bus, track_dsp_chain, track_send_levels, DspDeviceSpec, DspFrameProcessor,
+        DspGraphSpec, MixParams,
     },
     errors::AudioExportError,
     offline_render::{OfflineRenderSpec, RenderedAudio},
@@ -64,6 +65,15 @@ struct RealtimeSamplerVoice {
     gain: f32,
     pan: f32,
     pitch_ratio: f32,
+}
+
+impl RealtimeSamplerVoice {
+    fn with_gain(&self, gain: f32) -> Self {
+        Self {
+            gain,
+            ..self.clone()
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -225,6 +235,12 @@ impl RealtimeSampler {
         let frames = data.len() / channels;
         let render_start = self.current_frame;
         let render_end = render_start.saturating_add(frames as u64);
+        let mut send_buffers = self
+            .dsp_graph
+            .sends
+            .iter()
+            .map(|send| (send.send_id, vec![0.0; data.len()]))
+            .collect::<HashMap<_, _>>();
 
         for voice in &self.voices {
             let Some(sample) = self.samples.get(&voice.sample_id) else {
@@ -235,9 +251,42 @@ impl RealtimeSampler {
                 end: render_end,
                 sample_rate: self.config.sample_rate,
             };
-            mix_realtime_voice(data, channels, sample, voice, window, &self.dsp_graph);
+            let track_devices = track_dsp_chain(voice.track_id, &self.dsp_graph);
+            mix_realtime_voice(data, channels, sample, voice, window, track_devices);
+            for track_send in track_send_levels(voice.track_id, &self.dsp_graph) {
+                let Some(bus) = send_bus(track_send.send_id, &self.dsp_graph) else {
+                    continue;
+                };
+                let Some(send_output) = send_buffers.get_mut(&track_send.send_id) else {
+                    continue;
+                };
+                if !track_send.gain.is_finite() {
+                    continue;
+                }
+                let tap_devices = if bus.pre_fader { &[] } else { track_devices };
+                let send_voice = voice.with_gain(voice.gain * track_send.gain.max(0.0));
+                mix_realtime_voice(
+                    send_output,
+                    channels,
+                    sample,
+                    &send_voice,
+                    window,
+                    tap_devices,
+                );
+            }
         }
 
+        for send in &self.dsp_graph.sends {
+            if let Some(send_output) = send_buffers.get_mut(&send.send_id) {
+                apply_dsp_chain_to_buffer(
+                    send_output,
+                    channels,
+                    self.config.sample_rate,
+                    &send.devices,
+                );
+                sum_buffer_into(data, send_output);
+            }
+        }
         apply_dsp_chain_to_buffer(
             data,
             channels,
@@ -385,7 +434,7 @@ fn mix_realtime_voice(
     sample: &PreviewBuffer,
     voice: &RealtimeSamplerVoice,
     window: RealtimeRenderWindow,
-    dsp_graph: &DspGraphSpec,
+    track_devices: &[DspDeviceSpec],
 ) {
     let voice_end = voice_end_frame(voice, sample).unwrap_or(u64::MAX);
     let mix_start = window.start.max(voice.start_frame);
@@ -399,7 +448,6 @@ fn mix_realtime_voice(
         level: voice.gain,
         pan: voice.pan,
     };
-    let track_devices = track_dsp_chain(voice.track_id, dsp_graph);
     let mut processor = DspFrameProcessor::default();
     processor.prepare(window.sample_rate, channels, track_devices);
 
@@ -420,6 +468,12 @@ fn mix_realtime_voice(
             track_devices,
             &mut processor,
         );
+    }
+}
+
+fn sum_buffer_into(output: &mut [f32], source: &[f32]) {
+    for (output, source) in output.iter_mut().zip(source.iter()) {
+        *output += *source;
     }
 }
 

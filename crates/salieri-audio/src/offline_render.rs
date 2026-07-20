@@ -6,8 +6,8 @@ use crate::{
     backend::AudioConfig,
     dsp::{
         apply_dsp_chain_to_buffer, apply_dsp_chain_to_frame, apply_dsp_gain_to_aux_sample,
-        pan_gain, track_dsp_chain, validate_dsp_chain, DspDeviceSpec, DspFrameProcessor,
-        DspGraphSpec, MixParams,
+        pan_gain, send_bus, track_dsp_chain, track_send_levels, validate_dsp_chain, DspDeviceSpec,
+        DspFrameProcessor, DspGraphSpec, MixParams,
     },
     errors::AudioExportError,
     shared::{interpolated_sample, validate_sampler_render_sample, validated_pitch_ratio},
@@ -126,6 +126,14 @@ pub fn render_sampler_events_with_dsp(
         spec.frames
     };
     let mut data = vec![0.0; frames.saturating_mul(channels)];
+    let mut send_buffers = dsp_graph
+        .sends
+        .iter()
+        .map(|send| (send.send_id, vec![0.0; frames.saturating_mul(channels)]))
+        .collect::<HashMap<_, _>>();
+    for send in &dsp_graph.sends {
+        validate_dsp_chain(&send.devices)?;
+    }
 
     for event in events {
         let sample =
@@ -158,8 +166,31 @@ pub fn render_sampler_events_with_dsp(
             sample_rate: spec.sample_rate,
         };
         mix_sample_event(&mut data, context, sample, params, track_devices);
+        for track_send in track_send_levels(event.track_id, dsp_graph) {
+            let Some(bus) = send_bus(track_send.send_id, dsp_graph) else {
+                continue;
+            };
+            let Some(send_output) = send_buffers.get_mut(&track_send.send_id) else {
+                continue;
+            };
+            if !track_send.gain.is_finite() {
+                continue;
+            }
+            let send_params = MixParams {
+                level: params.level * track_send.gain.max(0.0),
+                ..params
+            };
+            let tap_devices = if bus.pre_fader { &[] } else { track_devices };
+            mix_sample_event(send_output, context, sample, send_params, tap_devices);
+        }
     }
 
+    for send in &dsp_graph.sends {
+        if let Some(send_output) = send_buffers.get_mut(&send.send_id) {
+            apply_dsp_chain_to_buffer(send_output, channels, spec.sample_rate, &send.devices);
+            sum_buffer_into(&mut data, send_output);
+        }
+    }
     apply_dsp_chain_to_buffer(&mut data, channels, spec.sample_rate, &dsp_graph.master);
 
     Ok(RenderedAudio {
@@ -168,6 +199,12 @@ pub fn render_sampler_events_with_dsp(
         frames,
         data,
     })
+}
+
+fn sum_buffer_into(output: &mut [f32], source: &[f32]) {
+    for (output, source) in output.iter_mut().zip(source.iter()) {
+        *output += *source;
+    }
 }
 
 fn infer_sampler_render_frames(
