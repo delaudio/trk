@@ -9,12 +9,16 @@ pub mod diagnostics;
 mod fixtures;
 pub mod legacy;
 pub mod midi;
+pub mod musicxml;
 mod shared;
 pub mod xrns;
 
 pub use diagnostics::*;
 pub use legacy::{extract_tracker_module_samples, import_tracker_module, inspect_tracker_module};
 pub use midi::{export_pattern_smf, import_smf, MidiExportOptions};
+pub use musicxml::{
+    export_pattern_musicxml, import_musicxml, validate_musicxml_round_trip, MusicXmlExportOptions,
+};
 pub use xrns::{
     extract_xrns_sample_payloads, import_xrns, import_xrns_with_sample_paths, inspect_xrns,
 };

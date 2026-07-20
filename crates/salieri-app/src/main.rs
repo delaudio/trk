@@ -5,6 +5,7 @@ mod app_event;
 mod app_mode;
 mod browser_io;
 mod cli;
+mod cli_musicxml;
 mod command;
 mod command_palette;
 mod composition_graph;
@@ -17,6 +18,7 @@ mod intent_handler;
 mod keymap;
 mod live_bridge;
 mod midi_cli;
+mod musicxml_workflows;
 mod notifications;
 mod persistence;
 mod playback_runtime;
@@ -36,8 +38,10 @@ mod tests;
 
 use browser_io::*;
 use cli::*;
+use cli_musicxml::*;
 use helpers::*;
 use midi_cli::*;
+use musicxml_workflows::*;
 use project_reports::*;
 use render_workflows::*;
 use report_workflows::*;
@@ -144,7 +148,9 @@ use salieri_core::{
     NATIVE_REVERB_WIDTH_PARAMETER_ID, NATIVE_WIDTH_PARAMETER_ID, SAMPLE_GAIN_PARAMETER_ID,
 };
 use salieri_interop::{
-    extract_xrns_sample_payloads, import_xrns, import_xrns_with_sample_paths,
+    export_pattern_musicxml, extract_xrns_sample_payloads, import_musicxml, import_smf,
+    import_xrns, import_xrns_with_sample_paths, validate_musicxml_round_trip, MidiExportOptions,
+    MusicXmlDiagnosticSeverity, MusicXmlExportOptions, MusicXmlRoundTripReport,
     XrnsDiagnosticSeverity,
 };
 use salieri_midi::{

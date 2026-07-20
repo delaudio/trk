@@ -9,6 +9,14 @@ Current MIDI file support is intentionally narrow:
 - map imported MIDI channels onto existing tracks by channel, creating tracks only when needed;
 - reject unsupported MIDI formats, SMPTE timing, SysEx, and unsupported event types with explicit errors.
 
+Current MusicXML support is a notation-interchange subset:
+
+- import `score-partwise` MusicXML parts as tracker tracks;
+- map `work-title`, `creator`, part names, tempo, note pitch, velocity, rests, and duration positions into Salieri metadata, transport, tracks, and pattern rows;
+- export a selected pattern as `score-partwise` with `part-list`, one part per track, 4/4 measures, row-sized note/rest durations, tempo, title, and author metadata;
+- validate MusicXML and MIDI round-trip survivability with readable text or JSON reports;
+- report unsupported notation constructs such as chords, ties, tuplets, grace notes, lyrics, `backup`, and `forward` as structured diagnostics instead of silently claiming lossless import.
+
 Current XRNS support is library-level and intentionally lossy:
 
 - inspect XRNS ZIP archives, locate root stored-or-deflated `Song.xml`, enumerate sample payloads, and report track, pattern, instrument, sample, and device metadata;
@@ -21,14 +29,20 @@ The CLI can write the supported subset directly to a Salieri project:
 ```bash
 salieri import xrns input.xrns output.salieri
 salieri import xrns input.xrns output.salieri --sample-dir fixtures/local/samples/demo --sample-path-prefix samples/demo
+salieri import musicxml score.musicxml score.salieri
+salieri export musicxml score.salieri score.musicxml --pattern 1
+salieri validate roundtrip score.salieri report.txt
+salieri validate roundtrip score.salieri report.json --format json
 ```
 
 `--sample-dir` extracts supported WAV payloads from the XRNS archive and rewrites imported sample references to the stored path prefix. This is intended for local demo libraries and manual parity checks; third-party Renoise demo songs and samples should stay under ignored local folders unless their license explicitly allows redistribution.
 
 Round-trip expectations:
 
-- note pitch, velocity, row placement, channel, and BPM are preserved for the supported subset;
+- MIDI note pitch, velocity, row placement, channel, and BPM are preserved for the supported subset;
+- MusicXML note pitch, velocity, row placement, tempo, title, author, and part names are preserved for the supported monophonic partwise subset;
 - Salieri-specific concepts such as pattern names, sequence positions, tracker commands, mute/solo state, sampler metadata, mixer state, and native DSP chains are not represented in MIDI files;
+- MusicXML does not preserve Salieri sequence, tracker commands, sampler metadata, mixer state, native DSP chains, clip state, or multi-note chord semantics in the current subset;
 - `.salieri` should be used for lossless project storage and Git diffs.
 
 ## Tracker And Renoise Research
@@ -47,7 +61,7 @@ References used for this decision:
 
 | Source data | Lossless now | Approximate | Unsupported for first pass |
 | --- | --- | --- | --- |
-| Pattern row count, track count, note pitch, note-off/cut intent | XRNS subset when directly represented | SMF row quantization | MOD/XM/IT/S3M quirks until a module parser/player exists |
+| Pattern row count, track count, note pitch, note-off/cut intent | XRNS subset when directly represented; MusicXML monophonic partwise notes/rests | SMF row quantization | MOD/XM/IT/S3M quirks until a module parser/player exists |
 | Velocity/volume/pan/delay/effect columns | XRNS note/effect columns plus supported FX1/FX2 timing commands | Deferred Renoise effect commands as preserved tracker commands with warnings | Effect columns beyond FX2 and DSP/device parameter commands without a Salieri equivalent |
 | WAV/AIFF/FLAC sample references embedded in XRNS | WAV samples after extraction/normalization | Non-WAV sample formats after decode support exists | Plugin instruments and generator devices |
 | Instruments and sample mappings | Single-sample instruments and simple key mapping | Multi-sample instruments as multiple Salieri instruments | Keyzones, velocity layers, slicing, modulation sets |
