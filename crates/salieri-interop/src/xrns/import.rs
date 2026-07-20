@@ -1,9 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
 use salieri_core::{
-    tracker_command_spec, EffectDevice, Instrument, InstrumentId, NoteEvent, PatternCell,
-    SampleEnvelope, SamplePlaybackMode, SampleReference, Song, TrackerCommand,
-    TrackerCommandSupport,
+    EffectDevice, Instrument, InstrumentId, NoteEvent, PatternCell, SampleEnvelope,
+    SamplePlaybackMode, SampleReference, Song,
 };
 
 use crate::diagnostics::{
@@ -13,6 +12,10 @@ use crate::diagnostics::{
 mod keyzones;
 mod samples;
 
+use super::effects::{
+    effect_command_needs_warning, effect_command_warning_message, normalize_xrns_effect_code,
+    translate_xrns_effect_command,
+};
 use keyzones::{instrument_zones, parse_keyzone_note, parse_keyzone_velocity};
 use samples::import_sample_references;
 
@@ -26,6 +29,7 @@ pub(super) struct XrnsImportModel {
     sequence: Vec<usize>,
     bpm: Option<u16>,
     lines_per_beat: Option<u8>,
+    ticks_per_line: Option<u8>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -85,7 +89,7 @@ struct PendingXrnsLine {
     track: usize,
     row: Option<usize>,
     cell: PatternCell,
-    effect_code: Option<u8>,
+    effect_code: Option<String>,
     effect_value: Option<u8>,
 }
 
@@ -205,21 +209,16 @@ pub(super) fn parse_xrns_import_model(
                 } else if name == "Effect" {
                     if let Some(line) = &mut current_line {
                         if let Some(code) = line.effect_code.take() {
-                            let command = TrackerCommand {
-                                code,
-                                value: line.effect_value.take().unwrap_or(0),
-                            };
-                            if tracker_command_spec(code)
-                                .is_none_or(|spec| spec.support != TrackerCommandSupport::Supported)
-                            {
+                            let value = line.effect_value.take().unwrap_or(0);
+                            let translated =
+                                translate_xrns_effect_command(&code, value, model.ticks_per_line);
+                            let command = translated.command;
+                            if effect_command_needs_warning(command) {
                                 diagnostics.push(xrns_diagnostic(
                                     XrnsDiagnosticKind::UnsupportedEffectCommand,
                                     XrnsDiagnosticSeverity::Warning,
                                     Some(xml_location(&stack, &name)),
-                                    format!(
-                                        "unknown Renoise effect command {} preserved as tracker command",
-                                        code as char
-                                    ),
+                                    effect_command_warning_message(&translated, value),
                                 ));
                             }
                             if line.cell.command.is_none() {
@@ -295,6 +294,13 @@ pub(super) fn parse_xrns_import_model(
                         .ok()
                         .filter(|lines_per_beat| *lines_per_beat > 0)
                         .or(model.lines_per_beat);
+                } else if matches!(current, "TicksPerLine" | "TPL") {
+                    model.ticks_per_line = text
+                        .trim()
+                        .parse::<u8>()
+                        .ok()
+                        .filter(|ticks_per_line| *ticks_per_line > 0)
+                        .or(model.ticks_per_line);
                 }
             }
         }
@@ -328,13 +334,7 @@ fn apply_xrns_line_text(
         "Volume" => line.cell.volume = parse_xrns_note_column_level(text),
         "Pan" | "Panning" => line.cell.pan = parse_xrns_note_column_level(text),
         "Delay" => line.cell.delay = parse_xrns_hex_u8_value(text),
-        "Code" | "Command" => {
-            line.effect_code = text
-                .as_bytes()
-                .first()
-                .copied()
-                .map(|byte| byte.to_ascii_uppercase());
-        }
+        "Code" | "Command" => line.effect_code = normalize_xrns_effect_code(text),
         "Value" => line.effect_value = parse_xrns_hex_u8_value(text),
         "SourceTick" | "SourceTime" => diagnostics.push(xrns_diagnostic(
             XrnsDiagnosticKind::TimingQuantized,
