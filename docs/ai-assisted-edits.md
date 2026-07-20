@@ -15,6 +15,7 @@ Current foundation:
 In-app workflow:
 
 ```text
+:ai chat
 :ai provider
 :ai propose PROMPT
 :ai show
@@ -22,16 +23,22 @@ In-app workflow:
 :ai reject
 ```
 
+`:ai chat` opens the tracker-native AI Chat view. The view shows local thread
+messages, provider/status, selected pattern/track/row context, and a composer.
+Typing a prompt and pressing `Enter` submits it through the same reviewable
+proposal path as `:ai propose`; `Esc` returns to the tracker and `Ctrl+C`
+requests cancellation of the active task.
+
 `:ai provider` reports the configured provider, model, and availability before a
 prompt is submitted. `:ai propose` submits the configured local or mock provider
 to the application [task runtime](tasks.md) with the current pattern and track as
 context. Missing credentials or missing CLI binaries are reported before any task
 is queued. The TUI remains responsive while generation and preview validation
-run. A successful task stores a pending proposal and reports the touched cells
-without mutating the song. `:ai show` repeats the summary. `:ai accept` applies
-the proposal through the normal undo transaction mechanism, so `Ctrl+Z` can
-revert the generated edit. `:ai reject` clears the pending proposal without
-changing the song.
+run. A successful task stores a pending proposal, appends an assistant message,
+and reports the touched cells without mutating the song. `:ai show` repeats the
+summary. `:ai accept` applies the proposal through the normal undo transaction
+mechanism, so `Ctrl+Z` can revert the generated edit. `:ai reject` clears the
+pending proposal without changing the song.
 
 CLI integrations should print or serialize proposals before applying them so
 generated changes remain reviewable.

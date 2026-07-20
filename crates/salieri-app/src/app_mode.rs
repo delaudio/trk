@@ -13,6 +13,7 @@ pub enum AppMode {
     Tracks,
     Patterns,
     Sampler,
+    Ai,
     SampleBrowser,
     ProjectBrowser,
 }
@@ -31,6 +32,7 @@ impl AppMode {
             Self::Tracks => "TRACKS",
             Self::Patterns => "PATTERNS",
             Self::Sampler => "SAMPLER",
+            Self::Ai => "AI",
             Self::SampleBrowser => "SAMPLES",
             Self::ProjectBrowser => "PROJECTS",
         }
@@ -49,6 +51,7 @@ impl AppMode {
             Self::Tracks => KeymapMode::Tracks,
             Self::Patterns => KeymapMode::Patterns,
             Self::Sampler => KeymapMode::Sampler,
+            Self::Ai => KeymapMode::Ai,
             Self::SampleBrowser => KeymapMode::SampleBrowser,
             Self::ProjectBrowser => KeymapMode::ProjectBrowser,
         }

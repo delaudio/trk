@@ -244,4 +244,37 @@ impl App {
                 message: browser.message.as_deref(),
             })
     }
+
+    pub(crate) fn tui_ai_chat_messages(&self) -> Vec<AiChatMessageView<'_>> {
+        self.ai_thread
+            .messages
+            .iter()
+            .map(|message| AiChatMessageView {
+                role: match message.role {
+                    AiMessageRole::System => AiChatMessageRole::System,
+                    AiMessageRole::User => AiChatMessageRole::User,
+                    AiMessageRole::Assistant => AiChatMessageRole::Assistant,
+                    AiMessageRole::Error => AiChatMessageRole::Error,
+                    AiMessageRole::Progress => AiChatMessageRole::Progress,
+                },
+                text: message.text.as_str(),
+            })
+            .collect()
+    }
+
+    pub(crate) fn tui_ai_chat_view<'a>(
+        &'a self,
+        messages: &'a [AiChatMessageView<'a>],
+        provider: &'a str,
+        status: &'a str,
+        context: &'a str,
+    ) -> Option<AiChatViewState<'a>> {
+        (self.mode == AppMode::Ai).then_some(AiChatViewState {
+            provider,
+            status,
+            composer: self.ai_thread.composer.as_str(),
+            messages,
+            selected_context: context,
+        })
+    }
 }

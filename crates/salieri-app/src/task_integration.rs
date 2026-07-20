@@ -16,9 +16,14 @@ use crate::{
     task_runtime::{TaskDiagnostic, TaskFailure, TaskId, TaskProgress, TaskSnapshot, TaskUpdate},
     App, DEFAULT_NOTE_VELOCITY,
 };
+use crate::{AiMessage, AiMessageRole};
 
 impl App {
     pub(super) fn create_ai_proposal(&mut self, prompt: String) {
+        self.ai_thread.messages.push(AiMessage {
+            role: AiMessageRole::User,
+            text: prompt.clone(),
+        });
         self.dispatch_intent(AppIntent::Ai(AiIntent::Propose(prompt)));
     }
 
@@ -50,11 +55,16 @@ impl App {
     ) {
         let diagnostics = ai_provider_diagnostics(&provider);
         if !diagnostics.is_empty() {
-            self.notify_error(format!(
+            let message = format!(
                 "AI provider {} unavailable: {}",
                 provider.provider,
                 diagnostics.join("; ")
-            ));
+            );
+            self.ai_thread.messages.push(AiMessage {
+                role: AiMessageRole::Error,
+                text: message.clone(),
+            });
+            self.notify_error(message);
             return;
         }
         let provider_label = ai_provider_label(&provider);
@@ -77,6 +87,10 @@ impl App {
                 }))
             }),
         );
+        self.ai_thread.messages.push(AiMessage {
+            role: AiMessageRole::Progress,
+            text: format!("Task #{id} queued via {provider_label}"),
+        });
         self.notify_info(format!(
             "Task #{id} queued: AI proposal via {provider_label}"
         ));
@@ -105,13 +119,26 @@ impl App {
                     let summary =
                         format_ai_proposal_summary(&prepared.proposal, &prepared.touched_cells);
                     self.pending_ai_proposal = Some(prepared);
+                    self.ai_thread.messages.push(AiMessage {
+                        role: AiMessageRole::Assistant,
+                        text: summary.clone(),
+                    });
                     self.notify_success(format!("Task #{id} completed: {summary}"));
                 }
             },
             TaskUpdate::Failed { diagnostics, .. } => {
-                self.notify_error(format_task_failure(id, &name, &diagnostics));
+                let failure = format_task_failure(id, &name, &diagnostics);
+                self.ai_thread.messages.push(AiMessage {
+                    role: AiMessageRole::Error,
+                    text: failure.clone(),
+                });
+                self.notify_error(failure);
             }
             TaskUpdate::Cancelled { .. } => {
+                self.ai_thread.messages.push(AiMessage {
+                    role: AiMessageRole::Progress,
+                    text: format!("Task #{id} cancelled: {name}"),
+                });
                 self.notify_warning(format!("Task #{id} cancelled: {name}"));
             }
         }
@@ -159,6 +186,20 @@ impl App {
             Some(task) => self.notify_info(format!("Task #{id} already {}", task.status)),
             None => self.notify_warning(format!("Task #{id} not found")),
         }
+    }
+
+    pub(super) fn cancel_active_task(&mut self) {
+        let Some(id) = self
+            .task_runtime
+            .tasks()
+            .rev()
+            .find(|task| !task.status.is_terminal())
+            .map(|task| task.id)
+        else {
+            self.notify_warning("No active task");
+            return;
+        };
+        self.cancel_task(id);
     }
 
     fn task_name(&self, id: TaskId) -> String {

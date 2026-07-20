@@ -4,6 +4,7 @@ use crate::task_integration::format_ai_provider_status;
 impl App {
     pub(crate) fn handle_ai_command(&mut self, values: &[&str]) {
         match values {
+            ["chat"] | ["open"] => self.open_ai_chat_view(),
             [] | ["provider"] | ["status"] => {
                 self.notify_info(format_ai_provider_status(&self.ai_config));
             }
@@ -21,9 +22,24 @@ impl App {
                 }
             }
             _ => self.notify_warning(
-                "Usage: :ai provider | :ai propose PROMPT | :ai show | :ai accept | :ai reject",
+                "Usage: :ai chat | :ai provider | :ai propose PROMPT | :ai show | :ai accept | :ai reject",
             ),
         }
+    }
+
+    pub(crate) fn open_ai_chat_view(&mut self) {
+        self.focus_panel(FocusPanel::Ai);
+        self.notify_info(format_ai_provider_status(&self.ai_config));
+    }
+
+    pub(crate) fn submit_ai_chat_prompt(&mut self) {
+        let prompt = self.ai_thread.composer.trim().to_string();
+        if prompt.is_empty() {
+            self.notify_warning("AI prompt cannot be empty");
+            return;
+        }
+        self.ai_thread.composer.clear();
+        self.create_ai_proposal(prompt);
     }
 
     pub(crate) fn show_ai_proposal(&mut self) {

@@ -103,6 +103,21 @@ fn run(args: CliArgs) -> Result<()> {
             let command_palette_entries = app.tui_command_palette_entries();
             let command_palette = app.tui_command_palette(&command_palette_entries);
             let midi_status = app.tui_midi_status();
+            let ai_chat_messages = app.tui_ai_chat_messages();
+            let ai_provider = format!("{} model={}", app.ai_config.provider, app.ai_config.model);
+            let ai_status = crate::task_integration::format_ai_provider_status(&app.ai_config);
+            let ai_context = format!(
+                "Context: pattern {:02}, track {:02}, row {:02}",
+                app.pattern_index + 1,
+                app.cursor.track + 1,
+                app.cursor.row
+            );
+            let ai_chat = app.tui_ai_chat_view(
+                &ai_chat_messages,
+                ai_provider.as_str(),
+                ai_status.as_str(),
+                ai_context.as_str(),
+            );
             render(
                 frame,
                 &app.song,
@@ -139,6 +154,7 @@ fn run(args: CliArgs) -> Result<()> {
                     sampler_view: app.tui_sampler_view(),
                     sample_browser,
                     project_browser,
+                    ai_chat,
                     tracker_layout: app.tracker_layout,
                 },
             );

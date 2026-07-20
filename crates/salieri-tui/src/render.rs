@@ -102,6 +102,7 @@ pub struct TuiState<'a> {
     pub sampler_view: Option<SamplerViewState<'a>>,
     pub sample_browser: Option<SampleBrowserViewState<'a>>,
     pub project_browser: Option<ProjectBrowserViewState<'a>>,
+    pub ai_chat: Option<AiChatViewState<'a>>,
     pub tracker_layout: TrackerLayoutState,
 }
 
@@ -114,6 +115,31 @@ pub enum TuiView {
     Sampler,
     SampleBrowser,
     ProjectBrowser,
+    AiChat,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AiChatViewState<'a> {
+    pub provider: &'a str,
+    pub status: &'a str,
+    pub composer: &'a str,
+    pub messages: &'a [AiChatMessageView<'a>],
+    pub selected_context: &'a str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AiChatMessageView<'a> {
+    pub role: AiChatMessageRole,
+    pub text: &'a str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AiChatMessageRole {
+    System,
+    User,
+    Assistant,
+    Error,
+    Progress,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -513,6 +539,10 @@ fn render_body(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'
     }
     if state.active_view == TuiView::ProjectBrowser {
         render_project_browser(frame, area, state.project_browser);
+        return;
+    }
+    if state.active_view == TuiView::AiChat {
+        render_ai_chat_view(frame, area, state.ai_chat);
         return;
     }
 
@@ -2323,6 +2353,11 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
             " {} | H Help | Esc Tracker | Up/Down Select | Enter Open | Backspace Parent | r Refresh | : Command | q Quit ",
             state.mode_label
         )
+    } else if state.active_view == TuiView::AiChat {
+        format!(
+            " {} | Esc Tracker | Enter Submit | Ctrl+C Cancel Task | : Command | :ai provider | q Quit ",
+            state.mode_label
+        )
     } else {
         format!(
             " {}{} | Step {} | Ctrl+P Palette | H Help | Focus :t/:p/:se/:tr/:sa/:sb/:o | F4-MIDI | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern | A/Y/R Seq | : Command | i Edit | V Select | Ctrl+S Save | q Quit ",
@@ -2333,6 +2368,85 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
     };
     let status = Paragraph::new(text);
     frame.render_widget(status, area);
+}
+
+fn render_ai_chat_view(frame: &mut Frame<'_>, area: Rect, chat: Option<AiChatViewState<'_>>) {
+    let Some(chat) = chat else {
+        let empty = Paragraph::new("AI chat unavailable")
+            .block(Block::default().title(" AI Chat ").borders(Borders::ALL));
+        frame.render_widget(empty, area);
+        return;
+    };
+    let chunks = Layout::default()
+        .direction(LayoutDirection::Vertical)
+        .constraints([
+            Constraint::Length(3),
+            Constraint::Min(5),
+            Constraint::Length(3),
+        ])
+        .split(area);
+    let header = Paragraph::new(vec![
+        Line::from(vec![
+            Span::styled("Provider ", Style::default().fg(Color::Cyan)),
+            Span::raw(chat.provider.to_string()),
+            Span::raw(" | "),
+            Span::styled("Status ", Style::default().fg(Color::Cyan)),
+            Span::raw(chat.status.to_string()),
+        ]),
+        Line::from(chat.selected_context.to_string()),
+    ])
+    .block(Block::default().title(" AI Chat ").borders(Borders::ALL));
+    frame.render_widget(header, chunks[0]);
+
+    let available_rows = chunks[1].height.saturating_sub(2) as usize;
+    let skip = chat.messages.len().saturating_sub(available_rows);
+    let mut lines = Vec::new();
+    for message in chat.messages.iter().skip(skip) {
+        lines.push(Line::from(vec![
+            Span::styled(
+                ai_chat_role_label(message.role),
+                Style::default()
+                    .fg(ai_chat_role_color(message.role))
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" "),
+            Span::raw(message.text.to_string()),
+        ]));
+    }
+    if lines.is_empty() {
+        lines.push(Line::from(
+            "No messages yet. Type a prompt below and press Enter.",
+        ));
+    }
+    let transcript = Paragraph::new(lines)
+        .wrap(Wrap { trim: false })
+        .block(Block::default().title(" Thread ").borders(Borders::ALL));
+    frame.render_widget(transcript, chunks[1]);
+
+    let composer = Paragraph::new(chat.composer.to_string())
+        .wrap(Wrap { trim: false })
+        .block(Block::default().title(" Composer ").borders(Borders::ALL));
+    frame.render_widget(composer, chunks[2]);
+}
+
+fn ai_chat_role_label(role: AiChatMessageRole) -> &'static str {
+    match role {
+        AiChatMessageRole::System => "system:",
+        AiChatMessageRole::User => "user:",
+        AiChatMessageRole::Assistant => "assistant:",
+        AiChatMessageRole::Error => "error:",
+        AiChatMessageRole::Progress => "progress:",
+    }
+}
+
+fn ai_chat_role_color(role: AiChatMessageRole) -> Color {
+    match role {
+        AiChatMessageRole::System => Color::Yellow,
+        AiChatMessageRole::User => Color::Green,
+        AiChatMessageRole::Assistant => Color::Cyan,
+        AiChatMessageRole::Error => Color::Red,
+        AiChatMessageRole::Progress => Color::Magenta,
+    }
 }
 
 fn waveform_lines(
@@ -2644,6 +2758,9 @@ fn format_note(pitch: u8) -> String {
 }
 
 #[cfg(test)]
+#[path = "render_tests/ai_chat.rs"]
+mod render_ai_chat_tests;
+#[cfg(test)]
 #[path = "render_tests/display.rs"]
 mod render_display_tests;
 #[cfg(test)]
@@ -2658,3 +2775,6 @@ mod render_pattern_tests;
 #[cfg(test)]
 #[path = "render_tests/support.rs"]
 mod render_test_support;
+#[cfg(test)]
+#[path = "render_tests/waveform.rs"]
+mod render_waveform_tests;

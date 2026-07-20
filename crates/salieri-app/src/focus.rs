@@ -8,6 +8,7 @@ pub enum FocusPanel {
     Tracks,
     Patterns,
     Sampler,
+    Ai,
     SampleBrowser,
     ProjectBrowser,
     MidiSettings,
@@ -22,6 +23,7 @@ impl FocusPanel {
             Self::Tracks => AppMode::Tracks,
             Self::Patterns => AppMode::Patterns,
             Self::Sampler => AppMode::Sampler,
+            Self::Ai => AppMode::Ai,
             Self::SampleBrowser => AppMode::SampleBrowser,
             Self::ProjectBrowser => AppMode::ProjectBrowser,
             Self::MidiSettings => AppMode::MidiSettings,
@@ -36,6 +38,7 @@ impl FocusPanel {
             Self::Tracks => TuiView::Tracks,
             Self::Patterns => TuiView::Patterns,
             Self::Sampler => TuiView::Sampler,
+            Self::Ai => TuiView::AiChat,
             Self::SampleBrowser => TuiView::SampleBrowser,
             Self::ProjectBrowser => TuiView::ProjectBrowser,
         }

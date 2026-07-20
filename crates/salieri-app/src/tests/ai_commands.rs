@@ -115,3 +115,46 @@ fn command_mode_ai_proposal_can_be_rejected_without_mutating_song() {
     assert_eq!(app.song, before);
     assert!(app.pending_ai_proposal.is_none());
 }
+
+#[test]
+fn ai_chat_command_opens_native_view() {
+    let mut app = App::default();
+
+    enter_command(&mut app, "ai chat");
+
+    assert_eq!(app.mode, AppMode::Ai);
+    assert_eq!(app.tui_active_view(), TuiView::AiChat);
+    assert!(app
+        .notification
+        .as_ref()
+        .expect("provider status")
+        .message
+        .contains("AI provider local_deterministic"));
+}
+
+#[test]
+fn ai_chat_composer_submits_prompt_without_mutating_until_accept() {
+    let mut app = App::default();
+    let before = app.song.clone();
+
+    enter_command(&mut app, "ai chat");
+    for ch in "chat bass sketch".chars() {
+        app.handle_key(KeyEvent::new(KeyCode::Char(ch), KeyModifiers::NONE));
+    }
+    app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+    app.wait_for_tasks();
+
+    assert_eq!(app.song, before);
+    assert!(app.pending_ai_proposal.is_some());
+    assert!(app.ai_thread.composer.is_empty());
+    assert!(app
+        .ai_thread
+        .messages
+        .iter()
+        .any(|message| message.role == AiMessageRole::User && message.text == "chat bass sketch"));
+    assert!(app
+        .ai_thread
+        .messages
+        .iter()
+        .any(|message| message.role == AiMessageRole::Assistant));
+}

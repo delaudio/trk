@@ -46,6 +46,7 @@ fn project_display_preferences_affect_pattern_rendering() {
                     sampler_view: None,
                     sample_browser: None,
                     project_browser: None,
+                    ai_chat: None,
                     tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );
