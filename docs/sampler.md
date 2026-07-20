@@ -42,6 +42,10 @@ After loading a WAV, assign it to the current track:
 :sample envelope 0.005 0.040 0.800 0.080
 :sample render-selection bounces/loop.wav
 :sample render-selection bounces/loop.wav --assign 2
+:sample recorder inputs
+:sample recorder capture 48000
+:sample recorder trim 1200 36000
+:sample recorder save-load recordings/take.wav --assign 2
 :sample settings
 :sample unload
 :sample cleanup
@@ -59,6 +63,14 @@ into the sampler view, and stores it as a project sample reference. Add
 track. File/audio failures are reported before the project is mutated. External
 MIDI-only destinations are not captured; selections with no internal sampler
 events render as silence.
+
+`sample recorder` captures bounded WAV takes from a system audio input when the
+platform reports one. `inputs` lists devices, `capture FRAMES [DEVICE_ID]`
+records a bounded take, `trim START END` crops the captured frame range, and
+`save-load PATH [--assign TRACK]` writes the WAV, opens it in the sampler view,
+adds a project sample reference, and optionally assigns it to a track. The
+recorder state machine is independent from the platform input source, so
+headless and CI environments can test transitions with fake input frames.
 
 Playback settings are also saved in `.salieri` project files:
 

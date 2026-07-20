@@ -382,6 +382,10 @@ T               Set selected song slot to current pattern
 :sample loop off
 :sample envelope 0.005 0.040 0.800 0.080
 :sample render-selection bounces/loop.wav --assign 2
+:sample recorder inputs
+:sample recorder capture 48000
+:sample recorder trim 1200 36000
+:sample recorder save-load recordings/take.wav --assign 2
 :sample unload
 :sample cleanup
 :sample assignments
@@ -451,11 +455,16 @@ Ctrl+J                      Open sampler view
 :sample loop [backward|pingpong] START END|off
 :sample mode MODE           one-shot, forward-loop, backward-loop, pingpong-loop, reverse
 :sample envelope A D S R    Set attack/decay/sustain/release
+:sample recorder inputs     List available system audio inputs
+:sample recorder capture FRAMES [DEVICE_ID]
+:sample recorder trim START END
+:sample recorder save PATH
+:sample recorder save-load PATH [--assign TRACK]
 :sample settings            Show playback settings for the loaded sample
 :sample cleanup             Remove unused sample references
 ```
 
-Assigned samples are routed into the internal realtime audio command boundary during playback and rendered through the default CPAL output device. Samples are sliced by start/end frame, shaped by the configured envelope, and prepared for the output sample rate and channel count before playback/export. Forward, backward, ping-pong, and reverse playback modes are shared by realtime and offline rendering. `:sample render-selection PATH [--assign TRACK]` bounces the active tracker selection to a WAV sample reference and can assign it immediately. See [docs/sampler.md](docs/sampler.md), [docs/audio-engine.md](docs/audio-engine.md), and [docs/audio-export.md](docs/audio-export.md).
+Assigned samples are routed into the internal realtime audio command boundary during playback and rendered through the default CPAL output device. Samples are sliced by start/end frame, shaped by the configured envelope, and prepared for the output sample rate and channel count before playback/export. Forward, backward, ping-pong, and reverse playback modes are shared by realtime and offline rendering. `:sample render-selection PATH [--assign TRACK]` bounces the active tracker selection to a WAV sample reference and can assign it immediately. `:sample recorder capture FRAMES [DEVICE_ID]` records a bounded WAV from a system audio input when one is available; `trim`, `save`, and `save-load` crop, persist, and load the take into the sampler. See [docs/sampler.md](docs/sampler.md), [docs/audio-engine.md](docs/audio-engine.md), and [docs/audio-export.md](docs/audio-export.md).
 
 Performance punch-ins are temporary runtime overrides. `:performance slot SLOT [track TRACK] gain|pan|sample-gain VALUE` configures a slot, `:performance punch SLOT` applies it to the playback clone, and `:performance release SLOT` restores the saved project state.
 

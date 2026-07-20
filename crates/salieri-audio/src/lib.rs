@@ -7,6 +7,7 @@ pub mod errors;
 pub mod export;
 #[cfg(test)]
 mod fixtures;
+pub mod input_recorder;
 pub mod levels;
 pub mod native_module;
 pub mod offline_render;
@@ -23,6 +24,10 @@ pub use dsp::{
 };
 pub use errors::{AudioError, AudioExportError};
 pub use export::{encode_audio, supported_audio_export_formats, AudioExportFormat};
+pub use input_recorder::{
+    AudioInputCapture, AudioInputDeviceInfo, AudioInputError, AudioInputSource,
+    CpalAudioInputSource, SampleRecorder, SampleRecorderStatus,
+};
 pub use levels::{measure_levels, LevelMeter};
 pub use native_module::{
     NativeEffectModule, NativeEffectModuleSpec, NativeEffectParameterValue, NativeModulePrepareSpec,

@@ -193,6 +193,56 @@ fn sample_render_selection_failure_does_not_mutate_project() {
 }
 
 #[test]
+fn sample_recorder_save_load_trims_and_assigns_recorded_wav() {
+    let mut app = App::default();
+    let output_path = std::env::temp_dir().join(format!(
+        "salieri-recorder-save-load-{}.wav",
+        std::process::id()
+    ));
+    app.load_fake_sample_recording_for_test(salieri_audio::RenderedAudio {
+        sample_rate: 44_100,
+        channels: 1,
+        frames: 4,
+        data: vec![0.0, 0.5, -0.5, 0.25],
+    });
+
+    enter_command(&mut app, "sample recorder trim 1 3");
+    enter_command(
+        &mut app,
+        &format!(
+            "sample recorder save-load {} --assign 2",
+            output_path.display()
+        ),
+    );
+
+    let bytes = std::fs::read(&output_path).expect("recorded wav");
+    assert_eq!(&bytes[0..4], b"RIFF");
+    assert_eq!(&bytes[8..12], b"WAVE");
+    let sample = app
+        .song
+        .samples
+        .iter()
+        .find(|sample| sample.path == output_path.to_string_lossy())
+        .expect("recorded sample reference");
+    assert_eq!(
+        sample.name,
+        output_path.file_name().unwrap().to_string_lossy()
+    );
+    assert_eq!(
+        app.song
+            .sample_assignment_for_track(app.song.tracks[1].id)
+            .expect("recorded sample assignment")
+            .sample,
+        sample.id
+    );
+    let sampler = app.tui_sampler_view().expect("sampler view");
+    assert_eq!(sampler.overview.frames, 2);
+    assert!(app.dirty);
+
+    let _ = std::fs::remove_file(&output_path);
+}
+
+#[test]
 fn sampler_commands_edit_playback_settings() {
     let mut app = App::default();
     let path = std::env::temp_dir().join(format!(

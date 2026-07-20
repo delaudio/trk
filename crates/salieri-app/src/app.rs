@@ -22,6 +22,7 @@ mod preset_actions;
 mod project_browser;
 mod report_actions;
 mod sample_browser;
+mod sample_recorder_actions;
 mod sampler_actions;
 mod state;
 mod text_notes;
