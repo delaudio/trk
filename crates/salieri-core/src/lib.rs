@@ -21,8 +21,9 @@ pub use model::{
     InstrumentSampleZone, MixerSend, MixerState, NoteEvent, ParameterLock, ParameterLockAction,
     ParameterLockDiagnostic, ParameterLockTarget, Pattern, PatternCell, PatternId, PatternRow,
     SampleEnvelope, SampleId, SamplePlaybackMode, SamplePlaybackSettings, SampleReference, Song,
-    SongMetadata, Track, TrackId, TrackInstrumentAssignment, TrackMixerState,
-    TrackSampleAssignment, TrackSendLevel, TrackerCommand, TransportSettings, ValidationError,
+    SongMetadata, TextAnnotation, TextAnnotationKind, TextAnnotationScope, Track, TrackId,
+    TrackInstrumentAssignment, TrackMixerState, TrackSampleAssignment, TrackSendLevel,
+    TrackerCommand, TransportSettings, ValidationError,
 };
 pub use native_module::*;
 pub use parameter_locks::{parameter_lock_events, ParameterLockEvent};

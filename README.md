@@ -8,6 +8,7 @@ The primary realtime playback path remains MIDI-first for external instruments, 
 
 - Terminal tracker UI with pattern, track, sequence, sampler, MIDI, and help views.
 - Pattern editing with keyboard note entry, note-off/note-cut, velocity, instrument, volume, pan, delay, effect columns, row insert/delete, selection copy/cut/paste/delete, undo/redo, and playhead follow.
+- Optional project, pattern-row, lyric, and cue text annotations that persist without affecting playback.
 - Track, pattern, and sequence management, including rename, duplicate, delete, move, mute/solo, pattern length, and arrangement playback.
 - MIDI output routing with port listing, connection from the TUI, panic/all-notes-off, channel assignment, logging, and MIDI test-note CLI support.
 - MIDI input port listing, command-mode connection, note-on recording into the current pattern, and basic MIDI clock start/continue/stop following.
@@ -336,6 +337,11 @@ T               Set sequence position to current pattern
 :pattern expand
 :pattern shrink
 :pattern duplicate-selection
+:note project Arrangement sketch
+:note pattern 16 Verse lyric/cue
+:note lyric pattern 24 Words aligned to row
+:note cue sequence 0 Intro
+:note report
 :sequence add
 :sequence set 0 2
 :sequence move 1 0
@@ -459,6 +465,7 @@ The exporter renders sampler events only. MIDI-only external instruments are not
 ## Project Files
 
 Salieri saves JSON projects with the `.salieri` extension. The file contains a `formatVersion` and a serializable song model so projects can be versioned in Git.
+Optional text annotations are saved with the song and can be reviewed with `:note list` or `:note report`; see [docs/text-annotations.md](docs/text-annotations.md).
 
 The app tracks dirty state. Quitting with unsaved changes prompts for save, discard, or cancel.
 

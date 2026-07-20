@@ -19,6 +19,7 @@ mod project_browser;
 mod sample_browser;
 mod sampler_actions;
 mod state;
+mod text_notes;
 mod tracker_actions;
 mod tui_state;
 mod view_key_handling;

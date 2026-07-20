@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 
+mod annotations;
 mod automation;
 mod identity;
 mod mixer;
@@ -17,6 +18,7 @@ use crate::parameters::{
     mixer_master_gain_descriptor, mixer_track_gain_descriptor, mixer_track_pan_descriptor,
     sample_gain_descriptor,
 };
+pub use annotations::{TextAnnotation, TextAnnotationKind, TextAnnotationScope};
 pub use automation::{
     AutomationInterpolation, AutomationLane, AutomationPoint, AutomationTarget, ParameterLock,
     ParameterLockAction, ParameterLockDiagnostic, ParameterLockTarget,
@@ -55,6 +57,8 @@ pub struct Song {
     pub instruments: Vec<Instrument>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub track_instrument_assignments: Vec<TrackInstrumentAssignment>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub annotations: Vec<TextAnnotation>,
 }
 
 impl Song {
@@ -99,6 +103,7 @@ impl Song {
             sample_assignments: Vec::new(),
             instruments: Vec::new(),
             track_instrument_assignments: Vec::new(),
+            annotations: Vec::new(),
         }
     }
 
@@ -256,6 +261,49 @@ impl Song {
                     position,
                     pattern_id: *pattern_id,
                 });
+            }
+        }
+
+        let mut annotation_ids = HashSet::new();
+        for (annotation_index, annotation) in self.annotations.iter().enumerate() {
+            if !annotation_ids.insert(annotation.id) {
+                return Err(ValidationError::DuplicateTextAnnotationId {
+                    annotation_id: annotation.id,
+                });
+            }
+            if annotation.text.trim().is_empty() {
+                return Err(ValidationError::EmptyTextAnnotation { annotation_index });
+            }
+            match &annotation.scope {
+                TextAnnotationScope::Project => {}
+                TextAnnotationScope::Pattern { pattern, row } => {
+                    let Some(pattern_index) = self
+                        .patterns
+                        .iter()
+                        .position(|candidate| candidate.id == *pattern)
+                    else {
+                        return Err(ValidationError::TextAnnotationPatternNotFound {
+                            annotation_index,
+                            pattern_id: *pattern,
+                        });
+                    };
+                    if let Some(row) = row {
+                        if *row >= self.patterns[pattern_index].row_count() {
+                            return Err(ValidationError::TextAnnotationRowOutOfBounds {
+                                annotation_index,
+                                row: *row,
+                            });
+                        }
+                    }
+                }
+                TextAnnotationScope::Sequence { position } => {
+                    if *position >= self.sequence.len() {
+                        return Err(ValidationError::TextAnnotationSequenceOutOfBounds {
+                            annotation_index,
+                            position: *position,
+                        });
+                    }
+                }
             }
         }
 
@@ -1162,6 +1210,38 @@ impl Song {
             .saturating_add(1);
         InstrumentId(next)
     }
+
+    #[must_use]
+    pub fn next_text_annotation_id(&self) -> u32 {
+        self.annotations
+            .iter()
+            .map(|annotation| annotation.id)
+            .max()
+            .unwrap_or(0)
+            .saturating_add(1)
+    }
+
+    pub fn add_text_annotation(
+        &mut self,
+        kind: TextAnnotationKind,
+        scope: TextAnnotationScope,
+        text: impl Into<String>,
+    ) -> u32 {
+        let id = self.next_text_annotation_id();
+        self.annotations.push(TextAnnotation {
+            id,
+            kind,
+            scope,
+            text: text.into(),
+        });
+        id
+    }
+
+    pub fn remove_text_annotation(&mut self, id: u32) -> bool {
+        let before = self.annotations.len();
+        self.annotations.retain(|annotation| annotation.id != id);
+        self.annotations.len() != before
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -1345,6 +1425,22 @@ pub enum ValidationError {
     InstrumentAssignmentInstrumentNotFound { instrument_id: InstrumentId },
     #[error("track {track_id:?} has multiple instrument assignments")]
     DuplicateInstrumentAssignment { track_id: TrackId },
+    #[error("duplicate text annotation id {annotation_id}")]
+    DuplicateTextAnnotationId { annotation_id: u32 },
+    #[error("text annotation {annotation_index} cannot be empty")]
+    EmptyTextAnnotation { annotation_index: usize },
+    #[error("text annotation {annotation_index} references missing pattern {pattern_id:?}")]
+    TextAnnotationPatternNotFound {
+        annotation_index: usize,
+        pattern_id: PatternId,
+    },
+    #[error("text annotation {annotation_index} row {row} is out of bounds")]
+    TextAnnotationRowOutOfBounds { annotation_index: usize, row: usize },
+    #[error("text annotation {annotation_index} sequence position {position} is out of bounds")]
+    TextAnnotationSequenceOutOfBounds {
+        annotation_index: usize,
+        position: usize,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
@@ -2364,6 +2460,40 @@ mod tests {
     #[test]
     fn default_song_validates() {
         Song::empty().validate().expect("default song is valid");
+    }
+
+    #[test]
+    fn text_annotations_validate_scope_and_text() {
+        let mut song = Song::empty();
+        let pattern_id = song.patterns[0].id;
+        let id = song.add_text_annotation(
+            TextAnnotationKind::Cue,
+            TextAnnotationScope::Pattern {
+                pattern: pattern_id,
+                row: Some(0),
+            },
+            "intro",
+        );
+        assert_eq!(id, 1);
+        song.validate().expect("valid annotation");
+
+        song.annotations[0].text.clear();
+        assert_eq!(
+            song.validate().expect_err("empty annotation"),
+            ValidationError::EmptyTextAnnotation {
+                annotation_index: 0
+            }
+        );
+
+        song.annotations[0].text = "intro".to_string();
+        song.annotations[0].scope = TextAnnotationScope::Sequence { position: 99 };
+        assert_eq!(
+            song.validate().expect_err("invalid sequence annotation"),
+            ValidationError::TextAnnotationSequenceOutOfBounds {
+                annotation_index: 0,
+                position: 99
+            }
+        );
     }
 
     #[test]

@@ -66,7 +66,8 @@ impl App {
                     | CommandDomain::Ai
                     | CommandDomain::Preset
                     | CommandDomain::Workspace
-                    | CommandDomain::MidiInput),
+                    | CommandDomain::MidiInput
+                    | CommandDomain::Note),
                 arguments,
             } => self.handle_typed_domain(domain, &arguments),
             SalieriCommand::Loop(command) => match command {
@@ -422,6 +423,7 @@ impl App {
             CommandDomain::Preset => self.handle_preset_command(&values),
             CommandDomain::Workspace => self.handle_workspace_command(&values),
             CommandDomain::MidiInput => self.handle_midi_input_command(&values),
+            CommandDomain::Note => self.handle_note_command(&values),
             _ => unreachable!("domain handled by dedicated executor"),
         }
     }
