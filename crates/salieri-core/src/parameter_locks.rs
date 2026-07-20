@@ -275,7 +275,10 @@ fn effect_descriptor(
         | EffectDeviceKind::Bitcrusher { .. }
         | EffectDeviceKind::Chorus { .. }
         | EffectDeviceKind::Flanger { .. }
-        | EffectDeviceKind::Phaser { .. } => effect
+        | EffectDeviceKind::Phaser { .. }
+        | EffectDeviceKind::Compressor { .. }
+        | EffectDeviceKind::Gate { .. }
+        | EffectDeviceKind::Limiter { .. } => effect
             .native_module_descriptor()
             .parameter(parameter)
             .cloned(),

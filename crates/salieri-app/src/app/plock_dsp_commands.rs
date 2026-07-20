@@ -190,6 +190,20 @@ impl App {
                 let (parameter, descriptor) = phaser_lock_descriptor(parameter)?;
                 self.track_effect_lock(13, parameter, descriptor, action)
             }
+            ["dsp", "track", parameter, action]
+                if compressor_lock_descriptor(parameter).is_some() =>
+            {
+                let (parameter, descriptor) = compressor_lock_descriptor(parameter)?;
+                self.track_effect_lock(14, parameter, descriptor, action)
+            }
+            ["dsp", "track", parameter, action] if gate_lock_descriptor(parameter).is_some() => {
+                let (parameter, descriptor) = gate_lock_descriptor(parameter)?;
+                self.track_effect_lock(15, parameter, descriptor, action)
+            }
+            ["dsp", "track", parameter, action] if limiter_lock_descriptor(parameter).is_some() => {
+                let (parameter, descriptor) = limiter_lock_descriptor(parameter)?;
+                self.track_effect_lock(16, parameter, descriptor, action)
+            }
             ["dsp", "master", "gain", action] => self.master_effect_lock(
                 1,
                 NATIVE_GAIN_PARAMETER_ID,
@@ -339,6 +353,22 @@ impl App {
             ["dsp", "master", parameter, action] if phaser_lock_descriptor(parameter).is_some() => {
                 let (parameter, descriptor) = phaser_lock_descriptor(parameter)?;
                 self.master_effect_lock(13, parameter, descriptor, action)
+            }
+            ["dsp", "master", parameter, action]
+                if compressor_lock_descriptor(parameter).is_some() =>
+            {
+                let (parameter, descriptor) = compressor_lock_descriptor(parameter)?;
+                self.master_effect_lock(14, parameter, descriptor, action)
+            }
+            ["dsp", "master", parameter, action] if gate_lock_descriptor(parameter).is_some() => {
+                let (parameter, descriptor) = gate_lock_descriptor(parameter)?;
+                self.master_effect_lock(15, parameter, descriptor, action)
+            }
+            ["dsp", "master", parameter, action]
+                if limiter_lock_descriptor(parameter).is_some() =>
+            {
+                let (parameter, descriptor) = limiter_lock_descriptor(parameter)?;
+                self.master_effect_lock(16, parameter, descriptor, action)
             }
             _ => None,
         }
@@ -534,6 +564,57 @@ fn phaser_lock_descriptor(parameter: &str) -> Option<(&'static str, ParameterDes
             ("phase", "native.phaser.stereoPhase"),
             ("mix", "native.phaser.mix"),
             ("output", "native.phaser.outputDb"),
+        ],
+    )
+}
+
+fn compressor_lock_descriptor(parameter: &str) -> Option<(&'static str, ParameterDescriptor)> {
+    modulation_lock_descriptor(
+        parameter,
+        "compressor",
+        &[
+            ("threshold", "native.compressor.thresholdDb"),
+            ("ratio", "native.compressor.ratio"),
+            ("attack", "native.compressor.attackMs"),
+            ("release", "native.compressor.releaseMs"),
+            ("knee", "native.compressor.kneeDb"),
+            ("makeup", "native.compressor.makeupDb"),
+            ("auto-makeup", "native.compressor.autoMakeup"),
+            ("detector", "native.compressor.detector"),
+            ("link", "native.compressor.stereoLink"),
+            ("mix", "native.compressor.mix"),
+        ],
+    )
+}
+
+fn gate_lock_descriptor(parameter: &str) -> Option<(&'static str, ParameterDescriptor)> {
+    modulation_lock_descriptor(
+        parameter,
+        "gate",
+        &[
+            ("threshold", "native.gate.thresholdDb"),
+            ("hysteresis", "native.gate.hysteresisDb"),
+            ("attack", "native.gate.attackMs"),
+            ("hold", "native.gate.holdMs"),
+            ("release", "native.gate.releaseMs"),
+            ("range", "native.gate.rangeDb"),
+            ("detector", "native.gate.detector"),
+            ("link", "native.gate.stereoLink"),
+        ],
+    )
+}
+
+fn limiter_lock_descriptor(parameter: &str) -> Option<(&'static str, ParameterDescriptor)> {
+    modulation_lock_descriptor(
+        parameter,
+        "limiter",
+        &[
+            ("ceiling", "native.limiter.ceilingDb"),
+            ("input", "native.limiter.inputGainDb"),
+            ("release", "native.limiter.releaseMs"),
+            ("lookahead", "native.limiter.lookaheadMs"),
+            ("link", "native.limiter.stereoLink"),
+            ("true-peak", "native.limiter.truePeak"),
         ],
     )
 }

@@ -141,6 +141,38 @@ pub(crate) fn format_effect_device(device: &EffectDevice) -> String {
         } => format!(
             "phaser {rate_hz:.2}Hz depth {depth:.3} center {center_hz:.1}Hz stages {stages} fb {feedback:+.3} phase {stereo_phase:.3} mix {mix:.3}"
         ),
+        EffectDeviceKind::Compressor {
+            threshold_db,
+            ratio,
+            attack_ms,
+            release_ms,
+            knee_db,
+            makeup_db,
+            mix,
+            ..
+        } => format!(
+            "compressor thr {threshold_db:+.1}dB ratio {ratio:.2}:1 atk {attack_ms:.1}ms rel {release_ms:.1}ms knee {knee_db:.1}dB makeup {makeup_db:+.1}dB mix {mix:.3}"
+        ),
+        EffectDeviceKind::Gate {
+            threshold_db,
+            hysteresis_db,
+            attack_ms,
+            hold_ms,
+            release_ms,
+            range_db,
+            ..
+        } => format!(
+            "gate thr {threshold_db:+.1}dB hyst {hysteresis_db:.1}dB atk {attack_ms:.1}ms hold {hold_ms:.1}ms rel {release_ms:.1}ms range {range_db:.1}dB"
+        ),
+        EffectDeviceKind::Limiter {
+            ceiling_db,
+            input_gain_db,
+            release_ms,
+            lookahead_ms,
+            ..
+        } => format!(
+            "limiter ceiling {ceiling_db:+.1}dB input {input_gain_db:+.1}dB rel {release_ms:.1}ms look {lookahead_ms:.1}ms"
+        ),
     }
 }
 

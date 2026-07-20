@@ -14,6 +14,12 @@ pub enum DspDriveMode {
     SoftClip,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DspDynamicsDetector {
+    Peak,
+    Rms,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DspDeviceKind {
     Gain {
@@ -115,5 +121,35 @@ pub enum DspDeviceKind {
         stereo_phase: f32,
         mix: f32,
         output_db: f32,
+    },
+    Compressor {
+        threshold_db: f32,
+        ratio: f32,
+        attack_ms: f32,
+        release_ms: f32,
+        knee_db: f32,
+        makeup_db: f32,
+        auto_makeup: bool,
+        detector: DspDynamicsDetector,
+        stereo_link: f32,
+        mix: f32,
+    },
+    Gate {
+        threshold_db: f32,
+        hysteresis_db: f32,
+        attack_ms: f32,
+        hold_ms: f32,
+        release_ms: f32,
+        range_db: f32,
+        detector: DspDynamicsDetector,
+        stereo_link: f32,
+    },
+    Limiter {
+        ceiling_db: f32,
+        input_gain_db: f32,
+        release_ms: f32,
+        lookahead_ms: f32,
+        stereo_link: f32,
+        true_peak: bool,
     },
 }

@@ -7,10 +7,15 @@ use crate::{
 
 #[path = "effect_degradation_parameters.rs"]
 mod effect_degradation_parameters;
+#[path = "effect_dynamics_parameters.rs"]
+mod effect_dynamics_parameters;
 #[path = "effect_modulation_parameters.rs"]
 mod effect_modulation_parameters;
 use effect_degradation_parameters::{
     degradation_native_module_state, degradation_parameter_value, set_degradation_parameter_value,
+};
+use effect_dynamics_parameters::{
+    dynamics_native_module_state, dynamics_parameter_value, set_dynamics_parameter_value,
 };
 use effect_modulation_parameters::{
     modulation_native_module_state, modulation_parameter_value, set_modulation_parameter_value,
@@ -57,6 +62,9 @@ impl EffectDevice {
             EffectDeviceKind::Chorus { .. } => native_chorus_parameter_descriptors(),
             EffectDeviceKind::Flanger { .. } => native_flanger_parameter_descriptors(),
             EffectDeviceKind::Phaser { .. } => native_phaser_parameter_descriptors(),
+            EffectDeviceKind::Compressor { .. } => native_compressor_parameter_descriptors(),
+            EffectDeviceKind::Gate { .. } => native_gate_parameter_descriptors(),
+            EffectDeviceKind::Limiter { .. } => native_limiter_parameter_descriptors(),
         }
     }
 
@@ -185,7 +193,8 @@ impl EffectDevice {
                 Some(ParameterValue::Decibels(output_db))
             }
             _ => degradation_parameter_value(id.as_str(), self.kind)
-                .or_else(|| modulation_parameter_value(id.as_str(), self.kind)),
+                .or_else(|| modulation_parameter_value(id.as_str(), self.kind))
+                .or_else(|| dynamics_parameter_value(id.as_str(), self.kind)),
         }
     }
 
@@ -453,7 +462,8 @@ impl EffectDevice {
             }
             _ => {
                 if set_degradation_parameter_value(id.as_str(), &mut self.kind, value.clone())?
-                    || set_modulation_parameter_value(id.as_str(), &mut self.kind, value)?
+                    || set_modulation_parameter_value(id.as_str(), &mut self.kind, value.clone())?
+                    || set_dynamics_parameter_value(id.as_str(), &mut self.kind, value)?
                 {
                     Ok(())
                 } else {
@@ -479,6 +489,9 @@ impl EffectDevice {
             EffectDeviceKind::Chorus { .. } => native_chorus_module_descriptor(),
             EffectDeviceKind::Flanger { .. } => native_flanger_module_descriptor(),
             EffectDeviceKind::Phaser { .. } => native_phaser_module_descriptor(),
+            EffectDeviceKind::Compressor { .. } => native_compressor_module_descriptor(),
+            EffectDeviceKind::Gate { .. } => native_gate_module_descriptor(),
+            EffectDeviceKind::Limiter { .. } => native_limiter_module_descriptor(),
         }
     }
 
@@ -704,6 +717,11 @@ impl EffectDevice {
             | EffectDeviceKind::Flanger { .. }
             | EffectDeviceKind::Phaser { .. } => {
                 modulation_native_module_state(self.kind).expect("modulation device state")
+            }
+            EffectDeviceKind::Compressor { .. }
+            | EffectDeviceKind::Gate { .. }
+            | EffectDeviceKind::Limiter { .. } => {
+                dynamics_native_module_state(self.kind).expect("dynamics device state")
             }
         };
         NativeModuleState {
