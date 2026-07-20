@@ -113,6 +113,7 @@ command_path = "codex"
 required_env = ["SALIERI_AI_TOKEN"]
 session_file = "ai-session.json"
 retention_messages = 42
+guidance_dirs = ["guidance"]
 "#,
     );
 
@@ -133,6 +134,10 @@ retention_messages = 42
         )
     );
     assert_eq!(ai.retention_messages, 42);
+    assert_eq!(
+        ai.guidance_dirs,
+        vec![file.0.parent().expect("config parent").join("guidance")]
+    );
 }
 
 #[test]
@@ -285,6 +290,7 @@ model = " "
 command_path = " "
 required_env = ["SALIERI_AI_TOKEN", ""]
 retention_messages = 0
+guidance_dirs = [""]
 "#,
     );
 
@@ -294,11 +300,12 @@ retention_messages = 0
     };
     let rendered = error.to_string();
 
-    assert_eq!(error.diagnostics.len(), 4);
+    assert_eq!(error.diagnostics.len(), 5);
     assert!(rendered.contains("ai.model"));
     assert!(rendered.contains("ai.command_path"));
     assert!(rendered.contains("ai.required_env.1"));
     assert!(rendered.contains("ai.retention_messages"));
+    assert!(rendered.contains("ai.guidance_dirs.0"));
 }
 
 #[test]

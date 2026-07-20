@@ -41,6 +41,7 @@ provider = "local_deterministic" # local_deterministic, mock, or command
 model = "local-deterministic"
 required_env = []                # credentials or flags required before use
 # command_path = "/usr/local/bin/codex" # required only for future command providers
+guidance_dirs = []               # local .md, .txt, or .json guidance directories
 
 [ui]
 show_line_numbers_hex = false
@@ -83,6 +84,7 @@ provider = "local_deterministic"
 model = "local-deterministic"
 session_file = "~/.config/salieri/ai-session.json"
 retention_messages = 200
+guidance_dirs = ["~/Music/Salieri/Guidance"]
 
 [sample_browser]
 chooser_command = "yazi --chooser-file $SALIERI_CHOOSER_FILE"
@@ -110,7 +112,11 @@ is reserved for future CLI adapters; when selected, Salieri checks
 `command_path` and every `required_env` entry before queuing an AI task and
 reports missing binaries or credentials as normal diagnostics.
 `session_file` enables local JSON chat history autosave/load, and
-`retention_messages` bounds the saved local thread length.
+`retention_messages` bounds the saved local thread length. `guidance_dirs`
+lists local directories containing `.md`, `.txt`, or `.json` prompt templates,
+dossiers, and operational palettes for `:ai guidance` commands. Relative paths
+are resolved against the config file location; normal AI use never requires
+fetching remote data.
 
 Keymap bindings are grouped by application mode and override built-in shortcuts
 for the same key. Unmapped keys continue to use the built-in defaults. See

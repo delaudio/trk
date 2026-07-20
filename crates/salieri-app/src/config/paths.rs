@@ -8,12 +8,19 @@ use super::AppConfig;
 pub(super) fn expand_config_paths(config: &mut AppConfig, config_path: Option<&Path>) {
     let base_dir = config_path.and_then(Path::parent);
     expand_optional_path(&mut config.ai.session_file, base_dir);
+    expand_paths(&mut config.ai.guidance_dirs, base_dir);
     expand_optional_path(&mut config.midi.log_file, base_dir);
     expand_optional_path(&mut config.sample_browser.start_dir, base_dir);
     expand_optional_path(&mut config.project_browser.start_dir, base_dir);
     expand_optional_path(&mut config.project_browser.recent_file, base_dir);
     expand_optional_path(&mut config.workspace.project_library, base_dir);
     expand_optional_path(&mut config.workspace.sample_library, base_dir);
+}
+
+fn expand_paths(paths: &mut [PathBuf], base_dir: Option<&Path>) {
+    for path in paths {
+        *path = expand_path(path, base_dir);
+    }
 }
 
 fn expand_optional_path(path: &mut Option<PathBuf>, base_dir: Option<&Path>) {
@@ -23,7 +30,11 @@ fn expand_optional_path(path: &mut Option<PathBuf>, base_dir: Option<&Path>) {
 }
 
 fn expand_path(path: &Path, base_dir: Option<&Path>) -> PathBuf {
-    let expanded = expand_environment_variables(&expand_home(path));
+    let raw = expand_home(path);
+    if raw.trim().is_empty() {
+        return PathBuf::from(raw);
+    }
+    let expanded = expand_environment_variables(&raw);
     let expanded = PathBuf::from(expanded);
     if expanded.is_relative() {
         base_dir.map_or(expanded.clone(), |base| base.join(expanded))
@@ -98,11 +109,16 @@ mod tests {
     fn expands_relative_workspace_paths_against_config_file_dir() {
         let mut config = AppConfig::default();
         let config_path = PathBuf::from("/tmp/salieri/config.toml");
+        config.ai.guidance_dirs = vec![PathBuf::from("Guidance")];
         config.workspace.project_library = Some(PathBuf::from("Projects"));
         config.workspace.sample_library = Some(PathBuf::from("./Samples"));
 
         expand_config_paths(&mut config, Some(&config_path));
 
+        assert_eq!(
+            config.ai.guidance_dirs,
+            vec![PathBuf::from("/tmp/salieri/Guidance")]
+        );
         assert_eq!(
             config.workspace.project_library,
             Some(PathBuf::from("/tmp/salieri/Projects"))

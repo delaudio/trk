@@ -230,6 +230,7 @@ struct App {
     ai_session_file: Option<PathBuf>,
     ai_retention_messages: usize,
     ai_thread: AiThread,
+    ai_guidance: Option<AiGuidanceContext>,
     project_browser_view: Option<AppProjectBrowserView>,
     pending_ai_proposal: Option<PreparedAiProposal>,
     dirty: bool,
@@ -266,6 +267,13 @@ pub(crate) struct AiMessage {
     text: String,
     created_at: u64,
     status: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct AiGuidanceContext {
+    label: String,
+    path: PathBuf,
+    content: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

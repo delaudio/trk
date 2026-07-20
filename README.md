@@ -366,6 +366,7 @@ T               Set sequence position to current pattern
 :dsp track 2 pan -0.250
 :dsp master gain 0.800
 :dsp track 2 clear
+:ai guidance apply dub-techno
 :ai propose sparse bass sketch
 :ai show
 :ai accept
@@ -420,7 +421,7 @@ Deterministic transforms live in `salieri-transform` and can be used from the CL
 salieri transform euclidean input.salieri output.salieri --pattern 1 --track 1 --steps 16 --pulses 5 --rotation 0 --pitch 36 --velocity 100
 ```
 
-AI-assisted composition lives behind `salieri-ai` and is available in the TUI through the local deterministic provider: `:ai propose PROMPT`, `:ai show`, `:ai accept`, and `:ai reject`. Proposals are previewed as touched cells before application, and accepted proposals use the normal undo transaction history. No network provider is invoked implicitly. See [docs/generative-transforms.md](docs/generative-transforms.md), [docs/ai-assisted-edits.md](docs/ai-assisted-edits.md), and [docs/undo-history.md](docs/undo-history.md).
+AI-assisted composition lives behind `salieri-ai` and is available in the TUI through the local deterministic provider: `:ai propose PROMPT`, `:ai show`, `:ai accept`, and `:ai reject`. Optional local guidance files from `[ai].guidance_dirs` can be listed, inspected, and applied with `:ai guidance list/show/apply/clear` before proposing. Proposals are previewed as touched cells before application, and accepted proposals use the normal undo transaction history. No network provider is invoked implicitly. See [docs/generative-transforms.md](docs/generative-transforms.md), [docs/ai-assisted-edits.md](docs/ai-assisted-edits.md), and [docs/undo-history.md](docs/undo-history.md).
 
 Keyboard commands can be overridden per application mode while all unmapped shortcuts retain their defaults. See [docs/keymaps.md](docs/keymaps.md) for the available layers, key syntax, and conflict diagnostics.
 

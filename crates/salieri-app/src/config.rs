@@ -47,6 +47,7 @@ pub struct AiConfig {
     pub required_env: Vec<String>,
     pub session_file: Option<PathBuf>,
     pub retention_messages: usize,
+    pub guidance_dirs: Vec<PathBuf>,
 }
 
 impl Default for AiConfig {
@@ -58,6 +59,7 @@ impl Default for AiConfig {
             required_env: Vec::new(),
             session_file: None,
             retention_messages: 200,
+            guidance_dirs: Vec::new(),
         }
     }
 }
@@ -325,6 +327,13 @@ fn validate(config: &AppConfig) -> Result<(), ConfigValidationErrors> {
         1,
         10_000,
     );
+    for (index, guidance_dir) in config.ai.guidance_dirs.iter().enumerate() {
+        check_non_empty(
+            &mut diagnostics,
+            &format!("ai.guidance_dirs.{index}"),
+            &guidance_dir.to_string_lossy(),
+        );
+    }
     check_non_empty(&mut diagnostics, "theme.name", &config.theme.name);
     check_range(
         &mut diagnostics,

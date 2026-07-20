@@ -18,6 +18,10 @@ In-app workflow:
 :ai chat
 :ai provider
 :ai propose PROMPT
+:ai guidance list
+:ai guidance show FILE
+:ai guidance apply FILE
+:ai guidance clear
 :ai show
 :ai accept
 :ai reject
@@ -61,6 +65,18 @@ and reports the touched cells without mutating the song. `:ai show` repeats the
 summary. `:ai accept` applies the proposal through the normal undo transaction
 mechanism, so `Ctrl+Z` can revert the generated edit. `:ai reject` clears the
 pending proposal without changing the song.
+
+Local guidance files can be used to steer proposals without adding any remote
+dependency. Configure `[ai].guidance_dirs` with directories containing `.md`,
+`.txt`, or `.json` files. `:ai guidance list` appends the discovered local files
+to the chat thread, `:ai guidance show FILE` appends the selected file contents,
+and `:ai guidance apply FILE` keeps that file active for subsequent prompts.
+When guidance is active, Salieri prepends the local file content and source path
+to the prompt sent to the configured provider while preserving the user-visible
+chat prompt unchanged. `:ai guidance clear` removes the active guidance. Missing
+files, unreadable directories, ambiguous selectors, unsupported extensions, and
+malformed JSON are reported as AI guidance diagnostics before a proposal is
+queued.
 
 AI chat persistence is local and provider-agnostic. Configure
 `[ai].session_file` to a JSON file path to autosave the thread after each
