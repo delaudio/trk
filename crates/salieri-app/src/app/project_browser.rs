@@ -4,13 +4,13 @@ use crate::app_effect::{AppEffect, PlaybackEffect};
 impl App {
     pub(crate) fn open_project_browser_view(&mut self, start_dir: Option<PathBuf>) {
         let current_dir = start_dir
+            .or_else(|| self.project_browser.start_dir.clone())
             .or_else(|| {
                 self.project_path
                     .as_deref()
                     .and_then(Path::parent)
                     .map(Path::to_path_buf)
             })
-            .or_else(|| self.project_browser.start_dir.clone())
             .or_else(|| std::env::current_dir().ok())
             .unwrap_or_else(|| PathBuf::from("."));
         let current_dir = if current_dir.is_file() {

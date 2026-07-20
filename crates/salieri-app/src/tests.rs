@@ -11,6 +11,7 @@ mod patterns_sequence;
 mod persistence;
 mod sampler_browsers;
 mod tracks_panels;
+mod workspace_libraries;
 
 fn type_command(app: &mut App, command: &str) {
     enter_command(app, command);

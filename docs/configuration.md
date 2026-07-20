@@ -65,13 +65,15 @@ log_file = "salieri-midi.log"
 
 [sample_browser]
 chooser_command = "yazi --chooser-file $SALIERI_CHOOSER_FILE"
-start_dir = "~/Samples"
+start_dir = "~/Samples" # legacy fallback; prefer workspace.sample_library
 
 [project_browser]
-start_dir = "~/Music/Salieri"
+start_dir = "~/Music/Salieri" # legacy fallback; prefer workspace.project_library
 recent_file = "~/.config/salieri/recent-projects.json"
 
 [workspace]
+project_library = "~/Music/Salieri/Projects"
+sample_library = "~/Music/Salieri/Samples"
 recent_project_limit = 12
 
 [history]
@@ -83,6 +85,24 @@ for the same key. Unmapped keys continue to use the built-in defaults. See
 [Configurable Keymaps](keymaps.md) for the complete layer and key syntax.
 Theme names and display modes are validated and exposed as metadata for commands
 and presentation code. Applying visual themes remains dedicated rendering work.
+
+## Workspace Libraries
+
+`[workspace] project_library` is the default project folder. When no project is
+open, `:write` saves `untitled.salieri` there. `:saveas NAME` resolves bare names
+to that folder and adds `.salieri` when no extension is provided. Salieri creates
+the project library lazily during those save actions; it does not create folders
+just because configuration was loaded.
+
+`[workspace] sample_library` is the default sample folder for `:sample browse`
+and `:sample choose` when no directory is passed.
+
+The older `sample_browser.start_dir` and `project_browser.start_dir` fields still
+work as browser fallbacks for existing configs. If both a workspace library and a
+legacy browser start directory are set, the workspace library wins.
+
+Configured paths expand `~`, `$VAR`, and `${VAR}`. Relative paths in the config
+file resolve against the directory containing that config file.
 
 ## Validation
 

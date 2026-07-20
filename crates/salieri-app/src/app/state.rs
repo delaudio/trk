@@ -115,6 +115,33 @@ impl App {
         });
     }
 
+    pub(crate) fn resolve_project_save_path(
+        &self,
+        path: Option<PathBuf>,
+    ) -> Result<PathBuf, String> {
+        match path {
+            Some(path) if is_bare_project_path(&path) => {
+                if let Some(library) = &self.project_library {
+                    ensure_library_dir(library)?;
+                    Ok(library.join(project_name_with_extension(path)))
+                } else {
+                    Ok(path)
+                }
+            }
+            Some(path) => Ok(path),
+            None => {
+                if let Some(path) = &self.project_path {
+                    Ok(path.clone())
+                } else if let Some(library) = &self.project_library {
+                    ensure_library_dir(library)?;
+                    Ok(library.join("untitled.salieri"))
+                } else {
+                    Ok(PathBuf::from("untitled.salieri"))
+                }
+            }
+        }
+    }
+
     pub(crate) fn apply_project_save(
         &mut self,
         path: PathBuf,
@@ -290,4 +317,24 @@ impl App {
             Some(Dialog::QuitDirty) | None => None,
         }
     }
+}
+
+fn is_bare_project_path(path: &Path) -> bool {
+    path.is_relative() && path.components().count() == 1
+}
+
+fn project_name_with_extension(mut path: PathBuf) -> PathBuf {
+    if path.extension().is_none() {
+        path.set_extension("salieri");
+    }
+    path
+}
+
+fn ensure_library_dir(path: &Path) -> Result<(), String> {
+    fs::create_dir_all(path).map_err(|error| {
+        format!(
+            "failed to create project library {}: {error}",
+            path.display()
+        )
+    })
 }

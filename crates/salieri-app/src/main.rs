@@ -212,6 +212,7 @@ struct App {
     sample_waveform_offset: usize,
     sampler_envelope_field: SamplerEnvelopeField,
     sample_browser: SampleBrowserConfig,
+    project_library: Option<PathBuf>,
     pending_sample_browser: Option<SampleBrowserRequest>,
     sample_browser_view: Option<AppSampleBrowserView>,
     project_browser: ProjectBrowserConfig,

@@ -53,6 +53,118 @@ track_desk_height = 12
 }
 
 #[test]
+fn loads_workspace_library_paths_relative_to_config_file() {
+    let file = TestFile::new(
+        "workspace",
+        r#"
+[workspace]
+project_library = "Projects"
+sample_library = "./Samples"
+recent_project_limit = 24
+"#,
+    );
+
+    let loaded = load_config(Some(&file.0), ConfigOverrides::default()).expect("load config");
+    let config_dir = file.0.parent().expect("config dir");
+
+    assert_eq!(
+        loaded.config().workspace.project_library,
+        Some(config_dir.join("Projects"))
+    );
+    assert_eq!(
+        loaded.config().workspace.sample_library,
+        Some(config_dir.join("./Samples"))
+    );
+    assert_eq!(loaded.config().workspace.recent_project_limit, 24);
+}
+
+#[test]
+fn preserves_legacy_browser_start_dirs_as_expanded_paths() {
+    let file = TestFile::new(
+        "browser-start-dirs",
+        r#"
+[sample_browser]
+start_dir = "LegacySamples"
+
+[project_browser]
+start_dir = "LegacyProjects"
+"#,
+    );
+
+    let loaded = load_config(Some(&file.0), ConfigOverrides::default()).expect("load config");
+    let config_dir = file.0.parent().expect("config dir");
+
+    assert_eq!(
+        loaded.config().sample_browser.start_dir,
+        Some(config_dir.join("LegacySamples"))
+    );
+    assert_eq!(
+        loaded.config().project_browser.start_dir,
+        Some(config_dir.join("LegacyProjects"))
+    );
+}
+
+#[test]
+fn loads_partial_config_over_defaults_and_exposes_metadata() {
+    let file = TestFile::new(
+        "partial",
+        r#"
+[keyboard]
+vim_navigation = false
+edit_step = 4
+default_octave = 5
+
+[keymap]
+profile = "studio"
+bindings = { "ctrl+p" = "play pattern" }
+
+[ui]
+follow_playhead = false
+display_mode = "compact"
+
+[theme]
+name = "high-contrast"
+
+[midi]
+default_output = "IAC Driver"
+default_input = "IAC Driver"
+log_file = "salieri-midi.log"
+
+[sample_browser]
+chooser_command = "yazi"
+start_dir = "~/Samples"
+
+[project_browser]
+start_dir = "~/Music/Salieri"
+recent_file = "recent-projects.json"
+
+[history]
+undo_limit = 250
+"#,
+    );
+
+    let loaded = load_config(Some(&file.0), ConfigOverrides::default()).expect("load config");
+    let config = loaded.config();
+    assert!(!config.keyboard.vim_navigation);
+    assert_eq!(config.keyboard.edit_step, 4);
+    assert!(!config.ui.follow_playhead);
+    assert!(!config.ui.show_line_numbers_hex);
+    assert_eq!(config.audio, AudioPreferences::default());
+    assert_eq!(config.midi.default_output, "IAC Driver");
+    assert_eq!(config.history.undo_limit, 250);
+    assert_eq!(
+        config.sample_browser.start_dir,
+        std::env::var_os("HOME")
+            .map(PathBuf::from)
+            .map(|home| home.join("Samples"))
+    );
+    assert_eq!(loaded.metadata().source, ConfigSource::File(file.0.clone()));
+    assert_eq!(loaded.metadata().keymap_profile, "studio");
+    assert_eq!(loaded.metadata().theme_name, "high-contrast");
+    assert_eq!(loaded.metadata().display_mode, DisplayMode::Compact);
+}
+
+#[test]
 fn validates_layout_preferences() {
     let file = TestFile::new(
         "invalid-layout",

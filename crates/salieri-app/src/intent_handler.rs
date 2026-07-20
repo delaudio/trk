@@ -32,9 +32,13 @@ impl App {
                 return vec![AppEffect::LoadProject { request_id, path }];
             }
             AppIntent::SaveProject { path, quit_after } => {
-                let path = path
-                    .or_else(|| self.project_path.clone())
-                    .unwrap_or_else(|| "untitled.salieri".into());
+                let path = match self.resolve_project_save_path(path) {
+                    Ok(path) => path,
+                    Err(error) => {
+                        self.notify_error(format!("Save failed: {error}"));
+                        return Vec::new();
+                    }
+                };
                 return vec![AppEffect::SaveProject {
                     path,
                     song: self.song.clone(),

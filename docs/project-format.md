@@ -50,6 +50,12 @@ neutral envelope:
 }
 ```
 
+Sample paths are stored as portable project data. Relative paths resolve from the
+directory containing the `.salieri` project first. User configuration can also
+define `workspace.sample_library` as the default library used by sample browsing
+and future sample-import workflows, but project files do not embed that
+machine-specific library root.
+
 Each pattern may also include optional stepped automation lanes. The first
 implemented target is `sampleGain`, which automates the effective gain used by
 sampler events from the lane point row onward:
