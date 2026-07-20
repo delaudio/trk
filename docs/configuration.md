@@ -38,6 +38,11 @@ b = "sample-browser"
 
 [ui]
 show_line_numbers_hex = false
+row_number_format = "decimal" # decimal or hex; show_line_numbers_hex remains a legacy alias
+row_number_base = "zero"      # zero or one
+pattern_divider_interval = 4  # 0 disables divider rows
+pattern_highlight_interval = 16 # 0 disables major highlight rows
+show_pattern_top_info = true
 follow_playhead = true
 display_mode = "adaptive"
 
@@ -57,6 +62,10 @@ name = "default"
 [audio]
 sample_rate = 48000
 channels = 2
+playback_headroom_db = 0
+limiter_mode = "off"          # off, soft, or brickwall
+resampling_quality = "balanced" # draft, balanced, or high
+send_mode = "disabled"        # disabled, pre_fader, or post_fader
 
 [midi]
 default_output = "IAC Driver Bus 1"

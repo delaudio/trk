@@ -53,6 +53,40 @@ track_desk_height = 12
 }
 
 #[test]
+fn loads_project_display_and_playback_preferences() {
+    let file = TestFile::new(
+        "project-display-playback",
+        r#"
+[ui]
+row_number_format = "hex"
+row_number_base = "one"
+pattern_divider_interval = 8
+pattern_highlight_interval = 32
+show_pattern_top_info = false
+
+[audio]
+playback_headroom_db = 6
+limiter_mode = "soft"
+resampling_quality = "high"
+send_mode = "post_fader"
+"#,
+    );
+
+    let loaded = load_config(Some(&file.0), ConfigOverrides::default()).expect("load config");
+    let config = loaded.config();
+
+    assert_eq!(config.ui.row_number_format, RowNumberFormat::Hex);
+    assert_eq!(config.ui.row_number_base, RowNumberBase::One);
+    assert_eq!(config.ui.pattern_divider_interval, 8);
+    assert_eq!(config.ui.pattern_highlight_interval, 32);
+    assert!(!config.ui.show_pattern_top_info);
+    assert_eq!(config.audio.playback_headroom_db, 6);
+    assert_eq!(config.audio.limiter_mode, LimiterMode::Soft);
+    assert_eq!(config.audio.resampling_quality, ResamplingQuality::High);
+    assert_eq!(config.audio.send_mode, SendMode::PostFader);
+}
+
+#[test]
 fn loads_workspace_library_paths_relative_to_config_file() {
     let file = TestFile::new(
         "workspace",
@@ -189,4 +223,33 @@ track_desk_height = 2
     assert!(fields.contains(&"ui.layout.left_width"));
     assert!(fields.contains(&"ui.layout.inspector_width"));
     assert!(fields.contains(&"ui.layout.track_desk_height"));
+}
+
+#[test]
+fn validates_project_display_and_playback_preferences() {
+    let file = TestFile::new(
+        "invalid-project-display-playback",
+        r#"
+[ui]
+pattern_divider_interval = 300
+pattern_highlight_interval = 400
+
+[audio]
+playback_headroom_db = 80
+"#,
+    );
+
+    let error = load_config(Some(&file.0), ConfigOverrides::default()).expect_err("invalid");
+    let ConfigLoadError::Validation(error) = error else {
+        panic!("expected validation error");
+    };
+
+    let fields = error
+        .diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.field.as_str())
+        .collect::<Vec<_>>();
+    assert!(fields.contains(&"ui.pattern_divider_interval"));
+    assert!(fields.contains(&"ui.pattern_highlight_interval"));
+    assert!(fields.contains(&"audio.playback_headroom_db"));
 }

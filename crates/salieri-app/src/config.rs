@@ -15,6 +15,10 @@ use paths::expand_config_paths;
 pub use preferences::{
     AudioPreferences, DisplayMode, HistoryConfig, ThemeConfig, UiConfig, WorkspaceConfig,
 };
+#[cfg(test)]
+pub(crate) use preferences::{
+    LimiterMode, ResamplingQuality, RowNumberBase, RowNumberFormat, SendMode,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -273,6 +277,13 @@ fn validate(config: &AppConfig) -> Result<(), ConfigValidationErrors> {
     );
     check_range(
         &mut diagnostics,
+        "audio.playback_headroom_db",
+        usize::from(config.audio.playback_headroom_db),
+        0,
+        48,
+    );
+    check_range(
+        &mut diagnostics,
         "workspace.recent_project_limit",
         config.workspace.recent_project_limit,
         1,
@@ -305,6 +316,20 @@ fn validate(config: &AppConfig) -> Result<(), ConfigValidationErrors> {
         usize::from(config.ui.layout.track_desk_height),
         6,
         18,
+    );
+    check_range(
+        &mut diagnostics,
+        "ui.pattern_divider_interval",
+        config.ui.pattern_divider_interval,
+        0,
+        256,
+    );
+    check_range(
+        &mut diagnostics,
+        "ui.pattern_highlight_interval",
+        config.ui.pattern_highlight_interval,
+        0,
+        256,
     );
     if let Some(command) = &config.sample_browser.chooser_command {
         check_non_empty(&mut diagnostics, "sample_browser.chooser_command", command);
