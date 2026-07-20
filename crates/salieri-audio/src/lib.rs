@@ -15,6 +15,7 @@ pub mod native_module;
 pub mod offline_render;
 pub mod realtime_sampler;
 mod shared;
+pub mod wasm_dsp;
 
 pub use backend::{
     AudioBackend, AudioCommand, AudioConfig, AudioRuntime, AudioUpdate, NullAudioBackend,
@@ -48,4 +49,9 @@ pub use offline_render::{
 pub use realtime_sampler::{
     apply_preview_envelope, prepare_realtime_sample, slice_preview_buffer, RealtimeAudioCommand,
     RealtimeSampler, RealtimeSamplerConfig,
+};
+pub use wasm_dsp::{
+    render_wasm_dsp_gain_fixture, validate_wasm_dsp_render_request, WasmDspAbiError,
+    WasmDspAbiSpec, WasmDspParameterValue, WASM_DSP_ABI_VERSION, WASM_DSP_MAX_BLOCK_FRAMES,
+    WASM_DSP_MAX_CHANNELS,
 };
