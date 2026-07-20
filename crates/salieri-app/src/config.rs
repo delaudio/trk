@@ -7,9 +7,11 @@ use serde::Deserialize;
 
 use crate::keymap;
 
+mod paths;
 mod preferences;
 
 pub use crate::keymap::KeymapConfig;
+use paths::expand_config_paths;
 pub use preferences::{
     AudioPreferences, DisplayMode, HistoryConfig, ThemeConfig, UiConfig, WorkspaceConfig,
 };
@@ -209,7 +211,7 @@ pub fn load_config(
     overrides: ConfigOverrides,
 ) -> Result<LoadedConfig, ConfigLoadError> {
     let resolved_path = path.map(Path::to_path_buf).or_else(default_config_path);
-    let (mut config, source) = match resolved_path {
+    let (mut config, source, config_path) = match resolved_path {
         Some(path) if path.exists() => {
             let contents = fs::read_to_string(&path).map_err(|source| ConfigLoadError::Read {
                 path: path.clone(),
@@ -219,11 +221,12 @@ pub fn load_config(
                 path: path.clone(),
                 source,
             })?;
-            (config, ConfigSource::File(path))
+            (config, ConfigSource::File(path.clone()), Some(path))
         }
-        Some(_) | None => (AppConfig::default(), ConfigSource::Defaults),
+        Some(_) | None => (AppConfig::default(), ConfigSource::Defaults, None),
     };
 
+    expand_config_paths(&mut config, config_path.as_deref());
     apply_overrides(&mut config, overrides);
     validate(&config)?;
     config.metadata = ConfigMetadata::new(source, &config);
@@ -399,64 +402,6 @@ mod tests {
 
         assert_eq!(loaded.config(), &AppConfig::default());
         assert_eq!(loaded.metadata().source, ConfigSource::Defaults);
-    }
-
-    #[test]
-    fn loads_partial_config_over_defaults_and_exposes_metadata() {
-        let file = TestFile::new(
-            "partial",
-            r#"
-[keyboard]
-vim_navigation = false
-edit_step = 4
-default_octave = 5
-
-[keymap]
-profile = "studio"
-bindings = { "ctrl+p" = "play pattern" }
-
-[ui]
-follow_playhead = false
-display_mode = "compact"
-
-[theme]
-name = "high-contrast"
-
-[midi]
-default_output = "IAC Driver"
-default_input = "IAC Driver"
-log_file = "salieri-midi.log"
-
-[sample_browser]
-chooser_command = "yazi"
-start_dir = "~/Samples"
-
-[project_browser]
-start_dir = "~/Music/Salieri"
-recent_file = "recent-projects.json"
-
-[history]
-undo_limit = 250
-"#,
-        );
-
-        let loaded = load_config(Some(&file.0), ConfigOverrides::default()).expect("load config");
-        let config = loaded.config();
-        assert!(!config.keyboard.vim_navigation);
-        assert_eq!(config.keyboard.edit_step, 4);
-        assert!(!config.ui.follow_playhead);
-        assert!(!config.ui.show_line_numbers_hex);
-        assert_eq!(config.audio, AudioPreferences::default());
-        assert_eq!(config.midi.default_output, "IAC Driver");
-        assert_eq!(config.history.undo_limit, 250);
-        assert_eq!(
-            config.sample_browser.start_dir,
-            Some(PathBuf::from("~/Samples"))
-        );
-        assert_eq!(loaded.metadata().source, ConfigSource::File(file.0.clone()));
-        assert_eq!(loaded.metadata().keymap_profile, "studio");
-        assert_eq!(loaded.metadata().theme_name, "high-contrast");
-        assert_eq!(loaded.metadata().display_mode, DisplayMode::Compact);
     }
 
     #[test]

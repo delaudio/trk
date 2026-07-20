@@ -14,10 +14,16 @@ Salieri can also open an external sample chooser and load the selected WAV into 
 Configure a chooser command in `~/.config/salieri/config.toml`:
 
 ```toml
+[workspace]
+sample_library = "~/Samples"
+
 [sample_browser]
-start_dir = "~/Samples"
 chooser_command = 'YAZI_CONFIG_HOME="$HOME/.config/yazi-readonly" yazi --chooser-file "$SALIERI_CHOOSER_FILE" "$SALIERI_SAMPLE_START_DIR"'
 ```
+
+`sample_browser.start_dir` is still accepted for older configs, but
+`workspace.sample_library` is the preferred default for both the in-app browser
+and the external chooser when no directory is supplied.
 
 The chooser contract is:
 

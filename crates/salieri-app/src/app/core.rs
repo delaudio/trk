@@ -14,7 +14,19 @@ impl App {
             .expect("application configuration keymap was validated");
         let default_midi_output = config.midi.default_output.trim().to_string();
         let default_midi_input = config.midi.default_input.trim().to_string();
-        let project_browser = config.project_browser.clone();
+        let mut sample_browser = config.sample_browser.clone();
+        if let Some(sample_library) = &config.workspace.sample_library {
+            sample_browser.start_dir = Some(sample_library.clone());
+        }
+        let mut project_browser = config.project_browser.clone();
+        if let Some(project_library) = &config.workspace.project_library {
+            project_browser.start_dir = Some(project_library.clone());
+        }
+        let project_library = config
+            .workspace
+            .project_library
+            .clone()
+            .or_else(|| config.project_browser.start_dir.clone());
         let recent_project_file = project_browser.recent_file();
         let recent_projects = load_recent_projects(recent_project_file.as_deref());
         let midi_status = if default_midi_output.is_empty() {
@@ -72,7 +84,8 @@ impl App {
             sample_waveform_zoom: 1,
             sample_waveform_offset: 0,
             sampler_envelope_field: SamplerEnvelopeField::Attack,
-            sample_browser: config.sample_browser.clone(),
+            sample_browser,
+            project_library,
             pending_sample_browser: None,
             sample_browser_view: None,
             project_browser,

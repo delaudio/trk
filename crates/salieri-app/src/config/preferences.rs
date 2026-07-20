@@ -139,12 +139,16 @@ impl Default for AudioPreferences {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct WorkspaceConfig {
+    pub project_library: Option<std::path::PathBuf>,
+    pub sample_library: Option<std::path::PathBuf>,
     pub recent_project_limit: usize,
 }
 
 impl Default for WorkspaceConfig {
     fn default() -> Self {
         Self {
+            project_library: None,
+            sample_library: None,
             recent_project_limit: 12,
         }
     }

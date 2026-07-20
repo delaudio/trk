@@ -83,6 +83,54 @@ fn save_as_prompt_can_save_to_selected_path() {
 }
 
 #[test]
+fn save_as_bare_name_uses_workspace_project_library() {
+    let dir = std::env::temp_dir().join(format!("salieri-save-as-library-{}", std::process::id()));
+    let expected_path = dir.join("library-song.salieri");
+    let mut app = App::new(AppConfig {
+        workspace: config::WorkspaceConfig {
+            project_library: Some(dir.clone()),
+            ..config::WorkspaceConfig::default()
+        },
+        ..AppConfig::default()
+    });
+    app.set_bpm(132);
+    assert!(app.dirty);
+
+    enter_command(&mut app, "saveas library-song");
+
+    let saved = load_project(&expected_path).expect("saved project loads");
+    assert_eq!(saved, app.song);
+    assert_eq!(app.project_path, Some(expected_path));
+    assert!(!app.dirty);
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn write_without_project_uses_workspace_project_library() {
+    let dir = std::env::temp_dir().join(format!("salieri-write-library-{}", std::process::id()));
+    let expected_path = dir.join("untitled.salieri");
+    let mut app = App::new(AppConfig {
+        workspace: config::WorkspaceConfig {
+            project_library: Some(dir.clone()),
+            ..config::WorkspaceConfig::default()
+        },
+        ..AppConfig::default()
+    });
+    app.set_bpm(134);
+    assert!(app.dirty);
+
+    enter_command(&mut app, "write");
+
+    let saved = load_project(&expected_path).expect("saved project loads");
+    assert_eq!(saved, app.song);
+    assert_eq!(app.project_path, Some(expected_path));
+    assert!(!app.dirty);
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn save_as_prompt_reports_errors_and_keeps_dirty_state() {
     let missing_dir = std::env::temp_dir().join(format!(
         "salieri-missing-save-as-dir-{}",
