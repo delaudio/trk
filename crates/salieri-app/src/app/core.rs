@@ -50,7 +50,7 @@ impl App {
             track_offset: 0,
             mode: AppMode::Normal,
             octave: config.keyboard.default_octave,
-            edit_step: config.keyboard.edit_step.max(1),
+            edit_step: config.keyboard.edit_step,
             vim_navigation: config.keyboard.vim_navigation,
             pending_goto_start: false,
             follow_playhead: config.ui.follow_playhead,

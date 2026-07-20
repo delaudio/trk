@@ -115,6 +115,7 @@ fn run(args: CliArgs) -> Result<()> {
                     selection: app.selection_rect(),
                     mode_label: app.mode.label(),
                     octave: app.octave,
+                    edit_step: app.edit_step,
                     dirty: app.dirty,
                     show_line_numbers_hex: app.show_line_numbers_hex,
                     row_number_offset: app.row_number_offset,

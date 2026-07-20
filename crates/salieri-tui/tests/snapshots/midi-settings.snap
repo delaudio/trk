@@ -1,5 +1,5 @@
 ┌ Salieri Tracker ─────────────────────────────────────────────────────────────────────────────────┐
-│ BPM 120 | LPB 4 | Pattern 01 | Oct 4 | Row 00 | Play -- | Loop ON | Track 01 | Field NOTE | MIDI │
+│ BPM 120 | LPB 4 | Pattern 01 | Oct 4 | Step 1 | Row 00 | Play -- | Loop ON | Track 01 | Field NOT│
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ┌ Tracks ──────────────────┐┌ Pattern Editor ──────────────────────────────────────────────────────┐
 │> 01 Drums       CH10 --  ││ROW             Drums                        Bass                     │
@@ -25,4 +25,4 @@
 │                          ││Mst     +0.0 dB       █████───── auto         C-j Sampler  F9 Tracks  │
 │                          ││█████───── auto       Sends 00   FX 00                                │
 └──────────────────────────┘└──────────────────────────────────────────────────────────────────────┘
- MIDI | Ctrl+P Palette | H Help | Focus :t/:p/:se/:tr/:sa/:sb/:o | F4-MIDI | Space Play/Stop | Enter
+ MIDI | Step 1 | Ctrl+P Palette | H Help | Focus :t/:p/:se/:tr/:sa/:sb/:o | F4-MIDI | Space Play/Sto

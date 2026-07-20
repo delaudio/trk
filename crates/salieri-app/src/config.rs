@@ -249,7 +249,7 @@ fn validate(config: &AppConfig) -> Result<(), ConfigValidationErrors> {
         &mut diagnostics,
         "keyboard.edit_step",
         config.keyboard.edit_step,
-        1,
+        0,
         64,
     );
     check_range(
@@ -502,7 +502,7 @@ c = "help"
             "invalid",
             r#"
 [keyboard]
-edit_step = 0
+edit_step = 65
 default_octave = 12
 [keymap]
 profile = " "

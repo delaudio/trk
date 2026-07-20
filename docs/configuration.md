@@ -89,6 +89,9 @@ recent_project_limit = 12
 undo_limit = 100
 ```
 
+`keyboard.edit_step` is the tracker step-jump value used after manual note and
+cell-value entry; `0` keeps the cursor on the edited row.
+
 Keymap bindings are grouped by application mode and override built-in shortcuts
 for the same key. Unmapped keys continue to use the built-in defaults. See
 [Configurable Keymaps](keymaps.md) for the complete layer and key syntax.

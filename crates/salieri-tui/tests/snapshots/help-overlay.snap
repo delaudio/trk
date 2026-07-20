@@ -1,5 +1,5 @@
 ┌ Salieri Tracker ─────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ BPM 120 | LPB 4 | Pattern 01 | Oct 4 | Row 00 | Play -- | Loop ON | Track 01 | Field NOTE | HELP | STOP | MIDI Discon│
+│ BPM 120 | LPB 4 | Pattern 01 | Oct 4 | Step 1 | Row 00 | Play -- | Loop ON | Track 01 | Field NOTE | HELP | STOP | MI│
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ┌ Trac┌ Help: Basics | Tab/Shift+Tab pages ──────────────────────────────────────────────────────────────────────┐─────┐
 │> 01 │ Basics  |  Editing  |  Sampler  |  MIDI  |  Commands                                                     │     │
@@ -33,4 +33,4 @@
 │     └──────────────────────────────────────────────────────────────────────────────────────────────────────────┘     │
 │                          ││auto                         Sends 00   FX 00                                             │
 └──────────────────────────┘└──────────────────────────────────────────────────────────────────────────────────────────┘
- HELP | Ctrl+P Palette | H Help | Focus :t/:p/:se/:tr/:sa/:sb/:o | F4-MIDI | Space Play/Stop | Enter Row | Shift+Enter S
+ HELP | Step 1 | Ctrl+P Palette | H Help | Focus :t/:p/:se/:tr/:sa/:sb/:o | F4-MIDI | Space Play/Stop | Enter Row | Shif

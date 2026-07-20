@@ -436,6 +436,100 @@ fn edit_mode_inserts_note_and_advances_cursor() {
 }
 
 #[test]
+fn step_jump_zero_keeps_cursor_on_edited_row() {
+    let mut app = App::new(AppConfig {
+        keyboard: config::KeyboardConfig {
+            edit_step: 0,
+            ..config::KeyboardConfig::default()
+        },
+        ..AppConfig::default()
+    });
+    app.mode = AppMode::Edit;
+
+    app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::NONE));
+    app.handle_key(KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE));
+
+    let pattern = app.song.current_pattern().expect("pattern");
+    let cell = pattern.cell(0, 0).expect("cell");
+    assert_eq!(cell.note, Some(NoteEvent::Note { pitch: 62 }));
+    assert_eq!(app.cursor.row, 0);
+}
+
+#[test]
+fn step_jump_larger_values_advance_manual_note_entry() {
+    let mut app = App::new(AppConfig {
+        keyboard: config::KeyboardConfig {
+            edit_step: 4,
+            ..config::KeyboardConfig::default()
+        },
+        ..AppConfig::default()
+    });
+    app.mode = AppMode::Edit;
+
+    app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::NONE));
+    app.handle_key(KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE));
+
+    let pattern = app.song.current_pattern().expect("pattern");
+    assert_eq!(
+        pattern.cell(0, 0).expect("first cell").note,
+        Some(NoteEvent::Note { pitch: 60 })
+    );
+    assert_eq!(
+        pattern.cell(4, 0).expect("second cell").note,
+        Some(NoteEvent::Note { pitch: 62 })
+    );
+    assert_eq!(app.cursor.row, 8);
+}
+
+#[test]
+fn step_jump_clamps_at_pattern_end() {
+    let mut app = App::new(AppConfig {
+        keyboard: config::KeyboardConfig {
+            edit_step: 4,
+            ..config::KeyboardConfig::default()
+        },
+        ..AppConfig::default()
+    });
+    app.mode = AppMode::Edit;
+    app.cursor.row = app
+        .song
+        .current_pattern()
+        .expect("pattern")
+        .rows
+        .len()
+        .saturating_sub(2);
+
+    app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::NONE));
+
+    let pattern = app.song.current_pattern().expect("pattern");
+    assert_eq!(app.cursor.row, pattern.rows.len().saturating_sub(1));
+}
+
+#[test]
+fn step_jump_applies_after_two_digit_instrument_entry() {
+    let mut app = App::new(AppConfig {
+        keyboard: config::KeyboardConfig {
+            edit_step: 3,
+            ..config::KeyboardConfig::default()
+        },
+        ..AppConfig::default()
+    });
+    app.mode = AppMode::Edit;
+    app.cursor.field = CellField::Instrument;
+
+    app.handle_key(KeyEvent::new(KeyCode::Char('0'), KeyModifiers::NONE));
+    assert_eq!(app.cursor.row, 0);
+    app.handle_key(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE));
+
+    let pattern = app.song.current_pattern().expect("pattern");
+    assert_eq!(
+        pattern.cell(0, 0).expect("cell").instrument,
+        Some(InstrumentId(10))
+    );
+    assert_eq!(app.cursor.row, 3);
+}
+
+#[test]
 fn edit_mode_inserts_note_off_and_note_cut() {
     let mut app = App {
         mode: AppMode::Edit,
