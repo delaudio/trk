@@ -15,6 +15,7 @@ mod navigation_editing;
 mod pattern_commands;
 mod pattern_operations;
 mod patterns_sequence;
+mod performance_punch_in;
 mod persistence;
 mod preset_inventory;
 mod report_workflows;

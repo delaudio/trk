@@ -220,6 +220,7 @@ struct App {
     loop_pattern: bool,
     playhead_row: Option<usize>,
     sequence_position: Option<usize>,
+    performance: PerformanceState,
     sequence_cursor: usize,
     clip_scene_cursor: usize,
     clip_track_cursor: usize,
@@ -264,6 +265,31 @@ struct App {
 
 struct AppMidiInput {
     inner: Box<dyn MidiInput>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+struct PerformanceState {
+    slots: Vec<PerformanceSlot>,
+    active: Vec<ActivePerformancePunchIn>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct PerformanceSlot {
+    index: usize,
+    target_track: Option<usize>,
+    effect: PerformanceEffect,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct ActivePerformancePunchIn {
+    slot: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum PerformanceEffect {
+    TrackGain(f32),
+    TrackPan(f32),
+    SampleGain(f32),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

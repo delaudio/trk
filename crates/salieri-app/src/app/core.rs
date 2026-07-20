@@ -77,6 +77,7 @@ impl App {
             loop_pattern: true,
             playhead_row: None,
             sequence_position: None,
+            performance: PerformanceState::default(),
             sequence_cursor: 0,
             clip_scene_cursor: 0,
             clip_track_cursor: 0,
