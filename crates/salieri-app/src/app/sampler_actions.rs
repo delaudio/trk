@@ -1,6 +1,89 @@
 use super::*;
 
 impl App {
+    pub(crate) fn render_selection_to_sample(
+        &mut self,
+        path: PathBuf,
+        assign_track: Option<usize>,
+    ) {
+        let Some(selection) = self.selection_bounds() else {
+            self.notify_warning("Select tracker rows/tracks before rendering a sample");
+            return;
+        };
+        let Some(pattern) = self.song.pattern(self.pattern_index) else {
+            self.notify_warning("No pattern to render");
+            return;
+        };
+        let assign_track_id = if let Some(track_index) = assign_track {
+            let Some(track) = self.song.tracks.get(track_index) else {
+                self.notify_warning("Track out of range");
+                return;
+            };
+            Some(track.id)
+        } else {
+            None
+        };
+
+        let config = AudioConfig::default();
+        let sample_rate = config.sample_rate;
+        let channels = config.channels;
+        let render_result = render_selection_audio(
+            &self.song,
+            pattern,
+            selection,
+            self.sample_base_dir().as_deref(),
+            sample_rate,
+            channels,
+        );
+        let (bytes, sampler_event_count) = match render_result {
+            Ok(rendered) => rendered,
+            Err(error) => {
+                self.notify_error(format!("Render selection failed: {error}"));
+                return;
+            }
+        };
+        if let Err(error) = write_bytes_atomically(&path, &bytes) {
+            self.notify_error(format!("Render selection failed: {error}"));
+            return;
+        }
+
+        let sample_view = match load_sample_view_data(path.clone()) {
+            Ok(sample_view) => sample_view,
+            Err(error) => {
+                self.notify_error(format!("Rendered sample could not be loaded: {error}"));
+                return;
+            }
+        };
+        let sample_name = sample_view.sample.name.clone();
+        let sample_path = sample_view.source_path.to_string_lossy().to_string();
+        self.sample_view = Some(sample_view);
+        self.sample_waveform_zoom = 1;
+        self.sample_waveform_offset = 0;
+
+        self.mutate_song_with(
+            TransactionSpec::new("Render selection to sample"),
+            |song, _| {
+                let sample_id = song.upsert_sample_reference(sample_path, sample_name.clone());
+                if let Some(track_id) = assign_track_id {
+                    let _ = song.assign_sample_to_track(track_id, sample_id);
+                }
+            },
+        );
+        self.selection = None;
+        self.focus_panel(FocusPanel::Sampler);
+        if sampler_event_count == 0 {
+            self.notify_warning(
+                "Rendered silent sample; external MIDI-only destinations are not captured",
+            );
+        } else if assign_track.is_some() {
+            self.notify_success(format!(
+                "Rendered selection to sample and assigned {sample_name}"
+            ));
+        } else {
+            self.notify_success(format!("Rendered selection to sample {sample_name}"));
+        }
+    }
+
     pub(crate) fn assign_loaded_sample_to_track(&mut self, track_index: usize) {
         let Some(sample_view) = &self.sample_view else {
             self.focus_panel(FocusPanel::Sampler);
@@ -379,4 +462,67 @@ impl App {
         };
         self.notify_info(format_sample_playback_settings(settings));
     }
+}
+
+fn render_selection_audio(
+    song: &Song,
+    pattern: &Pattern,
+    selection: SelectionBounds,
+    sample_base_dir: Option<&Path>,
+    sample_rate: u32,
+    channels: u16,
+) -> Result<(Vec<u8>, usize)> {
+    let track_ids = (selection.track_start..=selection.track_end)
+        .filter_map(|track_index| song.tracks.get(track_index).map(|track| track.id.0))
+        .collect::<HashSet<_>>();
+    let row_duration = row_duration_micros(&song.transport);
+    let start_micros = row_duration.saturating_mul(selection.row_start as u64);
+    let selection_rows = selection
+        .row_end
+        .saturating_sub(selection.row_start)
+        .saturating_add(1);
+    let frames = micros_to_selection_frames(
+        row_duration.saturating_mul(selection_rows as u64),
+        sample_rate,
+    );
+    let events = sampler_events(song, pattern)
+        .into_iter()
+        .filter(|event| {
+            event.position.row >= selection.row_start
+                && event.position.row <= selection.row_end
+                && track_ids.contains(&event.track.0)
+        })
+        .map(|event| OfflineSamplerEvent {
+            track_id: event.track.0,
+            sample_id: event.sample.0,
+            frame: micros_to_selection_frames(
+                event.position.offset_micros.saturating_sub(start_micros),
+                sample_rate,
+            ) as u64,
+            gain: event.gain,
+            pan: event.pan,
+            pitch_ratio: event.pitch_ratio,
+            velocity: event.velocity,
+        })
+        .collect::<Vec<_>>();
+    let samples = load_offline_export_samples(song, sample_rate, channels, sample_base_dir)?;
+    let rendered = render_sampler_events_with_dsp(
+        &samples,
+        &events,
+        OfflineRenderSpec {
+            sample_rate,
+            channels,
+            frames,
+        },
+        &audio_dsp_graph(song),
+    )
+    .context("failed to render selected sampler events")?;
+    let bytes = encode_audio(&rendered, AudioExportFormat::WavPcm16)
+        .context("failed to encode rendered selection")?;
+    Ok((bytes, events.len()))
+}
+
+fn micros_to_selection_frames(micros: u64, sample_rate: u32) -> usize {
+    let frames = u128::from(micros).saturating_mul(u128::from(sample_rate)) / 1_000_000;
+    usize::try_from(frames).unwrap_or(usize::MAX)
 }

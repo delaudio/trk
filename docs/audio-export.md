@@ -44,4 +44,17 @@ are created. `export stems` writes deterministic per-track WAV files plus a
 `stems.json` manifest. Tracks without internal sampler events render as silence
 for the target duration and are marked with `samplerEvents: 0` in the manifest.
 
+Selection-to-sample rendering is available inside the tracker:
+
+```text
+:sample render-selection bounces/loop.wav
+:sample render-selection bounces/loop.wav --assign 2
+```
+
+The command renders the current row/track selection to a WAV file, registers the
+new sample reference only after the file has been written and reloaded
+successfully, and can assign it immediately to a target track. It uses the same
+internal sampler/native audio path and the same external MIDI-only limitation as
+CLI audio export.
+
 The current renderer is deliberately small because Salieri is still MIDI-first. It renders sampler-backed tracks only; MIDI output sent to DAWs, external synths, or plugin hosts is not captured. Persisted loop points are not yet rendered as sustained loop playback. Future internal instruments, mixer routing, broader DSP devices, plugin render/freeze, and higher-quality resampling should render into `RenderedAudio` or a streaming equivalent, then reuse the same export format boundary.
