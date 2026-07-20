@@ -2,31 +2,7 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    native_balance_descriptor, native_bitcrusher_bit_depth_descriptor,
-    native_bitcrusher_dither_descriptor, native_bitcrusher_mix_descriptor,
-    native_bitcrusher_output_descriptor, native_bitcrusher_reduction_descriptor,
-    native_delay_feedback_descriptor, native_delay_filter_high_cut_descriptor,
-    native_delay_filter_low_cut_descriptor, native_delay_link_times_descriptor,
-    native_delay_mix_descriptor, native_delay_mod_depth_descriptor,
-    native_delay_mod_rate_descriptor, native_delay_output_descriptor,
-    native_delay_ping_pong_descriptor, native_delay_sync_descriptor,
-    native_delay_time_left_descriptor, native_delay_time_right_descriptor,
-    native_drive_bias_descriptor, native_drive_drive_descriptor, native_drive_mix_descriptor,
-    native_drive_mode_descriptor, native_drive_output_descriptor, native_drive_tone_descriptor,
-    native_filter_cutoff_descriptor, native_filter_drive_descriptor,
-    native_filter_env_amount_descriptor, native_filter_key_track_descriptor,
-    native_filter_mix_descriptor, native_filter_mode_descriptor,
-    native_filter_resonance_descriptor, native_gain_descriptor, native_pan_descriptor,
-    native_phase_invert_left_descriptor, native_phase_invert_right_descriptor,
-    native_reverb_damping_descriptor, native_reverb_decay_descriptor,
-    native_reverb_diffusion_descriptor, native_reverb_early_reflections_descriptor,
-    native_reverb_high_cut_descriptor, native_reverb_low_cut_descriptor,
-    native_reverb_mix_descriptor, native_reverb_output_descriptor,
-    native_reverb_predelay_descriptor, native_reverb_size_descriptor,
-    native_reverb_width_descriptor, native_width_descriptor, ParameterDescriptor, ParameterId,
-    ParameterValidationError, ParameterValue,
-};
+use crate::parameters::*;
 
 pub const NATIVE_GAIN_MODULE_ID: &str = "native.effect.gain";
 pub const NATIVE_PAN_MODULE_ID: &str = "native.effect.pan";
@@ -38,6 +14,9 @@ pub const NATIVE_DELAY_MODULE_ID: &str = "native.effect.delay";
 pub const NATIVE_REVERB_MODULE_ID: &str = "native.effect.reverb";
 pub const NATIVE_DRIVE_MODULE_ID: &str = "native.effect.drive";
 pub const NATIVE_BITCRUSHER_MODULE_ID: &str = "native.effect.bitcrusher";
+pub const NATIVE_CHORUS_MODULE_ID: &str = "native.effect.chorus";
+pub const NATIVE_FLANGER_MODULE_ID: &str = "native.effect.flanger";
+pub const NATIVE_PHASER_MODULE_ID: &str = "native.effect.phaser";
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -372,6 +351,42 @@ pub fn native_bitcrusher_module_descriptor() -> NativeModuleDescriptor {
 }
 
 #[must_use]
+pub fn native_chorus_module_descriptor() -> NativeModuleDescriptor {
+    NativeModuleDescriptor {
+        id: NativeModuleId::from(NATIVE_CHORUS_MODULE_ID),
+        name: "Chorus".to_string(),
+        role: NativeModuleRole::Effect,
+        parameters: native_chorus_parameter_descriptors(),
+        latency_frames: 0,
+        realtime_safe: true,
+    }
+}
+
+#[must_use]
+pub fn native_flanger_module_descriptor() -> NativeModuleDescriptor {
+    NativeModuleDescriptor {
+        id: NativeModuleId::from(NATIVE_FLANGER_MODULE_ID),
+        name: "Flanger".to_string(),
+        role: NativeModuleRole::Effect,
+        parameters: native_flanger_parameter_descriptors(),
+        latency_frames: 0,
+        realtime_safe: true,
+    }
+}
+
+#[must_use]
+pub fn native_phaser_module_descriptor() -> NativeModuleDescriptor {
+    NativeModuleDescriptor {
+        id: NativeModuleId::from(NATIVE_PHASER_MODULE_ID),
+        name: "Phaser".to_string(),
+        role: NativeModuleRole::Effect,
+        parameters: native_phaser_parameter_descriptors(),
+        latency_frames: 0,
+        realtime_safe: true,
+    }
+}
+
+#[must_use]
 pub fn builtin_native_module_descriptor(id: &NativeModuleId) -> Option<NativeModuleDescriptor> {
     match id.as_str() {
         NATIVE_GAIN_MODULE_ID => Some(native_gain_module_descriptor()),
@@ -384,6 +399,9 @@ pub fn builtin_native_module_descriptor(id: &NativeModuleId) -> Option<NativeMod
         NATIVE_REVERB_MODULE_ID => Some(native_reverb_module_descriptor()),
         NATIVE_DRIVE_MODULE_ID => Some(native_drive_module_descriptor()),
         NATIVE_BITCRUSHER_MODULE_ID => Some(native_bitcrusher_module_descriptor()),
+        NATIVE_CHORUS_MODULE_ID => Some(native_chorus_module_descriptor()),
+        NATIVE_FLANGER_MODULE_ID => Some(native_flanger_module_descriptor()),
+        NATIVE_PHASER_MODULE_ID => Some(native_phaser_module_descriptor()),
         _ => None,
     }
 }
@@ -401,6 +419,9 @@ pub fn builtin_native_effect_descriptors() -> Vec<NativeModuleDescriptor> {
         native_reverb_module_descriptor(),
         native_drive_module_descriptor(),
         native_bitcrusher_module_descriptor(),
+        native_chorus_module_descriptor(),
+        native_flanger_module_descriptor(),
+        native_phaser_module_descriptor(),
     ]
 }
 

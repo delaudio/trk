@@ -194,6 +194,9 @@ fn command_mode_sets_resets_and_clears_parameter_locks() {
     type_command(&mut app, "plock dsp track reverb-decay 3.500");
     type_command(&mut app, "plock dsp track drive-tone 0.250");
     type_command(&mut app, "plock dsp track bit-depth 8");
+    type_command(&mut app, "plock dsp track chorus-rate 0.500");
+    type_command(&mut app, "plock dsp track flanger-feedback 0.250");
+    type_command(&mut app, "plock dsp track phaser-stages 6");
 
     let cell = app
         .song
@@ -201,7 +204,7 @@ fn command_mode_sets_resets_and_clears_parameter_locks() {
         .expect("pattern")
         .cell(0, 0)
         .expect("cell");
-    assert_eq!(cell.parameter_locks.len(), 12);
+    assert_eq!(cell.parameter_locks.len(), 15);
     assert_eq!(
         cell.parameter_locks[0].parameter,
         ParameterId::from(SAMPLE_GAIN_PARAMETER_ID)
@@ -270,6 +273,18 @@ fn command_mode_sets_resets_and_clears_parameter_locks() {
         cell.parameter_locks[11].target,
         ParameterLockTarget::TrackEffect { track, device: 10 }
     );
+    assert_eq!(
+        cell.parameter_locks[12].target,
+        ParameterLockTarget::TrackEffect { track, device: 11 }
+    );
+    assert_eq!(
+        cell.parameter_locks[13].target,
+        ParameterLockTarget::TrackEffect { track, device: 12 }
+    );
+    assert_eq!(
+        cell.parameter_locks[14].target,
+        ParameterLockTarget::TrackEffect { track, device: 13 }
+    );
 
     type_command(&mut app, "plock sample-gain reset");
     let cell = app
@@ -290,7 +305,7 @@ fn command_mode_sets_resets_and_clears_parameter_locks() {
         .expect("pattern")
         .cell(0, 0)
         .expect("cell");
-    assert_eq!(cell.parameter_locks.len(), 11);
+    assert_eq!(cell.parameter_locks.len(), 14);
     assert!(app.dirty);
 
     app.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
@@ -300,7 +315,7 @@ fn command_mode_sets_resets_and_clears_parameter_locks() {
         .expect("pattern")
         .cell(0, 0)
         .expect("cell");
-    assert_eq!(cell.parameter_locks.len(), 12);
+    assert_eq!(cell.parameter_locks.len(), 15);
 }
 
 #[test]
@@ -343,6 +358,15 @@ fn command_mode_edits_dsp_chains() {
     type_command(&mut app, "dsp track 2 reverb 0.600 10 3.000 0.400");
     type_command(&mut app, "dsp track 2 drive hardclip 18.000 0.250 0.500");
     type_command(&mut app, "dsp track 2 bitcrusher 8 4 0.750 on");
+    type_command(&mut app, "dsp track 2 chorus 0.500 0.750 12 2 1.000 0.500");
+    type_command(
+        &mut app,
+        "dsp track 2 flanger 0.500 0.750 0.500 0.250 1.000 0.500",
+    );
+    type_command(
+        &mut app,
+        "dsp track 2 phaser 0.500 0.750 1000 4 0.250 1.000 0.500",
+    );
     type_command(&mut app, "dsp master gain 0.800");
     type_command(&mut app, "dsp master width 0.750");
     type_command(&mut app, "dsp master phase false true");
@@ -354,7 +378,7 @@ fn command_mode_edits_dsp_chains() {
 
     let track_id = app.song.tracks[1].id;
     let mixer = app.song.track_mixer_for_track(track_id);
-    assert_eq!(mixer.effects.len(), 10);
+    assert_eq!(mixer.effects.len(), 13);
     assert_eq!(mixer.effects[0].kind, EffectDeviceKind::Gain { gain: 0.5 });
     assert_eq!(mixer.effects[1].kind, EffectDeviceKind::Pan { pan: -0.25 });
     assert_eq!(
@@ -438,6 +462,18 @@ fn command_mode_edits_dsp_chains() {
             output_db: 0.0
         }
     );
+    assert!(matches!(
+        mixer.effects[10].kind,
+        EffectDeviceKind::Chorus { voices: 2, .. }
+    ));
+    assert!(matches!(
+        mixer.effects[11].kind,
+        EffectDeviceKind::Flanger { feedback: 0.25, .. }
+    ));
+    assert!(matches!(
+        mixer.effects[12].kind,
+        EffectDeviceKind::Phaser { stages: 4, .. }
+    ));
     assert_eq!(app.song.mixer.master_effects.len(), 8);
     assert_eq!(
         app.song.mixer.master_effects[0].kind,

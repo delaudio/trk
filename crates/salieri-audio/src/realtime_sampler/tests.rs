@@ -5,6 +5,8 @@ use crate::{
     *,
 };
 
+mod modulation;
+
 #[test]
 fn realtime_commands_are_plain_data_messages() {
     let command = RealtimeAudioCommand::TriggerSample {

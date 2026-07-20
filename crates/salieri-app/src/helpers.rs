@@ -107,6 +107,40 @@ pub(crate) fn format_effect_device(device: &EffectDevice) -> String {
             "bitcrusher {bit_depth}bit rate x{reduction_ratio:.0} dither {} mix {mix:.3} out {output_db:+.1}dB",
             dither as u8
         ),
+        EffectDeviceKind::Chorus {
+            rate_hz,
+            depth,
+            delay_ms,
+            voices,
+            spread,
+            mix,
+            ..
+        } => format!(
+            "chorus {rate_hz:.2}Hz depth {depth:.3} delay {delay_ms:.1}ms voices {voices} spread {spread:.3} mix {mix:.3}"
+        ),
+        EffectDeviceKind::Flanger {
+            rate_hz,
+            depth,
+            manual,
+            feedback,
+            stereo_phase,
+            mix,
+            ..
+        } => format!(
+            "flanger {rate_hz:.2}Hz depth {depth:.3} manual {manual:.3} fb {feedback:+.3} phase {stereo_phase:.3} mix {mix:.3}"
+        ),
+        EffectDeviceKind::Phaser {
+            rate_hz,
+            depth,
+            center_hz,
+            stages,
+            feedback,
+            stereo_phase,
+            mix,
+            ..
+        } => format!(
+            "phaser {rate_hz:.2}Hz depth {depth:.3} center {center_hz:.1}Hz stages {stages} fb {feedback:+.3} phase {stereo_phase:.3} mix {mix:.3}"
+        ),
     }
 }
 

@@ -9,15 +9,24 @@ use salieri_core::{
     mixer_master_gain_descriptor, mixer_track_gain_descriptor, mixer_track_pan_descriptor,
     native_balance_descriptor, native_bitcrusher_bit_depth_descriptor,
     native_bitcrusher_mix_descriptor, native_bitcrusher_output_descriptor,
-    native_bitcrusher_reduction_descriptor, native_delay_feedback_descriptor,
-    native_delay_mix_descriptor, native_delay_output_descriptor, native_delay_ping_pong_descriptor,
+    native_bitcrusher_reduction_descriptor, native_chorus_depth_descriptor,
+    native_chorus_mix_descriptor, native_chorus_rate_descriptor, native_chorus_spread_descriptor,
+    native_chorus_sync_descriptor, native_delay_feedback_descriptor, native_delay_mix_descriptor,
+    native_delay_output_descriptor, native_delay_ping_pong_descriptor,
     native_delay_sync_descriptor, native_delay_time_left_descriptor,
     native_delay_time_right_descriptor, native_drive_drive_descriptor, native_drive_mix_descriptor,
     native_drive_mode_descriptor, native_drive_output_descriptor, native_drive_tone_descriptor,
     native_filter_cutoff_descriptor, native_filter_drive_descriptor, native_filter_mix_descriptor,
-    native_filter_mode_descriptor, native_filter_resonance_descriptor, native_gain_descriptor,
-    native_pan_descriptor, native_phase_invert_left_descriptor,
-    native_phase_invert_right_descriptor, native_reverb_damping_descriptor,
+    native_filter_mode_descriptor, native_filter_resonance_descriptor,
+    native_flanger_depth_descriptor, native_flanger_feedback_descriptor,
+    native_flanger_manual_descriptor, native_flanger_mix_descriptor,
+    native_flanger_rate_descriptor, native_flanger_stereo_phase_descriptor,
+    native_flanger_sync_descriptor, native_gain_descriptor, native_pan_descriptor,
+    native_phase_invert_left_descriptor, native_phase_invert_right_descriptor,
+    native_phaser_center_descriptor, native_phaser_depth_descriptor,
+    native_phaser_feedback_descriptor, native_phaser_mix_descriptor, native_phaser_rate_descriptor,
+    native_phaser_stages_descriptor, native_phaser_stereo_phase_descriptor,
+    native_phaser_sync_descriptor, native_reverb_damping_descriptor,
     native_reverb_decay_descriptor, native_reverb_mix_descriptor, native_reverb_output_descriptor,
     native_reverb_predelay_descriptor, native_reverb_size_descriptor, native_width_descriptor,
     sample_gain_descriptor, CellField, Cursor, EffectDeviceKind, NoteEvent, ParameterDescriptor,
@@ -1602,6 +1611,118 @@ fn render_track_properties(frame: &mut Frame<'_>, area: Rect, song: &Song, state
                 mixer_lines.push(parameter_control_from_f32(
                     native_bitcrusher_output_descriptor(),
                     output_db,
+                ));
+            }
+            EffectDeviceKind::Chorus {
+                rate_hz,
+                sync,
+                depth,
+                spread,
+                mix,
+                ..
+            } => {
+                mixer_lines.push(parameter_control_from_f32(
+                    native_chorus_rate_descriptor(),
+                    rate_hz,
+                ));
+                mixer_lines.push(parameter_control_line(
+                    &native_chorus_sync_descriptor(),
+                    ParameterValue::Bool(sync),
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_chorus_depth_descriptor(),
+                    depth,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_chorus_spread_descriptor(),
+                    spread,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_chorus_mix_descriptor(),
+                    mix,
+                ));
+            }
+            EffectDeviceKind::Flanger {
+                rate_hz,
+                sync,
+                depth,
+                manual,
+                feedback,
+                stereo_phase,
+                mix,
+                ..
+            } => {
+                mixer_lines.push(parameter_control_from_f32(
+                    native_flanger_rate_descriptor(),
+                    rate_hz,
+                ));
+                mixer_lines.push(parameter_control_line(
+                    &native_flanger_sync_descriptor(),
+                    ParameterValue::Bool(sync),
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_flanger_depth_descriptor(),
+                    depth,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_flanger_manual_descriptor(),
+                    manual,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_flanger_feedback_descriptor(),
+                    feedback,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_flanger_stereo_phase_descriptor(),
+                    stereo_phase,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_flanger_mix_descriptor(),
+                    mix,
+                ));
+            }
+            EffectDeviceKind::Phaser {
+                rate_hz,
+                sync,
+                depth,
+                center_hz,
+                stages,
+                feedback,
+                stereo_phase,
+                mix,
+                ..
+            } => {
+                mixer_lines.push(parameter_control_from_f32(
+                    native_phaser_rate_descriptor(),
+                    rate_hz,
+                ));
+                mixer_lines.push(parameter_control_line(
+                    &native_phaser_sync_descriptor(),
+                    ParameterValue::Bool(sync),
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_phaser_depth_descriptor(),
+                    depth,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_phaser_center_descriptor(),
+                    center_hz,
+                ));
+                mixer_lines.push(parameter_control_line(
+                    &native_phaser_stages_descriptor(),
+                    ParameterValue::Integer(i64::from(stages)),
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_phaser_feedback_descriptor(),
+                    feedback,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_phaser_stereo_phase_descriptor(),
+                    stereo_phase,
+                ));
+                mixer_lines.push(parameter_control_from_f32(
+                    native_phaser_mix_descriptor(),
+                    mix,
                 ));
             }
         }

@@ -81,6 +81,93 @@ pub struct BitcrusherSpec {
     pub output_db: f32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ChorusSpec {
+    pub rate_hz: f32,
+    pub sync: bool,
+    pub depth: f32,
+    pub delay_ms: f32,
+    pub voices: u8,
+    pub spread: f32,
+    pub feedback: f32,
+    pub mix: f32,
+    pub output_db: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FlangerSpec {
+    pub rate_hz: f32,
+    pub sync: bool,
+    pub depth: f32,
+    pub manual: f32,
+    pub delay_ms: f32,
+    pub feedback: f32,
+    pub stereo_phase: f32,
+    pub mix: f32,
+    pub output_db: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PhaserSpec {
+    pub rate_hz: f32,
+    pub sync: bool,
+    pub depth: f32,
+    pub center_hz: f32,
+    pub stages: u8,
+    pub feedback: f32,
+    pub stereo_phase: f32,
+    pub mix: f32,
+    pub output_db: f32,
+}
+
+impl Default for ChorusSpec {
+    fn default() -> Self {
+        Self {
+            rate_hz: 0.5,
+            sync: false,
+            depth: 0.5,
+            delay_ms: 12.0,
+            voices: 2,
+            spread: 0.5,
+            feedback: 0.1,
+            mix: 0.5,
+            output_db: 0.0,
+        }
+    }
+}
+
+impl Default for FlangerSpec {
+    fn default() -> Self {
+        Self {
+            rate_hz: 0.5,
+            sync: false,
+            depth: 0.5,
+            manual: 0.5,
+            delay_ms: 3.0,
+            feedback: 0.0,
+            stereo_phase: 0.5,
+            mix: 0.5,
+            output_db: 0.0,
+        }
+    }
+}
+
+impl Default for PhaserSpec {
+    fn default() -> Self {
+        Self {
+            rate_hz: 0.5,
+            sync: false,
+            depth: 0.5,
+            center_hz: 1_000.0,
+            stages: 4,
+            feedback: 0.0,
+            stereo_phase: 0.5,
+            mix: 0.5,
+            output_db: 0.0,
+        }
+    }
+}
+
 impl Default for DriveSpec {
     fn default() -> Self {
         Self {
@@ -330,6 +417,63 @@ impl EffectDevice {
                 bit_depth: spec.bit_depth,
                 reduction_ratio: spec.reduction_ratio,
                 dither: spec.dither,
+                mix: spec.mix,
+                output_db: spec.output_db,
+            },
+        )
+    }
+
+    #[must_use]
+    pub fn chorus(id: u32, spec: ChorusSpec) -> Self {
+        Self::new(
+            id,
+            "Chorus",
+            EffectDeviceKind::Chorus {
+                rate_hz: spec.rate_hz,
+                sync: spec.sync,
+                depth: spec.depth,
+                delay_ms: spec.delay_ms,
+                voices: spec.voices,
+                spread: spec.spread,
+                feedback: spec.feedback,
+                mix: spec.mix,
+                output_db: spec.output_db,
+            },
+        )
+    }
+
+    #[must_use]
+    pub fn flanger(id: u32, spec: FlangerSpec) -> Self {
+        Self::new(
+            id,
+            "Flanger",
+            EffectDeviceKind::Flanger {
+                rate_hz: spec.rate_hz,
+                sync: spec.sync,
+                depth: spec.depth,
+                manual: spec.manual,
+                delay_ms: spec.delay_ms,
+                feedback: spec.feedback,
+                stereo_phase: spec.stereo_phase,
+                mix: spec.mix,
+                output_db: spec.output_db,
+            },
+        )
+    }
+
+    #[must_use]
+    pub fn phaser(id: u32, spec: PhaserSpec) -> Self {
+        Self::new(
+            id,
+            "Phaser",
+            EffectDeviceKind::Phaser {
+                rate_hz: spec.rate_hz,
+                sync: spec.sync,
+                depth: spec.depth,
+                center_hz: spec.center_hz,
+                stages: spec.stages,
+                feedback: spec.feedback,
+                stereo_phase: spec.stereo_phase,
                 mix: spec.mix,
                 output_db: spec.output_db,
             },
