@@ -12,6 +12,7 @@ mod pattern_commands;
 mod pattern_operations;
 mod patterns_sequence;
 mod persistence;
+mod preset_inventory;
 mod sampler_browsers;
 mod tracks_panels;
 mod workspace_libraries;

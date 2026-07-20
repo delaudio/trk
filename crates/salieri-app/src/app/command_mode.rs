@@ -64,6 +64,7 @@ impl App {
                     | CommandDomain::Mixer
                     | CommandDomain::Dsp
                     | CommandDomain::Ai
+                    | CommandDomain::Preset
                     | CommandDomain::MidiInput),
                 arguments,
             } => self.handle_typed_domain(domain, &arguments),
@@ -407,6 +408,7 @@ impl App {
             CommandDomain::Mixer => self.handle_mixer_command(&values),
             CommandDomain::Dsp => self.handle_dsp_command(&values),
             CommandDomain::Ai => self.handle_ai_command(&values),
+            CommandDomain::Preset => self.handle_preset_command(&values),
             CommandDomain::MidiInput => self.handle_midi_input_command(&values),
             _ => unreachable!("domain handled by dedicated executor"),
         }
