@@ -78,6 +78,7 @@ pub struct TuiState<'a> {
     pub selection: Option<SelectionRect>,
     pub mode_label: &'a str,
     pub octave: u8,
+    pub edit_step: usize,
     pub dirty: bool,
     pub show_line_numbers_hex: bool,
     pub row_number_offset: usize,
@@ -361,6 +362,7 @@ pub fn render(frame: &mut Frame<'_>, song: &Song, state: TuiState<'_>) {
             frame,
             area,
             state.mode_label,
+            state.edit_step,
             state.help_scroll,
             state.help_tab,
         );
@@ -465,12 +467,13 @@ fn render_header(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState
         .playhead_row
         .map_or_else(|| "--".to_string(), |row| format!("{row:02}"));
     let text = format!(
-        " BPM {} | LPB {} | {}{} | Oct {} | Row {:02} | Play {playhead} | {loop_state} | Track {:02} | Field {} | {}{selection} | {playback} | {} ",
+        " BPM {} | LPB {} | {}{} | Oct {} | Step {} | Row {:02} | Play {playhead} | {loop_state} | Track {:02} | Field {} | {}{selection} | {playback} | {} ",
         song.transport.bpm,
         song.transport.lines_per_beat,
         pattern_name,
         dirty,
         state.octave,
+        state.edit_step,
         state.cursor.row,
         state.cursor.track + 1,
         state.cursor.field,
@@ -2322,9 +2325,10 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
         )
     } else {
         format!(
-            " {}{} | Ctrl+P Palette | H Help | Focus :t/:p/:se/:tr/:sa/:sb/:o | F4-MIDI | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern | A/Y/R Seq | : Command | i Edit | V Select | Ctrl+S Save | q Quit ",
+            " {}{} | Step {} | Ctrl+P Palette | H Help | Focus :t/:p/:se/:tr/:sa/:sb/:o | F4-MIDI | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern | A/Y/R Seq | : Command | i Edit | V Select | Ctrl+S Save | q Quit ",
             state.mode_label,
-            if state.selection.is_some() { " SEL" } else { "" }
+            if state.selection.is_some() { " SEL" } else { "" },
+            state.edit_step
         )
     };
     let status = Paragraph::new(text);
@@ -2642,6 +2646,9 @@ fn format_note(pitch: u8) -> String {
 #[cfg(test)]
 #[path = "render_tests/display.rs"]
 mod render_display_tests;
+#[cfg(test)]
+#[path = "render_tests/layout.rs"]
+mod render_layout_tests;
 #[cfg(test)]
 #[path = "render_tests/overlays.rs"]
 mod render_overlay_tests;

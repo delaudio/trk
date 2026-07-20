@@ -87,6 +87,21 @@ send_mode = "post_fader"
 }
 
 #[test]
+fn accepts_zero_edit_step_for_stationary_step_jump() {
+    let file = TestFile::new(
+        "zero-edit-step",
+        r#"
+[keyboard]
+edit_step = 0
+"#,
+    );
+
+    let loaded = load_config(Some(&file.0), ConfigOverrides::default()).expect("load config");
+
+    assert_eq!(loaded.config().keyboard.edit_step, 0);
+}
+
+#[test]
 fn loads_workspace_library_paths_relative_to_config_file() {
     let file = TestFile::new(
         "workspace",

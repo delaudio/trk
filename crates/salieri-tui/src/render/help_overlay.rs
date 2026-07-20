@@ -12,12 +12,13 @@ pub(super) fn render_help_overlay(
     frame: &mut Frame<'_>,
     area: Rect,
     mode_label: &str,
+    edit_step: usize,
     scroll: usize,
     tab: HelpTab,
 ) {
     let overlay = large_overlay_rect(area);
     let visible_rows = overlay.height.saturating_sub(2) as usize;
-    let lines = help_lines(mode_label, tab);
+    let lines = help_lines(mode_label, edit_step, tab);
     let line_count = lines.len();
     let mut viewport = ViewportAxis::with_offset(lines.len(), visible_rows, scroll);
     viewport.clamp();
@@ -51,7 +52,7 @@ pub(super) fn render_help_overlay(
     }
 }
 
-fn help_lines(mode_label: &str, tab: HelpTab) -> Vec<Line<'static>> {
+fn help_lines(mode_label: &str, edit_step: usize, tab: HelpTab) -> Vec<Line<'static>> {
     let mut lines = vec![
         help_tab_line(tab),
         Line::from("  Tab/Right next page   Shift+Tab/Left previous page   Up/Down scroll"),
@@ -60,7 +61,7 @@ fn help_lines(mode_label: &str, tab: HelpTab) -> Vec<Line<'static>> {
 
     match tab {
         HelpTab::Basics => lines.extend(help_basics_lines(mode_label)),
-        HelpTab::Editing => lines.extend(help_editing_lines(mode_label)),
+        HelpTab::Editing => lines.extend(help_editing_lines(mode_label, edit_step)),
         HelpTab::Sampler => lines.extend(help_sampler_lines(mode_label)),
         HelpTab::Midi => lines.extend(help_midi_lines(mode_label)),
         HelpTab::Commands => lines.extend(help_command_lines(mode_label)),
@@ -133,7 +134,7 @@ fn help_basics_lines(mode_label: &str) -> Vec<Line<'static>> {
     ]
 }
 
-fn help_editing_lines(mode_label: &str) -> Vec<Line<'static>> {
+fn help_editing_lines(mode_label: &str, edit_step: usize) -> Vec<Line<'static>> {
     vec![
         Line::from(Span::styled(
             "Editing",
@@ -145,6 +146,9 @@ fn help_editing_lines(mode_label: &str) -> Vec<Line<'static>> {
         Line::from("  V select region   Esc cancel selection   Delete clears selection"),
         Line::from("  Insert row   Ctrl+Delete delete row   F1/- octave down"),
         Line::from("  F2/+/= octave up   VEL/INST/VOL/PAN/DLY/FX accept two hex digits"),
+        Line::from(format!(
+            "  Step jump advances manual entry by {edit_step} row(s); 0 keeps the cursor in place"
+        )),
         Line::from(""),
         Line::from(Span::styled(
             "Patterns And Sequence",

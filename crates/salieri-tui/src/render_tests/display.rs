@@ -22,6 +22,7 @@ fn project_display_preferences_affect_pattern_rendering() {
                     selection: None,
                     mode_label: "NORMAL",
                     octave: 4,
+                    edit_step: 1,
                     dirty: false,
                     show_line_numbers_hex: false,
                     row_number_offset: 1,

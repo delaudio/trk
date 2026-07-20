@@ -15,6 +15,7 @@ pub fn test_state<'a>() -> TuiState<'a> {
         selection: None,
         mode_label: "NORMAL",
         octave: 4,
+        edit_step: 1,
         dirty: false,
         show_line_numbers_hex: false,
         row_number_offset: 0,

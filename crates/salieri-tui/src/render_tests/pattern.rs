@@ -5,14 +5,6 @@ use salieri_core::{InstrumentId, NoteEvent, Song, TrackerCommand};
 use super::render_test_support::*;
 
 #[test]
-fn classifies_responsive_layout_breakpoints() {
-    assert_eq!(layout_kind(79), LayoutKind::Small);
-    assert_eq!(layout_kind(80), LayoutKind::Medium);
-    assert_eq!(layout_kind(119), LayoutKind::Medium);
-    assert_eq!(layout_kind(120), LayoutKind::Large);
-}
-
-#[test]
 fn waveform_lines_degrade_to_narrow_widths() {
     let overview = test_waveform(vec![salieri_sampler::WaveformBucket {
         min: -1.0,
@@ -113,6 +105,7 @@ fn renders_default_pattern_without_panic() {
                     selection: None,
                     mode_label: "NORMAL",
                     octave: 4,
+                    edit_step: 1,
                     dirty: false,
                     show_line_numbers_hex: false,
                     row_number_offset: 0,
@@ -174,6 +167,7 @@ fn pattern_viewport_derives_visible_ranges_from_offsets_and_cursor() {
             selection: None,
             mode_label: "NORMAL",
             octave: 4,
+            edit_step: 1,
             dirty: false,
             show_line_numbers_hex: false,
             row_number_offset: 0,
@@ -260,6 +254,7 @@ fn track_desk_renders_sampler_mixer_and_native_effect_parameters_from_descriptor
                 selection: None,
                 mode_label: "NORMAL",
                 octave: 4,
+                edit_step: 1,
                 dirty: false,
                 show_line_numbers_hex: false,
                 row_number_offset: 0,
@@ -328,6 +323,7 @@ fn virtualized_pattern_render_omits_offscreen_rows_and_tracks() {
                     selection: None,
                     mode_label: "NORMAL",
                     octave: 4,
+                    edit_step: 1,
                     dirty: false,
                     show_line_numbers_hex: false,
                     row_number_offset: 0,
@@ -456,6 +452,7 @@ fn renders_tracker_cell_subcolumns() {
                     selection: None,
                     mode_label: "NORMAL",
                     octave: 4,
+                    edit_step: 1,
                     dirty: false,
                     show_line_numbers_hex: false,
                     row_number_offset: 0,
@@ -536,6 +533,7 @@ fn renders_sample_browser_view() {
                     selection: None,
                     mode_label: "SAMPLES",
                     octave: 4,
+                    edit_step: 1,
                     dirty: false,
                     show_line_numbers_hex: false,
                     row_number_offset: 0,
@@ -628,6 +626,7 @@ fn renders_project_browser_view() {
                     selection: None,
                     mode_label: "PROJECTS",
                     octave: 4,
+                    edit_step: 1,
                     dirty: false,
                     show_line_numbers_hex: false,
                     row_number_offset: 0,
@@ -688,6 +687,7 @@ fn renders_small_layout_as_single_pattern_view() {
                     selection: None,
                     mode_label: "NORMAL",
                     octave: 4,
+                    edit_step: 1,
                     dirty: false,
                     show_line_numbers_hex: false,
                     row_number_offset: 0,
@@ -750,6 +750,7 @@ fn renders_medium_layout_with_compact_side_panel() {
                     selection: None,
                     mode_label: "NORMAL",
                     octave: 4,
+                    edit_step: 1,
                     dirty: false,
                     show_line_numbers_hex: false,
                     row_number_offset: 0,

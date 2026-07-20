@@ -1,5 +1,5 @@
 ┌ Salieri Tracker ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ BPM 120 | LPB 4 | Pattern 01 | Oct 4 | Row 00 | Play -- | Loop ON | Track 01 | Field NOTE | NORMAL | STOP | MIDI Disconnected            │
+│ BPM 120 | LPB 4 | Pattern 01 | Oct 4 | Step 1 | Row 00 | Play -- | Loop ON | Track 01 | Field NOTE | NORMAL | STOP | MIDI Disconnected   │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ┌ Tracks ──────────────────┐┌ Pattern Editor ──────────────────────────────────────────────────────────────────────────────────────────────┐
 │> 01 Drums       CH10 --  ││ROW             Drums                        Bass                        Lead                        Pad      │
@@ -29,4 +29,4 @@
 │                          ││Mst     +0.0 dB █████───── auto    :dsp track clear                                                           │
 │                          ││                                                                                                              │
 └──────────────────────────┘└──────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
- NORMAL | Ctrl+P Palette | H Help | Focus :t/:p/:se/:tr/:sa/:sb/:o | F4-MIDI | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/
+ NORMAL | Step 1 | Ctrl+P Palette | H Help | Focus :t/:p/:se/:tr/:sa/:sb/:o | F4-MIDI | Space Play/Stop | Enter Row | Shift+Enter Seq | L Lo
