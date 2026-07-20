@@ -13,7 +13,7 @@ Current XRNS support is library-level and intentionally lossy:
 
 - inspect XRNS ZIP archives, locate root stored-or-deflated `Song.xml`, enumerate sample payloads, and report track, pattern, instrument, sample, and device metadata;
 - import a constrained XML subset into a validated `.salieri` `Song`;
-- map track names, pattern row counts, sequence order, note/velocity/instrument/volume/pan/delay cells, the first effect command, instrument IDs, supported WAV sample payloads, mixer gain/pan, and recognized native gain/pan devices;
+- map track names, pattern row counts, sequence order, note/velocity/instrument/volume/pan/delay cells, the first two effect commands, instrument IDs, supported WAV sample payloads, mixer gain/pan, and recognized native gain/pan devices;
 - report unsupported samples, devices, extra effect columns, unknown effect commands, quantized timing, malformed archives/XML, nested/encrypted archives, and validation failures as structured diagnostics.
 
 The CLI can write the supported subset directly to a Salieri project:
@@ -48,7 +48,7 @@ References used for this decision:
 | Source data | Lossless now | Approximate | Unsupported for first pass |
 | --- | --- | --- | --- |
 | Pattern row count, track count, note pitch, note-off/cut intent | XRNS subset when directly represented | SMF row quantization | MOD/XM/IT/S3M quirks until a module parser/player exists |
-| Velocity/volume/pan/delay/effect columns | XRNS note/effect columns that map to Salieri columns | Unknown Renoise effect commands as preserved tracker commands with warnings | DSP/device parameter commands without a Salieri equivalent |
+| Velocity/volume/pan/delay/effect columns | XRNS note/effect columns plus supported FX1/FX2 timing commands | Deferred Renoise effect commands as preserved tracker commands with warnings | Effect columns beyond FX2 and DSP/device parameter commands without a Salieri equivalent |
 | WAV/AIFF/FLAC sample references embedded in XRNS | WAV samples after extraction/normalization | Non-WAV sample formats after decode support exists | Plugin instruments and generator devices |
 | Instruments and sample mappings | Single-sample instruments and simple key mapping | Multi-sample instruments as multiple Salieri instruments | Keyzones, velocity layers, slicing, modulation sets |
 | Mixer gain/pan and native DSP gain/pan | Directly mappable when present | Renoise device chains reduced to supported gain/pan devices | Third-party plugins, complex DSP devices, meta/modulation devices |
@@ -72,15 +72,15 @@ Accept initially:
 
 - ZIP container with stored or deflated `Song.xml` at archive root;
 - pattern lines with note columns that can map to Salieri note, velocity, instrument, volume, pan, and delay fields;
-- at most one effect command mapped to Salieri's first `TrackerCommand` per cell;
+- at most two effect commands mapped to Salieri's FX1/FX2 tracker commands per cell;
 - pattern sequence/order that can map to Salieri sequence entries;
 - sample-backed instruments whose sample payload can be loaded by `salieri-sampler` after extraction/preparation;
 - mixer track gain/pan and native gain/pan DSP devices when they can be recognized safely.
 
 Warn and preserve where possible:
 
-- additional effect columns beyond the first;
-- unknown effect commands;
+- additional effect columns beyond FX2;
+- unknown or deferred effect commands that can be preserved without playback semantics;
 - pattern timing that does not divide cleanly into Salieri row timing;
 - unsupported sample formats that may become available after decoder support;
 - device chains with unsupported native devices.
