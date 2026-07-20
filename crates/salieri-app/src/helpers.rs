@@ -86,6 +86,27 @@ pub(crate) fn format_effect_device(device: &EffectDevice) -> String {
         } => format!(
             "reverb size {size:.3} pre {predelay_ms:.1}ms decay {decay_s:.2}s damp {damping:.3} mix {mix:.3} out {output_db:+.1}dB"
         ),
+        EffectDeviceKind::Drive {
+            mode,
+            drive_db,
+            tone,
+            bias,
+            mix,
+            output_db,
+        } => format!(
+            "drive {} {drive_db:.1}dB tone {tone:.3} bias {bias:+.3} mix {mix:.3} out {output_db:+.1}dB",
+            mode.parameter_id()
+        ),
+        EffectDeviceKind::Bitcrusher {
+            bit_depth,
+            reduction_ratio,
+            dither,
+            mix,
+            output_db,
+        } => format!(
+            "bitcrusher {bit_depth}bit rate x{reduction_ratio:.0} dither {} mix {mix:.3} out {output_db:+.1}dB",
+            dither as u8
+        ),
     }
 }
 

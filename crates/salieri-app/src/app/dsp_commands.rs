@@ -63,6 +63,33 @@ impl App {
                     self.notify_warning("Usage: :dsp master reverb SIZE PREDELAY_MS DECAY_S MIX");
                 }
             }
+            ["master", "drive", mode, drive, tone, mix] => {
+                if let Some(device) = parse_drive_device(mode, drive, tone, mix) {
+                    self.upsert_master_dsp_device(device);
+                } else {
+                    self.notify_warning("Usage: :dsp master drive MODE DRIVE_DB TONE MIX");
+                }
+            }
+            ["master", "bitcrusher" | "crusher", bit_depth, reduction, mix] => {
+                if let Some(device) = parse_bitcrusher_device(bit_depth, reduction, mix, None) {
+                    self.upsert_master_dsp_device(device);
+                } else {
+                    self.notify_warning(
+                        "Usage: :dsp master bitcrusher BIT_DEPTH REDUCTION_RATIO MIX [dither]",
+                    );
+                }
+            }
+            ["master", "bitcrusher" | "crusher", bit_depth, reduction, mix, dither] => {
+                if let Some(device) =
+                    parse_bitcrusher_device(bit_depth, reduction, mix, Some(dither))
+                {
+                    self.upsert_master_dsp_device(device);
+                } else {
+                    self.notify_warning(
+                        "Usage: :dsp master bitcrusher BIT_DEPTH REDUCTION_RATIO MIX [dither]",
+                    );
+                }
+            }
             ["track", "clear"] => self.clear_track_dsp_chain(self.cursor.track),
             ["track", "gain", value] => self.set_current_track_dsp_value(
                 value,
@@ -124,6 +151,33 @@ impl App {
                     self.upsert_track_dsp_device(self.cursor.track, device);
                 } else {
                     self.notify_warning("Usage: :dsp track [TRACK] reverb SIZE PREDELAY_MS DECAY_S MIX");
+                }
+            }
+            ["track", "drive", mode, drive, tone, mix] => {
+                if let Some(device) = parse_drive_device(mode, drive, tone, mix) {
+                    self.upsert_track_dsp_device(self.cursor.track, device);
+                } else {
+                    self.notify_warning("Usage: :dsp track [TRACK] drive MODE DRIVE_DB TONE MIX");
+                }
+            }
+            ["track", "bitcrusher" | "crusher", bit_depth, reduction, mix] => {
+                if let Some(device) = parse_bitcrusher_device(bit_depth, reduction, mix, None) {
+                    self.upsert_track_dsp_device(self.cursor.track, device);
+                } else {
+                    self.notify_warning(
+                        "Usage: :dsp track [TRACK] bitcrusher BIT_DEPTH REDUCTION_RATIO MIX [dither]",
+                    );
+                }
+            }
+            ["track", "bitcrusher" | "crusher", bit_depth, reduction, mix, dither] => {
+                if let Some(device) =
+                    parse_bitcrusher_device(bit_depth, reduction, mix, Some(dither))
+                {
+                    self.upsert_track_dsp_device(self.cursor.track, device);
+                } else {
+                    self.notify_warning(
+                        "Usage: :dsp track [TRACK] bitcrusher BIT_DEPTH REDUCTION_RATIO MIX [dither]",
+                    );
                 }
             }
             ["track", track, "clear"] => {
@@ -207,8 +261,39 @@ impl App {
                     self.notify_warning("Usage: :dsp track [TRACK] reverb SIZE PREDELAY_MS DECAY_S MIX");
                 }
             }
+            ["track", track, "drive", mode, drive, tone, mix] => {
+                let track = parse_track_number(track);
+                let device = parse_drive_device(mode, drive, tone, mix);
+                if let (Some(track), Some(device)) = (track, device) {
+                    self.upsert_track_dsp_device(track, device);
+                } else {
+                    self.notify_warning("Usage: :dsp track [TRACK] drive MODE DRIVE_DB TONE MIX");
+                }
+            }
+            ["track", track, "bitcrusher" | "crusher", bit_depth, reduction, mix] => {
+                let track = parse_track_number(track);
+                let device = parse_bitcrusher_device(bit_depth, reduction, mix, None);
+                if let (Some(track), Some(device)) = (track, device) {
+                    self.upsert_track_dsp_device(track, device);
+                } else {
+                    self.notify_warning(
+                        "Usage: :dsp track [TRACK] bitcrusher BIT_DEPTH REDUCTION_RATIO MIX [dither]",
+                    );
+                }
+            }
+            ["track", track, "bitcrusher" | "crusher", bit_depth, reduction, mix, dither] => {
+                let track = parse_track_number(track);
+                let device = parse_bitcrusher_device(bit_depth, reduction, mix, Some(dither));
+                if let (Some(track), Some(device)) = (track, device) {
+                    self.upsert_track_dsp_device(track, device);
+                } else {
+                    self.notify_warning(
+                        "Usage: :dsp track [TRACK] bitcrusher BIT_DEPTH REDUCTION_RATIO MIX [dither]",
+                    );
+                }
+            }
             _ => self.notify_warning(
-                "Usage: :dsp master gain|pan|balance|width VALUE | phase LEFT RIGHT | filter MODE CUTOFF RES DRIVE MIX | delay sync|free LEFT_MS RIGHT_MS FEEDBACK MIX [ping] | reverb SIZE PREDELAY_MS DECAY_S MIX | :dsp track [TRACK] ... | :dsp ... clear",
+                "Usage: :dsp master gain|pan|balance|width VALUE | phase LEFT RIGHT | filter MODE CUTOFF RES DRIVE MIX | delay sync|free LEFT_MS RIGHT_MS FEEDBACK MIX [ping] | reverb SIZE PREDELAY_MS DECAY_S MIX | drive MODE DRIVE_DB TONE MIX | bitcrusher BIT_DEPTH REDUCTION_RATIO MIX [dither] | :dsp track [TRACK] ... | :dsp ... clear",
             ),
         }
     }
@@ -322,6 +407,37 @@ fn parse_reverb_device(size: &str, predelay: &str, decay: &str, mix: &str) -> Op
     ))
 }
 
+fn parse_drive_device(mode: &str, drive: &str, tone: &str, mix: &str) -> Option<EffectDevice> {
+    Some(EffectDevice::drive(
+        9,
+        DriveSpec {
+            mode: parse_drive_mode(mode)?,
+            drive_db: drive.parse::<f32>().ok()?,
+            tone: tone.parse::<f32>().ok()?,
+            mix: mix.parse::<f32>().ok()?,
+            ..DriveSpec::default()
+        },
+    ))
+}
+
+fn parse_bitcrusher_device(
+    bit_depth: &str,
+    reduction: &str,
+    mix: &str,
+    dither: Option<&&str>,
+) -> Option<EffectDevice> {
+    let mut spec = BitcrusherSpec {
+        bit_depth: bit_depth.parse::<u8>().ok()?,
+        reduction_ratio: reduction.parse::<f32>().ok()?,
+        mix: mix.parse::<f32>().ok()?,
+        ..BitcrusherSpec::default()
+    };
+    if let Some(dither) = dither {
+        spec.dither = parse_bool_flag(dither)?;
+    }
+    Some(EffectDevice::bitcrusher(10, spec))
+}
+
 fn parse_sync_flag(input: &str) -> Option<bool> {
     match input.to_ascii_lowercase().as_str() {
         "sync" | "synced" | "tempo" => Some(true),
@@ -336,6 +452,16 @@ fn parse_filter_mode(input: &str) -> Option<FilterMode> {
         "hp" | "high" | "high_pass" | "highpass" => Some(FilterMode::HighPass),
         "bp" | "band" | "band_pass" | "bandpass" => Some(FilterMode::BandPass),
         "notch" | "br" | "band_reject" | "bandreject" => Some(FilterMode::Notch),
+        _ => None,
+    }
+}
+
+fn parse_drive_mode(input: &str) -> Option<DriveMode> {
+    match input.to_ascii_lowercase().replace('-', "_").as_str() {
+        "overdrive" | "od" => Some(DriveMode::Overdrive),
+        "saturation" | "sat" => Some(DriveMode::Saturation),
+        "hard_clip" | "hardclip" | "clip" | "distortion" | "dist" => Some(DriveMode::HardClip),
+        "soft_clip" | "softclip" | "soft" => Some(DriveMode::SoftClip),
         _ => None,
     }
 }

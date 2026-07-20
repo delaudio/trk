@@ -270,7 +270,9 @@ fn effect_descriptor(
         | EffectDeviceKind::PhaseInvert { .. }
         | EffectDeviceKind::Filter { .. }
         | EffectDeviceKind::Delay { .. }
-        | EffectDeviceKind::Reverb { .. } => effect
+        | EffectDeviceKind::Reverb { .. }
+        | EffectDeviceKind::Drive { .. }
+        | EffectDeviceKind::Bitcrusher { .. } => effect
             .native_module_descriptor()
             .parameter(parameter)
             .cloned(),

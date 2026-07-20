@@ -1,5 +1,5 @@
 use super::*;
-use crate::{DelaySpec, FilterSpec, ReverbSpec};
+use crate::{BitcrusherSpec, DelaySpec, DriveMode, DriveSpec, FilterSpec, ReverbSpec};
 
 #[test]
 fn effect_devices_expose_and_validate_parameter_values() {
@@ -135,6 +135,73 @@ fn effect_devices_expose_and_validate_parameter_values() {
                 ParameterValue::Seconds(60.0),
             )
             .expect_err("reject invalid decay"),
+        EditError::InvalidParameterValue
+    );
+
+    let mut drive = EffectDevice::drive(9, DriveSpec::default());
+    drive
+        .set_parameter_value(
+            &ParameterId::from(NATIVE_DRIVE_MODE_PARAMETER_ID),
+            ParameterValue::Enum("hardClip".to_string()),
+        )
+        .expect("set drive mode");
+    drive
+        .set_parameter_value(
+            &ParameterId::from(NATIVE_DRIVE_TONE_PARAMETER_ID),
+            ParameterValue::Percentage(0.25),
+        )
+        .expect("set tone");
+    assert_eq!(
+        drive.kind,
+        EffectDeviceKind::Drive {
+            mode: DriveMode::HardClip,
+            drive_db: 12.0,
+            tone: 0.25,
+            bias: 0.0,
+            mix: 1.0,
+            output_db: 0.0
+        }
+    );
+    assert_eq!(
+        drive
+            .set_parameter_value(
+                &ParameterId::from(NATIVE_DRIVE_DRIVE_PARAMETER_ID),
+                ParameterValue::Decibels(60.0),
+            )
+            .expect_err("reject invalid drive"),
+        EditError::InvalidParameterValue
+    );
+
+    let mut bitcrusher = EffectDevice::bitcrusher(10, BitcrusherSpec::default());
+    bitcrusher
+        .set_parameter_value(
+            &ParameterId::from(NATIVE_BITCRUSHER_BIT_DEPTH_PARAMETER_ID),
+            ParameterValue::Integer(8),
+        )
+        .expect("set bit depth");
+    bitcrusher
+        .set_parameter_value(
+            &ParameterId::from(NATIVE_BITCRUSHER_REDUCTION_PARAMETER_ID),
+            ParameterValue::Ratio(4.0),
+        )
+        .expect("set reduction");
+    assert_eq!(
+        bitcrusher.kind,
+        EffectDeviceKind::Bitcrusher {
+            bit_depth: 8,
+            reduction_ratio: 4.0,
+            dither: false,
+            mix: 1.0,
+            output_db: 0.0
+        }
+    );
+    assert_eq!(
+        bitcrusher
+            .set_parameter_value(
+                &ParameterId::from(NATIVE_BITCRUSHER_BIT_DEPTH_PARAMETER_ID),
+                ParameterValue::Integer(25),
+            )
+            .expect_err("reject invalid bit depth"),
         EditError::InvalidParameterValue
     );
 }
@@ -330,6 +397,95 @@ fn effect_devices_round_trip_reverb_native_module_state() {
             early_reflections: 0.5,
             mix: 1.0,
             output_db: -6.0
+        }
+    );
+}
+
+#[test]
+fn effect_devices_round_trip_drive_native_module_state() {
+    let mut drive = EffectDevice::drive(9, DriveSpec::default());
+    let mut state = drive.native_module_state();
+
+    assert_eq!(state.parameters.len(), 6);
+    state
+        .set_parameter(
+            &drive.native_module_descriptor(),
+            ParameterId::from(NATIVE_DRIVE_MODE_PARAMETER_ID),
+            ParameterValue::Enum("saturation".to_string()),
+        )
+        .expect("set mode");
+    state
+        .set_parameter(
+            &drive.native_module_descriptor(),
+            ParameterId::from(NATIVE_DRIVE_DRIVE_PARAMETER_ID),
+            ParameterValue::Decibels(18.0),
+        )
+        .expect("set drive");
+    state
+        .set_parameter(
+            &drive.native_module_descriptor(),
+            ParameterId::from(NATIVE_DRIVE_MIX_PARAMETER_ID),
+            ParameterValue::Percentage(0.5),
+        )
+        .expect("set mix");
+
+    drive
+        .apply_native_module_state(&state)
+        .expect("apply drive state");
+
+    assert_eq!(
+        drive.kind,
+        EffectDeviceKind::Drive {
+            mode: DriveMode::Saturation,
+            drive_db: 18.0,
+            tone: 0.5,
+            bias: 0.0,
+            mix: 0.5,
+            output_db: 0.0
+        }
+    );
+}
+
+#[test]
+fn effect_devices_round_trip_bitcrusher_native_module_state() {
+    let mut bitcrusher = EffectDevice::bitcrusher(10, BitcrusherSpec::default());
+    let mut state = bitcrusher.native_module_state();
+
+    assert_eq!(state.parameters.len(), 5);
+    state
+        .set_parameter(
+            &bitcrusher.native_module_descriptor(),
+            ParameterId::from(NATIVE_BITCRUSHER_BIT_DEPTH_PARAMETER_ID),
+            ParameterValue::Integer(6),
+        )
+        .expect("set bit depth");
+    state
+        .set_parameter(
+            &bitcrusher.native_module_descriptor(),
+            ParameterId::from(NATIVE_BITCRUSHER_DITHER_PARAMETER_ID),
+            ParameterValue::Bool(true),
+        )
+        .expect("set dither");
+    state
+        .set_parameter(
+            &bitcrusher.native_module_descriptor(),
+            ParameterId::from(NATIVE_BITCRUSHER_OUTPUT_PARAMETER_ID),
+            ParameterValue::Decibels(-3.0),
+        )
+        .expect("set output");
+
+    bitcrusher
+        .apply_native_module_state(&state)
+        .expect("apply bitcrusher state");
+
+    assert_eq!(
+        bitcrusher.kind,
+        EffectDeviceKind::Bitcrusher {
+            bit_depth: 6,
+            reduction_ratio: 1.0,
+            dither: true,
+            mix: 1.0,
+            output_db: -3.0
         }
     );
 }

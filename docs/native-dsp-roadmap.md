@@ -39,7 +39,7 @@ playback, and offline export.
 | EQ and filters | Track insert, sampler-local | Implemented | #126 native multimode filter; parametric EQ deferred | Multimode LP/HP/BP/notch uses a stable state-variable filter. Sampler-local modulation/key tracking remains coordinated with #121. |
 | Delay, multitap delay, repeater | Track insert, send, master | Implemented | #127 native delay | Stereo delay covers linked/free times, sync quantization, feedback filtering, ping-pong routing, wet/dry mix, and bounded delay memory. |
 | Reverb | Track insert, send, master | Implemented | #128 native reverb | Deterministic bounded Schroeder-style reverb; convolution is deferred. |
-| Distortion, cabinet, lo-fi, bit reduction | Track insert, sampler-local | Planned | #129 native drive and degradation effects | Clip/soft-clip and bit/sample-rate reduction are baseline; cabinet/convolution deferred. |
+| Distortion, cabinet, lo-fi, bit reduction | Track insert, sampler-local | Implemented | #129 native drive and degradation effects | Drive covers overdrive, saturation, hard clip, and soft clip; Bitcrusher covers bit-depth and sample-rate hold reduction. Cabinet/convolution deferred. |
 | Chorus, flanger, phaser, tremolo, ring modulation, autopan | Track insert, master | Planned | #130 native modulation effects | All LFO-driven devices must share deterministic phase/reset behavior for offline and realtime. |
 | Compressor, gate, limiter, maximizer | Track insert, master | Planned | #131 native dynamics effects | Sidechain/key input is deferred until send/routing foundations are real. |
 | Meta devices, LFO device, hydra, key/velocity trackers | Automation/modulation system | Deferred | Follow-up after #123 and #137 | These control parameters rather than process audio directly. Do not model them as ordinary audio insert devices. |
@@ -232,18 +232,41 @@ Purpose: cover common tracker coloration and lo-fi workflows.
 
 | Device | ID | Placements | Status | Bypass | Wet/dry | Latency | Tail |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Drive | `native.effect.drive` | track insert, master, sampler-local variant | Planned | passthrough | yes | 0 | none |
-| Bitcrusher | `native.effect.bitcrusher` | track insert, master, sampler-local variant | Planned | passthrough | yes | 0 | none |
+| Drive | `native.effect.drive` | track insert, master, sampler-local variant | Implemented | passthrough | yes | 0 | none |
+| Bitcrusher | `native.effect.bitcrusher` | track insert, master, sampler-local variant | Implemented | passthrough | yes | 0 | none |
 
 | Parameter | Device | Type | Range / choices | Default | Step | Unit | Flags |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `native.drive.mode` | Drive | `Enum` | `soft_clip`, `hard_clip`, `foldback` | `soft_clip` | stepped | none | automatable, stepped |
-| `native.drive.drive` | Drive | `PlainFloat` | `0.0..=24.0` | `0.0` | `0.01` | decibels | automatable |
-| `native.drive.tone` | Drive | `PlainFloat` | `0.0..=1.0` | `0.5` | `0.001` | normalized | automatable |
-| `native.drive.wet` | Drive | `PlainFloat` | `0.0..=1.0` | `1.0` | `0.001` | percent | automatable |
-| `native.bitcrusher.bits` | Bitcrusher | `PlainFloat` | `1.0..=24.0` | `12.0` | `1.0` | bits | automatable, stepped |
-| `native.bitcrusher.downsample` | Bitcrusher | `PlainFloat` | `1.0..=64.0` | `1.0` | `1.0` | ratio | automatable, stepped |
-| `native.bitcrusher.wet` | Bitcrusher | `PlainFloat` | `0.0..=1.0` | `1.0` | `0.001` | percent | automatable |
+| `native.drive.mode` | Drive | `Enum` | `overdrive`, `saturation`, `hardClip`, `softClip` | `overdrive` | stepped | choice | automatable, stepped |
+| `native.drive.driveDb` | Drive | `Decibels` | `0.0..=48.0` | `12.0` | `0.1` | decibels | automatable |
+| `native.drive.tone` | Drive | `Percentage` | `0.0..=1.0` | `0.5` | `0.001` | percent | automatable |
+| `native.drive.bias` | Drive | `Percentage` | `-1.0..=1.0` | `0.0` | `0.001` | percent | automatable, bipolar |
+| `native.drive.mix` | Drive | `Percentage` | `0.0..=1.0` | `1.0` | `0.001` | percent | automatable |
+| `native.drive.outputDb` | Drive | `Decibels` | `-60.0..=12.0` | `0.0` | `0.1` | decibels | automatable |
+| `native.bitcrusher.bitDepth` | Bitcrusher | `Integer` | `1..=24` | `12` | `1` | bits | automatable, stepped |
+| `native.bitcrusher.reductionRatio` | Bitcrusher | `PlainFloat` | `1.0..=64.0` | `1.0` | `1.0` | ratio | automatable, stepped |
+| `native.bitcrusher.dither` | Bitcrusher | `Bool` | `false`, `true` | `false` | stepped | choice | automatable, stepped |
+| `native.bitcrusher.mix` | Bitcrusher | `Percentage` | `0.0..=1.0` | `1.0` | `0.001` | percent | automatable |
+| `native.bitcrusher.outputDb` | Bitcrusher | `Decibels` | `-60.0..=12.0` | `0.0` | `0.1` | decibels | automatable |
+
+Implementation notes:
+
+- Drive applies deterministic waveshaping with four stepped modes. `driveDb`
+  is pre-shaper gain; `bias` offsets the shaper input for asymmetric tones;
+  `tone` blends between a darker wet signal and the shaped output; `mix` is
+  dry/wet; `outputDb` is post-mix makeup/attenuation. No implicit limiter is
+  inserted, matching the utility/filter policy that later devices or export
+  encoding own clipping.
+- Bitcrusher combines bit-depth quantization and sample-rate reduction. The
+  `reductionRatio` parameter holds each input frame for a stepped number of
+  frames from 1 to 64, giving deterministic sample-rate reduction without
+  resampling latency. Optional dither uses a deterministic per-device PRNG so
+  realtime and offline renders remain stable when state is prepared equally.
+- Both devices reject non-finite and out-of-range parameters before processing,
+  allocate only during graph preparation, and share the same realtime/offline
+  frame processor. TUI commands create Drive as device id 9 and Bitcrusher as
+  device id 10 for track and master chains; parameter locks target mode,
+  drive/tone/bias/mix/output and bit-depth/reduction/dither/mix/output.
 
 ### #130 Native Modulation Effects
 
