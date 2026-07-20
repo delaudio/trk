@@ -178,6 +178,18 @@ impl App {
                 let (parameter, descriptor) = bitcrusher_lock_descriptor(parameter)?;
                 self.track_effect_lock(10, parameter, descriptor, action)
             }
+            ["dsp", "track", parameter, action] if chorus_lock_descriptor(parameter).is_some() => {
+                let (parameter, descriptor) = chorus_lock_descriptor(parameter)?;
+                self.track_effect_lock(11, parameter, descriptor, action)
+            }
+            ["dsp", "track", parameter, action] if flanger_lock_descriptor(parameter).is_some() => {
+                let (parameter, descriptor) = flanger_lock_descriptor(parameter)?;
+                self.track_effect_lock(12, parameter, descriptor, action)
+            }
+            ["dsp", "track", parameter, action] if phaser_lock_descriptor(parameter).is_some() => {
+                let (parameter, descriptor) = phaser_lock_descriptor(parameter)?;
+                self.track_effect_lock(13, parameter, descriptor, action)
+            }
             ["dsp", "master", "gain", action] => self.master_effect_lock(
                 1,
                 NATIVE_GAIN_PARAMETER_ID,
@@ -313,6 +325,20 @@ impl App {
             {
                 let (parameter, descriptor) = bitcrusher_lock_descriptor(parameter)?;
                 self.master_effect_lock(10, parameter, descriptor, action)
+            }
+            ["dsp", "master", parameter, action] if chorus_lock_descriptor(parameter).is_some() => {
+                let (parameter, descriptor) = chorus_lock_descriptor(parameter)?;
+                self.master_effect_lock(11, parameter, descriptor, action)
+            }
+            ["dsp", "master", parameter, action]
+                if flanger_lock_descriptor(parameter).is_some() =>
+            {
+                let (parameter, descriptor) = flanger_lock_descriptor(parameter)?;
+                self.master_effect_lock(12, parameter, descriptor, action)
+            }
+            ["dsp", "master", parameter, action] if phaser_lock_descriptor(parameter).is_some() => {
+                let (parameter, descriptor) = phaser_lock_descriptor(parameter)?;
+                self.master_effect_lock(13, parameter, descriptor, action)
             }
             _ => None,
         }
@@ -456,4 +482,71 @@ fn bitcrusher_lock_descriptor(parameter: &str) -> Option<(&'static str, Paramete
         )),
         _ => None,
     }
+}
+
+fn chorus_lock_descriptor(parameter: &str) -> Option<(&'static str, ParameterDescriptor)> {
+    modulation_lock_descriptor(
+        parameter,
+        "chorus",
+        &[
+            ("rate", "native.chorus.rateHz"),
+            ("sync", "native.chorus.sync"),
+            ("depth", "native.chorus.depth"),
+            ("delay", "native.chorus.delayMs"),
+            ("voices", "native.chorus.voices"),
+            ("spread", "native.chorus.spread"),
+            ("feedback", "native.chorus.feedback"),
+            ("mix", "native.chorus.mix"),
+            ("output", "native.chorus.outputDb"),
+        ],
+    )
+}
+
+fn flanger_lock_descriptor(parameter: &str) -> Option<(&'static str, ParameterDescriptor)> {
+    modulation_lock_descriptor(
+        parameter,
+        "flanger",
+        &[
+            ("rate", "native.flanger.rateHz"),
+            ("sync", "native.flanger.sync"),
+            ("depth", "native.flanger.depth"),
+            ("manual", "native.flanger.manual"),
+            ("delay", "native.flanger.delayMs"),
+            ("feedback", "native.flanger.feedback"),
+            ("phase", "native.flanger.stereoPhase"),
+            ("mix", "native.flanger.mix"),
+            ("output", "native.flanger.outputDb"),
+        ],
+    )
+}
+
+fn phaser_lock_descriptor(parameter: &str) -> Option<(&'static str, ParameterDescriptor)> {
+    modulation_lock_descriptor(
+        parameter,
+        "phaser",
+        &[
+            ("rate", "native.phaser.rateHz"),
+            ("sync", "native.phaser.sync"),
+            ("depth", "native.phaser.depth"),
+            ("center", "native.phaser.centerHz"),
+            ("stages", "native.phaser.stages"),
+            ("feedback", "native.phaser.feedback"),
+            ("phase", "native.phaser.stereoPhase"),
+            ("mix", "native.phaser.mix"),
+            ("output", "native.phaser.outputDb"),
+        ],
+    )
+}
+
+fn modulation_lock_descriptor(
+    parameter: &str,
+    prefix: &str,
+    ids: &[(&'static str, &'static str)],
+) -> Option<(&'static str, ParameterDescriptor)> {
+    let suffix = parameter.strip_prefix(prefix)?.strip_prefix('-')?;
+    let id = ids
+        .iter()
+        .find_map(|(name, id)| (*name == suffix).then_some(*id))?;
+    let descriptor = salieri_core::builtin_parameter_descriptor(&ParameterId::from(id))?;
+    Some((id, descriptor))
 }

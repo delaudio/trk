@@ -2,11 +2,16 @@ use crate::errors::AudioExportError;
 
 mod degradation;
 mod delay;
+mod kind;
+mod modulation;
 mod reverb;
 
 use degradation::{apply_bitcrusher_frame, apply_drive_frame, BitcrusherState};
 use delay::{apply_delay_frame, DelayFrameSpec, DelayLineState};
+use modulation::{apply_modulation_frame, modulation_frame_spec, ModulationState};
 use reverb::{apply_reverb_frame, ReverbFrameSpec, ReverbState};
+
+pub use kind::{DspDeviceKind, DspDriveMode, DspFilterMode};
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct DspGraphSpec {
@@ -24,93 +29,6 @@ pub struct TrackDspChainSpec {
 pub struct DspDeviceSpec {
     pub bypassed: bool,
     pub kind: DspDeviceKind,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DspFilterMode {
-    LowPass,
-    HighPass,
-    BandPass,
-    Notch,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DspDriveMode {
-    Overdrive,
-    Saturation,
-    HardClip,
-    SoftClip,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum DspDeviceKind {
-    Gain {
-        gain: f32,
-    },
-    Pan {
-        pan: f32,
-    },
-    Balance {
-        balance: f32,
-    },
-    StereoWidth {
-        width: f32,
-    },
-    PhaseInvert {
-        invert_left: bool,
-        invert_right: bool,
-    },
-    Filter {
-        mode: DspFilterMode,
-        cutoff_hz: f32,
-        resonance: f32,
-        drive_db: f32,
-        key_track: f32,
-        env_amount: f32,
-        mix: f32,
-    },
-    Delay {
-        sync: bool,
-        time_left_ms: f32,
-        time_right_ms: f32,
-        link_times: bool,
-        feedback: f32,
-        ping_pong: bool,
-        filter_low_cut_hz: f32,
-        filter_high_cut_hz: f32,
-        mod_rate_hz: f32,
-        mod_depth: f32,
-        mix: f32,
-        output_db: f32,
-    },
-    Reverb {
-        size: f32,
-        predelay_ms: f32,
-        decay_s: f32,
-        damping: f32,
-        low_cut_hz: f32,
-        high_cut_hz: f32,
-        diffusion: f32,
-        width: f32,
-        early_reflections: f32,
-        mix: f32,
-        output_db: f32,
-    },
-    Drive {
-        mode: DspDriveMode,
-        drive_db: f32,
-        tone: f32,
-        bias: f32,
-        mix: f32,
-        output_db: f32,
-    },
-    Bitcrusher {
-        bit_depth: u8,
-        reduction_ratio: f32,
-        dither: bool,
-        mix: f32,
-        output_db: f32,
-    },
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -256,6 +174,66 @@ pub(crate) fn validate_dsp_chain(devices: &[DspDeviceSpec]) -> Result<(), AudioE
                 && (0.0..=1.0).contains(&mix)
                 && output_db.is_finite()
                 && (-60.0..=12.0).contains(&output_db) => {}
+            DspDeviceKind::Chorus {
+                rate_hz,
+                depth,
+                delay_ms,
+                voices,
+                spread,
+                feedback,
+                mix,
+                output_db,
+                ..
+            } if valid_rate(rate_hz)
+                && valid_unit(depth)
+                && delay_ms.is_finite()
+                && (1.0..=40.0).contains(&delay_ms)
+                && (1..=4).contains(&voices)
+                && valid_unit(spread)
+                && feedback.is_finite()
+                && (0.0..=0.95).contains(&feedback)
+                && valid_unit(mix)
+                && valid_output(output_db) => {}
+            DspDeviceKind::Flanger {
+                rate_hz,
+                depth,
+                manual,
+                delay_ms,
+                feedback,
+                stereo_phase,
+                mix,
+                output_db,
+                ..
+            } if valid_rate(rate_hz)
+                && valid_unit(depth)
+                && valid_unit(manual)
+                && delay_ms.is_finite()
+                && (0.1..=20.0).contains(&delay_ms)
+                && feedback.is_finite()
+                && (-0.95..=0.95).contains(&feedback)
+                && valid_unit(stereo_phase)
+                && valid_unit(mix)
+                && valid_output(output_db) => {}
+            DspDeviceKind::Phaser {
+                rate_hz,
+                depth,
+                center_hz,
+                stages,
+                feedback,
+                stereo_phase,
+                mix,
+                output_db,
+                ..
+            } if valid_rate(rate_hz)
+                && valid_unit(depth)
+                && center_hz.is_finite()
+                && (200.0..=8_000.0).contains(&center_hz)
+                && (2..=12).contains(&stages)
+                && feedback.is_finite()
+                && (-0.95..=0.95).contains(&feedback)
+                && valid_unit(stereo_phase)
+                && valid_unit(mix)
+                && valid_output(output_db) => {}
             _ => return Err(AudioExportError::InvalidDspParameter),
         }
     }
@@ -303,6 +281,7 @@ const MAX_FILTERS: usize = 8;
 const MAX_DELAYS: usize = 8;
 const MAX_REVERBS: usize = 8;
 const MAX_BITCRUSHERS: usize = 8;
+const MAX_MODULATORS: usize = 8;
 const MAX_CHANNELS: usize = 8;
 const MAX_DELAY_SECONDS: f32 = 4.0;
 
@@ -312,6 +291,7 @@ pub(crate) struct DspFrameProcessor {
     delays: Vec<DelayLineState>,
     reverbs: Vec<ReverbState>,
     bitcrushers: Vec<BitcrusherState>,
+    modulators: Vec<ModulationState>,
 }
 
 impl DspFrameProcessor {
@@ -319,6 +299,7 @@ impl DspFrameProcessor {
         let mut delay_index = 0;
         let mut reverb_index = 0;
         let mut bitcrusher_index = 0;
+        let mut modulation_index = 0;
         for device in devices {
             if device.bypassed {
                 continue;
@@ -342,6 +323,14 @@ impl DspFrameProcessor {
                     self.ensure_bitcrusher_slot(slot);
                     self.bitcrushers[slot].prepare(channels);
                 }
+                DspDeviceKind::Chorus { .. }
+                | DspDeviceKind::Flanger { .. }
+                | DspDeviceKind::Phaser { .. } => {
+                    let slot = modulation_index.min(MAX_MODULATORS - 1);
+                    modulation_index = modulation_index.saturating_add(1);
+                    self.ensure_modulation_slot(slot);
+                    self.modulators[slot].prepare(sample_rate, channels);
+                }
                 _ => {}
             }
         }
@@ -357,6 +346,7 @@ impl DspFrameProcessor {
         let mut delay_index = 0;
         let mut reverb_index = 0;
         let mut bitcrusher_index = 0;
+        let mut modulation_index = 0;
         for device in devices {
             if device.bypassed {
                 continue;
@@ -526,6 +516,21 @@ impl DspFrameProcessor {
                         &mut self.bitcrushers[slot],
                     );
                 }
+                kind @ (DspDeviceKind::Chorus { .. }
+                | DspDeviceKind::Flanger { .. }
+                | DspDeviceKind::Phaser { .. }) => {
+                    if let Some(spec) = modulation_frame_spec(kind) {
+                        let slot = modulation_index.min(MAX_MODULATORS - 1);
+                        modulation_index = modulation_index.saturating_add(1);
+                        self.ensure_modulation_slot(slot);
+                        apply_modulation_frame(
+                            frame,
+                            sample_rate,
+                            spec,
+                            &mut self.modulators[slot],
+                        );
+                    }
+                }
                 _ => {}
             }
         }
@@ -548,6 +553,24 @@ impl DspFrameProcessor {
             self.bitcrushers.push(BitcrusherState::default());
         }
     }
+
+    fn ensure_modulation_slot(&mut self, slot: usize) {
+        while self.modulators.len() <= slot {
+            self.modulators.push(ModulationState::default());
+        }
+    }
+}
+
+fn valid_rate(value: f32) -> bool {
+    value.is_finite() && (0.01..=20.0).contains(&value)
+}
+
+fn valid_unit(value: f32) -> bool {
+    value.is_finite() && (0.0..=1.0).contains(&value)
+}
+
+fn valid_output(value: f32) -> bool {
+    value.is_finite() && (-60.0..=12.0).contains(&value)
 }
 
 fn apply_pan_frame(frame: &mut [f32], pan: f32) {

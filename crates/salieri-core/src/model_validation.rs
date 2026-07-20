@@ -269,6 +269,73 @@ fn validate_effect_chain(effects: &[EffectDevice]) -> Result<(), ValidationError
             {
                 return Err(ValidationError::InvalidEffectParameter);
             }
+            EffectDeviceKind::Chorus {
+                rate_hz,
+                depth,
+                delay_ms,
+                voices,
+                spread,
+                feedback,
+                mix,
+                output_db,
+                ..
+            } if !native_chorus_rate_descriptor().validate_f32(rate_hz)
+                || !native_chorus_depth_descriptor().validate_f32(depth)
+                || !native_chorus_delay_descriptor().validate_f32(delay_ms)
+                || native_chorus_voices_descriptor()
+                    .validate(&crate::ParameterValue::Integer(i64::from(voices)))
+                    .is_err()
+                || !native_chorus_spread_descriptor().validate_f32(spread)
+                || !native_chorus_feedback_descriptor().validate_f32(feedback)
+                || !native_chorus_mix_descriptor().validate_f32(mix)
+                || !native_chorus_output_descriptor().validate_f32(output_db) =>
+            {
+                return Err(ValidationError::InvalidEffectParameter);
+            }
+            EffectDeviceKind::Flanger {
+                rate_hz,
+                depth,
+                manual,
+                delay_ms,
+                feedback,
+                stereo_phase,
+                mix,
+                output_db,
+                ..
+            } if !native_flanger_rate_descriptor().validate_f32(rate_hz)
+                || !native_flanger_depth_descriptor().validate_f32(depth)
+                || !native_flanger_manual_descriptor().validate_f32(manual)
+                || !native_flanger_delay_descriptor().validate_f32(delay_ms)
+                || !native_flanger_feedback_descriptor().validate_f32(feedback)
+                || !native_flanger_stereo_phase_descriptor().validate_f32(stereo_phase)
+                || !native_flanger_mix_descriptor().validate_f32(mix)
+                || !native_flanger_output_descriptor().validate_f32(output_db) =>
+            {
+                return Err(ValidationError::InvalidEffectParameter);
+            }
+            EffectDeviceKind::Phaser {
+                rate_hz,
+                depth,
+                center_hz,
+                stages,
+                feedback,
+                stereo_phase,
+                mix,
+                output_db,
+                ..
+            } if !native_phaser_rate_descriptor().validate_f32(rate_hz)
+                || !native_phaser_depth_descriptor().validate_f32(depth)
+                || !native_phaser_center_descriptor().validate_f32(center_hz)
+                || native_phaser_stages_descriptor()
+                    .validate(&crate::ParameterValue::Integer(i64::from(stages)))
+                    .is_err()
+                || !native_phaser_feedback_descriptor().validate_f32(feedback)
+                || !native_phaser_stereo_phase_descriptor().validate_f32(stereo_phase)
+                || !native_phaser_mix_descriptor().validate_f32(mix)
+                || !native_phaser_output_descriptor().validate_f32(output_db) =>
+            {
+                return Err(ValidationError::InvalidEffectParameter);
+            }
             EffectDeviceKind::Gain { .. }
             | EffectDeviceKind::Pan { .. }
             | EffectDeviceKind::Balance { .. }
@@ -278,7 +345,10 @@ fn validate_effect_chain(effects: &[EffectDevice]) -> Result<(), ValidationError
             | EffectDeviceKind::Delay { .. }
             | EffectDeviceKind::Reverb { .. }
             | EffectDeviceKind::Drive { .. }
-            | EffectDeviceKind::Bitcrusher { .. } => {}
+            | EffectDeviceKind::Bitcrusher { .. }
+            | EffectDeviceKind::Chorus { .. }
+            | EffectDeviceKind::Flanger { .. }
+            | EffectDeviceKind::Phaser { .. } => {}
         }
     }
     Ok(())

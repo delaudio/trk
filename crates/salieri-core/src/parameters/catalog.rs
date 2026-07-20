@@ -13,6 +13,7 @@ use super::{
         NATIVE_DRIVE_MODE_PARAMETER_ID, NATIVE_DRIVE_OUTPUT_PARAMETER_ID,
         NATIVE_DRIVE_TONE_PARAMETER_ID,
     },
+    modulation_catalog::*,
     reverb_catalog::{
         native_reverb_damping_descriptor, native_reverb_decay_descriptor,
         native_reverb_diffusion_descriptor, native_reverb_early_reflections_descriptor,
@@ -637,6 +638,7 @@ pub fn native_effect_parameter_descriptors() -> Vec<ParameterDescriptor> {
     descriptors.extend(native_reverb_parameter_descriptors());
     descriptors.extend(native_drive_parameter_descriptors());
     descriptors.extend(native_bitcrusher_parameter_descriptors());
+    descriptors.extend(native_modulation_parameter_descriptors());
     descriptors
 }
 
@@ -699,7 +701,7 @@ pub fn builtin_parameter_descriptor(id: &ParameterId) -> Option<ParameterDescrip
         NATIVE_BITCRUSHER_DITHER_PARAMETER_ID => Some(native_bitcrusher_dither_descriptor()),
         NATIVE_BITCRUSHER_MIX_PARAMETER_ID => Some(native_bitcrusher_mix_descriptor()),
         NATIVE_BITCRUSHER_OUTPUT_PARAMETER_ID => Some(native_bitcrusher_output_descriptor()),
-        _ => None,
+        _ => native_modulation_parameter_descriptor(id.as_str()),
     }
 }
 

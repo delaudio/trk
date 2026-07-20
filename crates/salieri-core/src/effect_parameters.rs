@@ -7,8 +7,13 @@ use crate::{
 
 #[path = "effect_degradation_parameters.rs"]
 mod effect_degradation_parameters;
+#[path = "effect_modulation_parameters.rs"]
+mod effect_modulation_parameters;
 use effect_degradation_parameters::{
     degradation_native_module_state, degradation_parameter_value, set_degradation_parameter_value,
+};
+use effect_modulation_parameters::{
+    modulation_native_module_state, modulation_parameter_value, set_modulation_parameter_value,
 };
 
 impl EffectDevice {
@@ -49,6 +54,9 @@ impl EffectDevice {
             EffectDeviceKind::Reverb { .. } => native_reverb_parameter_descriptors(),
             EffectDeviceKind::Drive { .. } => native_drive_parameter_descriptors(),
             EffectDeviceKind::Bitcrusher { .. } => native_bitcrusher_parameter_descriptors(),
+            EffectDeviceKind::Chorus { .. } => native_chorus_parameter_descriptors(),
+            EffectDeviceKind::Flanger { .. } => native_flanger_parameter_descriptors(),
+            EffectDeviceKind::Phaser { .. } => native_phaser_parameter_descriptors(),
         }
     }
 
@@ -176,7 +184,8 @@ impl EffectDevice {
             (NATIVE_REVERB_OUTPUT_PARAMETER_ID, EffectDeviceKind::Reverb { output_db, .. }) => {
                 Some(ParameterValue::Decibels(output_db))
             }
-            _ => degradation_parameter_value(id.as_str(), self.kind),
+            _ => degradation_parameter_value(id.as_str(), self.kind)
+                .or_else(|| modulation_parameter_value(id.as_str(), self.kind)),
         }
     }
 
@@ -443,7 +452,9 @@ impl EffectDevice {
                 set_reverb_numeric(native_reverb_output_descriptor(), output_db, value)
             }
             _ => {
-                if set_degradation_parameter_value(id.as_str(), &mut self.kind, value)? {
+                if set_degradation_parameter_value(id.as_str(), &mut self.kind, value.clone())?
+                    || set_modulation_parameter_value(id.as_str(), &mut self.kind, value)?
+                {
                     Ok(())
                 } else {
                     Err(EditError::UnknownParameter)
@@ -465,6 +476,9 @@ impl EffectDevice {
             EffectDeviceKind::Reverb { .. } => native_reverb_module_descriptor(),
             EffectDeviceKind::Drive { .. } => native_drive_module_descriptor(),
             EffectDeviceKind::Bitcrusher { .. } => native_bitcrusher_module_descriptor(),
+            EffectDeviceKind::Chorus { .. } => native_chorus_module_descriptor(),
+            EffectDeviceKind::Flanger { .. } => native_flanger_module_descriptor(),
+            EffectDeviceKind::Phaser { .. } => native_phaser_module_descriptor(),
         }
     }
 
@@ -685,6 +699,11 @@ impl EffectDevice {
             ),
             EffectDeviceKind::Drive { .. } | EffectDeviceKind::Bitcrusher { .. } => {
                 degradation_native_module_state(self.kind).expect("degradation device state")
+            }
+            EffectDeviceKind::Chorus { .. }
+            | EffectDeviceKind::Flanger { .. }
+            | EffectDeviceKind::Phaser { .. } => {
+                modulation_native_module_state(self.kind).expect("modulation device state")
             }
         };
         NativeModuleState {

@@ -423,6 +423,89 @@ fn renders_sampler_events_through_native_bitcrusher_reduction() {
 }
 
 #[test]
+fn renders_sampler_events_through_native_modulation_effects() {
+    let samples = vec![OfflineSamplerSample {
+        sample_id: 7,
+        buffer: PreviewBuffer {
+            sample_rate: 48_000,
+            channels: 2,
+            frames: 64,
+            data: (0..64)
+                .flat_map(|frame| {
+                    let value = (frame as f32 / 64.0).sin();
+                    [value, -value]
+                })
+                .collect(),
+        },
+    }];
+    let events = vec![OfflineSamplerEvent {
+        track_id: 2,
+        sample_id: 7,
+        frame: 0,
+        gain: 1.0,
+        pan: 0.0,
+        pitch_ratio: 1.0,
+        velocity: 127,
+    }];
+
+    for kind in [
+        DspDeviceKind::Chorus {
+            rate_hz: 0.5,
+            sync: false,
+            depth: 0.75,
+            delay_ms: 12.0,
+            voices: 2,
+            spread: 1.0,
+            feedback: 0.1,
+            mix: 0.5,
+            output_db: 0.0,
+        },
+        DspDeviceKind::Flanger {
+            rate_hz: 0.5,
+            sync: true,
+            depth: 0.75,
+            manual: 0.5,
+            delay_ms: 3.0,
+            feedback: 0.25,
+            stereo_phase: 1.0,
+            mix: 0.5,
+            output_db: 0.0,
+        },
+        DspDeviceKind::Phaser {
+            rate_hz: 0.5,
+            sync: false,
+            depth: 0.75,
+            center_hz: 1_000.0,
+            stages: 4,
+            feedback: 0.25,
+            stereo_phase: 1.0,
+            mix: 0.5,
+            output_db: 0.0,
+        },
+    ] {
+        let rendered = render_sampler_events_with_dsp(
+            &samples,
+            &events,
+            OfflineRenderSpec {
+                sample_rate: 48_000,
+                channels: 2,
+                frames: 64,
+            },
+            &DspGraphSpec {
+                track_chains: Vec::new(),
+                master: vec![DspDeviceSpec {
+                    bypassed: false,
+                    kind,
+                }],
+            },
+        )
+        .expect("render modulation");
+
+        assert!(rendered.data.iter().all(|sample| sample.is_finite()));
+    }
+}
+
+#[test]
 fn renders_sampler_events_through_native_delay_timing() {
     let samples = vec![OfflineSamplerSample {
         sample_id: 7,

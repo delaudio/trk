@@ -1,10 +1,21 @@
-use serde::{Deserialize, Serialize};
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DspFilterMode {
+    LowPass,
+    HighPass,
+    BandPass,
+    Notch,
+}
 
-use crate::{DriveMode, FilterMode};
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DspDriveMode {
+    Overdrive,
+    Saturation,
+    HardClip,
+    SoftClip,
+}
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
-pub enum EffectDeviceKind {
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum DspDeviceKind {
     Gain {
         gain: f32,
     },
@@ -22,7 +33,7 @@ pub enum EffectDeviceKind {
         invert_right: bool,
     },
     Filter {
-        mode: FilterMode,
+        mode: DspFilterMode,
         cutoff_hz: f32,
         resonance: f32,
         drive_db: f32,
@@ -58,7 +69,7 @@ pub enum EffectDeviceKind {
         output_db: f32,
     },
     Drive {
-        mode: DriveMode,
+        mode: DspDriveMode,
         drive_db: f32,
         tone: f32,
         bias: f32,

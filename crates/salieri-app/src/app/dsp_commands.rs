@@ -90,6 +90,31 @@ impl App {
                     );
                 }
             }
+            ["master", "chorus", rate, depth, delay, voices, spread, mix] => {
+                if let Some(device) = parse_chorus_device(rate, depth, delay, voices, spread, mix) {
+                    self.upsert_master_dsp_device(device);
+                } else {
+                    self.notify_warning("Usage: :dsp master chorus RATE_HZ DEPTH DELAY_MS VOICES SPREAD MIX");
+                }
+            }
+            ["master", "flanger", rate, depth, manual, feedback, phase, mix] => {
+                if let Some(device) =
+                    parse_flanger_device(rate, depth, manual, feedback, phase, mix)
+                {
+                    self.upsert_master_dsp_device(device);
+                } else {
+                    self.notify_warning("Usage: :dsp master flanger RATE_HZ DEPTH MANUAL FEEDBACK PHASE MIX");
+                }
+            }
+            ["master", "phaser", rate, depth, center, stages, feedback, phase, mix] => {
+                if let Some(device) =
+                    parse_phaser_device(rate, depth, center, stages, feedback, phase, mix)
+                {
+                    self.upsert_master_dsp_device(device);
+                } else {
+                    self.notify_warning("Usage: :dsp master phaser RATE_HZ DEPTH CENTER_HZ STAGES FEEDBACK PHASE MIX");
+                }
+            }
             ["track", "clear"] => self.clear_track_dsp_chain(self.cursor.track),
             ["track", "gain", value] => self.set_current_track_dsp_value(
                 value,
@@ -178,6 +203,31 @@ impl App {
                     self.notify_warning(
                         "Usage: :dsp track [TRACK] bitcrusher BIT_DEPTH REDUCTION_RATIO MIX [dither]",
                     );
+                }
+            }
+            ["track", "chorus", rate, depth, delay, voices, spread, mix] => {
+                if let Some(device) = parse_chorus_device(rate, depth, delay, voices, spread, mix) {
+                    self.upsert_track_dsp_device(self.cursor.track, device);
+                } else {
+                    self.notify_warning("Usage: :dsp track [TRACK] chorus RATE_HZ DEPTH DELAY_MS VOICES SPREAD MIX");
+                }
+            }
+            ["track", "flanger", rate, depth, manual, feedback, phase, mix] => {
+                if let Some(device) =
+                    parse_flanger_device(rate, depth, manual, feedback, phase, mix)
+                {
+                    self.upsert_track_dsp_device(self.cursor.track, device);
+                } else {
+                    self.notify_warning("Usage: :dsp track [TRACK] flanger RATE_HZ DEPTH MANUAL FEEDBACK PHASE MIX");
+                }
+            }
+            ["track", "phaser", rate, depth, center, stages, feedback, phase, mix] => {
+                if let Some(device) =
+                    parse_phaser_device(rate, depth, center, stages, feedback, phase, mix)
+                {
+                    self.upsert_track_dsp_device(self.cursor.track, device);
+                } else {
+                    self.notify_warning("Usage: :dsp track [TRACK] phaser RATE_HZ DEPTH CENTER_HZ STAGES FEEDBACK PHASE MIX");
                 }
             }
             ["track", track, "clear"] => {
@@ -292,8 +342,35 @@ impl App {
                     );
                 }
             }
+            ["track", track, "chorus", rate, depth, delay, voices, spread, mix] => {
+                let track = parse_track_number(track);
+                let device = parse_chorus_device(rate, depth, delay, voices, spread, mix);
+                if let (Some(track), Some(device)) = (track, device) {
+                    self.upsert_track_dsp_device(track, device);
+                } else {
+                    self.notify_warning("Usage: :dsp track [TRACK] chorus RATE_HZ DEPTH DELAY_MS VOICES SPREAD MIX");
+                }
+            }
+            ["track", track, "flanger", rate, depth, manual, feedback, phase, mix] => {
+                let track = parse_track_number(track);
+                let device = parse_flanger_device(rate, depth, manual, feedback, phase, mix);
+                if let (Some(track), Some(device)) = (track, device) {
+                    self.upsert_track_dsp_device(track, device);
+                } else {
+                    self.notify_warning("Usage: :dsp track [TRACK] flanger RATE_HZ DEPTH MANUAL FEEDBACK PHASE MIX");
+                }
+            }
+            ["track", track, "phaser", rate, depth, center, stages, feedback, phase, mix] => {
+                let track = parse_track_number(track);
+                let device = parse_phaser_device(rate, depth, center, stages, feedback, phase, mix);
+                if let (Some(track), Some(device)) = (track, device) {
+                    self.upsert_track_dsp_device(track, device);
+                } else {
+                    self.notify_warning("Usage: :dsp track [TRACK] phaser RATE_HZ DEPTH CENTER_HZ STAGES FEEDBACK PHASE MIX");
+                }
+            }
             _ => self.notify_warning(
-                "Usage: :dsp master gain|pan|balance|width VALUE | phase LEFT RIGHT | filter MODE CUTOFF RES DRIVE MIX | delay sync|free LEFT_MS RIGHT_MS FEEDBACK MIX [ping] | reverb SIZE PREDELAY_MS DECAY_S MIX | drive MODE DRIVE_DB TONE MIX | bitcrusher BIT_DEPTH REDUCTION_RATIO MIX [dither] | :dsp track [TRACK] ... | :dsp ... clear",
+                "Usage: :dsp master gain|pan|balance|width VALUE | phase LEFT RIGHT | filter MODE CUTOFF RES DRIVE MIX | delay sync|free LEFT_MS RIGHT_MS FEEDBACK MIX [ping] | reverb SIZE PREDELAY_MS DECAY_S MIX | drive MODE DRIVE_DB TONE MIX | bitcrusher BIT_DEPTH REDUCTION_RATIO MIX [dither] | chorus|flanger|phaser ... | :dsp track [TRACK] ... | :dsp ... clear",
             ),
         }
     }
@@ -436,6 +513,74 @@ fn parse_bitcrusher_device(
         spec.dither = parse_bool_flag(dither)?;
     }
     Some(EffectDevice::bitcrusher(10, spec))
+}
+
+fn parse_chorus_device(
+    rate: &str,
+    depth: &str,
+    delay: &str,
+    voices: &str,
+    spread: &str,
+    mix: &str,
+) -> Option<EffectDevice> {
+    Some(EffectDevice::chorus(
+        11,
+        ChorusSpec {
+            rate_hz: rate.parse::<f32>().ok()?,
+            depth: depth.parse::<f32>().ok()?,
+            delay_ms: delay.parse::<f32>().ok()?,
+            voices: voices.parse::<u8>().ok()?,
+            spread: spread.parse::<f32>().ok()?,
+            mix: mix.parse::<f32>().ok()?,
+            ..ChorusSpec::default()
+        },
+    ))
+}
+
+fn parse_flanger_device(
+    rate: &str,
+    depth: &str,
+    manual: &str,
+    feedback: &str,
+    phase: &str,
+    mix: &str,
+) -> Option<EffectDevice> {
+    Some(EffectDevice::flanger(
+        12,
+        FlangerSpec {
+            rate_hz: rate.parse::<f32>().ok()?,
+            depth: depth.parse::<f32>().ok()?,
+            manual: manual.parse::<f32>().ok()?,
+            feedback: feedback.parse::<f32>().ok()?,
+            stereo_phase: phase.parse::<f32>().ok()?,
+            mix: mix.parse::<f32>().ok()?,
+            ..FlangerSpec::default()
+        },
+    ))
+}
+
+fn parse_phaser_device(
+    rate: &str,
+    depth: &str,
+    center: &str,
+    stages: &str,
+    feedback: &str,
+    phase: &str,
+    mix: &str,
+) -> Option<EffectDevice> {
+    Some(EffectDevice::phaser(
+        13,
+        PhaserSpec {
+            rate_hz: rate.parse::<f32>().ok()?,
+            depth: depth.parse::<f32>().ok()?,
+            center_hz: center.parse::<f32>().ok()?,
+            stages: stages.parse::<u8>().ok()?,
+            feedback: feedback.parse::<f32>().ok()?,
+            stereo_phase: phase.parse::<f32>().ok()?,
+            mix: mix.parse::<f32>().ok()?,
+            ..PhaserSpec::default()
+        },
+    ))
 }
 
 fn parse_sync_flag(input: &str) -> Option<bool> {

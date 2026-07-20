@@ -272,7 +272,10 @@ fn effect_descriptor(
         | EffectDeviceKind::Delay { .. }
         | EffectDeviceKind::Reverb { .. }
         | EffectDeviceKind::Drive { .. }
-        | EffectDeviceKind::Bitcrusher { .. } => effect
+        | EffectDeviceKind::Bitcrusher { .. }
+        | EffectDeviceKind::Chorus { .. }
+        | EffectDeviceKind::Flanger { .. }
+        | EffectDeviceKind::Phaser { .. } => effect
             .native_module_descriptor()
             .parameter(parameter)
             .cloned(),

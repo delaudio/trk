@@ -40,7 +40,7 @@ playback, and offline export.
 | Delay, multitap delay, repeater | Track insert, send, master | Implemented | #127 native delay | Stereo delay covers linked/free times, sync quantization, feedback filtering, ping-pong routing, wet/dry mix, and bounded delay memory. |
 | Reverb | Track insert, send, master | Implemented | #128 native reverb | Deterministic bounded Schroeder-style reverb; convolution is deferred. |
 | Distortion, cabinet, lo-fi, bit reduction | Track insert, sampler-local | Implemented | #129 native drive and degradation effects | Drive covers overdrive, saturation, hard clip, and soft clip; Bitcrusher covers bit-depth and sample-rate hold reduction. Cabinet/convolution deferred. |
-| Chorus, flanger, phaser, tremolo, ring modulation, autopan | Track insert, master | Planned | #130 native modulation effects | All LFO-driven devices must share deterministic phase/reset behavior for offline and realtime. |
+| Chorus, flanger, phaser, tremolo, ring modulation, autopan | Track insert, master | Partial | #130 native modulation effects | Chorus, flanger, and phaser are implemented with shared deterministic modulation state; tremolo, ring modulation, and autopan remain follow-up scope. |
 | Compressor, gate, limiter, maximizer | Track insert, master | Planned | #131 native dynamics effects | Sidechain/key input is deferred until send/routing foundations are real. |
 | Meta devices, LFO device, hydra, key/velocity trackers | Automation/modulation system | Deferred | Follow-up after #123 and #137 | These control parameters rather than process audio directly. Do not model them as ordinary audio insert devices. |
 | Send device and routing utilities | Mixer routing | Partial | #84 before expanded send devices | Current send metadata is placeholder-only. Audio sends need routing and deterministic summing rules first. |
@@ -274,24 +274,41 @@ Purpose: cover deterministic LFO-based movement.
 
 | Device | ID | Placements | Status | Bypass | Wet/dry | Latency | Tail |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Chorus | `native.effect.chorus` | track insert, master | Planned | passthrough | yes | 0 | yes |
-| Flanger | `native.effect.flanger` | track insert, master | Planned | passthrough | yes | 0 | yes |
+| Chorus | `native.effect.chorus` | track insert, master | Implemented | passthrough | yes | 0 | bounded delay memory |
+| Flanger | `native.effect.flanger` | track insert, master | Implemented | passthrough | yes | 0 | bounded delay memory |
+| Phaser | `native.effect.phaser` | track insert, master | Implemented | passthrough | yes | 0 | none |
 | Tremolo | `native.effect.tremolo` | track insert, master | Planned | passthrough | no | 0 | none |
 | Auto Pan | `native.effect.auto_pan` | track insert, master | Planned | passthrough | no | 0 | none |
 
 | Parameter | Device | Type | Range / choices | Default | Step | Unit | Flags |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `native.chorus.rate_hz` | Chorus | `PlainFloat` | `0.01..=20.0` | `0.5` | `0.001` | hertz | automatable, logarithmic |
-| `native.chorus.depth` | Chorus | `PlainFloat` | `0.0..=1.0` | `0.5` | `0.001` | normalized | automatable |
-| `native.chorus.phase` | Chorus | `PlainFloat` | `0.0..=360.0` | `180.0` | `0.1` | degrees | automatable |
-| `native.chorus.delay_ms` | Chorus | `PlainFloat` | `0.1..=50.0` | `12.0` | `0.01` | milliseconds | automatable |
-| `native.chorus.wet` | Chorus | `PlainFloat` | `0.0..=1.0` | `0.5` | `0.001` | percent | automatable |
-| `native.flanger.rate_hz` | Flanger | `PlainFloat` | `0.01..=20.0` | `0.25` | `0.001` | hertz | automatable, logarithmic |
-| `native.flanger.depth` | Flanger | `PlainFloat` | `0.0..=1.0` | `0.5` | `0.001` | normalized | automatable |
-| `native.flanger.phase` | Flanger | `PlainFloat` | `0.0..=360.0` | `180.0` | `0.1` | degrees | automatable |
-| `native.flanger.feedback` | Flanger | `BipolarFloat` | `-0.95..=0.95` | `0.0` | `0.001` | percent | automatable, bipolar |
-| `native.flanger.delay_ms` | Flanger | `PlainFloat` | `0.1..=20.0` | `3.0` | `0.01` | milliseconds | automatable |
-| `native.flanger.wet` | Flanger | `PlainFloat` | `0.0..=1.0` | `0.5` | `0.001` | percent | automatable |
+| `native.chorus.rateHz` | Chorus | `FrequencyHertz` | `0.01..=20.0` | `0.5` | `0.01` | hertz | automatable |
+| `native.chorus.sync` | Chorus | `Bool` | `false`, `true` | `false` | stepped | choice | automatable, stepped |
+| `native.chorus.depth` | Chorus | `Percentage` | `0.0..=1.0` | `0.5` | `0.001` | percent | automatable |
+| `native.chorus.delayMs` | Chorus | `PlainFloat` | `1.0..=40.0` | `12.0` | `0.1` | milliseconds | automatable |
+| `native.chorus.voices` | Chorus | `Integer` | `1..=4` | `2` | `1` | none | automatable, stepped |
+| `native.chorus.spread` | Chorus | `Percentage` | `0.0..=1.0` | `0.5` | `0.001` | percent | automatable |
+| `native.chorus.feedback` | Chorus | `Percentage` | `0.0..=0.95` | `0.1` | `0.001` | percent | automatable |
+| `native.chorus.mix` | Chorus | `Percentage` | `0.0..=1.0` | `0.5` | `0.001` | percent | automatable |
+| `native.chorus.outputDb` | Chorus | `Decibels` | `-60.0..=12.0` | `0.0` | `0.1` | decibels | automatable |
+| `native.flanger.rateHz` | Flanger | `FrequencyHertz` | `0.01..=20.0` | `0.5` | `0.01` | hertz | automatable |
+| `native.flanger.sync` | Flanger | `Bool` | `false`, `true` | `false` | stepped | choice | automatable, stepped |
+| `native.flanger.depth` | Flanger | `Percentage` | `0.0..=1.0` | `0.5` | `0.001` | percent | automatable |
+| `native.flanger.manual` | Flanger | `Percentage` | `0.0..=1.0` | `0.5` | `0.001` | percent | automatable |
+| `native.flanger.delayMs` | Flanger | `PlainFloat` | `0.1..=20.0` | `3.0` | `0.1` | milliseconds | automatable |
+| `native.flanger.feedback` | Flanger | `Percentage` | `-0.95..=0.95` | `0.0` | `0.001` | percent | automatable, bipolar |
+| `native.flanger.stereoPhase` | Flanger | `Percentage` | `0.0..=1.0` | `0.5` | `0.001` | percent | automatable |
+| `native.flanger.mix` | Flanger | `Percentage` | `0.0..=1.0` | `0.5` | `0.001` | percent | automatable |
+| `native.flanger.outputDb` | Flanger | `Decibels` | `-60.0..=12.0` | `0.0` | `0.1` | decibels | automatable |
+| `native.phaser.rateHz` | Phaser | `FrequencyHertz` | `0.01..=20.0` | `0.5` | `0.01` | hertz | automatable |
+| `native.phaser.sync` | Phaser | `Bool` | `false`, `true` | `false` | stepped | choice | automatable, stepped |
+| `native.phaser.depth` | Phaser | `Percentage` | `0.0..=1.0` | `0.5` | `0.001` | percent | automatable |
+| `native.phaser.centerHz` | Phaser | `FrequencyHertz` | `200.0..=8000.0` | `1000.0` | `0.1` | hertz | automatable |
+| `native.phaser.stages` | Phaser | `Integer` | `2..=12` | `4` | `1` | none | automatable, stepped |
+| `native.phaser.feedback` | Phaser | `Percentage` | `-0.95..=0.95` | `0.0` | `0.001` | percent | automatable, bipolar |
+| `native.phaser.stereoPhase` | Phaser | `Percentage` | `0.0..=1.0` | `0.5` | `0.001` | percent | automatable |
+| `native.phaser.mix` | Phaser | `Percentage` | `0.0..=1.0` | `0.5` | `0.001` | percent | automatable |
+| `native.phaser.outputDb` | Phaser | `Decibels` | `-60.0..=12.0` | `0.0` | `0.1` | decibels | automatable |
 | `native.tremolo.rate_hz` | Tremolo | `PlainFloat` | `0.01..=20.0` | `4.0` | `0.001` | hertz | automatable, logarithmic |
 | `native.tremolo.depth` | Tremolo | `PlainFloat` | `0.0..=1.0` | `0.5` | `0.001` | normalized | automatable |
 | `native.tremolo.shape` | Tremolo | `Enum` | `sine`, `triangle`, `square`, `saw` | `sine` | stepped | none | automatable, stepped |
@@ -299,6 +316,22 @@ Purpose: cover deterministic LFO-based movement.
 | `native.auto_pan.depth` | Auto Pan | `PlainFloat` | `0.0..=1.0` | `0.5` | `0.001` | normalized | automatable |
 | `native.auto_pan.phase` | Auto Pan | `PlainFloat` | `0.0..=360.0` | `180.0` | `0.1` | degrees | automatable |
 | `native.auto_pan.shape` | Auto Pan | `Enum` | `sine`, `triangle`, `square`, `saw` | `sine` | stepped | none | automatable, stepped |
+
+Implementation notes:
+
+- Chorus and flanger share a deterministic modulated-delay kernel. Delay memory
+  is allocated during graph preparation, is bounded by each device's maximum
+  delay, and is reused by realtime and offline rendering.
+- Phaser uses the same LFO/reset path with deterministic all-pass stages. The
+  `stages` parameter is stepped, while feedback and stereo phase remain
+  automatable parameter-lock targets.
+- `sync` currently quantizes the LFO rate to a fixed deterministic set of
+  musical-rate values until the DSP graph carries transport tempo into each
+  insert processor.
+- Commands create Chorus as device id 11, Flanger as id 12, and Phaser as id 13
+  for track and master chains. Parameter locks cover rate, sync, depth,
+  feedback, mix, output, and device-specific controls (`voices`, `spread`,
+  `manual`, `stereoPhase`, `centerHz`, `stages`).
 
 ### #131 Native Dynamics Effects
 
