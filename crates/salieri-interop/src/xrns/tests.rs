@@ -424,6 +424,58 @@ fn xrns_import_preserves_sample_playback_metadata() {
 }
 
 #[test]
+fn xrns_import_ignores_nested_sample_tags_inside_sample_metadata() {
+    let xml = r#"
+<RenoiseSong>
+  <Tracks><Track><Name>Sampler</Name></Track></Tracks>
+  <Patterns>
+    <Pattern><NumberOfLines>1</NumberOfLines><Tracks><Track>
+      <Line><Index>0</Index><Note>C-5</Note><Instrument>00</Instrument></Line>
+    </Track></Tracks></Pattern>
+  </Patterns>
+  <Instruments>
+    <Instrument>
+      <Name>Lead</Name>
+      <SampleGenerator>
+        <Samples>
+          <Sample>
+            <Name>Real Sample</Name>
+            <Volume>1.67880416</Volume>
+            <Panning>0.333333</Panning>
+            <NestedMetadata>
+              <Device>
+                <Name>Nested Gain Device</Name>
+                <Gain>9.0</Gain>
+              </Device>
+              <Sample>
+                <Name>Nested Non-Payload Sample</Name>
+                <Volume>9.0</Volume>
+              </Sample>
+            </NestedMetadata>
+          </Sample>
+        </Samples>
+      </SampleGenerator>
+    </Instrument>
+  </Instruments>
+</RenoiseSong>
+"#;
+    let archive = xrns_archive([
+        xrns_entry("Song.xml", xml.as_bytes()),
+        xrns_entry("SampleData/Instrument00/Sample00.wav", b"RIFF....WAVE"),
+    ]);
+
+    let report = import_xrns(&archive);
+    let song = report.song.expect("imported song");
+    let sample = song.samples.first().expect("imported sample");
+
+    song.validate().expect("valid song");
+    assert_eq!(song.samples.len(), 1);
+    assert_eq!(sample.name, "Real Sample");
+    assert_eq!(sample.gain, 1.679);
+    assert_eq!(sample.pan, -0.333);
+}
+
+#[test]
 fn xrns_import_preserves_multisample_keyzones() {
     let xml = r#"
 <RenoiseSong>

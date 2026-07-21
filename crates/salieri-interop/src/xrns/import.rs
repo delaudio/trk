@@ -116,6 +116,7 @@ pub(super) fn parse_xrns_import_model(
     let mut current_track: Option<XrnsImportTrack> = None;
     let mut current_instrument: Option<XrnsImportInstrument> = None;
     let mut current_sample: Option<XrnsImportSampleMetadata> = None;
+    let mut current_sample_nested_depth = 0_usize;
     let mut current_pattern: Option<XrnsImportPattern> = None;
     let mut current_pattern_track: Option<usize> = None;
     let mut pattern_track_line_counts = Vec::<usize>::new();
@@ -133,8 +134,14 @@ pub(super) fn parse_xrns_import_model(
                     current_track = Some(XrnsImportTrack::default());
                 } else if name == "Instrument" && stack_contains(&stack, "Instruments") {
                     current_instrument = Some(XrnsImportInstrument::default());
-                } else if name == "Sample" && current_instrument.is_some() {
+                } else if name == "Sample" && current_sample.is_some() {
+                    current_sample_nested_depth += 1;
+                } else if name == "Sample"
+                    && current_instrument.is_some()
+                    && is_xrns_instrument_sample_container(&stack)
+                {
                     current_sample = Some(XrnsImportSampleMetadata::default());
+                    current_sample_nested_depth = 0;
                 } else if name == "Pattern" && stack_contains(&stack, "Patterns") {
                     current_pattern = Some(XrnsImportPattern::default());
                     current_pattern_track = None;
@@ -168,10 +175,15 @@ pub(super) fn parse_xrns_import_model(
                         model.tracks.push(track);
                     }
                 } else if name == "Sample" {
-                    if let (Some(instrument), Some(sample)) =
-                        (&mut current_instrument, current_sample.take())
-                    {
-                        instrument.samples.push(sample);
+                    if current_sample_nested_depth > 0 {
+                        current_sample_nested_depth -= 1;
+                    } else {
+                        if let (Some(instrument), Some(sample)) =
+                            (&mut current_instrument, current_sample.take())
+                        {
+                            instrument.samples.push(sample);
+                        }
+                        current_sample_nested_depth = 0;
                     }
                 } else if name == "Instrument" {
                     if let Some(mut instrument) = current_instrument.take() {
@@ -246,7 +258,9 @@ pub(super) fn parse_xrns_import_model(
                     continue;
                 }
                 if let Some(sample) = &mut current_sample {
-                    apply_xrns_sample_text(current, &text, sample, diagnostics, &stack);
+                    if current_sample_nested_depth == 0 && is_direct_sample_metadata_text(&stack) {
+                        apply_xrns_sample_text(current, &text, sample, diagnostics, &stack);
+                    }
                 } else if let Some(track) = &mut current_track {
                     match current {
                         "Name" => track.name = Some(text),
@@ -318,6 +332,18 @@ fn is_xrns_song_track_container(name: &str) -> bool {
     matches!(name, "Track" | "SequencerTrack")
 }
 
+fn is_xrns_instrument_sample_container(stack: &[String]) -> bool {
+    stack.last().is_some_and(|name| name == "Samples")
+}
+
+fn is_direct_sample_metadata_text(stack: &[String]) -> bool {
+    stack
+        .iter()
+        .rev()
+        .nth(1)
+        .is_some_and(|name| name == "Sample")
+}
+
 fn apply_xrns_line_text(
     current: &str,
     text: &str,
@@ -367,7 +393,7 @@ fn apply_xrns_sample_text(
             sample.fine_tune_cents = parse_i16_value(text).map(|value| value.clamp(-1200, 1200));
         }
         "Volume" | "Gain" => {
-            sample.gain = parse_float(text).map(|gain| gain.clamp(0.0, 2.0));
+            sample.gain = parse_float(text).map(|gain| quantize_milli(gain.clamp(0.0, 2.0)));
         }
         "Panning" | "Pan" => {
             sample.pan = parse_sample_pan(text);
@@ -760,7 +786,12 @@ fn parse_envelope_seconds(value: &str) -> f32 { parse_float(value).map_or(0.0, |
 #[rustfmt::skip]
 fn parse_sample_pan(value: &str) -> Option<f32> {
     let pan = parse_float(value)?;
-    if (0.0..=1.0).contains(&pan) { Some((pan - 0.5) * 2.0) } else { Some(pan.clamp(-1.0, 1.0)) }
+    let normalized = if (0.0..=1.0).contains(&pan) { (pan - 0.5) * 2.0 } else { pan };
+    Some(quantize_milli(normalized.clamp(-1.0, 1.0)))
+}
+
+fn quantize_milli(value: f32) -> f32 {
+    (value * 1000.0).round() / 1000.0
 }
 
 #[rustfmt::skip]
