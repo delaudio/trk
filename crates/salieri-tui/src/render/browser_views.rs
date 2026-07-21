@@ -1,13 +1,13 @@
 use ratatui::{
     layout::{Constraint, Direction as LayoutDirection, Layout, Rect},
-    prelude::{Color, Frame, Line, Modifier, Span, Style},
-    widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, Wrap},
+    prelude::{Frame, Line, Span},
+    widgets::{Paragraph, Scrollbar, ScrollbarOrientation, Wrap},
 };
 
 use crate::ViewportAxis;
 
 use super::{
-    render_sampler_view, truncate, ProjectBrowserEntryKind, ProjectBrowserViewState,
+    render_sampler_view, theme, truncate, ProjectBrowserEntryKind, ProjectBrowserViewState,
     SampleBrowserEntryKind, SampleBrowserViewState,
 };
 
@@ -17,11 +17,8 @@ pub(super) fn render_sample_browser(
     browser: Option<SampleBrowserViewState<'_>>,
 ) {
     let Some(browser) = browser else {
-        let empty = Paragraph::new("Sample browser unavailable").block(
-            Block::default()
-                .title(" Sample Browser ")
-                .borders(Borders::ALL),
-        );
+        let empty =
+            Paragraph::new("Sample browser unavailable").block(theme::block(" Sample Browser "));
         frame.render_widget(empty, area);
         return;
     };
@@ -39,7 +36,7 @@ pub(super) fn render_sample_browser(
         browser.current_dir,
         columns[0].width.saturating_sub(4) as usize,
     ))
-    .block(Block::default().title(" Directory ").borders(Borders::ALL));
+    .block(theme::block(" Directory "));
     frame.render_widget(path, left[0]);
 
     let visible_rows = left[1].height.saturating_sub(2) as usize;
@@ -67,15 +64,12 @@ pub(super) fn render_sample_browser(
                 SampleBrowserEntryKind::UnsupportedFile => "[ ]",
             };
             let style = if index == selected {
-                Style::default()
-                    .fg(Color::Black)
-                    .bg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD)
+                theme::active()
             } else {
                 match entry.kind {
-                    SampleBrowserEntryKind::Directory => Style::default().fg(Color::Cyan),
-                    SampleBrowserEntryKind::SupportedSample => Style::default().fg(Color::White),
-                    SampleBrowserEntryKind::UnsupportedFile => Style::default().fg(Color::DarkGray),
+                    SampleBrowserEntryKind::Directory => theme::label(),
+                    SampleBrowserEntryKind::SupportedSample => theme::base(),
+                    SampleBrowserEntryKind::UnsupportedFile => theme::muted(),
                 }
             };
             lines.push(Line::from(Span::styled(
@@ -86,7 +80,7 @@ pub(super) fn render_sample_browser(
     }
 
     let list = Paragraph::new(lines)
-        .block(Block::default().title(" Samples ").borders(Borders::ALL))
+        .block(theme::block(" Samples "))
         .wrap(Wrap { trim: false });
     frame.render_widget(list, left[1]);
     if browser.entries.len() > visible_rows {
@@ -103,7 +97,7 @@ pub(super) fn render_sample_browser(
     } else {
         let message = browser.message.unwrap_or("Select a WAV file to preview it");
         let preview = Paragraph::new(message)
-            .block(Block::default().title(" Preview ").borders(Borders::ALL))
+            .block(theme::block(" Preview "))
             .wrap(Wrap { trim: true });
         frame.render_widget(preview, columns[1]);
     }
@@ -115,11 +109,8 @@ pub(super) fn render_project_browser(
     browser: Option<ProjectBrowserViewState<'_>>,
 ) {
     let Some(browser) = browser else {
-        let empty = Paragraph::new("Project browser unavailable").block(
-            Block::default()
-                .title(" Project Browser ")
-                .borders(Borders::ALL),
-        );
+        let empty =
+            Paragraph::new("Project browser unavailable").block(theme::block(" Project Browser "));
         frame.render_widget(empty, area);
         return;
     };
@@ -137,7 +128,7 @@ pub(super) fn render_project_browser(
         browser.current_dir,
         columns[0].width.saturating_sub(4) as usize,
     ))
-    .block(Block::default().title(" Directory ").borders(Borders::ALL));
+    .block(theme::block(" Directory "));
     frame.render_widget(path, left[0]);
 
     let visible_rows = left[1].height.saturating_sub(2) as usize;
@@ -166,17 +157,14 @@ pub(super) fn render_project_browser(
                 ProjectBrowserEntryKind::InvalidProject => "[X]",
             };
             let style = if index == selected {
-                Style::default()
-                    .fg(Color::Black)
-                    .bg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD)
+                theme::active()
             } else {
                 match entry.kind {
-                    ProjectBrowserEntryKind::Directory => Style::default().fg(Color::Cyan),
-                    ProjectBrowserEntryKind::RecentProject => Style::default().fg(Color::Green),
-                    ProjectBrowserEntryKind::Project => Style::default().fg(Color::White),
+                    ProjectBrowserEntryKind::Directory => theme::label(),
+                    ProjectBrowserEntryKind::RecentProject => theme::playing(),
+                    ProjectBrowserEntryKind::Project => theme::base(),
                     ProjectBrowserEntryKind::MissingProject
-                    | ProjectBrowserEntryKind::InvalidProject => Style::default().fg(Color::Red),
+                    | ProjectBrowserEntryKind::InvalidProject => theme::error(),
                 }
             };
             lines.push(Line::from(Span::styled(
@@ -187,18 +175,18 @@ pub(super) fn render_project_browser(
     }
 
     let list = Paragraph::new(lines)
-        .block(Block::default().title(" Projects ").borders(Borders::ALL))
+        .block(theme::block(" Projects "))
         .wrap(Wrap { trim: false });
     frame.render_widget(list, left[1]);
 
     let mut detail_lines = Vec::new();
     if let Some(entry) = browser.entries.get(selected) {
         detail_lines.push(Line::from(vec![
-            Span::styled("Name ", Style::default().fg(Color::Yellow)),
+            Span::styled("Name ", theme::label()),
             Span::raw(entry.name.to_string()),
         ]));
         detail_lines.push(Line::from(vec![
-            Span::styled("Type ", Style::default().fg(Color::Yellow)),
+            Span::styled("Type ", theme::label()),
             Span::raw(match entry.kind {
                 ProjectBrowserEntryKind::Directory => "directory",
                 ProjectBrowserEntryKind::RecentProject => "recent project",
@@ -208,7 +196,7 @@ pub(super) fn render_project_browser(
             }),
         ]));
         detail_lines.push(Line::from(vec![
-            Span::styled("Path ", Style::default().fg(Color::Yellow)),
+            Span::styled("Path ", theme::label()),
             Span::raw(entry.path.to_string()),
         ]));
         detail_lines.push(Line::from(""));
@@ -220,12 +208,12 @@ pub(super) fn render_project_browser(
         detail_lines.push(Line::from(""));
         detail_lines.push(Line::from(Span::styled(
             message.to_string(),
-            Style::default().fg(Color::Yellow),
+            theme::warning(),
         )));
     }
 
     let details = Paragraph::new(detail_lines)
-        .block(Block::default().title(" Details ").borders(Borders::ALL))
+        .block(theme::block(" Details "))
         .wrap(Wrap { trim: true });
     frame.render_widget(details, columns[1]);
 }

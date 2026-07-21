@@ -3,6 +3,7 @@ use std::ops::Range;
 mod browser_views;
 mod help_overlay;
 mod modal_overlays;
+mod theme;
 
 use ratatui::{
     layout::{Constraint, Direction as LayoutDirection, Layout, Rect},
@@ -452,7 +453,7 @@ fn render_waveform_overview_with_window(
     window: WaveformWindow,
     glyphs: WaveformGlyphs,
 ) {
-    let block = Block::default().title(" Waveform ").borders(Borders::ALL);
+    let block = theme::block(" Waveform ");
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
@@ -490,42 +491,75 @@ impl WaveformWindow {
 fn render_header(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
     let pattern_name = active_pattern(song, state.pattern_index)
         .map_or("No Pattern", |pattern| pattern.name.as_str());
-    let dirty = if state.dirty { " *" } else { "" };
-    let playback = if state.is_playing { "PLAY" } else { "STOP" };
-    let loop_state = if state.loop_pattern {
-        "Loop ON"
+    let dirty = if state.dirty { "*" } else { "" };
+    let playback = if state.is_playing {
+        "PLAYING"
     } else {
-        "Loop OFF"
+        "STOPPED"
     };
-    let selection = if state.selection.is_some() {
-        " | SEL"
-    } else {
-        ""
-    };
+    let loop_state = if state.loop_pattern { "ON" } else { "OFF" };
     let playhead = state
         .playhead_row
-        .map_or_else(|| "--".to_string(), |row| format!("{row:02}"));
-    let text = format!(
-        " BPM {} | LPB {} | {}{} | Oct {} | Step {} | Row {:02} | Play {playhead} | {loop_state} | Track {:02} | Field {} | {}{selection} | {playback} | {} ",
-        song.transport.bpm,
-        song.transport.lines_per_beat,
-        pattern_name,
-        dirty,
-        state.octave,
-        state.edit_step,
-        state.cursor.row,
-        state.cursor.track + 1,
-        state.cursor.field,
-        state.mode_label,
-        state.midi_status,
-    );
-    let header = Paragraph::new(text)
-        .block(
-            Block::default()
-                .title(" Salieri Tracker ")
-                .borders(Borders::ALL),
-        )
-        .style(Style::default().fg(Color::White));
+        .map_or_else(|| "0000".to_string(), |row| format!("{row:04}"));
+    let sequence_position = state.sequence_position.unwrap_or(0);
+    let line = Line::from(vec![
+        theme::label_span(" ["),
+        theme::value_span(if state.is_playing { "▶" } else { "▷" }),
+        theme::label_span("] ["),
+        theme::value_span("■"),
+        theme::label_span("] ["),
+        theme::value_span("●"),
+        theme::label_span("]  BPM: "),
+        theme::value_span(song.transport.bpm.to_string()),
+        theme::label_span("  LPB: "),
+        theme::value_span(song.transport.lines_per_beat.to_string()),
+        theme::label_span("  Oct: "),
+        theme::value_span(state.octave.to_string()),
+        theme::label_span("  Vel: "),
+        theme::value_span("100"),
+        theme::label_span("  Swing: "),
+        theme::value_span("0%"),
+        theme::label_span("  Sync: "),
+        theme::value_span("Internal"),
+        theme::muted_span("  |  "),
+        theme::label_span("CPU: "),
+        theme::value_span("00.0%"),
+        theme::muted_span("  |  "),
+        Span::styled(
+            playback,
+            if state.is_playing {
+                theme::playing()
+            } else {
+                theme::muted()
+            },
+        ),
+        theme::muted_span("  |  "),
+        theme::label_span("PAT: "),
+        theme::value_span(format!("{:02}", state.pattern_index + 1)),
+        theme::label_span("  LINE: "),
+        theme::value_span(format!("{playhead}/{:04}", state.cursor.row)),
+        theme::muted_span("  |  "),
+        theme::value_span(state.midi_status.to_string()),
+        theme::label_span("  ORDER: "),
+        theme::value_span(format!("{sequence_position:02}")),
+        theme::label_span("  LOOP: "),
+        theme::value_span(loop_state),
+        theme::label_span("  TRK: "),
+        theme::value_span(format!("{:02}", state.cursor.track + 1)),
+        theme::label_span("  FIELD: "),
+        theme::value_span(state.cursor.field.to_string()),
+        theme::muted_span(if state.selection.is_some() {
+            "  SEL"
+        } else {
+            ""
+        }),
+        theme::muted_span("  |  MIDI MAP  1 2 3 4 5 6 7 8"),
+        theme::muted_span(dirty),
+        theme::muted_span(format!("  {}", truncate(pattern_name, 18))),
+    ]);
+    let header = Paragraph::new(line)
+        .block(theme::block(" Salieri Tracker "))
+        .style(theme::base());
     frame.render_widget(header, area);
 }
 
@@ -1150,15 +1184,15 @@ fn format_gain_db(gain: f32) -> String {
 
 fn mixer_channel_style(active: bool, muted: bool, filled: bool) -> Style {
     let foreground = if muted {
-        Color::DarkGray
+        theme::MUTED
     } else if active && filled {
-        Color::Yellow
+        theme::ACCENT
     } else if active {
-        Color::White
+        theme::TEXT
     } else if filled {
-        Color::Cyan
+        theme::METER
     } else {
-        Color::DarkGray
+        theme::MUTED
     };
     let style = Style::default().fg(foreground);
     if active {
@@ -1236,8 +1270,7 @@ fn render_pattern_manager(frame: &mut Frame<'_>, area: Rect, song: &Song, active
 
 fn render_sampler_view(frame: &mut Frame<'_>, area: Rect, sampler: Option<SamplerViewState<'_>>) {
     let Some(sampler) = sampler else {
-        let empty = Paragraph::new("No sample loaded")
-            .block(Block::default().title(" Sampler ").borders(Borders::ALL));
+        let empty = Paragraph::new("No sample loaded").block(theme::block(" Sampler "));
         frame.render_widget(empty, area);
         return;
     };
@@ -1279,11 +1312,7 @@ fn render_sampler_view(frame: &mut Frame<'_>, area: Rect, sampler: Option<Sample
     ];
     lines.push(render_sampler_envelope_controls(sampler));
     let metadata = Paragraph::new(lines)
-        .block(
-            Block::default()
-                .title(" Sample Metadata ")
-                .borders(Borders::ALL),
-        )
+        .block(theme::block(" Sample Metadata "))
         .wrap(Wrap { trim: true });
     frame.render_widget(metadata, sections[0]);
     render_waveform_overview_with_window(
@@ -1350,15 +1379,9 @@ fn sampler_envelope_span(
     text: String,
 ) -> Span<'static> {
     if field == selected {
-        Span::styled(
-            format!("[{text}]"),
-            Style::default()
-                .fg(Color::Black)
-                .bg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
-        )
+        Span::styled(format!("[{text}]"), theme::active())
     } else {
-        Span::styled(format!(" {text} "), Style::default().fg(Color::White))
+        Span::styled(format!(" {text} "), theme::base())
     }
 }
 
@@ -1386,7 +1409,7 @@ fn render_track_properties(frame: &mut Frame<'_>, area: Rect, song: &Song, state
             .and_then(|row| row.cells.get(state.cursor.track))
     });
 
-    let block = Block::default().title(" Track Desk ").borders(Borders::ALL);
+    let block = theme::block(" Track Desk ");
     let inner = Rect {
         x: area.x.saturating_add(1),
         y: area.y.saturating_add(1),
@@ -1417,17 +1440,10 @@ fn render_track_properties(frame: &mut Frame<'_>, area: Rect, song: &Song, state
     );
     let track_lines = vec![
         Line::from(vec![
-            Span::styled(
-                "TRACK ",
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD),
-            ),
+            Span::styled("TRACK ", theme::label().add_modifier(Modifier::BOLD)),
             Span::styled(
                 format!("{:02}", state.cursor.track + 1),
-                Style::default()
-                    .fg(Color::White)
-                    .add_modifier(Modifier::BOLD),
+                theme::base().add_modifier(Modifier::BOLD),
             ),
         ]),
         Line::from(format!("Name   {}", truncate(&track.name, 22))),
@@ -1445,9 +1461,7 @@ fn render_track_properties(frame: &mut Frame<'_>, area: Rect, song: &Song, state
     let mut mixer_lines = vec![
         Line::from(Span::styled(
             "MIXER",
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
+            theme::label().add_modifier(Modifier::BOLD),
         )),
         parameter_control_from_f32(mixer_track_gain_descriptor(), mixer.gain),
         parameter_control_from_f32(mixer_track_pan_descriptor(), mixer.pan),
@@ -2435,19 +2449,11 @@ fn cell_spans(
         |command| format!("{}{:02X}", command.display_code(), command.value),
     );
 
-    let normal = Style::default().fg(Color::White);
-    let focused_style = Style::default()
-        .fg(Color::Black)
-        .bg(Color::White)
-        .add_modifier(Modifier::BOLD);
-    let selected_style = Style::default()
-        .fg(Color::White)
-        .bg(Color::DarkGray)
-        .add_modifier(Modifier::REVERSED);
-    let playing_style = Style::default()
-        .fg(Color::LightGreen)
-        .add_modifier(Modifier::BOLD);
-    let active_track_style = Style::default().fg(Color::White).bg(Color::DarkGray);
+    let normal = theme::base();
+    let focused_style = theme::active();
+    let selected_style = theme::selected();
+    let playing_style = theme::playing();
+    let active_track_style = Style::default().fg(theme::TEXT).bg(theme::BORDER_DIM);
     let style_for_field = |field| {
         if focused && focused_field == field {
             focused_style
@@ -2548,19 +2554,14 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
             NotificationKind::Error => "ERR",
         };
         let style = match notification.kind {
-            NotificationKind::Info => Style::default().fg(Color::Cyan),
-            NotificationKind::Success => Style::default().fg(Color::LightGreen),
-            NotificationKind::Warning => Style::default().fg(Color::Yellow),
-            NotificationKind::Error => Style::default()
-                .fg(Color::LightRed)
-                .add_modifier(Modifier::BOLD),
+            NotificationKind::Info => theme::label(),
+            NotificationKind::Success => theme::playing(),
+            NotificationKind::Warning => theme::warning(),
+            NotificationKind::Error => theme::error(),
         };
         let status = Paragraph::new(Line::from(vec![
             Span::styled(format!(" {label} "), style.add_modifier(Modifier::BOLD)),
-            Span::styled(
-                notification.message.to_string(),
-                Style::default().fg(Color::White),
-            ),
+            Span::styled(notification.message.to_string(), theme::base()),
         ]));
         frame.render_widget(status, area);
         return;
@@ -2615,7 +2616,7 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
             field_segment
         )
     };
-    let status = Paragraph::new(text);
+    let status = Paragraph::new(text).style(theme::base());
     frame.render_widget(status, area);
 }
 

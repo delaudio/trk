@@ -1,0 +1,83 @@
+use ratatui::{
+    prelude::{Color, Line, Modifier, Span, Style},
+    widgets::{Block, Borders},
+};
+
+pub(super) const SURFACE: Color = Color::Rgb(12, 12, 12);
+pub(super) const PANEL: Color = Color::Rgb(18, 18, 18);
+pub(super) const BORDER: Color = Color::Rgb(88, 88, 88);
+pub(super) const BORDER_DIM: Color = Color::Rgb(48, 48, 48);
+pub(super) const TEXT: Color = Color::Rgb(220, 220, 220);
+pub(super) const MUTED: Color = Color::Rgb(126, 126, 126);
+pub(super) const ACCENT: Color = Color::Rgb(255, 128, 0);
+pub(super) const PLAYING: Color = Color::Rgb(0, 210, 96);
+pub(super) const METER: Color = Color::Rgb(0, 190, 100);
+pub(super) const ERROR: Color = Color::LightRed;
+
+pub(super) fn base() -> Style {
+    Style::default().fg(TEXT).bg(SURFACE)
+}
+
+pub(super) fn panel() -> Style {
+    Style::default().fg(TEXT).bg(PANEL)
+}
+
+pub(super) fn label() -> Style {
+    Style::default().fg(ACCENT).bg(SURFACE)
+}
+
+pub(super) fn muted() -> Style {
+    Style::default().fg(MUTED).bg(SURFACE)
+}
+
+pub(super) fn active() -> Style {
+    Style::default()
+        .fg(Color::Black)
+        .bg(ACCENT)
+        .add_modifier(Modifier::BOLD)
+}
+
+pub(super) fn selected() -> Style {
+    Style::default()
+        .fg(TEXT)
+        .bg(BORDER_DIM)
+        .add_modifier(Modifier::REVERSED)
+}
+
+pub(super) fn playing() -> Style {
+    Style::default()
+        .fg(PLAYING)
+        .bg(SURFACE)
+        .add_modifier(Modifier::BOLD)
+}
+
+pub(super) fn warning() -> Style {
+    Style::default().fg(ACCENT).bg(SURFACE)
+}
+
+pub(super) fn error() -> Style {
+    Style::default()
+        .fg(ERROR)
+        .bg(SURFACE)
+        .add_modifier(Modifier::BOLD)
+}
+
+pub(super) fn block(title: impl Into<String>) -> Block<'static> {
+    Block::default()
+        .title(Line::from(Span::styled(title.into(), label())))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(BORDER).bg(SURFACE))
+        .style(panel())
+}
+
+pub(super) fn label_span(text: impl Into<String>) -> Span<'static> {
+    Span::styled(text.into(), label())
+}
+
+pub(super) fn value_span(text: impl Into<String>) -> Span<'static> {
+    Span::styled(text.into(), base())
+}
+
+pub(super) fn muted_span(text: impl Into<String>) -> Span<'static> {
+    Span::styled(text.into(), muted())
+}
