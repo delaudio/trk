@@ -5,6 +5,7 @@ mod app_event;
 mod app_mode;
 mod browser_io;
 mod cli;
+mod cli_import;
 mod cli_musicxml;
 mod command;
 mod command_palette;
@@ -38,6 +39,7 @@ mod tests;
 
 use browser_io::*;
 use cli::*;
+use cli_import::*;
 use cli_musicxml::*;
 use helpers::*;
 use midi_cli::*;

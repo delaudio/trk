@@ -140,6 +140,34 @@ pub(crate) fn run_import_xrns(args: &ImportXrnsArgs) -> Result<()> {
     Ok(())
 }
 
+pub(crate) fn run_import_midi(args: &ImportMidiArgs) -> Result<()> {
+    let input_path = args
+        .input_path
+        .as_deref()
+        .context("missing import input path: usage is salieri import midi INPUT OUTPUT")?;
+    let output_path = args
+        .output_path
+        .as_deref()
+        .context("missing import output path: usage is salieri import midi INPUT OUTPUT")?;
+    let bytes = fs::read(input_path)
+        .with_context(|| format!("failed to read MIDI import {}", input_path.display()))?;
+    let song = import_smf(&bytes).context("MIDI import failed; project was not written")?;
+    let track_count = song.tracks.len();
+    let pattern_rows = song
+        .current_pattern()
+        .map_or(0, |pattern| pattern.row_count());
+    save_project(output_path, &song)?;
+
+    println!(
+        "Imported {} to {}: {} tracks, {} rows",
+        input_path.display(),
+        output_path.display(),
+        track_count,
+        pattern_rows
+    );
+    Ok(())
+}
+
 pub(crate) fn extract_xrns_samples_for_project(
     xrns_bytes: &[u8],
     sample_dir: &Path,

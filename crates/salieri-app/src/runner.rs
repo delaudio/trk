@@ -100,6 +100,10 @@ fn run(args: CliArgs) -> Result<()> {
             run_import_xrns(import_args)?;
             return Ok(());
         }
+        CliCommand::ImportMidi(import_args) => {
+            run_import_midi(import_args)?;
+            return Ok(());
+        }
         CliCommand::ImportMusicXml(import_args) => {
             run_import_musicxml(import_args)?;
             return Ok(());

@@ -185,6 +185,49 @@ fn cli_parses_xrns_import_options() {
 }
 
 #[test]
+fn cli_parses_midi_import_options() {
+    assert_eq!(
+        CliArgs::parse([
+            "import".to_string(),
+            "midi".to_string(),
+            "input.mid".to_string(),
+            "output.salieri".to_string(),
+        ]),
+        CliArgs {
+            command: CliCommand::ImportMidi(ImportMidiArgs {
+                input_path: Some(PathBuf::from("input.mid")),
+                output_path: Some(PathBuf::from("output.salieri")),
+            }),
+            project_path: None,
+            config_path: None,
+            log_level: None,
+            midi_log_path: None,
+            midi_test: MidiTestArgs::default(),
+        }
+    );
+    assert_eq!(
+        parse_import_midi_args(["input.midi".to_string(), "output.salieri".to_string()]),
+        ImportMidiArgs {
+            input_path: Some(PathBuf::from("input.midi")),
+            output_path: Some(PathBuf::from("output.salieri")),
+        }
+    );
+    assert_eq!(
+        CliArgs::parse([
+            "import".to_string(),
+            "smf".to_string(),
+            "input.mid".to_string(),
+            "output.salieri".to_string(),
+        ])
+        .command,
+        CliCommand::ImportMidi(ImportMidiArgs {
+            input_path: Some(PathBuf::from("input.mid")),
+            output_path: Some(PathBuf::from("output.salieri")),
+        })
+    );
+}
+
+#[test]
 fn cli_parses_xrns_sample_extraction_options() {
     assert_eq!(
         CliArgs::parse([
@@ -495,6 +538,48 @@ fn musicxml_import_export_and_roundtrip_validation_workflow() {
 }
 
 #[test]
+fn midi_import_workflow_writes_salieri_project() {
+    let base = std::env::temp_dir().join(format!("salieri-midi-import-{}", std::process::id()));
+    let input_midi = base.with_extension("mid");
+    let project_path = base.with_extension("salieri");
+    std::fs::write(
+        &input_midi,
+        hex_fixture(include_str!("../../../../fixtures/midi/simple-format0.hex")),
+    )
+    .expect("write midi");
+
+    run_import_midi(&ImportMidiArgs {
+        input_path: Some(input_midi.clone()),
+        output_path: Some(project_path.clone()),
+    })
+    .expect("import midi");
+
+    let imported = load_project(&project_path).expect("load project");
+    assert_eq!(imported.transport.bpm, 120);
+    assert_eq!(
+        imported
+            .current_pattern()
+            .expect("pattern")
+            .cell(0, 1)
+            .expect("cell")
+            .note,
+        Some(NoteEvent::Note { pitch: 60 })
+    );
+    assert_eq!(
+        imported
+            .current_pattern()
+            .expect("pattern")
+            .cell(0, 1)
+            .expect("cell")
+            .velocity,
+        Some(100)
+    );
+
+    let _ = std::fs::remove_file(&input_midi);
+    let _ = std::fs::remove_file(&project_path);
+}
+
+#[test]
 fn render_plan_can_be_inspected_for_pattern_and_sequence_targets() {
     let mut song = Song::empty();
     let sample = song.upsert_sample_reference("samples/kick.wav", "Kick");
@@ -538,6 +623,13 @@ fn render_plan_can_be_inspected_for_pattern_and_sequence_targets() {
         .limitations
         .iter()
         .any(|limit| limit.contains("External MIDI-only")));
+}
+
+fn hex_fixture(contents: &str) -> Vec<u8> {
+    contents
+        .split_whitespace()
+        .filter_map(|byte| u8::from_str_radix(byte, 16).ok())
+        .collect()
 }
 
 #[test]
