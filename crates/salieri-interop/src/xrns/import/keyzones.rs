@@ -2,7 +2,7 @@ use salieri_core::{InstrumentId, InstrumentSampleZone, SampleId};
 
 use crate::diagnostics::{XrnsDiagnostic, XrnsDiagnosticKind, XrnsDiagnosticSeverity};
 
-use super::XrnsImportModel;
+use super::model::XrnsImportModel;
 
 pub(super) fn parse_keyzone_note(value: &str) -> Option<u8> {
     super::parse_u8_value(value)

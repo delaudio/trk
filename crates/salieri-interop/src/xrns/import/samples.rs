@@ -6,7 +6,8 @@ use crate::diagnostics::{
     XrnsDiagnostic, XrnsDiagnosticKind, XrnsDiagnosticSeverity, XrnsInspection,
 };
 
-use super::{apply_sample_metadata, sample_name, sample_payload_sample_index, XrnsImportModel};
+use super::model::XrnsImportModel;
+use super::{apply_sample_metadata, sample_name, sample_payload_sample_index};
 
 pub(super) fn import_sample_references(
     song: &mut Song,

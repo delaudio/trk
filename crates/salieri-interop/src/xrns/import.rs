@@ -1,8 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use salieri_core::{
-    EffectDevice, Instrument, InstrumentId, NoteEvent, PatternCell, SampleEnvelope,
-    SamplePlaybackMode, SampleReference, Song,
+    Instrument, InstrumentId, NoteEvent, PatternCell, SamplePlaybackMode, SampleReference, Song,
 };
 
 use crate::diagnostics::{
@@ -10,6 +9,7 @@ use crate::diagnostics::{
 };
 
 mod keyzones;
+mod model;
 mod samples;
 
 use super::devices::effect_device_from_name;
@@ -18,81 +18,13 @@ use super::effects::{
     translate_xrns_effect_command,
 };
 use keyzones::{instrument_zones, parse_keyzone_note, parse_keyzone_velocity};
+use model::{
+    PendingXrnsLine, XrnsImportCell, XrnsImportInstrument, XrnsImportModel, XrnsImportPattern,
+    XrnsImportSampleMetadata, XrnsImportTrack,
+};
 use samples::import_sample_references;
 
 use super::{parse_xml_events, stack_contains, xml_location, xrns_diagnostic, XmlEvent};
-
-#[derive(Debug, Clone, Default)]
-pub(super) struct XrnsImportModel {
-    tracks: Vec<XrnsImportTrack>,
-    patterns: Vec<XrnsImportPattern>,
-    instruments: Vec<XrnsImportInstrument>,
-    sequence: Vec<usize>,
-    bpm: Option<u16>,
-    lines_per_beat: Option<u8>,
-    ticks_per_line: Option<u8>,
-}
-
-#[derive(Debug, Clone, Default)]
-struct XrnsImportTrack {
-    name: Option<String>,
-    gain: Option<f32>,
-    pan: Option<f32>,
-    effects: Vec<EffectDevice>,
-}
-
-#[derive(Debug, Clone, Default)]
-struct XrnsImportInstrument {
-    name: String,
-    samples: Vec<XrnsImportSampleMetadata>,
-}
-
-#[derive(Debug, Clone, Default)]
-struct XrnsImportSampleMetadata {
-    name: Option<String>,
-    root_pitch: Option<u8>,
-    transpose_semitones: Option<i8>,
-    fine_tune_cents: Option<i16>,
-    gain: Option<f32>,
-    pan: Option<f32>,
-    key_start: Option<u8>,
-    key_end: Option<u8>,
-    velocity_start: Option<u8>,
-    velocity_end: Option<u8>,
-    playback: XrnsImportSamplePlayback,
-}
-
-#[derive(Debug, Clone, Default)]
-struct XrnsImportSamplePlayback {
-    mode: Option<SamplePlaybackMode>,
-    start_frame: Option<usize>,
-    end_frame: Option<usize>,
-    loop_start_frame: Option<usize>,
-    loop_end_frame: Option<usize>,
-    envelope: Option<SampleEnvelope>,
-}
-
-#[derive(Debug, Clone, Default)]
-struct XrnsImportPattern {
-    rows: Option<usize>,
-    cells: Vec<XrnsImportCell>,
-}
-
-#[derive(Debug, Clone)]
-struct XrnsImportCell {
-    track: usize,
-    row: usize,
-    cell: PatternCell,
-}
-
-#[derive(Debug, Clone)]
-struct PendingXrnsLine {
-    track: usize,
-    row: Option<usize>,
-    cell: PatternCell,
-    effect_code: Option<String>,
-    effect_value: Option<u8>,
-}
 
 pub(super) fn parse_xrns_import_model(
     xml: &str,
@@ -451,31 +383,6 @@ fn apply_xrns_sample_text(
             format!("unsupported Renoise sample metadata was not imported: {current}"),
         )),
         _ => {}
-    }
-}
-
-impl XrnsImportSampleMetadata {
-    fn envelope_mut(&mut self) -> &mut SampleEnvelope {
-        self.playback
-            .envelope
-            .get_or_insert_with(SampleEnvelope::default)
-    }
-
-    #[rustfmt::skip]
-    fn has_keyzone_mapping(&self) -> bool { self.key_start.is_some() || self.key_end.is_some() || self.velocity_start.is_some() || self.velocity_end.is_some() }
-}
-
-impl XrnsImportModel {
-    fn sample_metadata(
-        &self,
-        instrument: InstrumentId,
-        sample_index: usize,
-    ) -> Option<&XrnsImportSampleMetadata> {
-        self.instruments
-            .get(instrument.0 as usize)?
-            .samples
-            .get(sample_index)
-            .or_else(|| self.instruments.get(instrument.0 as usize)?.samples.first())
     }
 }
 
