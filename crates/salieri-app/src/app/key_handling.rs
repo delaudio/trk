@@ -55,12 +55,7 @@ impl App {
         }
     }
 
-    pub(crate) fn handle_mouse(
-        &mut self,
-        mouse: MouseEvent,
-        visible_rows: usize,
-        visible_tracks: usize,
-    ) {
+    pub(crate) fn handle_mouse(&mut self, mouse: MouseEvent, viewport: MouseViewport) {
         match mouse.kind {
             MouseEventKind::ScrollUp | MouseEventKind::ScrollDown => {
                 self.handle_mouse_wheel(mouse.kind)
@@ -68,16 +63,10 @@ impl App {
             MouseEventKind::ScrollLeft => self.handle_mouse_horizontal_scroll(-1),
             MouseEventKind::ScrollRight => self.handle_mouse_horizontal_scroll(1),
             MouseEventKind::Down(MouseButton::Left) | MouseEventKind::Drag(MouseButton::Left) => {
-                self.handle_mouse_click(
-                    mouse.column,
-                    mouse.row,
-                    visible_rows,
-                    visible_tracks,
-                    false,
-                )
+                self.handle_mouse_click(mouse.column, mouse.row, viewport, false)
             }
             MouseEventKind::Down(MouseButton::Right) => {
-                self.handle_mouse_click(mouse.column, mouse.row, visible_rows, visible_tracks, true)
+                self.handle_mouse_click(mouse.column, mouse.row, viewport, true)
             }
             _ => {}
         }
@@ -101,8 +90,7 @@ impl App {
         &mut self,
         column: u16,
         row: u16,
-        visible_rows: usize,
-        visible_tracks: usize,
+        viewport: MouseViewport,
         activate: bool,
     ) {
         if row < 3 {
@@ -112,16 +100,118 @@ impl App {
             return;
         }
 
+        if matches!(self.mode, AppMode::Normal | AppMode::Edit)
+            && self.handle_renoise_sidebar_mouse_click(column, row, viewport)
+        {
+            return;
+        }
+
         match self.mode {
-            AppMode::Normal | AppMode::Edit => {
-                self.handle_tracker_mouse_click(column, row, visible_rows, visible_tracks)
-            }
+            AppMode::Normal | AppMode::Edit => self.handle_tracker_mouse_click(
+                column,
+                row,
+                viewport.visible_rows,
+                viewport.visible_tracks,
+            ),
             AppMode::Tracks => self.handle_track_list_mouse_click(row),
             AppMode::SampleBrowser => self.handle_sample_browser_mouse_click(row, activate),
             AppMode::ProjectBrowser => self.handle_project_browser_mouse_click(row, activate),
             AppMode::Sampler => self.handle_sampler_mouse_click(column, row),
             _ => {}
         }
+    }
+
+    fn handle_renoise_sidebar_mouse_click(
+        &mut self,
+        column: u16,
+        row: u16,
+        viewport: MouseViewport,
+    ) -> bool {
+        let Some(sidebar) =
+            renoise_pattern_sidebar_area(viewport.terminal_width, viewport.terminal_height)
+        else {
+            return false;
+        };
+        if !sidebar.contains(column, row) {
+            return false;
+        }
+        let local_column = column.saturating_sub(sidebar.x);
+        let local_row = row.saturating_sub(sidebar.y);
+
+        if local_row == 1 {
+            self.handle_renoise_sidebar_tab_click(local_column);
+            return true;
+        }
+
+        let content_row = local_row.saturating_sub(1);
+        let samples_header = 11 + usize::from(self.active_cell_has_data());
+        let sample_count = self.song.samples.len().min(8);
+        let sample_start = samples_header + 1;
+        let songs_header = sample_start + sample_count;
+        let pattern_start = songs_header + 1;
+        let row_index = usize::from(content_row);
+
+        if row_index == samples_header {
+            self.open_sample_browser_view(None);
+            return true;
+        }
+        if (sample_start..songs_header).contains(&row_index) {
+            let sample_index = row_index - sample_start;
+            self.select_track_for_sidebar_sample(sample_index);
+            return true;
+        }
+        if row_index == songs_header {
+            self.open_patterns_view();
+            return true;
+        }
+        if (pattern_start..pattern_start + self.song.patterns.len().min(8)).contains(&row_index) {
+            self.select_pattern(row_index - pattern_start);
+            self.open_tracker_view();
+            return true;
+        }
+        true
+    }
+
+    fn handle_renoise_sidebar_tab_click(&mut self, local_column: u16) {
+        match local_column {
+            1..=7 => self.open_tracker_view(),
+            8..=15 => self.open_tracks_view(),
+            16..=25 => self.open_sample_browser_view(None),
+            26..=34 => self.notify_info("Other instrument properties are not implemented yet"),
+            _ => {}
+        }
+    }
+
+    fn active_cell_has_data(&self) -> bool {
+        self.song
+            .pattern(self.pattern_index)
+            .and_then(|pattern| pattern.cell(self.cursor.row, self.cursor.track))
+            .is_some_and(pattern_cell_has_data)
+    }
+
+    fn select_track_for_sidebar_sample(&mut self, sample_index: usize) {
+        let Some(sample) = self.song.samples.get(sample_index) else {
+            return;
+        };
+        let sample_name = sample.name.clone();
+        let Some(track_index) = self
+            .song
+            .sample_assignments
+            .iter()
+            .find(|assignment| assignment.sample == sample.id)
+            .and_then(|assignment| {
+                self.song
+                    .tracks
+                    .iter()
+                    .position(|track| track.id == assignment.track)
+            })
+        else {
+            self.notify_info(format!("Sample {sample_name}"));
+            return;
+        };
+        self.cursor.track = track_index;
+        self.focus_panel(FocusPanel::Tracker);
+        self.notify_info(format!("Track {:02}: {sample_name}", track_index + 1));
     }
 
     fn handle_tracker_mouse_click(
@@ -654,4 +744,58 @@ impl App {
 fn browser_row_to_cursor(row: u16) -> Option<usize> {
     const LIST_FIRST_ROW: u16 = 7;
     (row >= LIST_FIRST_ROW).then_some((row - LIST_FIRST_ROW) as usize)
+}
+
+#[derive(Debug, Clone, Copy)]
+struct MouseRect {
+    x: u16,
+    y: u16,
+    width: u16,
+    height: u16,
+}
+
+impl MouseRect {
+    fn contains(self, column: u16, row: u16) -> bool {
+        (self.x..self.x.saturating_add(self.width)).contains(&column)
+            && (self.y..self.y.saturating_add(self.height)).contains(&row)
+    }
+}
+
+fn renoise_pattern_sidebar_area(terminal_width: u16, terminal_height: u16) -> Option<MouseRect> {
+    const LARGE_MIN_WIDTH: u16 = 120;
+    const RIGHT_WIDTH: u16 = 38;
+    const HEADER_HEIGHT: u16 = 3;
+    const STATUS_HEIGHT: u16 = 1;
+    const COMPACT_BODY_HEIGHT: u16 = 34;
+
+    if terminal_width < LARGE_MIN_WIDTH || terminal_width < RIGHT_WIDTH {
+        return None;
+    }
+
+    let body_height = terminal_height.saturating_sub(HEADER_HEIGHT + STATUS_HEIGHT);
+    let compact_height = body_height < COMPACT_BODY_HEIGHT;
+    let top_height = if compact_height { 4 } else { 6 };
+    let bottom_height = if compact_height { 7 } else { 10 };
+    let height = body_height
+        .saturating_sub(top_height)
+        .saturating_sub(bottom_height);
+    (height > 0).then_some(MouseRect {
+        x: terminal_width - RIGHT_WIDTH,
+        y: HEADER_HEIGHT + top_height,
+        width: RIGHT_WIDTH,
+        height,
+    })
+}
+
+fn pattern_cell_has_data(cell: &PatternCell) -> bool {
+    cell.note.is_some()
+        || cell.velocity.is_some()
+        || cell.instrument.is_some()
+        || cell.volume.is_some()
+        || cell.pan.is_some()
+        || cell.delay.is_some()
+        || cell.gate.is_some()
+        || cell.command.is_some()
+        || cell.command2.is_some()
+        || !cell.parameter_locks.is_empty()
 }

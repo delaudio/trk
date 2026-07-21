@@ -184,6 +184,14 @@ const MAX_BPM: u16 = 999;
 const MIN_LPB: u8 = 1;
 const MAX_LPB: u8 = 32;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct MouseViewport {
+    terminal_width: u16,
+    terminal_height: u16,
+    visible_rows: usize,
+    visible_tracks: usize,
+}
+
 fn main() -> Result<()> {
     runner::run_cli()
 }

@@ -267,8 +267,12 @@ fn run(args: CliArgs) -> Result<()> {
                 Event::Mouse(mouse) => {
                     app.handle_mouse(
                         mouse,
-                        terminal.visible_pattern_rows(),
-                        terminal.visible_pattern_tracks(),
+                        MouseViewport {
+                            terminal_width: terminal.size().0,
+                            terminal_height: terminal.size().1,
+                            visible_rows: terminal.visible_pattern_rows(),
+                            visible_tracks: terminal.visible_pattern_tracks(),
+                        },
                     );
                     app.dispatch_event(AppEvent::Runtime(RuntimeEvent::ViewportRefresh {
                         visible_rows: terminal.visible_pattern_rows(),

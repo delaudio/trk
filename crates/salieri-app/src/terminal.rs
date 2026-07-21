@@ -76,6 +76,12 @@ impl TerminalGuard {
             .max(1) as usize
     }
 
+    pub fn size(&self) -> (u16, u16) {
+        self.terminal
+            .size()
+            .map_or((0, 0), |area| (area.width, area.height))
+    }
+
     pub fn interrupted(&self) -> bool {
         self.interrupted.load(Ordering::SeqCst)
     }
