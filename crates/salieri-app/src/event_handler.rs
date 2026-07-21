@@ -1,8 +1,12 @@
+use std::path::PathBuf;
+
 use crossterm::event::KeyEvent;
+use salieri_core::{Cursor, Song};
 
 use crate::{
     app_effect::{AppEffect, AppEffectExecutor, RuntimeEffectExecutor},
     app_event::{AppAction, AppEvent, AppIntent, RuntimeAction, RuntimeEvent},
+    focus::FocusPanel,
     playback_runtime::PlaybackUpdate,
     App,
 };
@@ -51,6 +55,9 @@ impl App {
                 path,
                 result,
             } => return self.apply_project_load(request_id, path, *result),
+            RuntimeAction::ApplyMidiImport { path, result } => {
+                self.apply_midi_import(path, *result)
+            }
             RuntimeAction::ApplyProjectSave {
                 path,
                 song,
@@ -121,6 +128,48 @@ impl App {
             }
             PlaybackUpdate::AudioError(error) => {
                 self.notify_error(format!("Audio error: {error}"));
+            }
+        }
+    }
+
+    fn apply_midi_import(&mut self, path: PathBuf, result: Result<Song, String>) {
+        match result {
+            Ok(song) => {
+                let pattern_count = song.patterns.len();
+                let track_count = song.tracks.len();
+                self.song = song;
+                self.project_path = None;
+                self.clean_song = Song::empty();
+                self.pattern_index = 0;
+                self.cursor = Cursor::new();
+                self.row_offset = 0;
+                self.track_offset = 0;
+                self.selection = None;
+                self.history.clear();
+                self.is_playing = false;
+                self.playhead_row = None;
+                self.sequence_position = None;
+                self.sequence_cursor = 0;
+                self.clip_scene_cursor = 0;
+                self.clip_track_cursor = 0;
+                self.active_clip_scene = None;
+                self.queued_clip_scene = None;
+                self.clamp_cursor();
+                self.clamp_sequence_cursor();
+                self.clamp_clip_cursor();
+                self.refresh_dirty();
+                self.dirty = true;
+                self.focus_panel(FocusPanel::Tracker);
+                self.notify_success(format!(
+                    "MIDI imported: {} ({} tracks, {} patterns)",
+                    path.display(),
+                    track_count,
+                    pattern_count
+                ));
+            }
+            Err(error) => {
+                tracing::error!(%error, path = %path.display(), "failed to import MIDI");
+                self.notify_error(error);
             }
         }
     }

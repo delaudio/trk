@@ -307,6 +307,16 @@ fn registered_actions() -> Vec<CommandPaletteAction> {
             Always,
         ),
         action(
+            "project.import-midi",
+            "Import MIDI...",
+            "Project",
+            Prompt("midi import "),
+            None,
+            &["import smf"],
+            &["mid", "standard midi file", "pattern"],
+            Always,
+        ),
+        action(
             "save-quit",
             "Save and Quit",
             "Project",

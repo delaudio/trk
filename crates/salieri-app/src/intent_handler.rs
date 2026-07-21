@@ -31,6 +31,10 @@ impl App {
                 self.pending_project_load = Some(request_id);
                 return vec![AppEffect::LoadProject { request_id, path }];
             }
+            AppIntent::ImportMidi(path) => {
+                self.notify_info(format!("Importing MIDI: {}", path.display()));
+                return vec![AppEffect::ImportMidiProject { path }];
+            }
             AppIntent::SaveProject { path, quit_after } => {
                 let path = match self.resolve_project_save_path(path) {
                     Ok(path) => path,

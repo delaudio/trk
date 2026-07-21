@@ -72,6 +72,24 @@ fn command_palette_prompt_actions_handoff_to_command_mode() {
 }
 
 #[test]
+fn command_palette_prompts_for_midi_import() {
+    let mut app = App::default();
+
+    app.handle_key(KeyEvent::new(KeyCode::Char('p'), KeyModifiers::CONTROL));
+    for value in "import midi".chars() {
+        app.handle_key(KeyEvent::new(KeyCode::Char(value), KeyModifiers::NONE));
+    }
+    assert_eq!(
+        app.command_palette_results()[0].action.id,
+        "project.import-midi"
+    );
+
+    app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+    assert_eq!(app.mode, AppMode::Command);
+    assert_eq!(app.command_buffer, "midi import ");
+}
+
+#[test]
 fn command_palette_selection_action_clears_selection_region() {
     let mut app = App::default();
     {

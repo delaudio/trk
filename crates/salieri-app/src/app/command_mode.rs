@@ -105,9 +105,17 @@ impl App {
                     }
                     Some("disconnect") => self.disconnect_midi(),
                     Some("panic") => self.panic_midi(),
-                    None | Some(_) => {
-                        self.notify_warning("Usage: :midi outputs|connect|disconnect|panic")
+                    Some("import") | Some("import-smf") => {
+                        let path = parts.collect::<Vec<_>>().join(" ");
+                        if path.is_empty() {
+                            self.notify_warning("Usage: :midi import PATH.mid");
+                        } else {
+                            self.dispatch_intent(AppIntent::ImportMidi(PathBuf::from(path)));
+                        }
                     }
+                    None | Some(_) => self.notify_warning(
+                        "Usage: :midi outputs|connect|disconnect|panic|import PATH.mid",
+                    ),
                 }
             }
             SalieriCommand::Play(command) => match command {

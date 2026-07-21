@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use salieri_core::{pattern_events, NoteEvent, PlaybackEventKind, Song};
+use salieri_core::{
+    model::DEFAULT_PATTERN_LEN, pattern_events, NoteEvent, PlaybackEventKind, Song,
+};
 
 use crate::diagnostics::InteropError;
 
@@ -134,14 +136,16 @@ pub fn import_smf(bytes: &[u8]) -> Result<Song, InteropError> {
                 if status & 0xf0 == 0x90 && velocity > 0 {
                     let channel = (status & 0x0f) + 1;
                     let track = track_for_channel(&mut song, &mut channel_tracks, channel);
-                    let row = ticks_to_row(
+                    let absolute_row = ticks_to_row(
                         absolute_tick,
                         ticks_per_quarter,
                         song.transport.lines_per_beat,
                     );
-                    ensure_pattern_row(&mut song, row)?;
-                    song.current_pattern_mut()
-                        .expect("default song has a pattern")
+                    let (pattern_index, row) = ensure_import_pattern(&mut song, absolute_row)?;
+                    let pattern = song
+                        .pattern_mut(pattern_index)
+                        .expect("import pattern was ensured");
+                    pattern
                         .set_note(row, track, NoteEvent::Note { pitch }, velocity)
                         .expect("row and track were ensured");
                 }
@@ -191,16 +195,27 @@ fn track_for_channel(
     track
 }
 
-fn ensure_pattern_row(song: &mut Song, row: usize) -> Result<(), InteropError> {
-    let row_count = song
-        .current_pattern()
-        .expect("default song has a pattern")
-        .row_count();
-    if row >= row_count {
-        song.resize_pattern(0, row + 1)
+fn ensure_import_pattern(
+    song: &mut Song,
+    absolute_row: usize,
+) -> Result<(usize, usize), InteropError> {
+    let pattern_len = DEFAULT_PATTERN_LEN.max(1);
+    let pattern_index = absolute_row / pattern_len;
+    let row = absolute_row % pattern_len;
+
+    while song.patterns.len() <= pattern_index {
+        let pattern_id = song.create_pattern(pattern_len);
+        song.push_sequence_pattern(pattern_id)
             .map_err(|_| InteropError::InvalidMidiTrack)?;
     }
-    Ok(())
+    if song
+        .pattern(pattern_index)
+        .is_some_and(|pattern| pattern.row_count() != pattern_len)
+    {
+        song.resize_pattern(pattern_index, pattern_len)
+            .map_err(|_| InteropError::InvalidMidiTrack)?;
+    }
+    Ok((pattern_index, row))
 }
 
 fn ticks_to_row(tick: u64, ticks_per_quarter: u64, lines_per_beat: u8) -> usize {

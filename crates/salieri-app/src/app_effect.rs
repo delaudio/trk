@@ -9,12 +9,16 @@ use crate::{
     persistence::{load_project, save_project},
     App,
 };
+use salieri_interop::import_smf;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum AppEffect {
     Playback(PlaybackEffect),
     LoadProject {
         request_id: RequestId,
+        path: PathBuf,
+    },
+    ImportMidiProject {
         path: PathBuf,
     },
     SaveProject {
@@ -63,6 +67,21 @@ impl AppEffectExecutor for RuntimeEffectExecutor {
                 let result = load_project(&path).map_err(|error| error.to_string());
                 app.dispatch_event(AppEvent::Runtime(RuntimeEvent::ProjectLoaded {
                     request_id,
+                    path,
+                    result: Box::new(result),
+                }));
+            }
+            AppEffect::ImportMidiProject { path } => {
+                let result = std::fs::read(&path)
+                    .map_err(|error| {
+                        format!("failed to read MIDI import {}: {error}", path.display())
+                    })
+                    .and_then(|bytes| {
+                        import_smf(&bytes).map_err(|error| {
+                            format!("MIDI import failed for {}: {error}", path.display())
+                        })
+                    });
+                app.dispatch_event(AppEvent::Runtime(RuntimeEvent::MidiImported {
                     path,
                     result: Box::new(result),
                 }));

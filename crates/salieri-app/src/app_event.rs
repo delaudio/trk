@@ -24,6 +24,10 @@ pub enum RuntimeEvent {
         path: PathBuf,
         result: Box<Result<Song, String>>,
     },
+    MidiImported {
+        path: PathBuf,
+        result: Box<Result<Song, String>>,
+    },
     ProjectSaved {
         path: PathBuf,
         song: Box<Song>,
@@ -55,6 +59,10 @@ pub enum RuntimeAction {
         path: PathBuf,
         result: Box<Result<Song, String>>,
     },
+    ApplyMidiImport {
+        path: PathBuf,
+        result: Box<Result<Song, String>>,
+    },
     ApplyProjectSave {
         path: PathBuf,
         song: Box<Song>,
@@ -83,6 +91,7 @@ pub enum AppIntent {
         path: Option<PathBuf>,
         quit_after: bool,
     },
+    ImportMidi(PathBuf),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -222,6 +231,9 @@ fn route_event(event: AppEvent) -> AppAction {
                 path,
                 result,
             },
+            RuntimeEvent::MidiImported { path, result } => {
+                RuntimeAction::ApplyMidiImport { path, result }
+            }
             RuntimeEvent::ProjectSaved {
                 path,
                 song,

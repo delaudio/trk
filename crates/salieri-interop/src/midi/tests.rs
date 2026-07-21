@@ -1,4 +1,4 @@
-use salieri_core::{NoteEvent, Song};
+use salieri_core::{model::DEFAULT_PATTERN_LEN, NoteEvent, PatternId, Song};
 
 use super::*;
 use crate::fixtures::hex_fixture;
@@ -49,6 +49,33 @@ fn exported_subset_can_be_imported_back() {
 
     assert_eq!(cell.note, Some(NoteEvent::Note { pitch: 64 }));
     assert_eq!(cell.velocity, Some(90));
+}
+
+#[test]
+fn imports_long_midi_into_sixty_four_row_patterns() {
+    let mut song = Song::empty();
+    song.resize_pattern(0, 128).expect("resize pattern");
+    song.current_pattern_mut()
+        .expect("pattern")
+        .set_note(64, 1, NoteEvent::Note { pitch: 67 }, 96)
+        .expect("set note");
+
+    let bytes = export_pattern_smf(&song, MidiExportOptions::default()).expect("export");
+    let imported = import_smf(&bytes).expect("import");
+
+    assert_eq!(imported.patterns.len(), 2);
+    assert_eq!(imported.sequence, vec![PatternId(1), PatternId(2)]);
+    assert!(imported
+        .patterns
+        .iter()
+        .all(|pattern| pattern.row_count() == DEFAULT_PATTERN_LEN));
+    let cell = imported
+        .pattern(1)
+        .expect("second pattern")
+        .cell(0, 1)
+        .expect("cell");
+    assert_eq!(cell.note, Some(NoteEvent::Note { pitch: 67 }));
+    assert_eq!(cell.velocity, Some(96));
 }
 
 #[test]
