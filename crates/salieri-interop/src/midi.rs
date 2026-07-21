@@ -94,33 +94,52 @@ pub fn import_smf(bytes: &[u8]) -> Result<Song, InteropError> {
     let division = cursor.read_u16()?;
     cursor.skip(header_len - 6)?;
 
-    if format != 0 {
+    if !matches!(format, 0 | 1) {
         return Err(InteropError::UnsupportedMidiFormat(format));
     }
-    if track_count != 1 {
+    if track_count == 0 || (format == 0 && track_count != 1) {
         return Err(InteropError::UnsupportedMidiFormat(format));
     }
     if division & 0x8000 != 0 {
         return Err(InteropError::UnsupportedSmpteDivision(division));
     }
 
+    let mut song = Song::empty();
+    let ticks_per_quarter = u64::from(division.max(1));
+    let mut channel_tracks = HashMap::new();
+
+    for _ in 0..track_count {
+        import_mtrk(
+            &mut cursor,
+            &mut song,
+            ticks_per_quarter,
+            &mut channel_tracks,
+        )?;
+    }
+
+    Ok(song)
+}
+
+fn import_mtrk(
+    cursor: &mut Cursor<'_>,
+    song: &mut Song,
+    ticks_per_quarter: u64,
+    channel_tracks: &mut HashMap<u8, usize>,
+) -> Result<(), InteropError> {
     if cursor.read_exact(4)? != MTRK {
         return Err(InteropError::InvalidMidiTrack);
     }
     let track_len = cursor.read_u32()? as usize;
     let track_end = cursor.position().saturating_add(track_len);
-    if track_end > bytes.len() {
+    if track_end > cursor.len() {
         return Err(InteropError::TruncatedMidiData);
     }
 
-    let mut song = Song::empty();
-    let ticks_per_quarter = u64::from(division.max(1));
     let mut absolute_tick = 0_u64;
     let mut running_status = None;
-    let mut channel_tracks = HashMap::new();
 
     while cursor.position() < track_end {
-        absolute_tick = absolute_tick.saturating_add(read_var_len(&mut cursor)?);
+        absolute_tick = absolute_tick.saturating_add(read_var_len(cursor)?);
         let mut status = cursor.read_u8()?;
         if status < 0x80 {
             status = running_status.ok_or(InteropError::UnsupportedMidiEvent(status))?;
@@ -135,13 +154,13 @@ pub fn import_smf(bytes: &[u8]) -> Result<Song, InteropError> {
                 let velocity = cursor.read_u8()?.min(127);
                 if status & 0xf0 == 0x90 && velocity > 0 {
                     let channel = (status & 0x0f) + 1;
-                    let track = track_for_channel(&mut song, &mut channel_tracks, channel);
+                    let track = track_for_channel(song, channel_tracks, channel);
                     let absolute_row = ticks_to_row(
                         absolute_tick,
                         ticks_per_quarter,
                         song.transport.lines_per_beat,
                     );
-                    let (pattern_index, row) = ensure_import_pattern(&mut song, absolute_row)?;
+                    let (pattern_index, row) = ensure_import_pattern(song, absolute_row)?;
                     let pattern = song
                         .pattern_mut(pattern_index)
                         .expect("import pattern was ensured");
@@ -150,11 +169,17 @@ pub fn import_smf(bytes: &[u8]) -> Result<Song, InteropError> {
                         .expect("row and track were ensured");
                 }
             }
+            0xa0..=0xbf | 0xe0..=0xef => {
+                cursor.skip(2)?;
+            }
+            0xc0..=0xdf => {
+                cursor.skip(1)?;
+            }
             0xff => {
                 let meta_type = cursor.read_u8()?;
-                let len = read_var_len(&mut cursor)? as usize;
+                let len = read_var_len(cursor)? as usize;
                 if meta_type == 0x51 && len == 3 {
-                    let tempo = read_tempo(&mut cursor)?;
+                    let tempo = read_tempo(cursor)?;
                     song.transport.bpm = tempo_to_bpm(tempo);
                 } else {
                     cursor.skip(len)?;
@@ -170,7 +195,11 @@ pub fn import_smf(bytes: &[u8]) -> Result<Song, InteropError> {
         }
     }
 
-    Ok(song)
+    if cursor.position() < track_end {
+        cursor.skip(track_end - cursor.position())?;
+    }
+
+    Ok(())
 }
 
 fn track_for_channel(
@@ -272,6 +301,10 @@ impl<'a> Cursor<'a> {
 
     const fn position(&self) -> usize {
         self.position
+    }
+
+    const fn len(&self) -> usize {
+        self.bytes.len()
     }
 
     fn rewind(&mut self, count: usize) {

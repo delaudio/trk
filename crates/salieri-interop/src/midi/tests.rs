@@ -32,6 +32,19 @@ fn imports_representative_format_zero_fixture() {
 }
 
 #[test]
+fn imports_format_one_multitrack_file() {
+    let bytes = format_one_fixture();
+    let song = import_smf(&bytes).expect("import");
+
+    assert_eq!(song.transport.bpm, 120);
+    assert_eq!(song.patterns.len(), 1);
+    assert_eq!(song.sequence, vec![PatternId(1)]);
+    let cell = song.pattern(0).expect("pattern").cell(0, 1).expect("cell");
+    assert_eq!(cell.note, Some(NoteEvent::Note { pitch: 60 }));
+    assert_eq!(cell.velocity, Some(100));
+}
+
+#[test]
 fn exported_subset_can_be_imported_back() {
     let mut song = Song::empty();
     song.current_pattern_mut()
@@ -93,10 +106,46 @@ fn rejects_smpte_division() {
 #[test]
 fn rejects_unsupported_midi_formats() {
     let mut bytes = hex_fixture(include_str!("../../../../fixtures/midi/simple-format0.hex"));
-    bytes[9] = 1;
+    bytes[9] = 2;
 
     assert!(matches!(
         import_smf(&bytes),
-        Err(InteropError::UnsupportedMidiFormat(1))
+        Err(InteropError::UnsupportedMidiFormat(2))
     ));
+}
+
+fn format_one_fixture() -> Vec<u8> {
+    let mut tempo_track = Vec::new();
+    write_var_len(0, &mut tempo_track);
+    tempo_track.extend_from_slice(&[0xff, 0x51, 0x03, 0x07, 0xa1, 0x20]);
+    write_var_len(0, &mut tempo_track);
+    tempo_track.extend_from_slice(&[0xff, 0x2f, 0x00]);
+
+    let mut note_track = Vec::new();
+    write_var_len(0, &mut note_track);
+    note_track.extend_from_slice(&[0xc0, 0x04]);
+    write_var_len(0, &mut note_track);
+    note_track.extend_from_slice(&[0xb0, 0x07, 0x64]);
+    write_var_len(0, &mut note_track);
+    note_track.extend_from_slice(&[0x90, 0x3c, 0x64]);
+    write_var_len(480, &mut note_track);
+    note_track.extend_from_slice(&[0x80, 0x3c, 0x00]);
+    write_var_len(0, &mut note_track);
+    note_track.extend_from_slice(&[0xff, 0x2f, 0x00]);
+
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(MTHD);
+    bytes.extend_from_slice(&6_u32.to_be_bytes());
+    bytes.extend_from_slice(&1_u16.to_be_bytes());
+    bytes.extend_from_slice(&2_u16.to_be_bytes());
+    bytes.extend_from_slice(&480_u16.to_be_bytes());
+    push_track_chunk(&mut bytes, &tempo_track);
+    push_track_chunk(&mut bytes, &note_track);
+    bytes
+}
+
+fn push_track_chunk(bytes: &mut Vec<u8>, track: &[u8]) {
+    bytes.extend_from_slice(MTRK);
+    bytes.extend_from_slice(&(track.len() as u32).to_be_bytes());
+    bytes.extend_from_slice(track);
 }
