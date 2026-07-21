@@ -105,14 +105,12 @@ impl App {
                     }
                     Some("disconnect") => self.disconnect_midi(),
                     Some("panic") => self.panic_midi(),
-                    Some("import") | Some("import-smf") => {
-                        let path = parts.collect::<Vec<_>>().join(" ");
-                        if path.is_empty() {
-                            self.notify_warning("Usage: :midi import PATH.mid");
-                        } else {
-                            self.dispatch_intent(AppIntent::ImportMidi(PathBuf::from(path)));
+                    Some("import") | Some("import-smf") => match command_path_argument(parts) {
+                        Some(path) => {
+                            self.dispatch_intent(AppIntent::ImportMidi(path));
                         }
-                    }
+                        None => self.notify_warning("Usage: :midi import PATH.mid"),
+                    },
                     None | Some(_) => self.notify_warning(
                         "Usage: :midi outputs|connect|disconnect|panic|import PATH.mid",
                     ),
@@ -516,6 +514,68 @@ impl App {
             }
         }
     }
+}
+
+fn command_path_argument<'a>(parts: impl IntoIterator<Item = &'a str>) -> Option<PathBuf> {
+    let raw = parts.into_iter().collect::<Vec<_>>().join(" ");
+    let normalized = normalize_command_path(&raw);
+    (!normalized.is_empty()).then(|| PathBuf::from(normalized))
+}
+
+fn normalize_command_path(raw: &str) -> String {
+    let trimmed = raw.trim();
+    if trimmed.len() >= 2 {
+        let first = trimmed.as_bytes()[0];
+        let last = trimmed.as_bytes()[trimmed.len() - 1];
+        if (first == b'\'' && last == b'\'') || (first == b'"' && last == b'"') {
+            return unescape_command_path(&trimmed[1..trimmed.len() - 1]);
+        }
+    }
+    unescape_command_path(trimmed)
+}
+
+fn unescape_command_path(value: &str) -> String {
+    let mut output = String::with_capacity(value.len());
+    let mut chars = value.chars();
+    while let Some(character) = chars.next() {
+        if character == '\\' {
+            match chars.next() {
+                Some(next) if is_shell_escaped_path_char(next) => output.push(next),
+                Some(next) => {
+                    output.push(character);
+                    output.push(next);
+                }
+                None => output.push(character),
+            }
+        } else {
+            output.push(character);
+        }
+    }
+    output
+}
+
+fn is_shell_escaped_path_char(character: char) -> bool {
+    matches!(
+        character,
+        ' ' | '\''
+            | '"'
+            | '('
+            | ')'
+            | '['
+            | ']'
+            | '{'
+            | '}'
+            | '&'
+            | ';'
+            | '!'
+            | '$'
+            | '*'
+            | '?'
+            | '<'
+            | '>'
+            | '|'
+            | '\\'
+    )
 }
 
 impl App {
