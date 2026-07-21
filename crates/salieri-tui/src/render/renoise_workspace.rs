@@ -6,8 +6,9 @@ use ratatui::{
     widgets::Paragraph,
 };
 use salieri_core::{EffectDeviceKind, NoteEvent, PatternCell, Song};
+use salieri_sampler::WaveformBucket;
 
-use super::{theme, TuiState};
+use super::{theme, SamplerViewState, TuiState};
 
 const LEFT_WIDTH: u16 = 15;
 const RIGHT_WIDTH: u16 = 38;
@@ -31,9 +32,7 @@ pub(super) fn render_pattern_workspace(
             Constraint::Length(bottom_height),
         ])
         .split(area);
-
     render_analyzer_strip(frame, rows[0]);
-
     let middle = Layout::default()
         .direction(LayoutDirection::Horizontal)
         .constraints([
@@ -45,8 +44,211 @@ pub(super) fn render_pattern_workspace(
     render_util_panel(frame, middle[0], song, state);
     render_tracker_grid(frame, middle[1], song, state);
     render_right_sidebar(frame, middle[2], song, state);
-
     render_bottom_deck(frame, rows[2], song, state);
+}
+
+pub(super) fn render_sampler_workspace(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    sampler: Option<SamplerViewState<'_>>,
+) {
+    let rows = Layout::default()
+        .direction(LayoutDirection::Vertical)
+        .constraints([Constraint::Length(3), Constraint::Min(12)])
+        .split(area);
+    render_sampler_tabs(frame, rows[0]);
+    let columns = Layout::default()
+        .direction(LayoutDirection::Horizontal)
+        .constraints([
+            Constraint::Length(28),
+            Constraint::Min(62),
+            Constraint::Length(RIGHT_WIDTH),
+        ])
+        .split(rows[1]);
+    render_sampler_list(frame, columns[0], sampler);
+    render_sampler_waveform(frame, columns[1], sampler);
+    render_sampler_properties(frame, columns[2], sampler);
+}
+
+fn render_sampler_tabs(frame: &mut Frame<'_>, area: Rect) {
+    let line = Line::from(vec![
+        tab("Edit", false),
+        tab("Mix", false),
+        tab("Sampler", true),
+        tab("Plugin", false),
+        tab("MIDI", false),
+    ]);
+    frame.render_widget(Paragraph::new(line).block(theme::block("")), area);
+}
+
+fn render_sampler_list(frame: &mut Frame<'_>, area: Rect, sampler: Option<SamplerViewState<'_>>) {
+    let name = sampler.map_or("No sample", |sample| sample.name);
+    let preview = sampler.map_or(
+        "░░░░░░░░░░░░░░░░",
+        |sample| {
+            if sample.overview.buckets.is_empty() {
+                "░░░░░░░░░░░░░░░░"
+            } else {
+                "▁▃▅▇▆▄▂▃▅▇▆▄▂▁"
+            }
+        },
+    );
+    let lines = vec![
+        Line::from(theme::label_span("SAMPLES")),
+        Line::from(vec![theme::label_span("> "), theme::value_span(name)]),
+        Line::from(""),
+        Line::from(theme::label_span("SAMPLE PREVIEW")),
+        Line::from(theme::value_span(preview)),
+        Line::from(theme::value_span(preview)),
+        Line::from(""),
+        Line::from(theme::label_span("PLAYBACK")),
+        kv("Mode", sampler.map_or("-", |sample| sample.playback_mode)),
+        kv(
+            "Gain",
+            sampler.map_or("-".to_string(), |sample| format!("{:.2}", sample.gain)),
+        ),
+    ];
+    frame.render_widget(Paragraph::new(lines).block(theme::block(" Samples ")), area);
+}
+
+fn render_sampler_waveform(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    sampler: Option<SamplerViewState<'_>>,
+) {
+    let Some(sample) = sampler else {
+        frame.render_widget(
+            Paragraph::new("No sample loaded").block(theme::block(" Waveform ")),
+            area,
+        );
+        return;
+    };
+    let width = area.width.saturating_sub(4) as usize;
+    let visible = sample
+        .waveform_end_bucket
+        .min(sample.overview.buckets.len())
+        .saturating_sub(sample.waveform_start_bucket);
+    let buckets = sample
+        .overview
+        .buckets
+        .iter()
+        .skip(sample.waveform_start_bucket)
+        .take(visible)
+        .copied()
+        .collect::<Vec<_>>();
+    let zoom = format!(
+        "[ Draw ] [ Adjust ] [ Slice ]  Z: {}%  [Snap]  Crossing",
+        sample.waveform_zoom.saturating_mul(50).max(50)
+    );
+    let lines = vec![
+        Line::from(vec![
+            theme::label_span("● Record  "),
+            theme::value_span(format!(
+                "{} [{}Hz {}ch {:.2}s]",
+                sample.name,
+                sample.overview.sample_rate,
+                sample.overview.channels,
+                sample.overview.duration_seconds
+            )),
+        ]),
+        Line::from(theme::muted_span(zoom)),
+        Line::from(theme::muted_span(
+            "00     10     20     30     40     50     60     70     80",
+        )),
+        Line::from(vec![
+            theme::label_span("L "),
+            Span::styled(
+                waveform_bar(&buckets, width),
+                Style::default().fg(theme::TEXT),
+            ),
+        ]),
+        Line::from(vec![
+            theme::label_span("  "),
+            Span::styled(
+                waveform_bar(&buckets, width),
+                Style::default().fg(theme::TEXT),
+            ),
+        ]),
+        Line::from(theme::muted_span(
+            "────────────────────────────────────────────────────────",
+        )),
+        Line::from(vec![
+            theme::label_span("R "),
+            Span::styled(
+                waveform_bar(&buckets, width),
+                Style::default().fg(theme::TEXT),
+            ),
+        ]),
+        Line::from(vec![
+            theme::label_span("  "),
+            Span::styled(
+                waveform_bar(&buckets, width),
+                Style::default().fg(theme::TEXT),
+            ),
+        ]),
+        Line::from(theme::muted_span(
+            "Undo | ◊NORM | ↔ | ✂ | FFT | No Loop | ◀ ▶ ≡",
+        )),
+    ];
+    frame.render_widget(
+        Paragraph::new(lines).block(theme::block(format!(" Samples  ■  {} ", sample.name))),
+        area,
+    );
+}
+
+fn render_sampler_properties(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    sampler: Option<SamplerViewState<'_>>,
+) {
+    let mut lines = vec![
+        Line::from(vec![
+            tab("Songs", false),
+            tab("Instr.", false),
+            tab("Samples", true),
+            tab("Other", false),
+        ]),
+        Line::from(""),
+        kv("Name", sampler.map_or("-", |sample| sample.name)),
+        kv("Path", sampler.map_or("-", |sample| sample.source_path)),
+        kv("Format", "Renoise Song"),
+        kv("Time Base", "Beats"),
+        kv("Speed", "6x"),
+        Line::from(""),
+        Line::from(theme::label_span("SAMPLE PROPERTIES")),
+        kv(
+            "Volume",
+            sampler.map_or("-".to_string(), |sample| format!("{:.2} dB", sample.gain)),
+        ),
+        kv("Panning", "Center"),
+        kv("Transpose", "0 st"),
+        kv("BeatSync", "16"),
+    ];
+    if let Some(sample) = sampler {
+        lines.extend([
+            kv("Instrument", sample.instrument.unwrap_or("-")),
+            kv("Track", sample.assigned_track.unwrap_or("-")),
+            kv(
+                "Loop",
+                format_window(sample.loop_start_frame, sample.loop_end_frame),
+            ),
+            kv(
+                "Window",
+                format_window(sample.start_frame, sample.end_frame),
+            ),
+            Line::from(""),
+            Line::from(theme::label_span("BROWSER")),
+            Line::from(theme::muted_span("~/Music/DemoSong/")),
+            Line::from(vec![
+                theme::label_span("> "),
+                theme::value_span(format!("{}.flac", sample.name)),
+            ]),
+        ]);
+    }
+    frame.render_widget(
+        Paragraph::new(lines).block(theme::block(" Instrument Properties ")),
+        area,
+    );
 }
 
 fn render_analyzer_strip(frame: &mut Frame<'_>, area: Rect) {
@@ -419,7 +621,6 @@ fn cell_span(cell: &PatternCell, row: usize, track: usize, state: TuiState<'_>) 
         style,
     )
 }
-
 fn full_cell_text(cell: &PatternCell) -> String {
     format!(
         "{:<3} {:02X} {:02X} {:02X} {:02X} {:02X} {}",
@@ -435,7 +636,6 @@ fn full_cell_text(cell: &PatternCell) -> String {
         ))
     )
 }
-
 fn active_cell<'a>(song: &'a Song, state: TuiState<'_>) -> Option<&'a PatternCell> {
     song.pattern(state.pattern_index)?
         .rows
@@ -443,7 +643,6 @@ fn active_cell<'a>(song: &'a Song, state: TuiState<'_>) -> Option<&'a PatternCel
         .cells
         .get(state.cursor.track)
 }
-
 fn cell_has_data(cell: &PatternCell) -> bool {
     cell.note.is_some()
         || cell.velocity.is_some()
@@ -455,7 +654,6 @@ fn cell_has_data(cell: &PatternCell) -> bool {
         || cell.command2.is_some()
         || !cell.parameter_locks.is_empty()
 }
-
 fn row_span(row: usize, is_playhead: bool, state: TuiState<'_>) -> Span<'static> {
     let row_number = if state.show_line_numbers_hex {
         format!("{:02X}", row + state.row_number_offset)
@@ -473,7 +671,6 @@ fn row_span(row: usize, is_playhead: bool, state: TuiState<'_>) -> Span<'static>
         style,
     )
 }
-
 fn visible_range(total: usize, capacity: usize, offset: usize, cursor: usize) -> Range<usize> {
     let capacity = capacity.max(1);
     let mut start = offset.min(total.saturating_sub(capacity));
@@ -485,7 +682,6 @@ fn visible_range(total: usize, capacity: usize, offset: usize, cursor: usize) ->
     }
     start..start.saturating_add(capacity).min(total)
 }
-
 fn note_text(cell: &PatternCell) -> String {
     match cell.note {
         Some(NoteEvent::Note { pitch }) => format_note(pitch),
@@ -494,7 +690,6 @@ fn note_text(cell: &PatternCell) -> String {
         None => "---".to_string(),
     }
 }
-
 fn format_note(pitch: u8) -> String {
     const NAMES: [&str; 12] = [
         "C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-",
@@ -505,14 +700,12 @@ fn format_note(pitch: u8) -> String {
         i16::from(pitch / 12) - 1
     )
 }
-
 fn kv(label: &str, value: impl Into<String>) -> Line<'static> {
     Line::from(vec![
         theme::label_span(format!("{label:<10}")),
         theme::value_span(value.into()),
     ])
 }
-
 fn slider(label: &str, value: f32, min: f32, max: f32) -> Line<'static> {
     let normalized = ((value - min) / (max - min)).clamp(0.0, 1.0);
     let filled = (normalized * 12.0).round() as usize;
@@ -522,6 +715,41 @@ fn slider(label: &str, value: f32, min: f32, max: f32) -> Line<'static> {
         Span::styled(bar, Style::default().fg(theme::METER)),
         theme::value_span(format!(" {value:+.2}")),
     ])
+}
+fn waveform_bar(buckets: &[WaveformBucket], width: usize) -> String {
+    if width == 0 {
+        return String::new();
+    }
+    if buckets.is_empty() {
+        return "─".repeat(width);
+    }
+    (0..width)
+        .map(|column| {
+            let index = column.saturating_mul(buckets.len()) / width;
+            let bucket = buckets[index.min(buckets.len() - 1)];
+            let amplitude = bucket.max.abs().max(bucket.min.abs());
+            match (amplitude * 8.0).round() as u8 {
+                0 => '·',
+                1 => '▁',
+                2 => '▂',
+                3 => '▃',
+                4 => '▄',
+                5 => '▅',
+                6 => '▆',
+                7 => '▇',
+                _ => '█',
+            }
+        })
+        .collect()
+}
+
+fn format_window(start: Option<usize>, end: Option<usize>) -> String {
+    match (start, end) {
+        (Some(start), Some(end)) => format!("{start}..{end}"),
+        (Some(start), None) => format!("{start}..-"),
+        (None, Some(end)) => format!("-..{end}"),
+        (None, None) => "-".to_string(),
+    }
 }
 
 fn tab(label: &str, active: bool) -> Span<'static> {

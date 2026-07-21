@@ -582,6 +582,10 @@ fn render_body(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'
         return;
     }
     if state.active_view == TuiView::Sampler {
+        if layout_kind(area.width) == LayoutKind::Large {
+            renoise_workspace::render_sampler_workspace(frame, area, state.sampler_view);
+            return;
+        }
         render_sampler_view(frame, area, state.sampler_view);
         return;
     }

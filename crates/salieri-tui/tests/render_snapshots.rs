@@ -389,6 +389,61 @@ fn snapshots_sampler_view() {
 }
 
 #[test]
+fn snapshots_large_sampler_workspace() {
+    let overview = waveform_overview(vec![
+        WaveformBucket {
+            min: -0.2,
+            max: 0.8,
+        },
+        WaveformBucket {
+            min: -0.4,
+            max: 0.6,
+        },
+        WaveformBucket {
+            min: -0.8,
+            max: 0.3,
+        },
+        WaveformBucket {
+            min: -0.5,
+            max: 0.9,
+        },
+    ]);
+
+    assert_snapshot(
+        "sampler-large",
+        render_snapshot(
+            Song::empty(),
+            TuiState {
+                active_view: TuiView::Sampler,
+                mode_label: "SAMPLER",
+                sampler_view: Some(SamplerViewState {
+                    name: "choired_B",
+                    source_path: "~/Music/DemoSong/Samples/choired_B.flac",
+                    overview: &overview,
+                    gain: 1.0,
+                    waveform_start_bucket: 0,
+                    waveform_end_bucket: overview.buckets.len(),
+                    waveform_zoom: 1,
+                    instrument: Some("DemoSong"),
+                    assigned_track: Some("Track 01"),
+                    assigned_track_count: 1,
+                    playback_mode: "one-shot",
+                    start_frame: None,
+                    end_frame: None,
+                    loop_start_frame: None,
+                    loop_end_frame: None,
+                    envelope: (0.010, 0.050, 0.750, 0.100),
+                    selected_envelope: salieri_tui::SamplerEnvelopeField::Attack,
+                }),
+                ..test_state()
+            },
+            140,
+            36,
+        ),
+    );
+}
+
+#[test]
 fn snapshots_empty_waveform() {
     assert_snapshot(
         "waveform-empty",
