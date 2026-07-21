@@ -7,8 +7,8 @@ use ratatui::{
 use crate::ViewportAxis;
 
 use super::{
-    render_sampler_view, theme, truncate, ProjectBrowserEntryKind, ProjectBrowserViewState,
-    SampleBrowserEntryKind, SampleBrowserViewState,
+    render_sampler_view, theme, truncate, ProjectBrowserEntryKind, ProjectBrowserEntryView,
+    ProjectBrowserViewState, SampleBrowserEntryKind, SampleBrowserViewState,
 };
 
 pub(super) fn render_sample_browser(
@@ -139,7 +139,11 @@ pub(super) fn render_project_browser(
     let mut lines = Vec::new();
 
     if browser.entries.is_empty() {
-        lines.push(Line::from("No projects"));
+        lines.push(Line::from(browser.message.unwrap_or(
+            "No projects. Import demos into fixtures/local/renoise-demos/.",
+        )));
+    } else if is_renoise_demo_browser(browser) {
+        lines.extend(renoise_demo_project_lines(browser, selected));
     } else {
         for (index, entry) in browser
             .entries
@@ -148,29 +152,7 @@ pub(super) fn render_project_browser(
             .skip(start)
             .take(visible_rows)
         {
-            let marker = if index == selected { ">" } else { " " };
-            let icon = match entry.kind {
-                ProjectBrowserEntryKind::Directory => "[D]",
-                ProjectBrowserEntryKind::RecentProject => "[R]",
-                ProjectBrowserEntryKind::Project => "[S]",
-                ProjectBrowserEntryKind::MissingProject => "[!]",
-                ProjectBrowserEntryKind::InvalidProject => "[X]",
-            };
-            let style = if index == selected {
-                theme::active()
-            } else {
-                match entry.kind {
-                    ProjectBrowserEntryKind::Directory => theme::label(),
-                    ProjectBrowserEntryKind::RecentProject => theme::playing(),
-                    ProjectBrowserEntryKind::Project => theme::base(),
-                    ProjectBrowserEntryKind::MissingProject
-                    | ProjectBrowserEntryKind::InvalidProject => theme::error(),
-                }
-            };
-            lines.push(Line::from(Span::styled(
-                format!("{marker} {icon} {}", truncate(entry.name, 42)),
-                style,
-            )));
+            lines.push(project_entry_line(index, entry, selected));
         }
     }
 
@@ -216,4 +198,80 @@ pub(super) fn render_project_browser(
         .block(theme::block(" Details "))
         .wrap(Wrap { trim: true });
     frame.render_widget(details, columns[1]);
+}
+
+fn is_renoise_demo_browser(browser: ProjectBrowserViewState<'_>) -> bool {
+    browser.current_dir.contains("renoise-demos")
+        || browser.entries.iter().any(|entry| {
+            entry.name.starts_with("DemoSong")
+                || entry.name.starts_with("Tutorial")
+                || matches!(entry.name, "Samples" | "Songs" | "Instruments")
+        })
+}
+
+fn renoise_demo_project_lines(
+    browser: ProjectBrowserViewState<'_>,
+    selected: usize,
+) -> Vec<Line<'static>> {
+    let sections = ["Samples", "Songs", "Tutorial", "Instruments"];
+    let mut lines = Vec::new();
+    for section in sections {
+        let entries = browser
+            .entries
+            .iter()
+            .enumerate()
+            .filter(|(_, entry)| demo_section(entry) == section)
+            .collect::<Vec<_>>();
+        if entries.is_empty() {
+            continue;
+        }
+        lines.push(Line::from(theme::label_span(format!("▾ {section}"))));
+        for (index, entry) in entries {
+            lines.push(project_entry_line(index, entry, selected));
+        }
+    }
+    lines
+}
+
+fn demo_section(entry: &ProjectBrowserEntryView<'_>) -> &'static str {
+    if entry.name == "Samples" {
+        "Samples"
+    } else if entry.name == "Instruments" {
+        "Instruments"
+    } else if entry.name.starts_with("Tutorial") {
+        "Tutorial"
+    } else {
+        "Songs"
+    }
+}
+
+fn project_entry_line(
+    index: usize,
+    entry: &ProjectBrowserEntryView<'_>,
+    selected: usize,
+) -> Line<'static> {
+    let marker = if index == selected { ">" } else { " " };
+    let icon = match entry.kind {
+        ProjectBrowserEntryKind::Directory => "[D]",
+        ProjectBrowserEntryKind::RecentProject => "[R]",
+        ProjectBrowserEntryKind::Project => "[S]",
+        ProjectBrowserEntryKind::MissingProject => "[!]",
+        ProjectBrowserEntryKind::InvalidProject => "[X]",
+    };
+    let style = if index == selected {
+        theme::active()
+    } else {
+        match entry.kind {
+            ProjectBrowserEntryKind::Directory => theme::label(),
+            ProjectBrowserEntryKind::RecentProject => theme::playing(),
+            ProjectBrowserEntryKind::Project => theme::base(),
+            ProjectBrowserEntryKind::MissingProject | ProjectBrowserEntryKind::InvalidProject => {
+                theme::error()
+            }
+        }
+    };
+    Line::from(Span::styled(
+        format!("{marker} {icon} {}", truncate(entry.name, 42)),
+        style,
+    ))
 }

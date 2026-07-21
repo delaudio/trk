@@ -1,8 +1,9 @@
 use salieri_core::{Cursor, NoteEvent, Song};
 use salieri_sampler::{WaveformBucket, WaveformOverview};
 use salieri_tui::{
-    HelpTab, MidiPortView, MidiSettingsState, PatternFieldLayout, SamplerViewState, SelectionRect,
-    TuiState, TuiView,
+    HelpTab, MidiPortView, MidiSettingsState, PatternFieldLayout, ProjectBrowserEntryKind,
+    ProjectBrowserEntryView, ProjectBrowserViewState, SamplerViewState, SelectionRect, TuiState,
+    TuiView,
 };
 
 mod support;
@@ -267,6 +268,36 @@ fn snapshots_large_layout() {
 }
 
 #[test]
+fn snapshots_renoise_pattern_workspace() {
+    assert_snapshot(
+        "renoise-pattern-workspace",
+        render_snapshot(
+            large_tracker_song(96, 8),
+            TuiState {
+                cursor: Cursor {
+                    row: 4,
+                    track: 3,
+                    field: salieri_core::CellField::Instrument,
+                    digit: 1,
+                },
+                selection: Some(SelectionRect {
+                    row_start: 3,
+                    row_end: 5,
+                    track_start: 2,
+                    track_end: 4,
+                }),
+                is_playing: true,
+                playhead_row: Some(4),
+                midi_status: "MIDI Connected 0",
+                ..test_state()
+            },
+            140,
+            36,
+        ),
+    );
+}
+
+#[test]
 fn snapshots_sequence_view() {
     assert_snapshot(
         "sequence-view",
@@ -329,6 +360,56 @@ fn snapshots_patterns_view() {
             },
             72,
             24,
+        ),
+    );
+}
+
+#[test]
+fn snapshots_renoise_demo_project_browser() {
+    let entries = [
+        ProjectBrowserEntryView {
+            name: "Samples",
+            path: "fixtures/local/renoise-demos/Samples",
+            kind: ProjectBrowserEntryKind::Directory,
+            detail: "Renoise demo sample payloads stay local and ignored",
+        },
+        ProjectBrowserEntryView {
+            name: "DemoSong - Daed - Bears.salieri",
+            path: "fixtures/local/renoise-demos/Songs/DemoSong - Daed - Bears.salieri",
+            kind: ProjectBrowserEntryKind::Project,
+            detail: "DemoSong | imported local Renoise demo | samples external",
+        },
+        ProjectBrowserEntryView {
+            name: "Tutorial - Beat Synced Wobbles.salieri",
+            path: "fixtures/local/renoise-demos/Tutorial/Tutorial - Beat Synced Wobbles.salieri",
+            kind: ProjectBrowserEntryKind::Project,
+            detail: "Tutorial | imported local Renoise demo | samples external",
+        },
+        ProjectBrowserEntryView {
+            name: "Instruments",
+            path: "fixtures/local/renoise-demos/Instruments",
+            kind: ProjectBrowserEntryKind::Directory,
+            detail: "Imported Renoise instruments stay local and ignored",
+        },
+    ];
+
+    assert_snapshot(
+        "renoise-demo-browser",
+        render_snapshot(
+            Song::empty(),
+            TuiState {
+                active_view: TuiView::ProjectBrowser,
+                mode_label: "PROJECTS",
+                project_browser: Some(ProjectBrowserViewState {
+                    current_dir: "fixtures/local/renoise-demos",
+                    entries: &entries,
+                    selected: 1,
+                    message: Some("Local Renoise demos are optional and ignored by Git"),
+                }),
+                ..test_state()
+            },
+            120,
+            28,
         ),
     );
 }

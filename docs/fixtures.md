@@ -20,6 +20,7 @@ Do not commit:
 The root `.gitignore` ignores `/untitled.salieri`, `/salieri-midi.log`, and `/fixtures/local/`. It does not ignore `fixtures/*.salieri`, so test fixtures remain trackable.
 
 Local Renoise demo imports can live under `fixtures/local/renoise-demos/` with samples under `fixtures/local/renoise-demos/samples/`. These files are useful for manual parity testing, but they are not redistributed by this repository.
+Point `[project_browser].start_dir` (or `workspace.project_library`) at `fixtures/local/renoise-demos/` to review those imported demos in the TUI project browser. The browser also has deterministic snapshots for the Renoise-style demo sections, so tests do not require local third-party assets.
 
 ## Current Fixtures
 
@@ -36,6 +37,8 @@ Snapshot and fixture changes must be intentional and reviewed like code. To rege
 ```bash
 UPDATE_SALIERI_SNAPSHOTS=1 cargo test -p salieri-tui --test render_snapshots
 ```
+
+Renoise-style UI snapshots include `renoise-pattern-workspace`, `sampler-large`, and `renoise-demo-browser`; review those files when changing the tracker/sampler/browser visual migration.
 
 To regenerate project and AI golden fixtures:
 
