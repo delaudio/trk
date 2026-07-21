@@ -3,6 +3,7 @@ use std::ops::Range;
 mod browser_views;
 mod help_overlay;
 mod modal_overlays;
+mod renoise_workspace;
 mod theme;
 
 use ratatui::{
@@ -594,6 +595,10 @@ fn render_body(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'
     }
     if state.active_view == TuiView::AiChat {
         render_ai_chat_view(frame, area, state.ai_chat);
+        return;
+    }
+    if layout_kind(area.width) == LayoutKind::Large {
+        renoise_workspace::render_pattern_workspace(frame, area, song, state);
         return;
     }
 

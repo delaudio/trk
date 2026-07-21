@@ -1,36 +1,36 @@
 ┌ Salieri Tracker ─────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ [▷] [■] [●]  BPM: 120  LPB: 4  Oct: 4  Vel: 100  Swing: 0%  Sync: Internal  |  CPU: 00.0%  |  STOPPED  |  PAT: 01  LI│
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-┌ Trac┌ Help: Sampler 1/5 | Tab/Shift+Tab pages ─────────────────────────────────────────────────────────────────▲─────┐
-│> 01 │ Basics  |  Editing  |  Sampler  |  MIDI  |  Commands                                                     █     │
-│  02 │  Tab/Right next page   Shift+Tab/Left previous page   Up/Down scroll                                     █- ---│
-│  03 │                                                                                                          █- ---│
-│  04 │Sampler And Instruments                                                                                   █- ---│
-│     │  Ctrl+J opens Sampler view   Esc returns to Pattern view                                                 █- ---│
-│     │  In Sampler view: +/- zoom waveform   Left/Right pan   Home/End bounds                                   █- ---│
-│     │  Tab/Shift+Tab selects A/D/S/R   [/]/{/} adjusts selected envelope field                                 █- ---│
-│     │  :sample view PATH loads a WAV and shows metadata plus waveform                                          █- ---│
-│     │  :sample browse [DIR] opens the in-app sample browser                                                    █- ---│
-│     │  :sample choose [DIR] opens the configured external chooser                                              █- ---│
-│     │                                                                                                          █- ---│
-│     │Track Assignment                                                                                          █- ---│
-│     │  :sample assign [TRACK] assigns the loaded sample to a track                                             █- ---│
-│     │  :sample replace [TRACK] swaps the track sample and prunes the old reference                             █- ---│
-│     │  :sample unassign [TRACK] clears the track sample and instrument assignment                              ║- ---│
-│     │  TRACK is 1-based; omitted TRACK means the current track                                                 ║- ---│
-│     │  :sample assignments lists track=sample mappings                                                         ║- ---│
-└─────│                                                                                                          ║- ---│
-┌ Song│Instrument Column                                                                                         ║- ---│
-│  00 │  Assigning a sample creates a sample-backed instrument for that track                                    ║- ---│
-│     │  Cells can override the track default with INST, e.g. :cell instrument 01                                ║─────┘
-│     │  An empty INST field uses the track instrument or sample assignment                                      ║─────┐
-│     │  :preset instrument save|show|load PATH for portable instrument files                                    ║     │
+┌─────┌ Help: Sampler 1/5 | Tab/Shift+Tab pages ─────────────────────────────────────────────────────────────────▲─────┐
+│-18dB│ Basics  |  Editing  |  Sampler  |  MIDI  |  Commands                                                     █     │
+│-36dB│  Tab/Right next page   Shift+Tab/Left previous page   Up/Down scroll                                     █7 8  │
+└─────│                                                                                                          █─────┘
+┌ UTIL│Sampler And Instruments                                                                                   █─────┐
+│UTIL │  Ctrl+J opens Sampler view   Esc returns to Pattern view                                                 █     │
+│     │  In Sampler view: +/- zoom waveform   Left/Right pan   Home/End bounds                                   █     │
+│BPM  │  Tab/Shift+Tab selects A/D/S/R   [/]/{/} adjusts selected envelope field                                 █     │
+│LPB  │  :sample view PATH loads a WAV and shows metadata plus waveform                                          █     │
+│OCT  │  :sample browse [DIR] opens the in-app sample browser                                                    █     │
+│--   │  :sample choose [DIR] opens the configured external chooser                                              █     │
+│     │                                                                                                          █     │
+│Follo│Track Assignment                                                                                          █     │
+│  Pat│  :sample assign [TRACK] assigns the loaded sample to a track                                             █     │
+│Scrol│  :sample replace [TRACK] swaps the track sample and prunes the old reference                             █     │
+│  Pag│  :sample unassign [TRACK] clears the track sample and instrument assignment                              ║     │
+│     │  TRACK is 1-based; omitted TRACK means the current track                                                 ║     │
+│Edit │  :sample assignments lists track=sample mappings                                                         ║     │
 │     │                                                                                                          ║     │
-│     │Playback Window                                                                                           ║--   │
-│     │  :sample start FRAME|clear   :sample end FRAME|clear                                                     ║     │
-│     │  :sample loop [backward|pingpong] START END   :sample loop off                                           ║     │
-│     │  :sample mode one-shot|forward-loop|backward-loop|pingpong-loop|reverse                                  ║     │
-│     └──────────────────────────────────────────────────────────────────────────────────────────────────────────▼     │
-│                          ││auto                         Sends 00   FX 00                                             │
-└──────────────────────────┘└──────────────────────────────────────────────────────────────────────────────────────────┘
+│     │Instrument Column                                                                                         ║     │
+│     │  Assigning a sample creates a sample-backed instrument for that track                                    ║     │
+│     │  Cells can override the track default with INST, e.g. :cell instrument 01                                ║     │
+│     │  An empty INST field uses the track instrument or sample assignment                                      ║     │
+│     │  :preset instrument save|show|load PATH for portable instrument files                                    ║     │
+└─────│                                                                                                          ║─────┘
+┌ Effe│Playback Window                                                                                           ║─────┐
+│#  Ef│  :sample start FRAME|clear   :sample end FRAME|clear                                                     ║     │
+│01 --│  :sample loop [backward|pingpong] START END   :sample loop off                                           ║     │
+│02 --│  :sample mode one-shot|forward-loop|backward-loop|pingpong-loop|reverse                                  ║     │
+│03 --└──────────────────────────────────────────────────────────────────────────────────────────────────────────▼     │
+│04 --                      ││Width    ██████────── +1.00    ││-48      -3.4 dB  -3.1││05 --                           │
+└───────────────────────────┘└───────────────────────────────┘└──────────────────────┘└────────────────────────────────┘
  HELP | Step 1 | Ctrl+P Palette | H Help | Focus :t/:p/:se/:tr/:sa/:sb/:o | F4-MIDI | Space Play/Stop | Enter Row | Shif
