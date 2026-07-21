@@ -75,7 +75,9 @@ use command_palette::{
 };
 use composition_graph::*;
 use config::{load_config, AppConfig, ConfigOverrides, ProjectBrowserConfig, SampleBrowserConfig};
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers, MouseEventKind};
+use crossterm::event::{
+    self, Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+};
 use focus::{FocusCapture, FocusManager, FocusPanel};
 use history::{SongTransaction, TransactionSpec, UndoHistory};
 use keymap::Keymap;

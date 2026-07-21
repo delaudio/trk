@@ -345,25 +345,6 @@ fn scrolls_left_to_keep_active_track_visible() {
 }
 
 #[test]
-fn mouse_wheel_moves_tracker_cursor_through_shared_viewport() {
-    let mut app = App::default();
-
-    app.handle_mouse_wheel(MouseEventKind::ScrollDown);
-    app.keep_cursor_visible(2);
-    app.keep_track_visible(app.cursor.track, 4);
-
-    assert_eq!(app.cursor.row, 3);
-    assert_eq!(app.row_offset, 2);
-
-    app.handle_mouse_wheel(MouseEventKind::ScrollUp);
-    app.keep_cursor_visible(2);
-    app.keep_track_visible(app.cursor.track, 4);
-
-    assert_eq!(app.cursor.row, 0);
-    assert_eq!(app.row_offset, 0);
-}
-
-#[test]
 fn modal_focus_capture_restores_previous_panel() {
     let mut app = App::default();
 

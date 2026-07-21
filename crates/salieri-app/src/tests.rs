@@ -11,6 +11,7 @@ mod composition_graph;
 mod history_transactions;
 mod layout_commands;
 mod midi_routing;
+mod mouse_navigation;
 mod navigation_editing;
 mod pattern_commands;
 mod pattern_operations;

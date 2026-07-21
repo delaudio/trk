@@ -265,7 +265,11 @@ fn run(args: CliArgs) -> Result<()> {
                     }))
                 }
                 Event::Mouse(mouse) => {
-                    app.handle_mouse_wheel(mouse.kind);
+                    app.handle_mouse(
+                        mouse,
+                        terminal.visible_pattern_rows(),
+                        terminal.visible_pattern_tracks(),
+                    );
                     app.dispatch_event(AppEvent::Runtime(RuntimeEvent::ViewportRefresh {
                         visible_rows: terminal.visible_pattern_rows(),
                         visible_tracks: terminal.visible_pattern_tracks(),

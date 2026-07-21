@@ -55,6 +55,156 @@ impl App {
         }
     }
 
+    pub(crate) fn handle_mouse(
+        &mut self,
+        mouse: MouseEvent,
+        visible_rows: usize,
+        visible_tracks: usize,
+    ) {
+        match mouse.kind {
+            MouseEventKind::ScrollUp | MouseEventKind::ScrollDown => {
+                self.handle_mouse_wheel(mouse.kind)
+            }
+            MouseEventKind::ScrollLeft => self.handle_mouse_horizontal_scroll(-1),
+            MouseEventKind::ScrollRight => self.handle_mouse_horizontal_scroll(1),
+            MouseEventKind::Down(MouseButton::Left) | MouseEventKind::Drag(MouseButton::Left) => {
+                self.handle_mouse_click(
+                    mouse.column,
+                    mouse.row,
+                    visible_rows,
+                    visible_tracks,
+                    false,
+                )
+            }
+            MouseEventKind::Down(MouseButton::Right) => {
+                self.handle_mouse_click(mouse.column, mouse.row, visible_rows, visible_tracks, true)
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_mouse_horizontal_scroll(&mut self, delta: isize) {
+        match self.mode {
+            AppMode::Normal | AppMode::Edit => {
+                self.cursor.track = self
+                    .cursor
+                    .track
+                    .saturating_add_signed(delta)
+                    .min(self.song.tracks.len().saturating_sub(1));
+            }
+            AppMode::Sampler => self.pan_sample_waveform(delta),
+            _ => {}
+        }
+    }
+
+    fn handle_mouse_click(
+        &mut self,
+        column: u16,
+        row: u16,
+        visible_rows: usize,
+        visible_tracks: usize,
+        activate: bool,
+    ) {
+        if row < 3 {
+            if column < 12 {
+                self.toggle_playback();
+            }
+            return;
+        }
+
+        match self.mode {
+            AppMode::Normal | AppMode::Edit => {
+                self.handle_tracker_mouse_click(column, row, visible_rows, visible_tracks)
+            }
+            AppMode::Tracks => self.handle_track_list_mouse_click(row),
+            AppMode::SampleBrowser => self.handle_sample_browser_mouse_click(row, activate),
+            AppMode::ProjectBrowser => self.handle_project_browser_mouse_click(row, activate),
+            AppMode::Sampler => self.handle_sampler_mouse_click(column, row),
+            _ => {}
+        }
+    }
+
+    fn handle_tracker_mouse_click(
+        &mut self,
+        column: u16,
+        row: u16,
+        visible_rows: usize,
+        visible_tracks: usize,
+    ) {
+        const GRID_FIRST_ROW: u16 = 10;
+        const GRID_FIRST_CELL_COLUMN: u16 = 21;
+        const TRACK_CELL_WIDTH: u16 = 12;
+        const RIGHT_SIDEBAR_START: u16 = 82;
+
+        self.focus_panel(FocusPanel::Tracker);
+        if column >= RIGHT_SIDEBAR_START {
+            return;
+        }
+        if row >= GRID_FIRST_ROW {
+            self.cursor.row = self
+                .row_offset
+                .saturating_add((row - GRID_FIRST_ROW) as usize)
+                .min(self.current_row_count().saturating_sub(1));
+        }
+        if column >= GRID_FIRST_CELL_COLUMN {
+            self.cursor.track = self
+                .track_offset
+                .saturating_add(((column - GRID_FIRST_CELL_COLUMN) / TRACK_CELL_WIDTH) as usize)
+                .min(self.song.tracks.len().saturating_sub(1));
+            self.cursor.digit = 0;
+        }
+        self.keep_active_viewport_visible(visible_rows, visible_tracks);
+    }
+
+    fn handle_track_list_mouse_click(&mut self, row: u16) {
+        const LIST_FIRST_ROW: u16 = 4;
+        if row < LIST_FIRST_ROW || self.song.tracks.is_empty() {
+            return;
+        }
+        self.cursor.track =
+            usize::from(row - LIST_FIRST_ROW).min(self.song.tracks.len().saturating_sub(1));
+        self.focus_panel(FocusPanel::Tracks);
+    }
+
+    fn handle_sample_browser_mouse_click(&mut self, row: u16, activate: bool) {
+        let Some(cursor) = browser_row_to_cursor(row) else {
+            return;
+        };
+        if let Some(browser) = &mut self.sample_browser_view {
+            if browser.entries.is_empty() {
+                return;
+            }
+            browser.cursor = cursor.min(browser.entries.len().saturating_sub(1));
+        }
+        self.update_sample_browser_preview();
+        if activate {
+            self.select_sample_browser_entry();
+        }
+    }
+
+    fn handle_project_browser_mouse_click(&mut self, row: u16, activate: bool) {
+        let Some(cursor) = browser_row_to_cursor(row) else {
+            return;
+        };
+        if let Some(browser) = &mut self.project_browser_view {
+            if browser.entries.is_empty() {
+                return;
+            }
+            browser.cursor = cursor.min(browser.entries.len().saturating_sub(1));
+        }
+        if activate {
+            self.select_project_browser_entry();
+        }
+    }
+
+    fn handle_sampler_mouse_click(&mut self, column: u16, row: u16) {
+        if row == 3 && (15..=25).contains(&column) {
+            self.focus_panel(FocusPanel::Sampler);
+        } else if column <= 28 {
+            self.open_sample_browser_view(None);
+        }
+    }
+
     pub(crate) fn handle_control_key(&mut self, key: KeyEvent) -> bool {
         if !key.modifiers.contains(KeyModifiers::CONTROL) {
             return false;
@@ -499,4 +649,9 @@ impl App {
             _ => {}
         }
     }
+}
+
+fn browser_row_to_cursor(row: u16) -> Option<usize> {
+    const LIST_FIRST_ROW: u16 = 7;
+    (row >= LIST_FIRST_ROW).then_some((row - LIST_FIRST_ROW) as usize)
 }
