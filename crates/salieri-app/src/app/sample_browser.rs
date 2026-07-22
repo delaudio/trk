@@ -261,6 +261,29 @@ impl App {
         }
     }
 
+    pub(crate) fn assign_selected_sample_browser_entry(&mut self) {
+        let Some(browser) = &self.sample_browser_view else {
+            return;
+        };
+        let Some(entry) = browser.entries.get(browser.cursor).cloned() else {
+            self.notify_warning("No sample selected");
+            return;
+        };
+
+        match entry.kind {
+            SampleBrowserEntryKind::SupportedSample => {
+                self.assign_sample_path_to_track(entry.path, self.cursor.track);
+            }
+            SampleBrowserEntryKind::Directory => {
+                self.notify_warning("Select a sample file before assigning");
+            }
+            SampleBrowserEntryKind::UnsupportedFile => {
+                self.notify_warning("Unsupported sample file");
+                self.update_sample_browser_preview();
+            }
+        }
+    }
+
     pub(crate) fn take_sample_browser_request(
         &mut self,
     ) -> Option<(SampleBrowserConfig, SampleBrowserRequest)> {

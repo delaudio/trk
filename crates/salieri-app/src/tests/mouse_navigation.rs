@@ -132,6 +132,62 @@ fn mouse_click_selects_sample_browser_entries() {
 }
 
 #[test]
+fn mouse_right_click_assigns_sample_browser_entry_to_current_track() {
+    let dir = std::env::temp_dir().join(format!(
+        "salieri-mouse-sample-assign-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&dir).expect("create sample dir");
+    let sample_path = dir.join("hat.wav");
+    std::fs::write(&sample_path, wav_pcm16_bytes(44_100, 1, &[0, i16::MAX])).expect("write wav");
+
+    let mut app = App {
+        mode: AppMode::SampleBrowser,
+        cursor: Cursor {
+            track: 1,
+            ..Cursor::new()
+        },
+        sample_browser_view: Some(AppSampleBrowserView {
+            current_dir: dir.clone(),
+            entries: vec![AppSampleBrowserEntry {
+                path: sample_path.clone(),
+                name: "hat.wav".to_string(),
+                kind: SampleBrowserEntryKind::SupportedSample,
+            }],
+            cursor: 0,
+            preview: None,
+            message: None,
+        }),
+        ..App::default()
+    };
+
+    app.handle_mouse(
+        MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Right),
+            column: 4,
+            row: 7,
+            modifiers: KeyModifiers::NONE,
+        },
+        large_mouse_viewport(),
+    );
+
+    let track_id = app.song.tracks[1].id;
+    let assignment = app
+        .song
+        .sample_assignment_for_track(track_id)
+        .expect("sample assignment");
+    let sample = app
+        .song
+        .sample_for_id(assignment.sample)
+        .expect("sample reference");
+    assert_eq!(sample.path, sample_path.to_string_lossy());
+    assert_eq!(app.mode, AppMode::Sampler);
+
+    let _ = std::fs::remove_file(&sample_path);
+    let _ = std::fs::remove_dir(&dir);
+}
+
+#[test]
 fn mouse_click_renoise_sidebar_tabs_open_sections() {
     let mut app = App::default();
     let viewport = large_mouse_viewport();

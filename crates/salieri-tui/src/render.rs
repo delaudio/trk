@@ -2598,7 +2598,7 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
         )
     } else if state.active_view == TuiView::SampleBrowser {
         format!(
-            " {} | H Help | Esc Sampler | Up/Down Select | Enter Load/Open | Backspace Parent | : Command | q Quit ",
+            " {} | H Help | Esc Sampler | Up/Down Select | A Assign | Right-click Assign | Enter Load/Open | Backspace Parent | : Command | q Quit ",
             state.mode_label
         )
     } else if state.active_view == TuiView::ProjectBrowser {

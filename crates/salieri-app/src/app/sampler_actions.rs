@@ -109,6 +109,36 @@ impl App {
         self.notify_success(format!("Sample assigned to {track_name}"));
     }
 
+    pub(crate) fn assign_sample_path_to_track(&mut self, path: PathBuf, track_index: usize) {
+        let sample_view = match load_sample_view_data(path) {
+            Ok(sample_view) => sample_view,
+            Err(error) => {
+                self.focus_panel(FocusPanel::Sampler);
+                self.notify_error(format!("Sample load failed: {error}"));
+                return;
+            }
+        };
+        let Some(track) = self.song.tracks.get(track_index) else {
+            self.notify_warning("Track out of range");
+            return;
+        };
+
+        let track_id = track.id;
+        let track_name = track.name.clone();
+        let sample_name = sample_view.sample.name.clone();
+        let sample_path = sample_view.source_path.to_string_lossy().to_string();
+
+        self.sample_view = Some(sample_view);
+        self.sample_waveform_zoom = 1;
+        self.sample_waveform_offset = 0;
+        self.mutate_song(|song, _| {
+            let sample_id = song.upsert_sample_reference(sample_path, sample_name);
+            let _ = song.assign_sample_to_track(track_id, sample_id);
+        });
+        self.focus_panel(FocusPanel::Sampler);
+        self.notify_success(format!("Sample assigned to {track_name}"));
+    }
+
     pub(crate) fn unassign_sample_from_track(&mut self, track_index: usize) {
         let Some(track) = self.song.tracks.get(track_index) else {
             self.notify_warning("Track out of range");

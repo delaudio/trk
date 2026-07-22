@@ -268,7 +268,7 @@ impl App {
         }
         self.update_sample_browser_preview();
         if activate {
-            self.select_sample_browser_entry();
+            self.assign_selected_sample_browser_entry();
         }
     }
 

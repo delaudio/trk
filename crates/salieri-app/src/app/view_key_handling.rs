@@ -224,6 +224,9 @@ impl App {
             KeyCode::PageUp => self.move_sample_browser_cursor(-10),
             KeyCode::PageDown => self.move_sample_browser_cursor(10),
             KeyCode::Backspace | KeyCode::Left | KeyCode::Char('h') => self.sample_browser_parent(),
+            KeyCode::Char('a') | KeyCode::Char('A') => {
+                self.assign_selected_sample_browser_entry();
+            }
             KeyCode::Enter | KeyCode::Right | KeyCode::Char('l') => {
                 self.select_sample_browser_entry()
             }

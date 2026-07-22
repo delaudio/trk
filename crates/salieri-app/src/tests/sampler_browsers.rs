@@ -484,6 +484,46 @@ fn in_app_sample_browser_previews_and_loads_wav_files() {
 }
 
 #[test]
+fn in_app_sample_browser_assigns_selected_wav_with_shortcut() {
+    let mut app = App {
+        cursor: Cursor {
+            track: 1,
+            ..Cursor::new()
+        },
+        ..App::default()
+    };
+    let dir = std::env::temp_dir().join(format!(
+        "salieri-in-app-sample-browser-assign-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&dir).expect("create sample dir");
+    let sample_path = dir.join("snare.wav");
+    std::fs::write(&sample_path, wav_pcm16_bytes(44_100, 1, &[0, i16::MAX])).expect("write wav");
+
+    enter_command(&mut app, &format!("sample browse {}", dir.display()));
+    app.handle_key(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE));
+
+    let track_id = app.song.tracks[1].id;
+    let assignment = app
+        .song
+        .sample_assignment_for_track(track_id)
+        .expect("sample assignment");
+    let sample = app
+        .song
+        .sample_for_id(assignment.sample)
+        .expect("sample reference");
+    assert_eq!(sample.path, sample_path.to_string_lossy());
+    assert_eq!(app.mode, AppMode::Sampler);
+    assert!(app
+        .notification
+        .as_ref()
+        .is_some_and(|notification| { notification.message == "Sample assigned to Bass" }));
+
+    let _ = std::fs::remove_file(&sample_path);
+    let _ = std::fs::remove_dir(&dir);
+}
+
+#[test]
 fn in_app_sample_browser_reports_unsupported_files() {
     let mut app = App::default();
     let dir = std::env::temp_dir().join(format!(

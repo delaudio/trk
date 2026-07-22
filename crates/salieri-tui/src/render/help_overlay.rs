@@ -182,6 +182,9 @@ fn help_sampler_lines(mode_label: &str) -> Vec<Line<'static>> {
         Line::from("  Tab/Shift+Tab selects A/D/S/R   [/]/{/} adjusts selected envelope field"),
         Line::from("  :sample view PATH loads a WAV and shows metadata plus waveform"),
         Line::from("  :sample browse [DIR] opens the in-app sample browser"),
+        Line::from(
+            "  In Sample Browser: A assigns the selected sample; right-click assigns with mouse",
+        ),
         Line::from("  :sample choose [DIR] opens the configured external chooser"),
         Line::from(""),
         Line::from(Span::styled(
