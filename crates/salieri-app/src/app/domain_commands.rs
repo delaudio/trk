@@ -415,7 +415,7 @@ impl App {
         }
     }
 
-    fn set_current_parameter_lock(
+    pub(crate) fn set_current_parameter_lock(
         &mut self,
         lock: ParameterLock,
         descriptor: &ParameterDescriptor,
@@ -452,7 +452,7 @@ impl App {
         }
     }
 
-    fn clear_current_parameter_lock(
+    pub(crate) fn clear_current_parameter_lock(
         &mut self,
         target: ParameterLockTarget,
         parameter: ParameterId,

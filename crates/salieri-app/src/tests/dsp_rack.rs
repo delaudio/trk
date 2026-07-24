@@ -171,6 +171,67 @@ fn dsp_rack_mouse_selects_and_adjusts_parameter() {
     ));
 }
 
+#[test]
+fn dsp_rack_parameter_lock_actions_set_reset_clear_and_copy_paste() {
+    let mut app = App::default();
+
+    enter_command(&mut app, "dsp track gain 1.000");
+    enter_command(&mut app, "focus dsp");
+
+    app.handle_key(KeyEvent::new(KeyCode::Char('p'), KeyModifiers::NONE));
+    let track = app.song.tracks[0].id;
+    let lock = only_current_cell_lock(&app);
+    assert_eq!(
+        lock.target,
+        ParameterLockTarget::TrackEffect { track, device: 1 }
+    );
+    assert_eq!(lock.parameter, ParameterId::from(NATIVE_GAIN_PARAMETER_ID));
+    assert_eq!(
+        lock.action,
+        ParameterLockAction::Set {
+            value: ParameterValue::Float(1.0)
+        }
+    );
+    assert_eq!(
+        app.tui_dsp_rack_view().selected_lock_status,
+        DspParameterLockStatusView::Set
+    );
+
+    app.handle_key(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::NONE));
+    assert_eq!(
+        only_current_cell_lock(&app).action,
+        ParameterLockAction::Reset
+    );
+    assert_eq!(
+        app.tui_dsp_rack_view().selected_lock_status,
+        DspParameterLockStatusView::Reset
+    );
+
+    app.handle_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::NONE));
+    assert!(current_cell(&app).parameter_locks.is_empty());
+    assert_eq!(
+        app.tui_dsp_rack_view().selected_lock_status,
+        DspParameterLockStatusView::Unlocked
+    );
+
+    app.handle_key(KeyEvent::new(KeyCode::Char('p'), KeyModifiers::NONE));
+    app.copy_selection_or_current_cell();
+    app.cursor.row = 4;
+    app.paste_clipboard();
+
+    let pasted = app
+        .song
+        .current_pattern()
+        .expect("pattern")
+        .cell(4, 0)
+        .expect("pasted cell");
+    assert_eq!(pasted.parameter_locks.len(), 1);
+    assert_eq!(
+        pasted.parameter_locks[0].parameter,
+        ParameterId::from(NATIVE_GAIN_PARAMETER_ID)
+    );
+}
+
 fn track_effect_kind(app: &App, index: usize) -> &EffectDeviceKind {
     let track = app.song.tracks[app.cursor.track].id;
     &app.song
@@ -181,4 +242,18 @@ fn track_effect_kind(app: &App, index: usize) -> &EffectDeviceKind {
         .expect("track mixer exists")
         .effects[index]
         .kind
+}
+
+fn only_current_cell_lock(app: &App) -> &ParameterLock {
+    let cell = current_cell(app);
+    assert_eq!(cell.parameter_locks.len(), 1);
+    &cell.parameter_locks[0]
+}
+
+fn current_cell(app: &App) -> &PatternCell {
+    app.song
+        .current_pattern()
+        .expect("pattern")
+        .cell(app.cursor.row, app.cursor.track)
+        .expect("cell")
 }

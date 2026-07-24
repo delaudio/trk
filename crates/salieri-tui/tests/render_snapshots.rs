@@ -1,10 +1,10 @@
 use salieri_core::{Cursor, DelaySpec, EffectDevice, NoteEvent, Song};
 use salieri_sampler::{WaveformBucket, WaveformOverview};
 use salieri_tui::{
-    DspDevicePaletteEntryView, DspDevicePaletteViewState, DspRackTargetView, DspRackViewState,
-    HelpTab, MidiPortView, MidiSettingsState, PatternFieldLayout, ProjectBrowserEntryKind,
-    ProjectBrowserEntryView, ProjectBrowserViewState, SamplerViewState, SelectionRect, TuiState,
-    TuiView,
+    DspDevicePaletteEntryView, DspDevicePaletteViewState, DspParameterLockStatusView,
+    DspRackTargetView, DspRackViewState, HelpTab, MidiPortView, MidiSettingsState,
+    PatternFieldLayout, ProjectBrowserEntryKind, ProjectBrowserEntryView, ProjectBrowserViewState,
+    SamplerViewState, SelectionRect, TuiState, TuiView,
 };
 
 mod support;
@@ -488,6 +488,7 @@ fn snapshots_dsp_rack_empty_view() {
                     selected_target: DspRackTargetView::Track,
                     selected_index: 0,
                     selected_parameter_index: 0,
+                    selected_lock_status: DspParameterLockStatusView::Unlocked,
                     device_palette: None,
                 }),
                 ..test_state()
@@ -531,6 +532,7 @@ fn snapshots_dsp_rack_populated_view() {
                     selected_target: DspRackTargetView::Track,
                     selected_index: 1,
                     selected_parameter_index: 0,
+                    selected_lock_status: DspParameterLockStatusView::Unlocked,
                     device_palette: None,
                 }),
                 ..test_state()
@@ -577,6 +579,7 @@ fn snapshots_dsp_rack_device_palette() {
                     selected_target: DspRackTargetView::Master,
                     selected_index: 0,
                     selected_parameter_index: 0,
+                    selected_lock_status: DspParameterLockStatusView::Unlocked,
                     device_palette: Some(DspDevicePaletteViewState {
                         entries: &entries,
                         selected: 2,

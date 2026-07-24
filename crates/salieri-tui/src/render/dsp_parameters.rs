@@ -30,7 +30,8 @@ use salieri_core::{
 };
 
 use super::{
-    parameter_flags_label, parameter_meter, theme, truncate, DspRackTargetView, DspRackViewState,
+    parameter_flags_label, parameter_meter, theme, truncate, DspParameterLockStatusView,
+    DspRackTargetView, DspRackViewState,
 };
 
 pub(super) fn render_dsp_parameter_panel(
@@ -52,9 +53,13 @@ pub(super) fn render_dsp_parameter_panel(
         DspRackTargetView::Track => format!("Track {:02}", rack.track_number),
         DspRackTargetView::Master => "Master".to_string(),
     };
-    let mut lines = dsp_parameter_lines(&effect.kind, rack.selected_parameter_index);
+    let mut lines = dsp_parameter_lines(
+        &effect.kind,
+        rack.selected_parameter_index,
+        rack.selected_lock_status,
+    );
     lines.push(Line::from(Span::styled(
-        "[/] select parameter   Left/Right adjust   right-click adjust",
+        "P lock current value   R reset row   C clear row   [/] select   Left/Right adjust",
         theme::muted(),
     )));
     let paragraph = Paragraph::new(lines)
@@ -87,7 +92,11 @@ fn bool_label(value: bool) -> &'static str {
     }
 }
 
-fn dsp_parameter_lines(kind: &EffectDeviceKind, selected_index: usize) -> Vec<Line<'static>> {
+fn dsp_parameter_lines(
+    kind: &EffectDeviceKind,
+    selected_index: usize,
+    lock_status: DspParameterLockStatusView,
+) -> Vec<Line<'static>> {
     let mut lines = Vec::new();
     match kind {
         EffectDeviceKind::Gain { gain } => {
@@ -510,7 +519,21 @@ fn dsp_parameter_lines(kind: &EffectDeviceKind, selected_index: usize) -> Vec<Li
             );
         }
     }
+    if let Some(line) = lines.get_mut(selected_index) {
+        line.spans.push(Span::styled(
+            format!(" {}", dsp_lock_status_label(lock_status)),
+            dsp_parameter_style(true),
+        ));
+    }
     lines
+}
+
+fn dsp_lock_status_label(status: DspParameterLockStatusView) -> &'static str {
+    match status {
+        DspParameterLockStatusView::Unlocked => "row: chain",
+        DspParameterLockStatusView::Set => "row: locked",
+        DspParameterLockStatusView::Reset => "row: reset",
+    }
 }
 
 fn push_dsp_parameter_from_f32(

@@ -149,6 +149,7 @@ pub struct DspRackViewState<'a> {
     pub selected_target: DspRackTargetView,
     pub selected_index: usize,
     pub selected_parameter_index: usize,
+    pub selected_lock_status: DspParameterLockStatusView,
     pub device_palette: Option<DspDevicePaletteViewState<'a>>,
 }
 
@@ -156,6 +157,13 @@ pub struct DspRackViewState<'a> {
 pub enum DspRackTargetView {
     Track,
     Master,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DspParameterLockStatusView {
+    Unlocked,
+    Set,
+    Reset,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2637,7 +2645,7 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
         )
     } else if state.active_view == TuiView::DspRack {
         format!(
-            " {} | H Help | Esc Pattern | Tab Track/Master | Up/Down Device | A Add Device | :dsp Edit |Ctrl+S Save | :plock Row Lock | q Quit ",
+            " {} | H Help | Esc Pattern | Tab Track/Master | Up/Down Device | [/]/Left/Right Param | A Add | P/R/C Lock | Ctrl+S Save | q Quit ",
             state.mode_label
         )
     } else if state.active_view == TuiView::SampleBrowser {

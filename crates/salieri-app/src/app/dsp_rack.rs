@@ -90,6 +90,7 @@ impl App {
             },
             selected_index: self.dsp_rack_cursor,
             selected_parameter_index: self.dsp_parameter_cursor,
+            selected_lock_status: self.selected_dsp_parameter_lock_status(),
             device_palette: self
                 .dsp_device_palette_open
                 .then_some(DspDevicePaletteViewState {
@@ -194,6 +195,46 @@ impl App {
         }
     }
 
+    pub(crate) fn set_selected_dsp_parameter_lock(&mut self) {
+        let Some(parameter) = self.selected_dsp_parameter() else {
+            self.notify_warning("No editable DSP parameter selected");
+            return;
+        };
+        self.set_current_parameter_lock(
+            ParameterLock {
+                target: parameter.target,
+                parameter: parameter.parameter,
+                action: ParameterLockAction::Set {
+                    value: parameter.value,
+                },
+            },
+            &parameter.descriptor,
+        );
+    }
+
+    pub(crate) fn reset_selected_dsp_parameter_lock(&mut self) {
+        let Some(parameter) = self.selected_dsp_parameter() else {
+            self.notify_warning("No editable DSP parameter selected");
+            return;
+        };
+        self.set_current_parameter_lock(
+            ParameterLock {
+                target: parameter.target,
+                parameter: parameter.parameter,
+                action: ParameterLockAction::Reset,
+            },
+            &parameter.descriptor,
+        );
+    }
+
+    pub(crate) fn clear_selected_dsp_parameter_lock(&mut self) {
+        let Some(parameter) = self.selected_dsp_parameter() else {
+            self.notify_warning("No editable DSP parameter selected");
+            return;
+        };
+        self.clear_current_parameter_lock(parameter.target, parameter.parameter);
+    }
+
     pub(crate) fn open_dsp_device_palette(&mut self) {
         self.dsp_device_palette_open = true;
         self.dsp_device_palette_cursor = self
@@ -281,6 +322,70 @@ impl App {
         }
     }
 
+    fn selected_dsp_parameter_lock_status(&self) -> DspParameterLockStatusView {
+        let Some(parameter) = self.selected_dsp_parameter() else {
+            return DspParameterLockStatusView::Unlocked;
+        };
+        let Some(cell) = self
+            .song
+            .current_pattern()
+            .and_then(|pattern| pattern.cell(self.cursor.row, self.cursor.track))
+        else {
+            return DspParameterLockStatusView::Unlocked;
+        };
+        cell.parameter_locks
+            .iter()
+            .find(|lock| lock.target == parameter.target && lock.parameter == parameter.parameter)
+            .map_or(DspParameterLockStatusView::Unlocked, |lock| {
+                match lock.action {
+                    ParameterLockAction::Set { .. } => DspParameterLockStatusView::Set,
+                    ParameterLockAction::Reset => DspParameterLockStatusView::Reset,
+                }
+            })
+    }
+
+    fn selected_dsp_parameter(&self) -> Option<SelectedDspParameter> {
+        let (effect, target) = self.selected_dsp_effect_with_target()?;
+        let (descriptor, value) =
+            editable_effect_parameter(&effect.kind, self.dsp_parameter_cursor)?;
+        Some(SelectedDspParameter {
+            target,
+            parameter: descriptor.id.clone(),
+            descriptor,
+            value,
+        })
+    }
+
+    fn selected_dsp_effect_with_target(&self) -> Option<(&EffectDevice, ParameterLockTarget)> {
+        match self.dsp_rack_target {
+            DspRackTarget::Track => {
+                let track = self.song.tracks.get(self.cursor.track)?;
+                let effect = self
+                    .song
+                    .mixer
+                    .tracks
+                    .iter()
+                    .find(|mixer| mixer.track == track.id)?
+                    .effects
+                    .get(self.dsp_rack_cursor)?;
+                Some((
+                    effect,
+                    ParameterLockTarget::TrackEffect {
+                        track: track.id,
+                        device: effect.id,
+                    },
+                ))
+            }
+            DspRackTarget::Master => {
+                let effect = self.song.mixer.master_effects.get(self.dsp_rack_cursor)?;
+                Some((
+                    effect,
+                    ParameterLockTarget::MasterEffect { device: effect.id },
+                ))
+            }
+        }
+    }
+
     fn current_track_effect_count(&self) -> usize {
         self.song
             .tracks
@@ -294,6 +399,13 @@ impl App {
             })
             .map_or(0, |mixer| mixer.effects.len())
     }
+}
+
+struct SelectedDspParameter {
+    target: ParameterLockTarget,
+    parameter: ParameterId,
+    descriptor: ParameterDescriptor,
+    value: ParameterValue,
 }
 
 fn default_dsp_device(index: usize) -> Option<EffectDevice> {
@@ -326,6 +438,300 @@ fn dsp_palette_row_to_cursor(row: u16) -> Option<usize> {
 fn dsp_parameter_row_to_cursor(row: u16) -> Option<usize> {
     const PARAMETER_FIRST_ROW: u16 = 19;
     (row >= PARAMETER_FIRST_ROW).then_some(usize::from(row - PARAMETER_FIRST_ROW))
+}
+
+fn editable_effect_parameter(
+    kind: &EffectDeviceKind,
+    index: usize,
+) -> Option<(ParameterDescriptor, ParameterValue)> {
+    match kind {
+        EffectDeviceKind::Gain { gain } => {
+            descriptor_f32(native_gain_descriptor(), *gain, index, 0)
+        }
+        EffectDeviceKind::Pan { pan } => descriptor_f32(native_pan_descriptor(), *pan, index, 0),
+        EffectDeviceKind::Balance { balance } => {
+            descriptor_f32(native_balance_descriptor(), *balance, index, 0)
+        }
+        EffectDeviceKind::StereoWidth { width } => {
+            descriptor_f32(native_width_descriptor(), *width, index, 0)
+        }
+        EffectDeviceKind::PhaseInvert {
+            invert_left,
+            invert_right,
+        } => match index {
+            0 => Some((
+                native_phase_invert_left_descriptor(),
+                ParameterValue::Bool(*invert_left),
+            )),
+            1 => Some((
+                native_phase_invert_right_descriptor(),
+                ParameterValue::Bool(*invert_right),
+            )),
+            _ => None,
+        },
+        EffectDeviceKind::Filter {
+            mode,
+            cutoff_hz,
+            resonance,
+            drive_db,
+            mix,
+            ..
+        } => match index {
+            0 => Some((
+                native_filter_mode_descriptor(),
+                ParameterValue::Enum(mode.parameter_id().to_string()),
+            )),
+            1 => Some(descriptor_value(
+                native_filter_cutoff_descriptor(),
+                *cutoff_hz,
+            )),
+            2 => Some(descriptor_value(
+                native_filter_resonance_descriptor(),
+                *resonance,
+            )),
+            3 => Some(descriptor_value(
+                native_filter_drive_descriptor(),
+                *drive_db,
+            )),
+            4 => Some(descriptor_value(native_filter_mix_descriptor(), *mix)),
+            _ => None,
+        },
+        EffectDeviceKind::Delay {
+            sync,
+            time_left_ms,
+            time_right_ms,
+            feedback,
+            ping_pong,
+            mix,
+            ..
+        } => match index {
+            0 => Some((native_delay_sync_descriptor(), ParameterValue::Bool(*sync))),
+            1 => Some(descriptor_value(
+                native_delay_time_left_descriptor(),
+                *time_left_ms,
+            )),
+            2 => Some(descriptor_value(
+                native_delay_time_right_descriptor(),
+                *time_right_ms,
+            )),
+            3 => Some(descriptor_value(
+                native_delay_feedback_descriptor(),
+                *feedback,
+            )),
+            4 => Some((
+                native_delay_ping_pong_descriptor(),
+                ParameterValue::Bool(*ping_pong),
+            )),
+            5 => Some(descriptor_value(native_delay_mix_descriptor(), *mix)),
+            _ => None,
+        },
+        EffectDeviceKind::Reverb {
+            size,
+            predelay_ms,
+            decay_s,
+            mix,
+            ..
+        } => match index {
+            0 => Some(descriptor_value(native_reverb_size_descriptor(), *size)),
+            1 => Some(descriptor_value(
+                native_reverb_predelay_descriptor(),
+                *predelay_ms,
+            )),
+            2 => Some(descriptor_value(native_reverb_decay_descriptor(), *decay_s)),
+            3 => Some(descriptor_value(native_reverb_mix_descriptor(), *mix)),
+            _ => None,
+        },
+        EffectDeviceKind::Drive {
+            mode,
+            drive_db,
+            tone,
+            mix,
+            ..
+        } => match index {
+            0 => Some((
+                native_drive_mode_descriptor(),
+                ParameterValue::Enum(mode.parameter_id().to_string()),
+            )),
+            1 => Some(descriptor_value(native_drive_drive_descriptor(), *drive_db)),
+            2 => Some(descriptor_value(native_drive_tone_descriptor(), *tone)),
+            3 => Some(descriptor_value(native_drive_mix_descriptor(), *mix)),
+            _ => None,
+        },
+        EffectDeviceKind::Bitcrusher {
+            bit_depth,
+            reduction_ratio,
+            dither,
+            mix,
+            ..
+        } => match index {
+            0 => Some((
+                native_bitcrusher_bit_depth_descriptor(),
+                ParameterValue::Integer(i64::from(*bit_depth)),
+            )),
+            1 => Some(descriptor_value(
+                native_bitcrusher_reduction_descriptor(),
+                *reduction_ratio,
+            )),
+            2 => Some((
+                native_bitcrusher_dither_descriptor(),
+                ParameterValue::Bool(*dither),
+            )),
+            3 => Some(descriptor_value(native_bitcrusher_mix_descriptor(), *mix)),
+            _ => None,
+        },
+        EffectDeviceKind::Chorus {
+            rate_hz,
+            depth,
+            voices,
+            mix,
+            ..
+        } => match index {
+            0 => Some(descriptor_value(native_chorus_rate_descriptor(), *rate_hz)),
+            1 => Some(descriptor_value(native_chorus_depth_descriptor(), *depth)),
+            2 => Some((
+                native_chorus_voices_descriptor(),
+                ParameterValue::Integer(i64::from(*voices)),
+            )),
+            3 => Some(descriptor_value(native_chorus_mix_descriptor(), *mix)),
+            _ => None,
+        },
+        EffectDeviceKind::Flanger {
+            rate_hz,
+            depth,
+            manual,
+            feedback,
+            mix,
+            ..
+        } => match index {
+            0 => Some(descriptor_value(native_flanger_rate_descriptor(), *rate_hz)),
+            1 => Some(descriptor_value(native_flanger_depth_descriptor(), *depth)),
+            2 => Some(descriptor_value(
+                native_flanger_manual_descriptor(),
+                *manual,
+            )),
+            3 => Some(descriptor_value(
+                native_flanger_feedback_descriptor(),
+                *feedback,
+            )),
+            4 => Some(descriptor_value(native_flanger_mix_descriptor(), *mix)),
+            _ => None,
+        },
+        EffectDeviceKind::Phaser {
+            rate_hz,
+            depth,
+            center_hz,
+            stages,
+            mix,
+            ..
+        } => match index {
+            0 => Some(descriptor_value(native_phaser_rate_descriptor(), *rate_hz)),
+            1 => Some(descriptor_value(native_phaser_depth_descriptor(), *depth)),
+            2 => Some(descriptor_value(
+                native_phaser_center_descriptor(),
+                *center_hz,
+            )),
+            3 => Some((
+                native_phaser_stages_descriptor(),
+                ParameterValue::Integer(i64::from(*stages)),
+            )),
+            4 => Some(descriptor_value(native_phaser_mix_descriptor(), *mix)),
+            _ => None,
+        },
+        EffectDeviceKind::Compressor {
+            threshold_db,
+            ratio,
+            attack_ms,
+            release_ms,
+            mix,
+            ..
+        } => match index {
+            0 => Some(descriptor_value(
+                native_compressor_threshold_descriptor(),
+                *threshold_db,
+            )),
+            1 => Some(descriptor_value(
+                native_compressor_ratio_descriptor(),
+                *ratio,
+            )),
+            2 => Some(descriptor_value(
+                native_compressor_attack_descriptor(),
+                *attack_ms,
+            )),
+            3 => Some(descriptor_value(
+                native_compressor_release_descriptor(),
+                *release_ms,
+            )),
+            4 => Some(descriptor_value(native_compressor_mix_descriptor(), *mix)),
+            _ => None,
+        },
+        EffectDeviceKind::Gate {
+            threshold_db,
+            hysteresis_db,
+            attack_ms,
+            release_ms,
+            ..
+        } => match index {
+            0 => Some(descriptor_value(
+                native_gate_threshold_descriptor(),
+                *threshold_db,
+            )),
+            1 => Some(descriptor_value(
+                native_gate_hysteresis_descriptor(),
+                *hysteresis_db,
+            )),
+            2 => Some(descriptor_value(
+                native_gate_attack_descriptor(),
+                *attack_ms,
+            )),
+            3 => Some(descriptor_value(
+                native_gate_release_descriptor(),
+                *release_ms,
+            )),
+            _ => None,
+        },
+        EffectDeviceKind::Limiter {
+            ceiling_db,
+            input_gain_db,
+            release_ms,
+            lookahead_ms,
+            ..
+        } => match index {
+            0 => Some(descriptor_value(
+                native_limiter_ceiling_descriptor(),
+                *ceiling_db,
+            )),
+            1 => Some(descriptor_value(
+                native_limiter_input_gain_descriptor(),
+                *input_gain_db,
+            )),
+            2 => Some(descriptor_value(
+                native_limiter_release_descriptor(),
+                *release_ms,
+            )),
+            3 => Some(descriptor_value(
+                native_limiter_lookahead_descriptor(),
+                *lookahead_ms,
+            )),
+            _ => None,
+        },
+    }
+}
+
+fn descriptor_f32(
+    descriptor: ParameterDescriptor,
+    value: f32,
+    index: usize,
+    expected_index: usize,
+) -> Option<(ParameterDescriptor, ParameterValue)> {
+    (index == expected_index).then(|| descriptor_value(descriptor, value))
+}
+
+fn descriptor_value(
+    descriptor: ParameterDescriptor,
+    value: f32,
+) -> (ParameterDescriptor, ParameterValue) {
+    let value = descriptor.value_from_f32(value);
+    (descriptor, value)
 }
 
 fn effect_parameter_count(kind: &EffectDeviceKind) -> usize {
