@@ -23,6 +23,7 @@ impl App {
             AppMode::Tracks => self.handle_tracks_key(key),
             AppMode::Patterns => self.handle_patterns_key(key),
             AppMode::Sampler => self.handle_sampler_key(key),
+            AppMode::DspRack => self.handle_dsp_rack_key(key),
             AppMode::Ai => self.handle_ai_key(key),
             AppMode::SampleBrowser => self.handle_sample_browser_key(key),
             AppMode::ProjectBrowser => self.handle_project_browser_key(key),
@@ -43,6 +44,7 @@ impl App {
             AppMode::SampleBrowser => self.move_sample_browser_cursor(delta),
             AppMode::ProjectBrowser => self.move_project_browser_cursor(delta),
             AppMode::Sampler => self.pan_sample_waveform(delta.signum()),
+            AppMode::DspRack => self.move_dsp_rack_cursor(delta),
             AppMode::CommandPalette => self.move_command_palette_selection(delta),
             AppMode::Normal | AppMode::Edit => {
                 self.cursor.row = self

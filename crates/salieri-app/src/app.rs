@@ -11,6 +11,7 @@ mod composition_graph_actions;
 mod core;
 mod domain_commands;
 mod dsp_commands;
+mod dsp_rack;
 mod key_handling;
 mod live_bridge_actions;
 mod midi_actions;

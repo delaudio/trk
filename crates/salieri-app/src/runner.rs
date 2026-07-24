@@ -229,6 +229,7 @@ fn run(args: CliArgs) -> Result<()> {
                     midi_settings,
                     command_palette,
                     sampler_view: app.tui_sampler_view(),
+                    dsp_rack: Some(app.tui_dsp_rack_view()),
                     sample_browser,
                     project_browser,
                     ai_chat,

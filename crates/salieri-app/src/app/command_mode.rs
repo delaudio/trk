@@ -28,6 +28,7 @@ impl App {
                 BrowserCommand::Projects => self.open_project_browser_view(path),
             },
             SalieriCommand::Focus(target) => match target {
+                FocusTarget::DspRack => self.open_dsp_rack_view(),
                 FocusTarget::SampleBrowser => self.open_sample_browser_view(None),
                 FocusTarget::ProjectBrowser => self.open_project_browser_view(None),
                 target => self.focus_panel(FocusPanel::from_target(target)),

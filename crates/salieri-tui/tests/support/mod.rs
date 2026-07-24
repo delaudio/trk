@@ -37,6 +37,7 @@ pub fn test_state<'a>() -> TuiState<'a> {
         midi_settings: None,
         command_palette: None,
         sampler_view: None,
+        dsp_rack: None,
         sample_browser: None,
         project_browser: None,
         ai_chat: None,

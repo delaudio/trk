@@ -55,6 +55,7 @@ pub enum FocusTarget {
     Clips,
     Tracks,
     Sampler,
+    DspRack,
     SampleBrowser,
     ProjectBrowser,
 }
@@ -312,12 +313,13 @@ fn parse_focus(arguments: &[String]) -> Result<FocusTarget, CommandParseError> {
         Some("cl" | "clips" | "clip-view" | "clip-launcher") => Ok(FocusTarget::Clips),
         Some("tr" | "tracks") => Ok(FocusTarget::Tracks),
         Some("sa" | "sampler" | "samples") => Ok(FocusTarget::Sampler),
+        Some("dsp" | "fx-rack" | "effects" | "effect-rack") => Ok(FocusTarget::DspRack),
         Some("sb" | "browser" | "sample-browser") => Ok(FocusTarget::SampleBrowser),
         Some("o" | "open" | "pr" | "projects" | "project-browser") => {
             Ok(FocusTarget::ProjectBrowser)
         }
         Some(_) => Err(CommandParseError::InvalidArguments {
-            usage: "Usage: :focus [t|p|se|cl|tr|sa|sb|pr]",
+            usage: "Usage: :focus [t|p|se|cl|tr|sa|dsp|sb|pr]",
         }),
     }
 }
@@ -468,6 +470,10 @@ mod tests {
         assert_eq!(
             SalieriCommand::parse("focus pr"),
             Ok(Some(SalieriCommand::Focus(FocusTarget::ProjectBrowser)))
+        );
+        assert_eq!(
+            SalieriCommand::parse("focus dsp"),
+            Ok(Some(SalieriCommand::Focus(FocusTarget::DspRack)))
         );
     }
     #[test]

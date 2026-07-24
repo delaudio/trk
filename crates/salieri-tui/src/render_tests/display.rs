@@ -44,6 +44,7 @@ fn project_display_preferences_affect_pattern_rendering() {
                     midi_settings: None,
                     command_palette: None,
                     sampler_view: None,
+                    dsp_rack: None,
                     sample_browser: None,
                     project_browser: None,
                     ai_chat: None,

@@ -166,11 +166,12 @@ use salieri_sampler::{Sample, WaveformBucket, WaveformOverview};
 use salieri_transform::{apply_euclidean, EuclideanRhythm};
 use salieri_tui::{
     render, AiChatMessageRole, AiChatMessageView, AiChatProposalPreviewView, AiChatViewState,
-    CommandPaletteEntryView, CommandPaletteViewState, HelpTab, ManagedPanelId, MidiPortView,
-    MidiSettingsState, NotificationKind, NotificationView, ProjectBrowserEntryKind,
-    ProjectBrowserEntryView, ProjectBrowserViewState, SampleBrowserEntryKind,
-    SampleBrowserEntryView, SampleBrowserViewState, SamplerEnvelopeField, SamplerViewState,
-    SelectionRect, TrackerLayoutPreset, TrackerLayoutState, TuiState, TuiView, ViewportAxis,
+    CommandPaletteEntryView, CommandPaletteViewState, DspRackTargetView, DspRackViewState, HelpTab,
+    ManagedPanelId, MidiPortView, MidiSettingsState, NotificationKind, NotificationView,
+    ProjectBrowserEntryKind, ProjectBrowserEntryView, ProjectBrowserViewState,
+    SampleBrowserEntryKind, SampleBrowserEntryView, SampleBrowserViewState, SamplerEnvelopeField,
+    SamplerViewState, SelectionRect, TrackerLayoutPreset, TrackerLayoutState, TuiState, TuiView,
+    ViewportAxis,
 };
 use serde::{Deserialize, Serialize};
 use task_runtime::TaskRuntime;
@@ -243,6 +244,8 @@ struct App {
     sequence_cursor: usize,
     clip_scene_cursor: usize,
     clip_track_cursor: usize,
+    dsp_rack_target: DspRackTarget,
+    dsp_rack_cursor: usize,
     active_clip_scene: Option<usize>,
     queued_clip_scene: Option<usize>,
     midi_status: String,
@@ -310,6 +313,12 @@ enum PerformanceEffect {
     TrackGain(f32),
     TrackPan(f32),
     SampleGain(f32),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DspRackTarget {
+    Track,
+    Master,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

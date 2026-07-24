@@ -21,6 +21,7 @@ pub struct KeymapConfig {
     pub tracks: BTreeMap<String, String>,
     pub patterns: BTreeMap<String, String>,
     pub sampler: BTreeMap<String, String>,
+    pub dsp_rack: BTreeMap<String, String>,
     pub sample_browser: BTreeMap<String, String>,
     pub project_browser: BTreeMap<String, String>,
     pub ai: BTreeMap<String, String>,
@@ -42,6 +43,7 @@ impl Default for KeymapConfig {
             tracks: BTreeMap::new(),
             patterns: BTreeMap::new(),
             sampler: BTreeMap::new(),
+            dsp_rack: BTreeMap::new(),
             sample_browser: BTreeMap::new(),
             project_browser: BTreeMap::new(),
             ai: BTreeMap::new(),
@@ -51,7 +53,7 @@ impl Default for KeymapConfig {
 }
 
 impl KeymapConfig {
-    pub fn layers(&self) -> [(&'static str, &'static str, &BTreeMap<String, String>); 15] {
+    pub fn layers(&self) -> [(&'static str, &'static str, &BTreeMap<String, String>); 16] {
         [
             ("normal", "keymap.bindings", &self.bindings),
             ("normal", "keymap.normal", &self.normal),
@@ -64,6 +66,7 @@ impl KeymapConfig {
             ("tracks", "keymap.tracks", &self.tracks),
             ("patterns", "keymap.patterns", &self.patterns),
             ("sampler", "keymap.sampler", &self.sampler),
+            ("dsp_rack", "keymap.dsp_rack", &self.dsp_rack),
             (
                 "sample_browser",
                 "keymap.sample_browser",
@@ -93,6 +96,7 @@ pub enum KeymapMode {
     Tracks,
     Patterns,
     Sampler,
+    DspRack,
     SampleBrowser,
     ProjectBrowser,
     Ai,
@@ -112,6 +116,7 @@ impl KeymapMode {
             "tracks" => Some(Self::Tracks),
             "patterns" => Some(Self::Patterns),
             "sampler" => Some(Self::Sampler),
+            "dsp_rack" | "dsp" => Some(Self::DspRack),
             "sample_browser" => Some(Self::SampleBrowser),
             "project_browser" => Some(Self::ProjectBrowser),
             "ai" => Some(Self::Ai),

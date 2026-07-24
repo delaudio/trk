@@ -70,6 +70,7 @@ fn renders_ai_chat_view_with_all_message_roles() {
                     midi_settings: None,
                     command_palette: None,
                     sampler_view: None,
+                    dsp_rack: None,
                     sample_browser: None,
                     project_browser: None,
                     ai_chat: Some(AiChatViewState {

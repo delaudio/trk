@@ -211,6 +211,32 @@ impl App {
         }
     }
 
+    pub(crate) fn handle_dsp_rack_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Esc => self.open_tracker_view(),
+            KeyCode::Char('q') => self.request_quit(false),
+            KeyCode::Char('?') | KeyCode::Char('H') => self.open_help(),
+            KeyCode::Char(':') => self.open_command_prompt(),
+            KeyCode::F(4) => self.open_midi_settings(),
+            KeyCode::F(7) => self.open_sequence_view(),
+            KeyCode::F(9) => self.open_tracks_view(),
+            KeyCode::F(10) => self.open_patterns_view(),
+            KeyCode::F(8) => self.stop_playback(),
+            KeyCode::Tab | KeyCode::BackTab => self.toggle_dsp_rack_target(),
+            KeyCode::Up => self.move_dsp_rack_cursor(-1),
+            KeyCode::Char('k') if self.vim_navigation => self.move_dsp_rack_cursor(-1),
+            KeyCode::Down => self.move_dsp_rack_cursor(1),
+            KeyCode::Char('j') if self.vim_navigation => self.move_dsp_rack_cursor(1),
+            KeyCode::Home => self.dsp_rack_cursor = 0,
+            KeyCode::End => {
+                self.dsp_rack_cursor = usize::MAX;
+                self.keep_dsp_rack_cursor_in_bounds();
+            }
+            KeyCode::Char(' ') => self.toggle_playback(),
+            _ => {}
+        }
+    }
+
     pub(crate) fn handle_sample_browser_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Esc => self.open_sampler_view(),

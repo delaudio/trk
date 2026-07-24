@@ -1,9 +1,9 @@
-use salieri_core::{Cursor, NoteEvent, Song};
+use salieri_core::{Cursor, DelaySpec, EffectDevice, NoteEvent, Song};
 use salieri_sampler::{WaveformBucket, WaveformOverview};
 use salieri_tui::{
-    HelpTab, MidiPortView, MidiSettingsState, PatternFieldLayout, ProjectBrowserEntryKind,
-    ProjectBrowserEntryView, ProjectBrowserViewState, SamplerViewState, SelectionRect, TuiState,
-    TuiView,
+    DspRackTargetView, DspRackViewState, HelpTab, MidiPortView, MidiSettingsState,
+    PatternFieldLayout, ProjectBrowserEntryKind, ProjectBrowserEntryView, ProjectBrowserViewState,
+    SamplerViewState, SelectionRect, TuiState, TuiView,
 };
 
 mod support;
@@ -460,6 +460,73 @@ fn snapshots_sampler_view() {
                     loop_end_frame: Some(900),
                     envelope: (0.010, 0.050, 0.750, 0.100),
                     selected_envelope: salieri_tui::SamplerEnvelopeField::Attack,
+                }),
+                ..test_state()
+            },
+            100,
+            28,
+        ),
+    );
+}
+
+#[test]
+fn snapshots_dsp_rack_empty_view() {
+    let song = Song::empty();
+    assert_snapshot(
+        "dsp-rack-empty",
+        render_snapshot(
+            song,
+            TuiState {
+                active_view: TuiView::DspRack,
+                mode_label: "DSP",
+                dsp_rack: Some(DspRackViewState {
+                    track_name: "Drums",
+                    track_number: 1,
+                    track_effects: &[],
+                    master_effects: &[],
+                    selected_target: DspRackTargetView::Track,
+                    selected_index: 0,
+                }),
+                ..test_state()
+            },
+            100,
+            28,
+        ),
+    );
+}
+
+#[test]
+fn snapshots_dsp_rack_populated_view() {
+    let track_effects = vec![
+        EffectDevice::gain(1, 0.5),
+        EffectDevice::delay(
+            7,
+            DelaySpec {
+                sync: false,
+                time_left_ms: 250.0,
+                time_right_ms: 500.0,
+                feedback: 0.35,
+                ping_pong: true,
+                mix: 0.25,
+                ..DelaySpec::default()
+            },
+        ),
+    ];
+    let master_effects = vec![EffectDevice::reverb(8, Default::default())];
+    assert_snapshot(
+        "dsp-rack-populated",
+        render_snapshot(
+            Song::empty(),
+            TuiState {
+                active_view: TuiView::DspRack,
+                mode_label: "DSP",
+                dsp_rack: Some(DspRackViewState {
+                    track_name: "Drums",
+                    track_number: 1,
+                    track_effects: track_effects.as_slice(),
+                    master_effects: master_effects.as_slice(),
+                    selected_target: DspRackTargetView::Track,
+                    selected_index: 1,
                 }),
                 ..test_state()
             },

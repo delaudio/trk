@@ -78,7 +78,7 @@ impl App {
         self.help_scroll = 0;
         self.help_tab = match self.mode {
             AppMode::Sampler | AppMode::SampleBrowser => HelpTab::Sampler,
-            AppMode::ProjectBrowser => HelpTab::Commands,
+            AppMode::DspRack | AppMode::ProjectBrowser => HelpTab::Commands,
             AppMode::MidiSettings => HelpTab::Midi,
             AppMode::Command => HelpTab::Commands,
             AppMode::Edit => HelpTab::Editing,
@@ -129,5 +129,11 @@ impl App {
         } else {
             self.notify_info("Sampler view");
         }
+    }
+
+    pub(crate) fn open_dsp_rack_view(&mut self) {
+        self.focus_panel(FocusPanel::DspRack);
+        self.keep_dsp_rack_cursor_in_bounds();
+        self.notify_info("DSP rack");
     }
 }
