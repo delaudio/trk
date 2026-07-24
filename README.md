@@ -324,6 +324,8 @@ T               Set selected song slot to current pattern
 :fx D 20
 :fx R 04
 :fx clear
+:fx2 R 02
+:fx2 clear
 :cell instrument 01
 :cell volume 40
 :cell pan 7f
@@ -406,8 +408,13 @@ T               Set selected song slot to current pattern
 :mixer send reverb
 :dsp track 2 gain 0.500
 :dsp track 2 pan -0.250
+:dsp track 2 filter lowpass 2000 0.250 0.000 0.500
+:dsp master reverb 0.500 20 2.500 0.250
 :dsp master gain 0.800
 :dsp track 2 clear
+:plock dsp track filter-cutoff 1200
+:plock dsp track filter-cutoff reset
+:plock dsp track filter-cutoff clear
 :ai guidance apply dub-techno
 :ai propose sparse bass sketch
 :ai show
@@ -439,6 +446,25 @@ C-4  64 01 40 7F 20 R04
 `NOTE` and `VEL` continue to drive MIDI note playback. `INST`, `VOL`, `PN`, and `DL` are optional tracker metadata columns for richer sampler-backed playback: `INST` selects a sample-backed instrument for that cell, `VOL` scales sampler gain, `PN` overrides mixer pan for the sampler event, and `DL` offsets the event within the row. `FX` stores the first tracker command; delay (`Dxx`) and retrigger (`Rxx`) remain supported, and `DL` takes precedence over `Dxx` when both are present.
 
 Move horizontally through sub-columns with Left/Right. In edit mode, type two hex digits on value columns to enter a value. Command mode can also edit the current cell with `:cell instrument|volume|pan|delay|effect VALUE` and clear fields with `:cell FIELD clear`.
+
+### Tracker FX Columns vs Native DSP Chains
+
+Salieri has two separate effect concepts:
+
+- Tracker FX columns are per-cell commands stored in the pattern grid. Use `:fx` for the first FX column and `:fx2` for the second FX column, for example `:fx D 20` for row delay or `:fx R 04` for retrigger.
+- Native DSP chains are audio processors on a track or on the master bus. Use `:dsp` or the DSP rack view to add devices such as gain, filter, delay, reverb, drive, modulation, dynamics, and limiter devices.
+- Parameter locks are row-scoped overrides. Use `:plock` or the DSP rack parameter editor (`P` lock, `R` reset, `C` clear) to change one DSP/mixer/sample parameter on the current tracker row.
+
+Practical sample-backed workflow:
+
+```text
+:sample view ~/Music/Samples/kick.wav
+:sample assign 1
+:dsp track 1 filter lowpass 2000 0.250 0.000 0.500
+:dsp master reverb 0.500 20 2.500 0.250
+# Open the DSP rack with :focus dsp, select Filter Cutoff, tweak with Left/Right.
+:plock dsp track filter-cutoff 1200
+```
 
 ## Samples And Audio
 

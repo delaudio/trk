@@ -2,7 +2,7 @@
 │ [▷] [■] [●]  BPM: 120  LPB: 4  Oct: 4  Vel: 100  Swing: 0%  Sync: Internal  |  CPU: 00.0%  |  STO│
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ┌ Native DSP ──────────────────────────────────────────────────────────────────────────────────────┐
-│DSP Rack  Track 01 Drums  |  Target: Track  |  Tab Target  Up/Down Select  :dsp Add/Edit          │
+│DSP Rack  Track 01 Drums  |  Target: Track  |  Native audio DSP chain; tracker FX columns stay in │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ┌ Track 01: Drums ───────────────────────────────┐┌ Master ────────────────────────────────────────┐
 │01 Gain         on  gain=0.50                   ││01 Reverb       on  size=0.50 pre=20ms decay=2  │

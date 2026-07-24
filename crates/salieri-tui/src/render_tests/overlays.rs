@@ -1,3 +1,4 @@
+use super::render_test_support::{render_test_state, terminal_buffer_text};
 use super::*;
 use ratatui::{backend::TestBackend, Terminal};
 use salieri_core::Song;
@@ -68,6 +69,26 @@ fn renders_help_overlay_when_requested() {
     assert!(rendered.contains("Commands"));
     assert!(rendered.contains("Navigation"));
     assert!(rendered.contains("Tab/Right next page"));
+}
+
+#[test]
+fn help_commands_distinguish_tracker_fx_dsp_and_row_locks() {
+    let song = Song::empty();
+    let backend = TestBackend::new(120, 40);
+    let mut terminal = Terminal::new(backend).expect("test terminal");
+    let mut state = render_test_state();
+    state.show_help = true;
+    state.help_tab = HelpTab::Commands;
+
+    terminal
+        .draw(|frame| render(frame, &song, state))
+        .expect("draw");
+
+    let rendered = terminal_buffer_text(&terminal);
+    assert!(rendered.contains("Tracker FX columns edit per-cell commands"));
+    assert!(rendered.contains(":fx2 R 02 second FX column"));
+    assert!(rendered.contains("Native DSP chains process audio"));
+    assert!(rendered.contains(":plock dsp track filter-cutoff reset|clear"));
 }
 
 #[test]

@@ -44,7 +44,7 @@ pub(super) fn render_dsp_rack_view(
         theme::muted_span("  |  "),
         theme::label_span("Target: "),
         theme::value_span(selected_label),
-        theme::muted_span("  |  Tab Target  Up/Down Select  :dsp Add/Edit"),
+        theme::muted_span("  |  Native audio DSP chain; tracker FX columns stay in pattern cells"),
     ]))
     .block(Block::default().title(" Native DSP ").borders(Borders::ALL));
     frame.render_widget(header, sections[0]);
@@ -87,7 +87,10 @@ fn render_dsp_chain(
     if effects.is_empty() {
         lines.push(Line::from(vec![
             Span::styled("  Empty chain", theme::muted()),
-            Span::styled("  use :dsp ...", theme::muted()),
+            Span::styled(
+                "  A add native DSP, :fx edits tracker cell FX",
+                theme::muted(),
+            ),
         ]));
     } else {
         for (index, effect) in effects
