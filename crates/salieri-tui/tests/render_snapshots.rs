@@ -1,9 +1,10 @@
 use salieri_core::{Cursor, DelaySpec, EffectDevice, NoteEvent, Song};
 use salieri_sampler::{WaveformBucket, WaveformOverview};
 use salieri_tui::{
-    DspRackTargetView, DspRackViewState, HelpTab, MidiPortView, MidiSettingsState,
-    PatternFieldLayout, ProjectBrowserEntryKind, ProjectBrowserEntryView, ProjectBrowserViewState,
-    SamplerViewState, SelectionRect, TuiState, TuiView,
+    DspDevicePaletteEntryView, DspDevicePaletteViewState, DspRackTargetView, DspRackViewState,
+    HelpTab, MidiPortView, MidiSettingsState, PatternFieldLayout, ProjectBrowserEntryKind,
+    ProjectBrowserEntryView, ProjectBrowserViewState, SamplerViewState, SelectionRect, TuiState,
+    TuiView,
 };
 
 mod support;
@@ -486,6 +487,7 @@ fn snapshots_dsp_rack_empty_view() {
                     master_effects: &[],
                     selected_target: DspRackTargetView::Track,
                     selected_index: 0,
+                    device_palette: None,
                 }),
                 ..test_state()
             },
@@ -527,6 +529,55 @@ fn snapshots_dsp_rack_populated_view() {
                     master_effects: master_effects.as_slice(),
                     selected_target: DspRackTargetView::Track,
                     selected_index: 1,
+                    device_palette: None,
+                }),
+                ..test_state()
+            },
+            100,
+            28,
+        ),
+    );
+}
+
+#[test]
+fn snapshots_dsp_rack_device_palette() {
+    let track_effects = vec![EffectDevice::gain(1, 0.5)];
+    let entries = [
+        DspDevicePaletteEntryView {
+            label: "Gain",
+            summary: "utility level",
+        },
+        DspDevicePaletteEntryView {
+            label: "Pan",
+            summary: "left/right placement",
+        },
+        DspDevicePaletteEntryView {
+            label: "Filter",
+            summary: "multimode filter",
+        },
+        DspDevicePaletteEntryView {
+            label: "Reverb",
+            summary: "room/space",
+        },
+    ];
+    assert_snapshot(
+        "dsp-rack-device-palette",
+        render_snapshot(
+            Song::empty(),
+            TuiState {
+                active_view: TuiView::DspRack,
+                mode_label: "DSP",
+                dsp_rack: Some(DspRackViewState {
+                    track_name: "Drums",
+                    track_number: 1,
+                    track_effects: track_effects.as_slice(),
+                    master_effects: &[],
+                    selected_target: DspRackTargetView::Master,
+                    selected_index: 0,
+                    device_palette: Some(DspDevicePaletteViewState {
+                        entries: &entries,
+                        selected: 2,
+                    }),
                 }),
                 ..test_state()
             },

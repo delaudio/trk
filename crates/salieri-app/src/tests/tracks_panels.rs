@@ -497,38 +497,6 @@ fn command_mode_panel_aliases_focus_views_and_restore_tracker_layout() {
 }
 
 #[test]
-fn dsp_rack_view_tracks_current_chain_and_keyboard_selection() {
-    let mut app = App::default();
-
-    enter_command(&mut app, "dsp track gain 0.500");
-    enter_command(&mut app, "dsp track delay free 250 500 0.350 0.250 ping");
-    enter_command(&mut app, "dsp master reverb 0.500 20 2.500 0.250");
-    enter_command(&mut app, "focus dsp");
-
-    let rack = app.tui_dsp_rack_view();
-    assert_eq!(rack.track_effects.len(), 2);
-    assert_eq!(rack.master_effects.len(), 1);
-    assert_eq!(rack.selected_target, DspRackTargetView::Track);
-    assert_eq!(rack.selected_index, 0);
-
-    app.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
-    let rack = app.tui_dsp_rack_view();
-    assert_eq!(rack.selected_target, DspRackTargetView::Track);
-    assert_eq!(rack.selected_index, 1);
-
-    app.handle_key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
-    let rack = app.tui_dsp_rack_view();
-    assert_eq!(rack.selected_target, DspRackTargetView::Master);
-    assert_eq!(rack.selected_index, 0);
-
-    enter_command(&mut app, "dsp master clear");
-    app.open_dsp_rack_view();
-    let rack = app.tui_dsp_rack_view();
-    assert!(rack.master_effects.is_empty());
-    assert_eq!(rack.selected_index, 0);
-}
-
-#[test]
 fn command_mode_layout_commands_manage_tracker_panels() {
     let mut app = App::default();
 

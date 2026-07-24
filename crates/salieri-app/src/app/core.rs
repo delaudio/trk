@@ -83,6 +83,8 @@ impl App {
             clip_track_cursor: 0,
             dsp_rack_target: DspRackTarget::Track,
             dsp_rack_cursor: 0,
+            dsp_device_palette_open: false,
+            dsp_device_palette_cursor: 0,
             active_clip_scene: None,
             queued_clip_scene: None,
             midi_status,

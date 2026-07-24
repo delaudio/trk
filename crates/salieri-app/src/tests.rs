@@ -8,6 +8,7 @@ mod clip_launcher;
 mod command_palette;
 mod commands_playback;
 mod composition_graph;
+mod dsp_rack;
 mod history_transactions;
 mod layout_commands;
 mod midi_import_tui;

@@ -119,6 +119,9 @@ impl App {
             AppMode::SampleBrowser => self.handle_sample_browser_mouse_click(row, activate),
             AppMode::ProjectBrowser => self.handle_project_browser_mouse_click(row, activate),
             AppMode::Sampler => self.handle_sampler_mouse_click(column, row),
+            AppMode::DspRack if self.dsp_device_palette_open => {
+                self.handle_dsp_palette_mouse_click(row);
+            }
             _ => {}
         }
     }

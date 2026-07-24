@@ -262,3 +262,29 @@ fn mouse_click_renoise_sidebar_sample_selects_assigned_track() {
     assert_eq!(app.cursor.track, 1);
     assert_eq!(app.mode, AppMode::Normal);
 }
+
+#[test]
+fn mouse_click_assigns_dsp_device_from_palette_to_master() {
+    let mut app = App::default();
+    app.open_dsp_rack_view();
+    app.handle_key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+    app.handle_key(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE));
+
+    app.handle_mouse(
+        MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: 4,
+            row: 15,
+            modifiers: KeyModifiers::NONE,
+        },
+        large_mouse_viewport(),
+    );
+
+    let rack = app.tui_dsp_rack_view();
+    assert!(rack.device_palette.is_none());
+    assert_eq!(rack.master_effects.len(), 1);
+    assert!(matches!(
+        rack.master_effects[0].kind,
+        EffectDeviceKind::Reverb { .. }
+    ));
+}

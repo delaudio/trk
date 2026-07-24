@@ -166,12 +166,12 @@ use salieri_sampler::{Sample, WaveformBucket, WaveformOverview};
 use salieri_transform::{apply_euclidean, EuclideanRhythm};
 use salieri_tui::{
     render, AiChatMessageRole, AiChatMessageView, AiChatProposalPreviewView, AiChatViewState,
-    CommandPaletteEntryView, CommandPaletteViewState, DspRackTargetView, DspRackViewState, HelpTab,
-    ManagedPanelId, MidiPortView, MidiSettingsState, NotificationKind, NotificationView,
-    ProjectBrowserEntryKind, ProjectBrowserEntryView, ProjectBrowserViewState,
-    SampleBrowserEntryKind, SampleBrowserEntryView, SampleBrowserViewState, SamplerEnvelopeField,
-    SamplerViewState, SelectionRect, TrackerLayoutPreset, TrackerLayoutState, TuiState, TuiView,
-    ViewportAxis,
+    CommandPaletteEntryView, CommandPaletteViewState, DspDevicePaletteEntryView,
+    DspDevicePaletteViewState, DspRackTargetView, DspRackViewState, HelpTab, ManagedPanelId,
+    MidiPortView, MidiSettingsState, NotificationKind, NotificationView, ProjectBrowserEntryKind,
+    ProjectBrowserEntryView, ProjectBrowserViewState, SampleBrowserEntryKind,
+    SampleBrowserEntryView, SampleBrowserViewState, SamplerEnvelopeField, SamplerViewState,
+    SelectionRect, TrackerLayoutPreset, TrackerLayoutState, TuiState, TuiView, ViewportAxis,
 };
 use serde::{Deserialize, Serialize};
 use task_runtime::TaskRuntime;
@@ -246,6 +246,8 @@ struct App {
     clip_track_cursor: usize,
     dsp_rack_target: DspRackTarget,
     dsp_rack_cursor: usize,
+    dsp_device_palette_open: bool,
+    dsp_device_palette_cursor: usize,
     active_clip_scene: Option<usize>,
     queued_clip_scene: Option<usize>,
     midi_status: String,

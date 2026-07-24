@@ -212,6 +212,26 @@ impl App {
     }
 
     pub(crate) fn handle_dsp_rack_key(&mut self, key: KeyEvent) {
+        if self.dsp_device_palette_open {
+            match key.code {
+                KeyCode::Esc => self.close_dsp_device_palette(),
+                KeyCode::Char('q') => self.request_quit(false),
+                KeyCode::Char(':') => self.open_command_prompt(),
+                KeyCode::Tab | KeyCode::BackTab => self.toggle_dsp_rack_target(),
+                KeyCode::Up => self.move_dsp_device_palette_cursor(-1),
+                KeyCode::Char('k') if self.vim_navigation => {
+                    self.move_dsp_device_palette_cursor(-1)
+                }
+                KeyCode::Down => self.move_dsp_device_palette_cursor(1),
+                KeyCode::Char('j') if self.vim_navigation => self.move_dsp_device_palette_cursor(1),
+                KeyCode::Home => self.dsp_device_palette_cursor = 0,
+                KeyCode::End => self.dsp_device_palette_cursor = usize::MAX,
+                KeyCode::Enter => self.assign_selected_dsp_device(),
+                _ => {}
+            }
+            self.move_dsp_device_palette_cursor(0);
+            return;
+        }
         match key.code {
             KeyCode::Esc => self.open_tracker_view(),
             KeyCode::Char('q') => self.request_quit(false),
@@ -223,6 +243,7 @@ impl App {
             KeyCode::F(10) => self.open_patterns_view(),
             KeyCode::F(8) => self.stop_playback(),
             KeyCode::Tab | KeyCode::BackTab => self.toggle_dsp_rack_target(),
+            KeyCode::Char('a') | KeyCode::Char('A') => self.open_dsp_device_palette(),
             KeyCode::Up => self.move_dsp_rack_cursor(-1),
             KeyCode::Char('k') if self.vim_navigation => self.move_dsp_rack_cursor(-1),
             KeyCode::Down => self.move_dsp_rack_cursor(1),

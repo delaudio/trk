@@ -9,7 +9,7 @@ mod theme;
 use ratatui::{
     layout::{Constraint, Direction as LayoutDirection, Layout, Rect},
     prelude::{Color, Frame, Line, Modifier, Span, Style},
-    widgets::{Block, Borders, Paragraph, Wrap},
+    widgets::{Block, Borders, Clear, Paragraph, Wrap},
 };
 use salieri_core::{
     mixer_master_gain_descriptor, mixer_track_gain_descriptor, mixer_track_pan_descriptor,
@@ -145,12 +145,25 @@ pub struct DspRackViewState<'a> {
     pub master_effects: &'a [EffectDevice],
     pub selected_target: DspRackTargetView,
     pub selected_index: usize,
+    pub device_palette: Option<DspDevicePaletteViewState<'a>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DspRackTargetView {
     Track,
     Master,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DspDevicePaletteViewState<'a> {
+    pub entries: &'a [DspDevicePaletteEntryView<'a>],
+    pub selected: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DspDevicePaletteEntryView<'a> {
+    pub label: &'a str,
+    pub summary: &'a str,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1410,6 +1423,9 @@ fn render_dsp_rack_view(frame: &mut Frame<'_>, area: Rect, rack: Option<DspRackV
         rack.selected_target == DspRackTargetView::Master,
         rack.selected_index,
     );
+    if let Some(palette) = rack.device_palette {
+        render_dsp_device_palette(frame, area, palette, rack.selected_target);
+    }
 }
 
 fn render_dsp_chain(
@@ -1611,6 +1627,65 @@ fn bool_label(value: bool) -> &'static str {
     } else {
         "off"
     }
+}
+
+fn render_dsp_device_palette(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    palette: DspDevicePaletteViewState<'_>,
+    target: DspRackTargetView,
+) {
+    let width = area.width.saturating_sub(4).min(64);
+    let height = (palette.entries.len() as u16 + 2)
+        .min(area.height.saturating_sub(5))
+        .max(4);
+    let overlay = Rect {
+        x: area.x + 2,
+        y: area.y + 4,
+        width,
+        height,
+    };
+    let target = match target {
+        DspRackTargetView::Track => "Track",
+        DspRackTargetView::Master => "Master",
+    };
+    let visible_entries = overlay.height.saturating_sub(2) as usize;
+    let start = centered_scroll_offset(palette.entries.len(), palette.selected, visible_entries);
+    let end = (start + visible_entries).min(palette.entries.len());
+    let mut lines = Vec::new();
+    for (index, entry) in palette.entries[start..end].iter().enumerate() {
+        let absolute_index = start + index;
+        let selected = absolute_index == palette.selected.min(palette.entries.len() - 1);
+        let marker = if selected { ">" } else { " " };
+        let style = if selected {
+            Style::default()
+                .fg(Color::Black)
+                .bg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            theme::base()
+        };
+        lines.push(Line::from(Span::styled(
+            format!(
+                "{marker}{:02} {:<12} {}",
+                absolute_index + 1,
+                truncate(entry.label, 12),
+                truncate(entry.summary, overlay.width.saturating_sub(20) as usize)
+            ),
+            style,
+        )));
+    }
+    frame.render_widget(Clear, overlay);
+    frame.render_widget(
+        Paragraph::new(lines)
+            .block(
+                Block::default()
+                    .title(format!(" Add DSP Device -> {target} "))
+                    .borders(Borders::ALL),
+            )
+            .wrap(Wrap { trim: true }),
+        overlay,
+    );
 }
 
 fn render_sampler_envelope_controls(sampler: SamplerViewState<'_>) -> Line<'static> {
@@ -2874,7 +2949,7 @@ fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
         )
     } else if state.active_view == TuiView::DspRack {
         format!(
-            " {} | H Help | Esc Pattern | Tab Track/Master | Up/Down Device | :dsp Add/Edit | :plock Row Lock | Ctrl+S Save | q Quit ",
+            " {} | H Help | Esc Pattern | Tab Track/Master | Up/Down Device | A Add Device | :dsp Edit |Ctrl+S Save | :plock Row Lock | q Quit ",
             state.mode_label
         )
     } else if state.active_view == TuiView::SampleBrowser {
