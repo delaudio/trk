@@ -487,6 +487,7 @@ fn snapshots_dsp_rack_empty_view() {
                     master_effects: &[],
                     selected_target: DspRackTargetView::Track,
                     selected_index: 0,
+                    selected_parameter_index: 0,
                     device_palette: None,
                 }),
                 ..test_state()
@@ -529,6 +530,7 @@ fn snapshots_dsp_rack_populated_view() {
                     master_effects: master_effects.as_slice(),
                     selected_target: DspRackTargetView::Track,
                     selected_index: 1,
+                    selected_parameter_index: 0,
                     device_palette: None,
                 }),
                 ..test_state()
@@ -574,6 +576,7 @@ fn snapshots_dsp_rack_device_palette() {
                     master_effects: &[],
                     selected_target: DspRackTargetView::Master,
                     selected_index: 0,
+                    selected_parameter_index: 0,
                     device_palette: Some(DspDevicePaletteViewState {
                         entries: &entries,
                         selected: 2,

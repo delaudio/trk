@@ -122,6 +122,11 @@ impl App {
             AppMode::DspRack if self.dsp_device_palette_open => {
                 self.handle_dsp_palette_mouse_click(row);
             }
+            AppMode::DspRack => {
+                if self.select_dsp_parameter_from_mouse(row) && activate {
+                    self.adjust_selected_dsp_parameter(1.0);
+                }
+            }
             _ => {}
         }
     }

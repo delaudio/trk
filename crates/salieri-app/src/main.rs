@@ -246,6 +246,7 @@ struct App {
     clip_track_cursor: usize,
     dsp_rack_target: DspRackTarget,
     dsp_rack_cursor: usize,
+    dsp_parameter_cursor: usize,
     dsp_device_palette_open: bool,
     dsp_device_palette_cursor: usize,
     active_clip_scene: Option<usize>,

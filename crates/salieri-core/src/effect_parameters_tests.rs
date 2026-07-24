@@ -1,5 +1,8 @@
 use super::*;
-use crate::{BitcrusherSpec, DelaySpec, DriveMode, DriveSpec, FilterSpec, ReverbSpec};
+use crate::{
+    BitcrusherSpec, CompressorSpec, DelaySpec, DriveMode, DriveSpec, FilterSpec, GateSpec,
+    LimiterSpec, ReverbSpec,
+};
 
 #[test]
 fn effect_devices_expose_and_validate_parameter_values() {
@@ -204,6 +207,20 @@ fn effect_devices_expose_and_validate_parameter_values() {
             .expect_err("reject invalid bit depth"),
         EditError::InvalidParameterValue
     );
+}
+
+#[test]
+fn dynamics_devices_export_valid_native_module_state() {
+    for device in [
+        EffectDevice::compressor(14, CompressorSpec::default()),
+        EffectDevice::gate(15, GateSpec::default()),
+        EffectDevice::limiter(16, LimiterSpec::default()),
+    ] {
+        device
+            .native_module_state()
+            .validate_against(&device.native_module_descriptor())
+            .expect("default dynamics device exports valid native module state");
+    }
 }
 
 #[test]

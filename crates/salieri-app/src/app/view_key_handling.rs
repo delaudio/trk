@@ -248,6 +248,16 @@ impl App {
             KeyCode::Char('k') if self.vim_navigation => self.move_dsp_rack_cursor(-1),
             KeyCode::Down => self.move_dsp_rack_cursor(1),
             KeyCode::Char('j') if self.vim_navigation => self.move_dsp_rack_cursor(1),
+            KeyCode::Char('[') => self.move_dsp_parameter_cursor(-1),
+            KeyCode::Char(']') => self.move_dsp_parameter_cursor(1),
+            KeyCode::Left => self.adjust_selected_dsp_parameter(-1.0),
+            KeyCode::Char('h') if self.vim_navigation => {
+                self.adjust_selected_dsp_parameter(-1.0);
+            }
+            KeyCode::Right => self.adjust_selected_dsp_parameter(1.0),
+            KeyCode::Char('l') if self.vim_navigation => {
+                self.adjust_selected_dsp_parameter(1.0);
+            }
             KeyCode::Home => self.dsp_rack_cursor = 0,
             KeyCode::End => {
                 self.dsp_rack_cursor = usize::MAX;

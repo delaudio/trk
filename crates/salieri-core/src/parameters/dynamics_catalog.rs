@@ -514,7 +514,7 @@ fn ms(
         default: ParameterValue::Float(default),
         min,
         max,
-        step: Some(0.1),
+        step: Some(0.01),
         unit: ParameterUnit::Milliseconds,
         flags: ParameterFlags::automatable_logarithmic(),
         group: Some(group),
