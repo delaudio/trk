@@ -187,6 +187,13 @@ impl App {
         true
     }
 
+    pub(crate) fn handle_dsp_rack_mouse_click(&mut self, row: u16, activate: bool) {
+        let selected_parameter = self.select_dsp_parameter_from_mouse(row);
+        if selected_parameter && activate {
+            self.adjust_selected_dsp_parameter(1.0);
+        }
+    }
+
     pub(crate) fn open_dsp_device_palette(&mut self) {
         self.dsp_device_palette_open = true;
         self.dsp_device_palette_cursor = self
