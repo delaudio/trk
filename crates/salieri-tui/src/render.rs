@@ -648,7 +648,7 @@ fn render_body(
         return;
     }
     if state.active_view == TuiView::Patterns {
-        render_pattern_manager(frame, area, song, state.pattern_index);
+        render_pattern_manager(frame, area, song, state.pattern_index, interactions);
         return;
     }
     if state.active_view == TuiView::Sampler {
@@ -1347,7 +1347,13 @@ fn mixer_channel_style(active: bool, muted: bool, filled: bool) -> Style {
     }
 }
 
-fn render_pattern_manager(frame: &mut Frame<'_>, area: Rect, song: &Song, active_pattern: usize) {
+fn render_pattern_manager(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    song: &Song,
+    active_pattern: usize,
+    interactions: &mut InteractionMap,
+) {
     let mut lines = vec![Line::from(vec![
         Span::styled("PAT  ", Style::default().fg(Color::DarkGray)),
         Span::styled(
@@ -1364,6 +1370,19 @@ fn render_pattern_manager(frame: &mut Frame<'_>, area: Rect, song: &Song, active
         .saturating_sub(footer_lines);
     let start = centered_scroll_offset(song.patterns.len(), active_pattern, visible_items);
     let end = start.saturating_add(visible_items).min(song.patterns.len());
+    let inner = bordered_content_area(area);
+    for (visible_row, index) in (start..end).enumerate() {
+        interactions.register_with_payload(
+            interaction_region::PATTERN_MANAGER_ROW,
+            Rect::new(
+                inner.x,
+                inner.y.saturating_add(1).saturating_add(visible_row as u16),
+                inner.width,
+                1,
+            ),
+            crate::InteractionPayload::PatternManagerRow { index },
+        );
+    }
 
     for (index, pattern) in song
         .patterns
@@ -1398,18 +1417,16 @@ fn render_pattern_manager(frame: &mut Frame<'_>, area: Rect, song: &Song, active
         Line::from("1/2/3/4/5 length 16/32/64/128/256   Esc pattern editor"),
     ]);
 
-    let patterns = Paragraph::new(lines)
-        .block(
-            Block::default()
-                .title(ranged_title(
-                    "Pattern Manager",
-                    start,
-                    end,
-                    song.patterns.len(),
-                ))
-                .borders(Borders::ALL),
-        )
-        .wrap(Wrap { trim: true });
+    let patterns = Paragraph::new(lines).block(
+        Block::default()
+            .title(ranged_title(
+                "Pattern Manager",
+                start,
+                end,
+                song.patterns.len(),
+            ))
+            .borders(Borders::ALL),
+    );
     frame.render_widget(patterns, area);
 }
 
@@ -3219,6 +3236,9 @@ mod render_layout_tests;
 #[cfg(test)]
 #[path = "render_tests/overlays.rs"]
 mod render_overlay_tests;
+#[cfg(test)]
+#[path = "render_tests/pattern_manager.rs"]
+mod render_pattern_manager_tests;
 #[cfg(test)]
 #[path = "render_tests/pattern.rs"]
 mod render_pattern_tests;

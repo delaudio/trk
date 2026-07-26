@@ -391,25 +391,6 @@ fn tracks_panel_scrolls_to_active_track() {
 }
 
 #[test]
-fn pattern_manager_scrolls_to_active_pattern() {
-    let song = long_sequence_song(40);
-    let backend = TestBackend::new(48, 10);
-    let mut terminal = Terminal::new(backend).expect("test terminal");
-
-    terminal
-        .draw(|frame| {
-            render_pattern_manager(frame, Rect::new(0, 0, 48, 10), &song, 30);
-        })
-        .expect("draw");
-
-    let rendered = terminal_buffer_text(&terminal);
-
-    assert!(rendered.contains("Pattern Manager 30-32 / 40"));
-    assert!(rendered.contains(">31  Pattern 31"));
-    assert!(!rendered.contains(" 01  Pattern 01"));
-}
-
-#[test]
 fn renders_tracker_cell_subcolumns() {
     let mut song = Song::empty();
     let pattern = song.current_pattern_mut().expect("pattern");

@@ -8,16 +8,17 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** agent/253-docflow-closeout
-- **Active item:** close out
-  `plan/done/2026-07-26-composite-song-slot-clicks.md` after PR #277.
+- **Branch:** agent/254-patterns-view-mouse
+- **Active item:** `plan/todo/0006-pattern-manager-row-clicks.md` for GitHub
+  issue #254.
 - **Blockers:** none.
-- **Uncommitted work:** atomic Docflow closeout for issue #253.
+- **Uncommitted work:** none expected. The Pattern Manager snapshot remediation
+  passes the full local gate and awaits Codex-provider review and push.
 
 ## Last shipped
 
-Issue #253 implementation via PR #277 with CI #274 green.
+Issue #253 implementation and Docflow closeout via PRs #277 and #278.
 
 ## Next item
 
-Merge this closeout, then begin GitHub issue #254.
+Review and ship `plan/todo/0006-pattern-manager-row-clicks.md`.

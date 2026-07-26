@@ -44,6 +44,9 @@ pub enum InteractionPayload {
     CompositeSequenceRow {
         position: usize,
     },
+    PatternManagerRow {
+        index: usize,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -175,6 +178,8 @@ pub mod region {
         InteractionRegionId::new("composite-tracks.row");
     pub const COMPOSITE_SEQUENCE_ROW: InteractionRegionId =
         InteractionRegionId::new("composite-sequence.row");
+    pub const PATTERN_MANAGER_ROW: InteractionRegionId =
+        InteractionRegionId::new("pattern-manager.row");
 
     pub const OVERLAY_HELP: InteractionRegionId = InteractionRegionId::new("overlay.help");
     pub const OVERLAY_MIDI_SETTINGS: InteractionRegionId =
