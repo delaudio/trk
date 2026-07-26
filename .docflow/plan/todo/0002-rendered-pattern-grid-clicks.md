@@ -20,9 +20,9 @@ behaviour, field/digit selection, or other mouse surfaces.
 ## Exit criteria
 
 1. Visible pattern-cell targets reuse the rendered grid geometry at 72×24,
-   100×28, and 140×36 (ADR AC2 and AC5).
+   100×28, and 140×36 (ADR AC3).
 2. Cell targets carry their absolute row and track after viewport offsets
-   without introducing application mutations in `salieri-tui` (ADR AC3).
+   without introducing application mutations in `salieri-tui` (ADR AC1).
 3. Left clicks on a rendered cell select that row and track.
 4. Headers, gutters, side panels, empty grid space, and clicks outside the grid
    do not move the cell cursor.
