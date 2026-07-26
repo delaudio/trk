@@ -28,3 +28,9 @@ keyboard navigation, mute/solo controls, or track ordering.
 - `../../adr/0003-render-owned-interaction-regions.md`
 - `../done/2026-07-26-render-owned-interaction-regions.md`
 - GitHub issue #249 (closed by PR #269).
+
+---
+
+Shipped at HEAD `d2f9b3b` via
+[PR #275](https://github.com/delaudio/salieri-tracker/pull/275), with GitHub
+Actions CI run #270 green and issue #252 closed.
