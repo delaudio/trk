@@ -16,12 +16,18 @@ Clip Launcher are unchanged.
 
 ## Exit criteria
 
-1. Scrolled visible rows carry absolute sequence positions (ADR AC1).
+1. Scrolled visible rows carry absolute sequence positions and stay aligned
+   with one-line targets at narrow widths (ADR AC1).
 2. Primary clicks select and remain in Sequence (ADR AC2).
 3. Secondary clicks select and start playback at the clicked position
-   (ADR AC3).
+   without leaving Sequence (ADR AC3).
 4. Non-row geometry and drag events are no-ops (ADR AC4).
 5. Invalid payloads are rejected and keyboard tests remain green (ADR AC5).
+
+Renderer coverage must include a narrow-width regression proving every
+registered target aligns with the sequence position displayed on that row.
+Mouse-routing coverage must assert both primary and secondary clicks retain
+the full-screen Sequence view.
 
 ## Dependencies
 

@@ -40,10 +40,10 @@ sequence playback from that position.
 ## Acceptance criteria
 
 1. Visible full-screen Sequence rows carry absolute sequence positions after
-   scrolling.
+   scrolling and remain one rendered line at narrow widths.
 2. A primary click selects the targeted position and remains in Sequence.
 3. A secondary click selects the targeted position and starts sequence
-   playback from it.
+   playback from it while remaining in Sequence.
 4. Borders, headers, footer controls, empty rows, and drag events are no-ops.
 5. Invalid positions are rejected and existing keyboard sequence actions
    remain unchanged.
@@ -68,6 +68,7 @@ sequence playback from that position.
 | Date | Revision | Author | Change |
 |------|----------|--------|--------|
 | 2026-07-26 | r1 | default-agent | Accepted dedicated full-screen Sequence row targets with selection and playback activation semantics. |
+| 2026-07-26 | r2 | default-agent | Required fixed-height narrow rendering and explicit Sequence focus retention during playback activation. |
 
 ## Approvals
 
