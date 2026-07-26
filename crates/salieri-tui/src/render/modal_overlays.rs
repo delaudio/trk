@@ -6,15 +6,39 @@ use ratatui::{
 use salieri_core::MidiRoutingSettings;
 
 use super::{interaction_region, CommandPaletteViewState, InteractionMap, MidiSettingsState};
-use crate::InteractionPayload;
+use crate::{InteractionPayload, MidiSettingsAction};
 
 pub(super) fn render_midi_settings_overlay(
     frame: &mut Frame<'_>,
     area: Rect,
     midi_settings: MidiSettingsState<'_>,
+    interactions: &mut InteractionMap,
 ) -> Rect {
     let overlay = centered_rect(76, 18, area);
-    let mut lines = vec![
+    interactions.register(interaction_region::OVERLAY_MIDI_SETTINGS, overlay);
+    let inner = Rect::new(
+        overlay.x.saturating_add(1),
+        overlay.y.saturating_add(1),
+        overlay.width.saturating_sub(2),
+        overlay.height.saturating_sub(2),
+    );
+    let header_area = Rect::new(inner.x, inner.y, inner.width, inner.height.min(5));
+    let actions_area = Rect::new(
+        inner.x,
+        inner.y.saturating_add(inner.height.saturating_sub(1)),
+        inner.width,
+        u16::from(inner.height > 0),
+    );
+    let ports_area = Rect::new(
+        inner.x,
+        inner.y.saturating_add(header_area.height),
+        inner.width,
+        inner
+            .height
+            .saturating_sub(header_area.height)
+            .saturating_sub(actions_area.height),
+    );
+    let header_lines = vec![
         Line::from(Span::styled(
             "Output Ports",
             Style::default()
@@ -27,25 +51,42 @@ pub(super) fn render_midi_settings_overlay(
             "  Routing: {}",
             format_midi_routing(midi_settings.routing)
         )),
-        Line::from(""),
     ];
-
+    let mut port_lines = Vec::new();
     if midi_settings.ports.is_empty() {
-        lines.push(Line::from("  No MIDI output ports found"));
-        lines.push(Line::from(""));
-        lines.push(Line::from(
+        port_lines.push(Line::from("  No MIDI output ports found"));
+        port_lines.push(Line::from(""));
+        port_lines.push(Line::from(
             "  On macOS, enable IAC Driver in Audio MIDI Setup.",
         ));
     } else {
-        for (row, port) in midi_settings.ports.iter().enumerate() {
-            let marker = if row == midi_settings.selected_port {
-                ">"
-            } else {
-                " "
-            };
+        let visible_rows = ports_area.height as usize;
+        let selected = midi_settings
+            .selected_port
+            .min(midi_settings.ports.len().saturating_sub(1));
+        let start = selected.saturating_sub(visible_rows.saturating_sub(1));
+        for (visible_row, (index, port)) in midi_settings
+            .ports
+            .iter()
+            .enumerate()
+            .skip(start)
+            .take(visible_rows)
+            .enumerate()
+        {
+            interactions.register_with_payload(
+                interaction_region::MIDI_SETTINGS_PORT,
+                Rect::new(
+                    ports_area.x,
+                    ports_area.y.saturating_add(visible_row as u16),
+                    ports_area.width,
+                    1,
+                ),
+                InteractionPayload::MidiPortRow { index },
+            );
+            let marker = if index == selected { ">" } else { " " };
             let line = format!("{marker} {:02} {}", port.index, port.name);
-            if row == midi_settings.selected_port {
-                lines.push(Line::styled(
+            if index == selected {
+                port_lines.push(Line::styled(
                     line,
                     Style::default()
                         .fg(Color::Black)
@@ -53,28 +94,67 @@ pub(super) fn render_midi_settings_overlay(
                         .add_modifier(Modifier::BOLD),
                 ));
             } else {
-                lines.push(Line::from(line));
+                port_lines.push(Line::from(line));
             }
         }
     }
 
-    lines.extend([
-        Line::from(""),
-        Line::from("Enter connect selected   d disconnect   p panic/all notes off"),
-        Line::from("F5/r refresh ports   Esc/q close"),
-    ]);
-
-    let paragraph = Paragraph::new(lines)
-        .block(
-            Block::default()
-                .title(" MIDI Settings ")
-                .borders(Borders::ALL),
-        )
-        .wrap(Wrap { trim: true })
-        .style(Style::default().fg(Color::White));
     frame.render_widget(Clear, overlay);
-    frame.render_widget(paragraph, overlay);
+    frame.render_widget(
+        Block::default()
+            .title(" MIDI Settings ")
+            .borders(Borders::ALL),
+        overlay,
+    );
+    frame.render_widget(
+        Paragraph::new(header_lines)
+            .wrap(Wrap { trim: true })
+            .style(Style::default().fg(Color::White)),
+        header_area,
+    );
+    frame.render_widget(
+        Paragraph::new(port_lines).style(Style::default().fg(Color::White)),
+        ports_area,
+    );
+    render_midi_settings_actions(frame, actions_area, interactions);
     overlay
+}
+
+fn render_midi_settings_actions(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    interactions: &mut InteractionMap,
+) {
+    const ACTIONS: [(&str, MidiSettingsAction); 5] = [
+        ("[Connect]", MidiSettingsAction::Connect),
+        ("[Disconnect]", MidiSettingsAction::Disconnect),
+        ("[Panic]", MidiSettingsAction::Panic),
+        ("[Refresh]", MidiSettingsAction::Refresh),
+        ("[Close]", MidiSettingsAction::Close),
+    ];
+    let mut spans = Vec::new();
+    let mut cursor_x = area.x;
+    let right = area.x.saturating_add(area.width);
+    for (index, (label, action)) in ACTIONS.iter().copied().enumerate() {
+        if index > 0 {
+            spans.push(Span::raw(" "));
+            cursor_x = cursor_x.saturating_add(1);
+        }
+        let width = (label.len() as u16).min(right.saturating_sub(cursor_x));
+        interactions.register_with_payload(
+            interaction_region::MIDI_SETTINGS_ACTION,
+            Rect::new(cursor_x, area.y, width, area.height),
+            InteractionPayload::MidiSettingsAction { action },
+        );
+        spans.push(Span::styled(
+            label,
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ));
+        cursor_x = cursor_x.saturating_add(width);
+    }
+    frame.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
 fn format_midi_routing(settings: &MidiRoutingSettings) -> String {

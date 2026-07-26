@@ -8,19 +8,19 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** agent/257-docflow-closeout
-- **Active item:** `plan/done/2026-07-26-help-overlay-pointer-controls.md` for GitHub
-  issue #257.
+- **Branch:** agent/258-midi-settings-mouse
+- **Active item:** `plan/todo/0010-midi-settings-pointer-controls.md` for GitHub
+  issue #258.
 - **Blockers:** none.
-- **Uncommitted work:** the committed closeout for implementation squash
-  `baf39b6`, PR #285, green CI #295, and closed issue #257 has one audit-state
-  wording remediation from Codex review `run-1785102953216729000` and awaits
-  final re-review and integration.
+- **Uncommitted work:** virtualized MIDI port targets, typed fixed action
+  targets, modal primary-click routing, empty/outside no-ops, focused tests, and
+  the intentional snapshot pass the full local gate and await commit,
+  Codex-provider review, and push to draft PR #287.
 
 ## Last shipped
 
-Issue #257 implementation via PR #285; its Docflow closeout is in progress.
+Issue #257 implementation and Docflow closeout via PRs #285 and #286.
 
 ## Next item
 
-Audit and claim issue #258.
+Implement and ship `plan/todo/0010-midi-settings-pointer-controls.md`.

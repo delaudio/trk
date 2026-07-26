@@ -588,5 +588,9 @@ fn renders_midi_settings_overlay() {
     assert!(rendered.contains("MIDI Settings"));
     assert!(rendered.contains("IAC Driver Bus 1"));
     assert!(rendered.contains("External Synth"));
-    assert!(rendered.contains("Enter connect selected"));
+    assert!(rendered.contains("[Connect]"));
+    assert!(rendered.contains("[Disconnect]"));
+    assert!(rendered.contains("[Panic]"));
+    assert!(rendered.contains("[Refresh]"));
+    assert!(rendered.contains("[Close]"));
 }

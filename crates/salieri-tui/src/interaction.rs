@@ -24,6 +24,15 @@ pub struct InteractionRegion {
     pub payload: InteractionPayload,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MidiSettingsAction {
+    Connect,
+    Disconnect,
+    Panic,
+    Refresh,
+    Close,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum InteractionPayload {
     #[default]
@@ -55,6 +64,12 @@ pub enum InteractionPayload {
     },
     HelpTab {
         index: usize,
+    },
+    MidiPortRow {
+        index: usize,
+    },
+    MidiSettingsAction {
+        action: MidiSettingsAction,
     },
 }
 
@@ -198,6 +213,10 @@ pub mod region {
     pub const HELP_TAB: InteractionRegionId = InteractionRegionId::new("help.tab");
     pub const HELP_CONTENT: InteractionRegionId = InteractionRegionId::new("help.content");
     pub const HELP_CLOSE: InteractionRegionId = InteractionRegionId::new("help.close");
+    pub const MIDI_SETTINGS_PORT: InteractionRegionId =
+        InteractionRegionId::new("midi-settings.port");
+    pub const MIDI_SETTINGS_ACTION: InteractionRegionId =
+        InteractionRegionId::new("midi-settings.action");
 
     pub const OVERLAY_HELP: InteractionRegionId = InteractionRegionId::new("overlay.help");
     pub const OVERLAY_MIDI_SETTINGS: InteractionRegionId =
