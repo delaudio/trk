@@ -50,6 +50,9 @@ pub enum InteractionPayload {
     SequenceEditorRow {
         position: usize,
     },
+    CommandPaletteEntry {
+        index: usize,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -185,6 +188,10 @@ pub mod region {
         InteractionRegionId::new("pattern-manager.row");
     pub const SEQUENCE_EDITOR_ROW: InteractionRegionId =
         InteractionRegionId::new("sequence-editor.row");
+    pub const COMMAND_PALETTE_RESULTS: InteractionRegionId =
+        InteractionRegionId::new("command-palette.results");
+    pub const COMMAND_PALETTE_ENTRY: InteractionRegionId =
+        InteractionRegionId::new("command-palette.entry");
 
     pub const OVERLAY_HELP: InteractionRegionId = InteractionRegionId::new("overlay.help");
     pub const OVERLAY_MIDI_SETTINGS: InteractionRegionId =

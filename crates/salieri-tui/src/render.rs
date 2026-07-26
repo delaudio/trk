@@ -471,8 +471,7 @@ pub fn render_with_interactions(
         interactions.register(interaction_region::OVERLAY_MIDI_SETTINGS, overlay);
     }
     if let Some(command_palette) = state.command_palette {
-        let overlay = render_command_palette_overlay(frame, area, command_palette);
-        interactions.register(interaction_region::OVERLAY_COMMAND_PALETTE, overlay);
+        render_command_palette_overlay(frame, area, command_palette, &mut interactions);
     }
     if state.quit_confirmation {
         let overlay = render_quit_confirmation(frame, area);
@@ -3236,6 +3235,9 @@ mod render_ai_chat_tests;
 #[cfg(test)]
 #[path = "render_tests/clips.rs"]
 mod render_clip_tests;
+#[cfg(test)]
+#[path = "render_tests/command_palette.rs"]
+mod render_command_palette_tests;
 #[cfg(test)]
 #[path = "render_tests/display.rs"]
 mod render_display_tests;

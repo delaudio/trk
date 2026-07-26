@@ -12,8 +12,9 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Active item:** `plan/todo/0008-command-palette-entry-clicks.md` for GitHub
   issue #256.
 - **Blockers:** none.
-- **Uncommitted work:** none expected. The ADR 0010 and plan item 0008 claim
-  commit awaits Codex-provider review, push, and its draft PR.
+- **Uncommitted work:** none expected. Command palette target, click, and
+  scoped-wheel implementation passes focused tests and awaits the full gate,
+  Codex-provider review, and push to draft PR #283.
 
 ## Last shipped
 

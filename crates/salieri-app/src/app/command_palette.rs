@@ -50,6 +50,54 @@ impl App {
             .min(result_count.saturating_sub(1));
     }
 
+    pub(crate) fn handle_command_palette_mouse_wheel(
+        &mut self,
+        column: u16,
+        row: u16,
+        kind: MouseEventKind,
+    ) {
+        let over_results = self
+            .interaction_map
+            .hit_test(column, row)
+            .is_some_and(|region| {
+                matches!(
+                    region.id,
+                    interaction_region::COMMAND_PALETTE_RESULTS
+                        | interaction_region::COMMAND_PALETTE_ENTRY
+                )
+            });
+        if !over_results {
+            return;
+        }
+        let delta = match kind {
+            MouseEventKind::ScrollUp => -3,
+            MouseEventKind::ScrollDown => 3,
+            _ => return,
+        };
+        self.move_command_palette_selection(delta);
+    }
+
+    pub(crate) fn handle_command_palette_mouse_click(&mut self, column: u16, row: u16) {
+        let target = self
+            .interaction_map
+            .hit_test(column, row)
+            .filter(|region| region.id == interaction_region::COMMAND_PALETTE_ENTRY)
+            .map(|region| region.payload);
+        let Some(InteractionPayload::CommandPaletteEntry { index }) = target else {
+            return;
+        };
+        let results = self.command_palette_results();
+        let Some(result) = results.get(index).copied() else {
+            return;
+        };
+        self.command_palette_selected = index;
+        if let Some(reason) = result.disabled_reason {
+            self.notify_warning(format!("{} unavailable: {reason}", result.action.title));
+            return;
+        }
+        self.execute_selected_command_palette_action();
+    }
+
     pub(crate) fn command_palette_results(&self) -> Vec<CommandPaletteMatch> {
         command_palette_results(
             &self.command_palette_query,
