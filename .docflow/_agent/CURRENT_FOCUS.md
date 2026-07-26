@@ -8,16 +8,16 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** agent/252-docflow-closeout
-- **Active item:** close out
-  `plan/done/2026-07-26-composite-track-row-clicks.md` after PR #275.
+- **Branch:** agent/253-composite-song-slots
+- **Active item:** `plan/todo/0005-composite-song-slot-clicks.md` for GitHub
+  issue #253.
 - **Blockers:** none.
-- **Uncommitted work:** atomic Docflow closeout for issue #252.
+- **Uncommitted work:** ADR 0007 and plan item 0005 preparation.
 
 ## Last shipped
 
-Issue #252 implementation via PR #275 with CI #270 green.
+Issue #252 implementation and Docflow closeout via PRs #275 and #276.
 
 ## Next item
 
-Merge this closeout, then begin GitHub issue #253.
+Implement and ship `plan/todo/0005-composite-song-slot-clicks.md`.
