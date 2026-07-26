@@ -26,3 +26,8 @@ is queued as a separate GitHub issue.
 ## Dependencies
 
 - None.
+
+---
+
+Shipped at HEAD `952f834` via
+[PR #269](https://github.com/delaudio/salieri-tracker/pull/269).

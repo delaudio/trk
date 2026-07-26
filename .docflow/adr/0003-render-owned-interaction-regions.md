@@ -1,7 +1,7 @@
 ---
 adr: 0003
 title: Expose render-owned interaction regions
-status: Accepted
+status: Implemented
 date: 2026-07-26
 owner: default-agent
 supersedes:
@@ -80,9 +80,11 @@ overlays, items, and controls can safely refine a larger panel.
 | Date | Revision | Author | Change |
 |------|----------|--------|--------|
 | 2026-07-26 | r1 | default-agent | Accepted the render-owned interaction-region contract for issue #249. |
+| 2026-07-26 | r2 | default-agent | Marked the capability Implemented after PR #269 merged with CI green. |
 
 ## Approvals
 
 | Role | Name | Date | Signature |
 |------|------|------|-----------|
 | Maintainer | fdg | 2026-07-26 | Authorised implementation of the queued UX issues in chat. |
+| Maintainer | fdg | 2026-07-26 | Authorised autonomous merge and closeout of issue #249 in chat. |

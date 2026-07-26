@@ -8,18 +8,15 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** agent/249-interaction-regions
-- **Active item:** `plan/todo/0001-render-owned-interaction-regions.md` for
-  GitHub issue #249.
+- **Branch:** agent/249-docflow-closeout
+- **Active item:** closeout for merged GitHub issue #249.
 - **Blockers:** none.
-- **Uncommitted work:** large Renoise workspace panel regions requested by
-  Lachesi run `run-1785071234272210000`.
+- **Uncommitted work:** none; closeout commit `f9d6d0c` is pending integration.
 
 ## Last shipped
 
-Docflow bootstrap commit `8be2907`.
+Issue #249 via PR #269, squash commit `952f834`.
 
 ## Next item
 
-Validate the desktop-region remediation, publish
-`plan/todo/0001-render-owned-interaction-regions.md`, then start issue #250.
+Audit and start GitHub issue #250.
