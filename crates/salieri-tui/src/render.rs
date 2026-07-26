@@ -636,7 +636,7 @@ fn render_body(
 ) {
     interactions.register(active_view_region(state.active_view), area);
     if state.active_view == TuiView::Sequence {
-        render_sequence_editor(frame, area, song, state.sequence_position);
+        render_sequence_editor(frame, area, song, state.sequence_position, interactions);
         return;
     }
     if state.active_view == TuiView::Clips {
@@ -902,7 +902,29 @@ fn render_sequence_editor(
     area: Rect,
     song: &Song,
     active_sequence_position: Option<usize>,
+    interactions: &mut InteractionMap,
 ) {
+    let footer_lines = 4;
+    let visible_items = list_inner_height(area)
+        .saturating_sub(1)
+        .saturating_sub(footer_lines);
+    let active_index = active_sequence_position.unwrap_or(0);
+    let start = centered_scroll_offset(song.sequence.len(), active_index, visible_items);
+    let end = start.saturating_add(visible_items).min(song.sequence.len());
+    let inner = bordered_content_area(area);
+    for (visible_row, position) in (start..end).enumerate() {
+        interactions.register_with_payload(
+            interaction_region::SEQUENCE_EDITOR_ROW,
+            Rect::new(
+                inner.x,
+                inner.y.saturating_add(1).saturating_add(visible_row as u16),
+                inner.width,
+                1,
+            ),
+            crate::InteractionPayload::SequenceEditorRow { position },
+        );
+    }
+
     let mut lines = vec![Line::from(vec![
         Span::styled("POS  ", Style::default().fg(Color::DarkGray)),
         Span::styled(
@@ -916,13 +938,6 @@ fn render_sequence_editor(
     if song.sequence.is_empty() {
         lines.push(Line::from("No sequence positions"));
     } else {
-        let footer_lines = 4;
-        let visible_items = list_inner_height(area)
-            .saturating_sub(1)
-            .saturating_sub(footer_lines);
-        let active_index = active_sequence_position.unwrap_or(0);
-        let start = centered_scroll_offset(song.sequence.len(), active_index, visible_items);
-        let end = start.saturating_add(visible_items).min(song.sequence.len());
         for (index, pattern_id) in song
             .sequence
             .iter()
@@ -979,22 +994,16 @@ fn render_sequence_editor(
         Line::from("Clips: ■ active  · empty  M muted"),
     ]);
 
-    let active_index = active_sequence_position.unwrap_or(0);
-    let visible_items = list_inner_height(area).saturating_sub(5);
-    let start = centered_scroll_offset(song.sequence.len(), active_index, visible_items);
-    let end = start.saturating_add(visible_items).min(song.sequence.len());
-    let sequence = Paragraph::new(lines)
-        .block(
-            Block::default()
-                .title(ranged_title(
-                    "Song Slot View",
-                    start,
-                    end,
-                    song.sequence.len(),
-                ))
-                .borders(Borders::ALL),
-        )
-        .wrap(Wrap { trim: true });
+    let sequence = Paragraph::new(lines).block(
+        Block::default()
+            .title(ranged_title(
+                "Song Slot View",
+                start,
+                end,
+                song.sequence.len(),
+            ))
+            .borders(Borders::ALL),
+    );
     frame.render_widget(sequence, area);
 }
 

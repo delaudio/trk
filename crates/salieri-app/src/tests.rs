@@ -14,6 +14,7 @@ mod layout_commands;
 mod midi_import_tui;
 mod midi_routing;
 mod mouse_navigation;
+mod mouse_sequence_view;
 mod navigation_editing;
 mod pattern_commands;
 mod pattern_operations;

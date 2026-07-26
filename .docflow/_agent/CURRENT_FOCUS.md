@@ -12,8 +12,9 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Active item:** `plan/todo/0007-sequence-editor-row-clicks.md` for GitHub
   issue #255.
 - **Blockers:** none.
-- **Uncommitted work:** none expected. The ADR 0009 and plan item 0007 claim
-  commit awaits Codex-provider review, push, and its draft PR.
+- **Uncommitted work:** none expected. Sequence row target and mouse-routing
+  implementation passes focused tests and awaits the full gate, Codex-provider
+  review, and push to draft PR #281.
 
 ## Last shipped
 
