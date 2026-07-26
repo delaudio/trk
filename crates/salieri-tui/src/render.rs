@@ -52,8 +52,8 @@ use salieri_core::{
 use salieri_sampler::{WaveformBucket, WaveformOverview};
 
 use crate::{
-    resolve_tracker_layout, PatternFieldLayout, TrackerLayoutPreset, TrackerLayoutState,
-    ViewportAxis,
+    interaction_region, resolve_tracker_layout, InteractionMap, PatternFieldLayout,
+    TrackerLayoutPreset, TrackerLayoutState, ViewportAxis,
 };
 use browser_views::{render_project_browser, render_sample_browser};
 use dsp_rack::render_dsp_rack_view;
@@ -427,6 +427,15 @@ impl SelectionRect {
 }
 
 pub fn render(frame: &mut Frame<'_>, song: &Song, state: TuiState<'_>) {
+    let _ = render_with_interactions(frame, song, state);
+}
+
+#[must_use]
+pub fn render_with_interactions(
+    frame: &mut Frame<'_>,
+    song: &Song,
+    state: TuiState<'_>,
+) -> InteractionMap {
     let area = frame.area();
     let vertical = Layout::default()
         .direction(LayoutDirection::Vertical)
@@ -436,9 +445,13 @@ pub fn render(frame: &mut Frame<'_>, song: &Song, state: TuiState<'_>) {
             Constraint::Length(1),
         ])
         .split(area);
+    let mut interactions = InteractionMap::new();
+    interactions.register(interaction_region::APP_HEADER, vertical[0]);
+    interactions.register(interaction_region::APP_BODY, vertical[1]);
+    interactions.register(interaction_region::APP_STATUS, vertical[2]);
 
     render_header(frame, vertical[0], song, state);
-    render_body(frame, vertical[1], song, state);
+    render_body(frame, vertical[1], song, state, &mut interactions);
     render_status(frame, vertical[2], state);
 
     if state.show_help {
@@ -463,6 +476,7 @@ pub fn render(frame: &mut Frame<'_>, song: &Song, state: TuiState<'_>) {
     if let Some(message) = state.delete_confirmation {
         render_delete_confirmation(frame, area, message);
     }
+    interactions
 }
 
 pub fn render_waveform_overview(frame: &mut Frame<'_>, area: Rect, overview: &WaveformOverview) {
@@ -607,7 +621,14 @@ fn render_header(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState
     frame.render_widget(header, area);
 }
 
-fn render_body(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
+fn render_body(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    song: &Song,
+    state: TuiState<'_>,
+    interactions: &mut InteractionMap,
+) {
+    interactions.register(active_view_region(state.active_view), area);
     if state.active_view == TuiView::Sequence {
         render_sequence_editor(frame, area, song, state.sequence_position);
         return;
@@ -665,17 +686,37 @@ fn render_body(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'
     }
     let resolved = resolve_tracker_layout(area, tracker_layout);
     if let Some(area) = resolved.tracks {
+        interactions.register(interaction_region::PANEL_TRACKS, area);
         render_tracks(frame, area, song, state.cursor.track);
     }
     if let Some(area) = resolved.sequence {
+        interactions.register(interaction_region::PANEL_SEQUENCE, area);
         render_sequence(frame, area, song, state.sequence_position);
     }
+    interactions.register(interaction_region::PANEL_PATTERN, resolved.pattern);
     render_pattern(frame, resolved.pattern, song, state);
     if let Some(area) = resolved.track_desk {
+        interactions.register(interaction_region::PANEL_TRACK_DESK, area);
         render_track_properties(frame, area, song, state);
     }
     if let Some(area) = resolved.inspector {
+        interactions.register(interaction_region::PANEL_INSPECTOR, area);
         render_instrument_sidebar(frame, area, song, state);
+    }
+}
+
+fn active_view_region(view: TuiView) -> crate::InteractionRegionId {
+    match view {
+        TuiView::Pattern => interaction_region::VIEW_PATTERN,
+        TuiView::Sequence => interaction_region::VIEW_SEQUENCE,
+        TuiView::Clips => interaction_region::VIEW_CLIPS,
+        TuiView::Tracks => interaction_region::VIEW_TRACKS,
+        TuiView::Patterns => interaction_region::VIEW_PATTERNS,
+        TuiView::Sampler => interaction_region::VIEW_SAMPLER,
+        TuiView::DspRack => interaction_region::VIEW_DSP_RACK,
+        TuiView::SampleBrowser => interaction_region::VIEW_SAMPLE_BROWSER,
+        TuiView::ProjectBrowser => interaction_region::VIEW_PROJECT_BROWSER,
+        TuiView::AiChat => interaction_region::VIEW_AI_CHAT,
     }
 }
 

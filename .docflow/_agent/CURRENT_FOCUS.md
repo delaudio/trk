@@ -11,8 +11,11 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Branch:** agent/249-interaction-regions
 - **Active item:** `plan/todo/0001-render-owned-interaction-regions.md` for
   GitHub issue #249.
-- **Blockers:** none.
-- **Uncommitted work:** ADR 0003 and plan item 0001 preparation.
+- **Blockers:** the required Lachesi review cannot initialize inside the
+  sandbox; unsandboxed execution is pending explicit authorization for code
+  egress to a named review provider.
+- **Uncommitted work:** issue #249 implementation and multi-size interaction
+  region tests; the full local repository gate passes.
 
 ## Last shipped
 
@@ -20,4 +23,5 @@ Docflow bootstrap commit `8be2907`.
 
 ## Next item
 
-Implement and ship `plan/todo/0001-render-owned-interaction-regions.md`.
+Review and publish `plan/todo/0001-render-owned-interaction-regions.md`, then
+start issue #250.
