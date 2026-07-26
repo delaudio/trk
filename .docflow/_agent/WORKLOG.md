@@ -22,3 +22,4 @@ Append one row per commit. Newest at the bottom.
 | 2026-07-26 | closeout commit | `agent/251-docflow-closeout` | `plan/done/2026-07-26-visible-browser-entry-clicks.md` | Closed out implementation squash `af5e899`: PR #273 merged with CI #266 green, issue #251 closed, and ADR 0005 shipped. |
 | 2026-07-26 | `e81fef7` | `agent/252-composite-track-clicks` | `plan/todo/0004-composite-track-row-clicks.md` | Accepted ADR 0006 and queued semantic mouse targets for the composite Tracks panel in issue #252. |
 | 2026-07-26 | `8813691` | `agent/252-composite-track-clicks` | `plan/todo/0004-composite-track-row-clicks.md` | Added render-owned absolute track-row targets and pointer selection that preserves the tracker editing context. |
+| 2026-07-26 | review record | `agent/252-composite-track-clicks` | `plan/todo/0004-composite-track-row-clicks.md` | Passed Lachesi Codex review `run-1785084789311776000` with no findings after the full local Rust gate passed. |

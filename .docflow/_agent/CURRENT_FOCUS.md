@@ -12,8 +12,7 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Active item:** `plan/todo/0004-composite-track-row-clicks.md` for GitHub
   issue #252.
 - **Blockers:** none.
-- **Uncommitted work:** worklog update before the required Codex-provider
-  Lachesi review.
+- **Uncommitted work:** final review record before publication.
 
 ## Last shipped
 
@@ -21,4 +20,4 @@ Issue #251 implementation and Docflow closeout via PRs #273 and #274.
 
 ## Next item
 
-Review and ship `plan/todo/0004-composite-track-row-clicks.md`.
+Publish and ship `plan/todo/0004-composite-track-row-clicks.md`.
