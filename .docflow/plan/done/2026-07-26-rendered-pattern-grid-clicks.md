@@ -34,3 +34,9 @@ behaviour, field/digit selection, or other mouse surfaces.
 - `../done/2026-07-26-render-owned-interaction-regions.md`
 - `../../adr/0003-render-owned-interaction-regions.md`
 - GitHub issue #249 (closed by PR #269).
+
+---
+
+Shipped at HEAD `7312620` via
+[PR #271](https://github.com/delaudio/salieri-tracker/pull/271), with GitHub
+Actions CI run #262 green and issue #250 closed.

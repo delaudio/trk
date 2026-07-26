@@ -8,17 +8,18 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** agent/250-pattern-grid-mouse
-- **Active item:** `plan/todo/0002-rendered-pattern-grid-clicks.md` for GitHub
-  issue #250.
+- **Branch:** agent/250-docflow-closeout
+- **Active item:** close out
+  `plan/done/2026-07-26-rendered-pattern-grid-clicks.md`.
 - **Blockers:** none.
-- **Uncommitted work:** ADR 0004 and review closeout after implementation
-  commits `2ebf286` and `ffba4ce`.
+- **Uncommitted work:** none; the closeout commit for implementation squash
+  `7312620` is pending integration.
 
 ## Last shipped
 
-Issue #249 implementation and Docflow closeout via PRs #269 and #270.
+Issue #250 implementation via PR #271, with CI #262 green and issue #250
+closed.
 
 ## Next item
 
-Implement and ship `plan/todo/0002-rendered-pattern-grid-clicks.md`.
+Audit and implement GitHub issue #251.
