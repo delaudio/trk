@@ -2658,7 +2658,7 @@ fn cell_spans(
         }
     }
     let cell_width = pattern_cell_width(field_layout);
-    if field_layout != PatternFieldLayout::Full && used_width < cell_width {
+    if used_width < cell_width {
         spans.push(Span::styled(
             " ".repeat(cell_width - used_width),
             spacer_style,

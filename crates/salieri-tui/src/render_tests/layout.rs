@@ -38,6 +38,22 @@ fn interaction_map_with_song_and_state(
 }
 
 #[test]
+fn full_pattern_cells_fill_the_registered_interaction_width() {
+    let spans = cell_spans(
+        &PatternCell::default(),
+        CellField::Note,
+        false,
+        false,
+        false,
+        false,
+        PatternFieldLayout::Full,
+    );
+    let rendered_width = spans.iter().map(Span::width).sum::<usize>();
+
+    assert_eq!(rendered_width, pattern_cell_width(PatternFieldLayout::Full));
+}
+
+#[test]
 fn exposes_offset_pattern_cells_at_representative_sizes() {
     let mut song = Song::empty();
     while song.tracks.len() < 8 {
@@ -63,6 +79,18 @@ fn exposes_offset_pattern_cells_at_representative_sizes() {
         assert_eq!(
             region.payload,
             crate::InteractionPayload::PatternCell { row: 5, track: 1 }
+        );
+        let second_track = map
+            .regions()
+            .iter()
+            .find(|region| {
+                region.payload == crate::InteractionPayload::PatternCell { row: 5, track: 2 }
+            })
+            .expect("second visible track cell");
+        assert_eq!(
+            map.hit_test(second_track.area.x, second_track.area.y)
+                .map(|region| region.payload),
+            Some(crate::InteractionPayload::PatternCell { row: 5, track: 2 })
         );
         assert_ne!(
             map.hit_test(first_cell.0, first_cell.1.saturating_sub(1))
