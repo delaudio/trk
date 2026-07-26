@@ -8,17 +8,18 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** agent/251-browser-scroll-clicks
-- **Active item:** `plan/todo/0003-visible-browser-entry-clicks.md` for GitHub
-  issue #251.
+- **Branch:** agent/251-docflow-closeout
+- **Active item:** close out
+  `plan/done/2026-07-26-visible-browser-entry-clicks.md`.
 - **Blockers:** none.
-- **Uncommitted work:** review closeout for implementation commits `bb154c5`
-  and `db01b4f`.
+- **Uncommitted work:** none; the closeout commit for implementation squash
+  `af5e899` is pending integration.
 
 ## Last shipped
 
-Issue #250 implementation and Docflow closeout via PRs #271 and #272.
+Issue #251 implementation via PR #273, with CI #266 green and issue #251
+closed.
 
 ## Next item
 
-Implement and ship `plan/todo/0003-visible-browser-entry-clicks.md`.
+Audit and implement GitHub issue #252.

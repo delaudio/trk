@@ -31,3 +31,9 @@ ordering, preview logic, or scrollbar behaviour.
 - `../../adr/0003-render-owned-interaction-regions.md`
 - `../done/2026-07-26-render-owned-interaction-regions.md`
 - GitHub issue #249 (closed by PR #269).
+
+---
+
+Shipped at HEAD `af5e899` via
+[PR #273](https://github.com/delaudio/salieri-tracker/pull/273), with GitHub
+Actions CI run #266 green and issue #251 closed.
