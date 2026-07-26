@@ -15,7 +15,7 @@ pub(super) fn render_help_overlay(
     edit_step: usize,
     scroll: usize,
     tab: HelpTab,
-) {
+) -> Rect {
     let overlay = large_overlay_rect(area);
     let visible_rows = overlay.height.saturating_sub(2) as usize;
     let lines = help_lines(mode_label, edit_step, tab);
@@ -50,6 +50,7 @@ pub(super) fn render_help_overlay(
             &mut scrollbar_state,
         );
     }
+    overlay
 }
 
 fn help_lines(mode_label: &str, edit_step: usize, tab: HelpTab) -> Vec<Line<'static>> {

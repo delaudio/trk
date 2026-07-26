@@ -455,7 +455,7 @@ pub fn render_with_interactions(
     render_status(frame, vertical[2], state);
 
     if state.show_help {
-        render_help_overlay(
+        let overlay = render_help_overlay(
             frame,
             area,
             state.mode_label,
@@ -463,18 +463,23 @@ pub fn render_with_interactions(
             state.help_scroll,
             state.help_tab,
         );
+        interactions.register(interaction_region::OVERLAY_HELP, overlay);
     }
     if let Some(midi_settings) = state.midi_settings {
-        render_midi_settings_overlay(frame, area, midi_settings);
+        let overlay = render_midi_settings_overlay(frame, area, midi_settings);
+        interactions.register(interaction_region::OVERLAY_MIDI_SETTINGS, overlay);
     }
     if let Some(command_palette) = state.command_palette {
-        render_command_palette_overlay(frame, area, command_palette);
+        let overlay = render_command_palette_overlay(frame, area, command_palette);
+        interactions.register(interaction_region::OVERLAY_COMMAND_PALETTE, overlay);
     }
     if state.quit_confirmation {
-        render_quit_confirmation(frame, area);
+        let overlay = render_quit_confirmation(frame, area);
+        interactions.register(interaction_region::OVERLAY_QUIT_CONFIRMATION, overlay);
     }
     if let Some(message) = state.delete_confirmation {
-        render_delete_confirmation(frame, area, message);
+        let overlay = render_delete_confirmation(frame, area, message);
+        interactions.register(interaction_region::OVERLAY_DELETE_CONFIRMATION, overlay);
     }
     interactions
 }

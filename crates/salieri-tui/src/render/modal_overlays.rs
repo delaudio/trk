@@ -11,7 +11,7 @@ pub(super) fn render_midi_settings_overlay(
     frame: &mut Frame<'_>,
     area: Rect,
     midi_settings: MidiSettingsState<'_>,
-) {
+) -> Rect {
     let overlay = centered_rect(76, 18, area);
     let mut lines = vec![
         Line::from(Span::styled(
@@ -73,6 +73,7 @@ pub(super) fn render_midi_settings_overlay(
         .style(Style::default().fg(Color::White));
     frame.render_widget(Clear, overlay);
     frame.render_widget(paragraph, overlay);
+    overlay
 }
 
 fn format_midi_routing(settings: &MidiRoutingSettings) -> String {
@@ -117,7 +118,7 @@ pub(super) fn render_command_palette_overlay(
     frame: &mut Frame<'_>,
     area: Rect,
     palette: CommandPaletteViewState<'_>,
-) {
+) -> Rect {
     let overlay = centered_rect(86, 20, area);
     let visible_rows = overlay.height.saturating_sub(6) as usize;
     let selected = palette
@@ -193,9 +194,10 @@ pub(super) fn render_command_palette_overlay(
         .wrap(Wrap { trim: true });
     frame.render_widget(Clear, overlay);
     frame.render_widget(paragraph, overlay);
+    overlay
 }
 
-pub(super) fn render_quit_confirmation(frame: &mut Frame<'_>, area: Rect) {
+pub(super) fn render_quit_confirmation(frame: &mut Frame<'_>, area: Rect) -> Rect {
     let overlay = centered_rect(48, 7, area);
     let lines = vec![
         Line::from("Unsaved changes. Save before quitting?"),
@@ -207,9 +209,10 @@ pub(super) fn render_quit_confirmation(frame: &mut Frame<'_>, area: Rect) {
         .style(Style::default().fg(Color::White));
     frame.render_widget(Clear, overlay);
     frame.render_widget(paragraph, overlay);
+    overlay
 }
 
-pub(super) fn render_delete_confirmation(frame: &mut Frame<'_>, area: Rect, message: &str) {
+pub(super) fn render_delete_confirmation(frame: &mut Frame<'_>, area: Rect, message: &str) -> Rect {
     let overlay = centered_rect(52, 7, area);
     let lines = vec![
         Line::from(message.to_string()),
@@ -221,6 +224,7 @@ pub(super) fn render_delete_confirmation(frame: &mut Frame<'_>, area: Rect, mess
         .style(Style::default().fg(Color::White));
     frame.render_widget(Clear, overlay);
     frame.render_widget(paragraph, overlay);
+    overlay
 }
 
 fn centered_rect(width: u16, height: u16, area: Rect) -> Rect {

@@ -90,6 +90,16 @@ pub mod region {
     pub const PANEL_PATTERN: InteractionRegionId = InteractionRegionId::new("panel.pattern");
     pub const PANEL_TRACK_DESK: InteractionRegionId = InteractionRegionId::new("panel.track-desk");
     pub const PANEL_INSPECTOR: InteractionRegionId = InteractionRegionId::new("panel.inspector");
+
+    pub const OVERLAY_HELP: InteractionRegionId = InteractionRegionId::new("overlay.help");
+    pub const OVERLAY_MIDI_SETTINGS: InteractionRegionId =
+        InteractionRegionId::new("overlay.midi-settings");
+    pub const OVERLAY_COMMAND_PALETTE: InteractionRegionId =
+        InteractionRegionId::new("overlay.command-palette");
+    pub const OVERLAY_QUIT_CONFIRMATION: InteractionRegionId =
+        InteractionRegionId::new("overlay.quit-confirmation");
+    pub const OVERLAY_DELETE_CONFIRMATION: InteractionRegionId =
+        InteractionRegionId::new("overlay.delete-confirmation");
 }
 
 #[cfg(test)]

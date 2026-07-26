@@ -12,16 +12,50 @@ fn classifies_responsive_layout_breakpoints() {
 }
 
 fn interaction_map(width: u16, height: u16) -> InteractionMap {
+    interaction_map_with_state(width, height, render_test_state())
+}
+
+fn interaction_map_with_state(width: u16, height: u16, state: TuiState<'_>) -> InteractionMap {
     let backend = TestBackend::new(width, height);
     let mut terminal = Terminal::new(backend).expect("terminal");
     let song = Song::empty();
     let mut map = InteractionMap::new();
     terminal
         .draw(|frame| {
-            map = render_with_interactions(frame, &song, render_test_state());
+            map = render_with_interactions(frame, &song, state);
         })
         .expect("draw");
     map
+}
+
+#[test]
+fn overlay_regions_override_covered_workspace_regions() {
+    let mut help_state = render_test_state();
+    help_state.show_help = true;
+    let help = interaction_map_with_state(100, 28, help_state);
+    let help_area = help
+        .region(interaction_region::OVERLAY_HELP)
+        .expect("help overlay")
+        .area;
+    assert_eq!(
+        help.hit_test(help_area.x, help_area.y)
+            .map(|region| region.id),
+        Some(interaction_region::OVERLAY_HELP)
+    );
+
+    let mut confirmation_state = render_test_state();
+    confirmation_state.quit_confirmation = true;
+    let confirmation = interaction_map_with_state(100, 28, confirmation_state);
+    let confirmation_area = confirmation
+        .region(interaction_region::OVERLAY_QUIT_CONFIRMATION)
+        .expect("quit confirmation")
+        .area;
+    assert_eq!(
+        confirmation
+            .hit_test(confirmation_area.x, confirmation_area.y)
+            .map(|region| region.id),
+        Some(interaction_region::OVERLAY_QUIT_CONFIRMATION)
+    );
 }
 
 #[test]
