@@ -8,18 +8,17 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** agent/258-docflow-closeout
-- **Active item:** `plan/done/2026-07-26-midi-settings-pointer-controls.md` for GitHub
-  issue #258.
+- **Branch:** agent/259-confirmation-dialog-mouse
+- **Active item:** `plan/todo/0011-confirmation-dialog-pointer-actions.md` for
+  GitHub issue #259.
 - **Blockers:** none.
-- **Uncommitted work:** none expected. The committed closeout for implementation
-  squash `d706255`, PR #287, green CI #300, and closed issue #258 awaits
-  Codex-provider review and integration.
+- **Uncommitted work:** accepted ADR 0013 and its focused implementation plan
+  await Codex-provider review before code changes.
 
 ## Last shipped
 
-Issue #258 implementation via PR #287; its Docflow closeout is in progress.
+Issue #258 implementation and Docflow closeout via PRs #287 and #288.
 
 ## Next item
 
-Audit and claim issue #259.
+Implement and ship `plan/todo/0011-confirmation-dialog-pointer-actions.md`.
