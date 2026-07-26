@@ -9,10 +9,17 @@ fn sequence_panel_scrolls_to_active_position() {
     let song = long_sequence_song(40);
     let backend = TestBackend::new(32, 8);
     let mut terminal = Terminal::new(backend).expect("test terminal");
+    let mut interactions = InteractionMap::new();
 
     terminal
         .draw(|frame| {
-            render_sequence(frame, Rect::new(0, 0, 32, 8), &song, Some(30));
+            render_sequence(
+                frame,
+                Rect::new(0, 0, 32, 8),
+                &song,
+                Some(30),
+                &mut interactions,
+            );
         })
         .expect("draw");
 

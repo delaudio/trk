@@ -41,6 +41,9 @@ pub enum InteractionPayload {
     CompositeTrackRow {
         track: usize,
     },
+    CompositeSequenceRow {
+        position: usize,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -170,6 +173,8 @@ pub mod region {
         InteractionRegionId::new("project-browser.entry");
     pub const COMPOSITE_TRACK_ROW: InteractionRegionId =
         InteractionRegionId::new("composite-tracks.row");
+    pub const COMPOSITE_SEQUENCE_ROW: InteractionRegionId =
+        InteractionRegionId::new("composite-sequence.row");
 
     pub const OVERLAY_HELP: InteractionRegionId = InteractionRegionId::new("overlay.help");
     pub const OVERLAY_MIDI_SETTINGS: InteractionRegionId =

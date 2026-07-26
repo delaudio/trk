@@ -141,6 +141,107 @@ fn composite_track_rows_ignore_drag_and_secondary_clicks() {
 }
 
 #[test]
+fn mouse_click_selects_composite_song_slot_without_starting_playback() {
+    let mut app = App::default();
+    let second = app.song.create_pattern(64);
+    let third = app.song.create_pattern(64);
+    app.song
+        .push_sequence_pattern(second)
+        .expect("second sequence slot");
+    app.song
+        .push_sequence_pattern(third)
+        .expect("third sequence slot");
+    app.pattern_index = 1;
+    app.sequence_cursor = 0;
+    app.interaction_map.register_with_payload(
+        interaction_region::COMPOSITE_SEQUENCE_ROW,
+        ratatui::layout::Rect::new(1, 16, 26, 1),
+        InteractionPayload::CompositeSequenceRow { position: 2 },
+    );
+
+    app.handle_mouse(
+        MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: 2,
+            row: 16,
+            modifiers: KeyModifiers::NONE,
+        },
+        large_mouse_viewport(),
+    );
+
+    assert_eq!(app.mode, AppMode::Normal);
+    assert_eq!(app.tui_active_view(), TuiView::Pattern);
+    assert_eq!(app.sequence_cursor, 2);
+    assert_eq!(app.pattern_index, 1);
+    assert!(!app.is_playing);
+    assert_eq!(app.sequence_position, None);
+    assert_eq!(
+        app.notification
+            .as_ref()
+            .map(|value| value.message.as_str()),
+        Some("Sequence position 02")
+    );
+}
+
+#[test]
+fn composite_song_slot_click_rejects_out_of_range_payloads() {
+    let mut app = App::default();
+    app.interaction_map.register_with_payload(
+        interaction_region::COMPOSITE_SEQUENCE_ROW,
+        ratatui::layout::Rect::new(1, 16, 26, 1),
+        InteractionPayload::CompositeSequenceRow {
+            position: usize::MAX,
+        },
+    );
+
+    app.handle_mouse(
+        MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: 2,
+            row: 16,
+            modifiers: KeyModifiers::NONE,
+        },
+        large_mouse_viewport(),
+    );
+
+    assert_eq!(app.sequence_cursor, 0);
+    assert!(!app.is_playing);
+    assert!(app.notification.is_none());
+}
+
+#[test]
+fn composite_song_slot_rows_ignore_drag_and_secondary_clicks() {
+    for kind in [
+        MouseEventKind::Drag(MouseButton::Left),
+        MouseEventKind::Down(MouseButton::Right),
+    ] {
+        let mut app = App::default();
+        let second = app.song.create_pattern(64);
+        app.song
+            .push_sequence_pattern(second)
+            .expect("second sequence slot");
+        app.interaction_map.register_with_payload(
+            interaction_region::COMPOSITE_SEQUENCE_ROW,
+            ratatui::layout::Rect::new(1, 16, 26, 1),
+            InteractionPayload::CompositeSequenceRow { position: 1 },
+        );
+
+        app.handle_mouse(
+            MouseEvent {
+                kind,
+                column: 2,
+                row: 16,
+                modifiers: KeyModifiers::NONE,
+            },
+            large_mouse_viewport(),
+        );
+
+        assert_eq!(app.sequence_cursor, 0);
+        assert!(!app.is_playing);
+    }
+}
+
+#[test]
 fn mouse_click_ignores_pattern_headers_gutters_and_panels() {
     let mut app = App::default();
     app.cursor.row = 3;

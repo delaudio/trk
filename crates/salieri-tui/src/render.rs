@@ -706,7 +706,7 @@ fn render_body(
     }
     if let Some(area) = resolved.sequence {
         interactions.register(interaction_region::PANEL_SEQUENCE, area);
-        render_sequence(frame, area, song, state.sequence_position);
+        render_sequence(frame, area, song, state.sequence_position, interactions);
     }
     interactions.register(interaction_region::PANEL_PATTERN, resolved.pattern);
     render_pattern_with_interactions(frame, resolved.pattern, song, state, interactions);
@@ -839,11 +839,25 @@ fn render_sequence(
     area: Rect,
     song: &Song,
     active_sequence_position: Option<usize>,
+    interactions: &mut InteractionMap,
 ) {
     let visible_items = list_inner_height(area);
     let active_index = active_sequence_position.unwrap_or(0);
     let start = centered_scroll_offset(song.sequence.len(), active_index, visible_items);
     let end = start.saturating_add(visible_items).min(song.sequence.len());
+    let inner = bordered_content_area(area);
+    for (visible_row, position) in (start..end).enumerate() {
+        interactions.register_with_payload(
+            interaction_region::COMPOSITE_SEQUENCE_ROW,
+            Rect::new(
+                inner.x,
+                inner.y.saturating_add(visible_row as u16),
+                inner.width,
+                1,
+            ),
+            crate::InteractionPayload::CompositeSequenceRow { position },
+        );
+    }
     let lines = song
         .sequence
         .iter()
