@@ -1417,18 +1417,16 @@ fn render_pattern_manager(
         Line::from("1/2/3/4/5 length 16/32/64/128/256   Esc pattern editor"),
     ]);
 
-    let patterns = Paragraph::new(lines)
-        .block(
-            Block::default()
-                .title(ranged_title(
-                    "Pattern Manager",
-                    start,
-                    end,
-                    song.patterns.len(),
-                ))
-                .borders(Borders::ALL),
-        )
-        .wrap(Wrap { trim: true });
+    let patterns = Paragraph::new(lines).block(
+        Block::default()
+            .title(ranged_title(
+                "Pattern Manager",
+                start,
+                end,
+                song.patterns.len(),
+            ))
+            .borders(Borders::ALL),
+    );
     frame.render_widget(patterns, area);
 }
 

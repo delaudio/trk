@@ -411,6 +411,42 @@ fn pattern_manager_scrolls_to_active_pattern() {
 }
 
 #[test]
+fn narrow_pattern_manager_keeps_rendered_rows_aligned_with_targets() {
+    let song = long_sequence_song(3);
+    let backend = TestBackend::new(20, 10);
+    let mut terminal = Terminal::new(backend).expect("test terminal");
+    let mut interactions = InteractionMap::new();
+
+    terminal
+        .draw(|frame| {
+            render_pattern_manager(frame, Rect::new(0, 0, 20, 10), &song, 0, &mut interactions);
+        })
+        .expect("draw");
+
+    let rows = interactions
+        .regions()
+        .iter()
+        .filter(|region| region.id == interaction_region::PATTERN_MANAGER_ROW)
+        .collect::<Vec<_>>();
+    assert_eq!(rows.len(), 3);
+    for (expected_index, region) in rows.into_iter().enumerate() {
+        let rendered_row = (0..20)
+            .map(|x| {
+                terminal.backend().buffer()[(x, region.area.y)]
+                    .symbol()
+                    .to_string()
+            })
+            .collect::<String>();
+        assert!(
+            rendered_row.contains(&format!("{:02}", expected_index + 1)),
+            "row {} should render pattern {}: {rendered_row:?}",
+            region.area.y,
+            expected_index + 1
+        );
+    }
+}
+
+#[test]
 fn renders_tracker_cell_subcolumns() {
     let mut song = Song::empty();
     let pattern = song.current_pattern_mut().expect("pattern");
