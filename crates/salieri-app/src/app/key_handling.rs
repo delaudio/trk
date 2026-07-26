@@ -127,6 +127,12 @@ impl App {
             }
             return;
         }
+        if self.mode == AppMode::Dialog {
+            if primary_click {
+                self.handle_confirmation_mouse_click(column, row);
+            }
+            return;
+        }
         if row < 3 {
             if column < 12 {
                 self.toggle_playback();
@@ -911,6 +917,34 @@ impl App {
             },
             _ => {}
         }
+    }
+
+    fn handle_confirmation_mouse_click(&mut self, column: u16, row: u16) {
+        let Some(region) = self.interaction_map.hit_test(column, row).copied() else {
+            return;
+        };
+        let (
+            interaction_region::CONFIRMATION_ACTION,
+            InteractionPayload::ConfirmationAction { action },
+        ) = (region.id, region.payload)
+        else {
+            return;
+        };
+        let key = match (self.dialog.as_ref(), action) {
+            (Some(Dialog::QuitDirty), ConfirmationAction::Save) => KeyCode::Char('y'),
+            (Some(Dialog::QuitDirty), ConfirmationAction::DontSave) => KeyCode::Char('n'),
+            (
+                Some(
+                    Dialog::DeleteTrack { .. }
+                    | Dialog::DeletePattern { .. }
+                    | Dialog::OpenProjectDirty { .. },
+                ),
+                ConfirmationAction::Confirm,
+            ) => KeyCode::Char('y'),
+            (Some(_), ConfirmationAction::Cancel) => KeyCode::Char('c'),
+            _ => return,
+        };
+        self.handle_dialog_key(KeyEvent::new(key, KeyModifiers::NONE));
     }
 }
 

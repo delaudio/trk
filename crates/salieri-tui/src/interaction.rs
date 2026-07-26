@@ -33,6 +33,14 @@ pub enum MidiSettingsAction {
     Close,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConfirmationAction {
+    Save,
+    DontSave,
+    Confirm,
+    Cancel,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum InteractionPayload {
     #[default]
@@ -70,6 +78,9 @@ pub enum InteractionPayload {
     },
     MidiSettingsAction {
         action: MidiSettingsAction,
+    },
+    ConfirmationAction {
+        action: ConfirmationAction,
     },
 }
 
@@ -217,6 +228,8 @@ pub mod region {
         InteractionRegionId::new("midi-settings.port");
     pub const MIDI_SETTINGS_ACTION: InteractionRegionId =
         InteractionRegionId::new("midi-settings.action");
+    pub const CONFIRMATION_ACTION: InteractionRegionId =
+        InteractionRegionId::new("confirmation.action");
 
     pub const OVERLAY_HELP: InteractionRegionId = InteractionRegionId::new("overlay.help");
     pub const OVERLAY_MIDI_SETTINGS: InteractionRegionId =
