@@ -8,18 +8,19 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** agent/255-sequence-view-mouse
-- **Active item:** `plan/todo/0007-sequence-editor-row-clicks.md` for GitHub
-  issue #255.
+- **Branch:** agent/255-docflow-closeout
+- **Active item:** close out
+  `plan/done/2026-07-26-sequence-editor-row-clicks.md` for GitHub issue #255.
 - **Blockers:** none.
-- **Uncommitted work:** none expected. Sequence row target and mouse-routing
-  implementation passes focused tests and awaits the full gate, Codex-provider
-  review, and push to draft PR #281.
+- **Uncommitted work:** none expected. The committed closeout for
+  implementation squash `ceacbd0`, PR #281, green CI #285, and closed issue
+  #255 awaits Codex-provider review and integration.
 
 ## Last shipped
 
-Issue #254 implementation and Docflow closeout via PRs #279 and #280.
+Issue #255 implementation via PR #281; its Docflow closeout is in progress.
 
 ## Next item
 
-Implement and ship `plan/todo/0007-sequence-editor-row-clicks.md`.
+Audit and claim GitHub issue #256, “Add mouse selection and execution to the
+command palette.”

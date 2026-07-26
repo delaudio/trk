@@ -34,3 +34,9 @@ the full-screen Sequence view.
 - `../../adr/0003-render-owned-interaction-regions.md`
 - `../done/2026-07-26-render-owned-interaction-regions.md`
 - GitHub issue #249 (closed by PR #269).
+
+---
+
+Shipped at HEAD `ceacbd0` via
+[PR #281](https://github.com/delaudio/salieri-tracker/pull/281), with GitHub
+Actions CI run #285 green and issue #255 closed.
