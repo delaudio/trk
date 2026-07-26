@@ -8,15 +8,16 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** agent/249-docflow-closeout
-- **Active item:** closeout for merged GitHub issue #249.
+- **Branch:** agent/250-pattern-grid-mouse
+- **Active item:** `plan/todo/0002-rendered-pattern-grid-clicks.md` for GitHub
+  issue #250.
 - **Blockers:** none.
-- **Uncommitted work:** none; closeout commit `f9d6d0c` is pending integration.
+- **Uncommitted work:** plan item 0002 preparation.
 
 ## Last shipped
 
-Issue #249 via PR #269, squash commit `952f834`.
+Issue #249 implementation and Docflow closeout via PRs #269 and #270.
 
 ## Next item
 
-Audit and start GitHub issue #250.
+Implement and ship `plan/todo/0002-rendered-pattern-grid-clicks.md`.
