@@ -12,8 +12,9 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Active item:** close out
   `plan/done/2026-07-26-pattern-manager-row-clicks.md` for GitHub issue #254.
 - **Blockers:** none.
-- **Uncommitted work:** Docflow closeout for implementation squash `08dbdae`,
-  PR #279, green CI #280, and closed issue #254.
+- **Uncommitted work:** none expected. Closeout commit `9d4ead6` records
+  implementation squash `08dbdae`, PR #279, green CI #280, and closed issue
+  #254; it awaits integration.
 
 ## Last shipped
 
