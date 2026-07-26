@@ -12,8 +12,8 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Active item:** `plan/todo/0001-render-owned-interaction-regions.md` for
   GitHub issue #249.
 - **Blockers:** none.
-- **Uncommitted work:** none after the bounded remediation commit; the full
-  repository gate passes and the branch awaits its Lachesi rerun.
+- **Uncommitted work:** large Renoise workspace panel regions requested by
+  Lachesi run `run-1785071234272210000`.
 
 ## Last shipped
 
@@ -21,5 +21,5 @@ Docflow bootstrap commit `8be2907`.
 
 ## Next item
 
-Validate the review remediation, publish
+Validate the desktop-region remediation, publish
 `plan/todo/0001-render-owned-interaction-regions.md`, then start issue #250.

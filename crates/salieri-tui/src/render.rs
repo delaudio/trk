@@ -5,6 +5,7 @@ mod dsp_parameters;
 mod dsp_rack;
 mod help_overlay;
 mod modal_overlays;
+mod renoise_layout;
 mod renoise_workspace;
 mod theme;
 
@@ -675,7 +676,16 @@ fn render_body(
         return;
     }
     if layout_kind(area.width) == LayoutKind::Large {
-        renoise_workspace::render_pattern_workspace(frame, area, song, state);
+        let layout = renoise_layout::pattern_workspace_layout(area);
+        interactions.register(interaction_region::PANEL_ANALYZER, layout.analyzer);
+        interactions.register(interaction_region::PANEL_UTIL, layout.util);
+        interactions.register(interaction_region::PANEL_PATTERN, layout.pattern);
+        interactions.register(interaction_region::PANEL_INSPECTOR, layout.inspector);
+        interactions.register(interaction_region::PANEL_EFFECTS, layout.effects);
+        interactions.register(interaction_region::PANEL_MIXER, layout.mixer);
+        interactions.register(interaction_region::PANEL_VU, layout.vu);
+        interactions.register(interaction_region::PANEL_DEVICE_CHAIN, layout.device_chain);
+        renoise_workspace::render_pattern_workspace(frame, layout, song, state);
         return;
     }
 

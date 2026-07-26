@@ -118,12 +118,31 @@ fn exposes_resolved_panels_for_small_and_medium_pattern_layouts() {
 }
 
 #[test]
-fn large_pattern_workspace_uses_view_region_until_subregions_migrate() {
+fn exposes_large_renoise_workspace_panel_regions() {
     let large = interaction_map(140, 36);
 
-    assert!(large.region(interaction_region::PANEL_PATTERN).is_none());
-    assert_eq!(
-        large.hit_test(70, 10).map(|region| region.id),
-        Some(interaction_region::VIEW_PATTERN)
-    );
+    let expected = [
+        (interaction_region::PANEL_ANALYZER, Rect::new(0, 3, 140, 4)),
+        (interaction_region::PANEL_UTIL, Rect::new(0, 7, 15, 21)),
+        (interaction_region::PANEL_PATTERN, Rect::new(15, 7, 87, 21)),
+        (
+            interaction_region::PANEL_INSPECTOR,
+            Rect::new(102, 7, 38, 21),
+        ),
+        (interaction_region::PANEL_EFFECTS, Rect::new(0, 28, 34, 7)),
+        (interaction_region::PANEL_MIXER, Rect::new(34, 28, 39, 7)),
+        (interaction_region::PANEL_VU, Rect::new(73, 28, 28, 7)),
+        (
+            interaction_region::PANEL_DEVICE_CHAIN,
+            Rect::new(101, 28, 39, 7),
+        ),
+    ];
+
+    for (id, area) in expected {
+        assert_eq!(large.region(id).map(|region| region.area), Some(area));
+        assert_eq!(
+            large.hit_test(area.x, area.y).map(|region| region.id),
+            Some(id)
+        );
+    }
 }

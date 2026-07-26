@@ -8,43 +8,26 @@ use ratatui::{
 use salieri_core::{EffectDeviceKind, NoteEvent, PatternCell, Song};
 use salieri_sampler::WaveformBucket;
 
-use super::{theme, SamplerViewState, TuiState};
+use super::{renoise_layout::PatternWorkspaceLayout, theme, SamplerViewState, TuiState};
 
-const LEFT_WIDTH: u16 = 15;
 const RIGHT_WIDTH: u16 = 38;
 const TRACK_CELL_WIDTH: usize = 12;
 const ROW_WIDTH: usize = 5;
 
 pub(super) fn render_pattern_workspace(
     frame: &mut Frame<'_>,
-    area: Rect,
+    layout: PatternWorkspaceLayout,
     song: &Song,
     state: TuiState<'_>,
 ) {
-    let compact_height = area.height < 34;
-    let top_height = if compact_height { 4 } else { 6 };
-    let bottom_height = if compact_height { 7 } else { 10 };
-    let rows = Layout::default()
-        .direction(LayoutDirection::Vertical)
-        .constraints([
-            Constraint::Length(top_height),
-            Constraint::Min(8),
-            Constraint::Length(bottom_height),
-        ])
-        .split(area);
-    render_analyzer_strip(frame, rows[0]);
-    let middle = Layout::default()
-        .direction(LayoutDirection::Horizontal)
-        .constraints([
-            Constraint::Length(LEFT_WIDTH),
-            Constraint::Min(52),
-            Constraint::Length(RIGHT_WIDTH),
-        ])
-        .split(rows[1]);
-    render_util_panel(frame, middle[0], song, state);
-    render_tracker_grid(frame, middle[1], song, state);
-    render_right_sidebar(frame, middle[2], song, state);
-    render_bottom_deck(frame, rows[2], song, state);
+    render_analyzer_strip(frame, layout.analyzer);
+    render_util_panel(frame, layout.util, song, state);
+    render_tracker_grid(frame, layout.pattern, song, state);
+    render_right_sidebar(frame, layout.inspector, song, state);
+    render_effects_panel(frame, layout.effects, song, state);
+    render_mixer_panel(frame, layout.mixer, song, state);
+    render_vu_panel(frame, layout.vu, song, state);
+    render_device_chain_panel(frame, layout.device_chain, song, state);
 }
 
 pub(super) fn render_sampler_workspace(
@@ -441,22 +424,6 @@ fn render_right_sidebar(frame: &mut Frame<'_>, area: Rect, song: &Song, state: T
         Paragraph::new(lines).block(theme::block(" Instrument Properties ")),
         area,
     );
-}
-
-fn render_bottom_deck(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
-    let columns = Layout::default()
-        .direction(LayoutDirection::Horizontal)
-        .constraints([
-            Constraint::Percentage(24),
-            Constraint::Percentage(28),
-            Constraint::Percentage(20),
-            Constraint::Percentage(28),
-        ])
-        .split(area);
-    render_effects_panel(frame, columns[0], song, state);
-    render_mixer_panel(frame, columns[1], song, state);
-    render_vu_panel(frame, columns[2], song, state);
-    render_device_chain_panel(frame, columns[3], song, state);
 }
 
 fn render_effects_panel(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {

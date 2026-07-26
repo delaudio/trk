@@ -90,6 +90,13 @@ pub mod region {
     pub const PANEL_PATTERN: InteractionRegionId = InteractionRegionId::new("panel.pattern");
     pub const PANEL_TRACK_DESK: InteractionRegionId = InteractionRegionId::new("panel.track-desk");
     pub const PANEL_INSPECTOR: InteractionRegionId = InteractionRegionId::new("panel.inspector");
+    pub const PANEL_ANALYZER: InteractionRegionId = InteractionRegionId::new("panel.analyzer");
+    pub const PANEL_UTIL: InteractionRegionId = InteractionRegionId::new("panel.util");
+    pub const PANEL_EFFECTS: InteractionRegionId = InteractionRegionId::new("panel.effects");
+    pub const PANEL_MIXER: InteractionRegionId = InteractionRegionId::new("panel.mixer");
+    pub const PANEL_VU: InteractionRegionId = InteractionRegionId::new("panel.vu");
+    pub const PANEL_DEVICE_CHAIN: InteractionRegionId =
+        InteractionRegionId::new("panel.device-chain");
 
     pub const OVERLAY_HELP: InteractionRegionId = InteractionRegionId::new("overlay.help");
     pub const OVERLAY_MIDI_SETTINGS: InteractionRegionId =
