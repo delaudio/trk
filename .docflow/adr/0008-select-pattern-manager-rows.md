@@ -1,7 +1,7 @@
 ---
 adr: 0008
 title: Select pattern manager rows with the pointer
-status: Accepted
+status: Implemented
 date: 2026-07-26
 owner: default-agent
 supersedes:
@@ -55,7 +55,7 @@ tracker editor.
 ## References
 
 - `0003-render-owned-interaction-regions.md`
-- `../plan/todo/0006-pattern-manager-row-clicks.md`
+- `../plan/done/2026-07-26-pattern-manager-row-clicks.md`
 - GitHub issue #254.
 
 ## Revision History
@@ -63,9 +63,11 @@ tracker editor.
 | Date | Revision | Author | Change |
 |------|----------|--------|--------|
 | 2026-07-26 | r1 | default-agent | Accepted render-owned pattern manager row targets and pointer activation semantics. |
+| 2026-07-26 | r2 | default-agent | Marked the capability Implemented after PR #279 merged with CI green. |
 
 ## Approvals
 
 | Role | Name | Date | Signature |
 |------|------|------|-----------|
 | Maintainer | fdg | 2026-07-26 | Authorised autonomous implementation of the queued UX issues in chat. |
+| Maintainer | fdg | 2026-07-26 | Authorised autonomous merge and closeout of issue #254 in chat. |

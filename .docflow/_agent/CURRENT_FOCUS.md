@@ -8,17 +8,18 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** agent/254-patterns-view-mouse
-- **Active item:** `plan/todo/0006-pattern-manager-row-clicks.md` for GitHub
-  issue #254.
+- **Branch:** agent/254-docflow-closeout
+- **Active item:** close out
+  `plan/done/2026-07-26-pattern-manager-row-clicks.md` for GitHub issue #254.
 - **Blockers:** none.
-- **Uncommitted work:** none expected. The Pattern Manager snapshot remediation
-  passes the full local gate and awaits Codex-provider review and push.
+- **Uncommitted work:** Docflow closeout for implementation squash `08dbdae`,
+  PR #279, green CI #280, and closed issue #254.
 
 ## Last shipped
 
-Issue #253 implementation and Docflow closeout via PRs #277 and #278.
+Issue #254 implementation via PR #279; its Docflow closeout is in progress.
 
 ## Next item
 
-Review and ship `plan/todo/0006-pattern-manager-row-clicks.md`.
+Audit and claim GitHub issue #255, “Add mouse selection and playback to the
+Sequence view.”
