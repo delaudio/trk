@@ -16,3 +16,4 @@ metadata.
 | 0009 | Select and play sequence editor rows with the pointer | Implemented | 2026-07-26 | default-agent | tui, ux, input, sequence, playback |
 | 0010 | Select and activate command palette entries with the pointer | Implemented | 2026-07-26 | default-agent | tui, ux, input, command-palette, overlay |
 | 0011 | Control the Help overlay with the pointer | Implemented | 2026-07-26 | default-agent | tui, ux, input, help, overlay |
+| 0012 | Control MIDI Settings with the pointer | Accepted | 2026-07-26 | default-agent | tui, ux, input, midi, overlay |
