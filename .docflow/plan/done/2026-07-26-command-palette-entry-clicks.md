@@ -30,3 +30,9 @@ gestures are unchanged.
 - `../../adr/0003-render-owned-interaction-regions.md`
 - `../done/2026-07-26-render-owned-interaction-regions.md`
 - GitHub issue #249 (closed by PR #269).
+
+---
+
+Shipped at HEAD `41860c6` via
+[PR #283](https://github.com/delaudio/salieri-tracker/pull/283), with GitHub
+Actions CI run #290 green and issue #256 closed.

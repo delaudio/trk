@@ -1,7 +1,7 @@
 ---
 adr: 0010
 title: Select and activate command palette entries with the pointer
-status: Accepted
+status: Implemented
 date: 2026-07-26
 owner: default-agent
 supersedes:
@@ -63,7 +63,7 @@ wheel events move selection only while the pointer is over the result list.
 ## References
 
 - `0003-render-owned-interaction-regions.md`
-- `../plan/todo/0008-command-palette-entry-clicks.md`
+- `../plan/done/2026-07-26-command-palette-entry-clicks.md`
 - GitHub issue #256.
 
 ## Revision History
@@ -71,9 +71,11 @@ wheel events move selection only while the pointer is over the result list.
 | Date | Revision | Author | Change |
 |------|----------|--------|--------|
 | 2026-07-26 | r1 | default-agent | Accepted render-owned palette result geometry, absolute entry targets, scoped wheel navigation, and primary-click execution semantics. |
+| 2026-07-26 | r2 | default-agent | Marked Implemented after PR #283 merged with GitHub Actions CI green. |
 
 ## Approvals
 
 | Role | Name | Date | Signature |
 |------|------|------|-----------|
 | Maintainer | fdg | 2026-07-26 | Authorised autonomous implementation of the queued UX issues in chat. |
+| Maintainer | fdg | 2026-07-26 | Authorised autonomous merge and closeout of GitHub issue #256 in chat. |
