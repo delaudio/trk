@@ -242,6 +242,96 @@ fn composite_song_slot_rows_ignore_drag_and_secondary_clicks() {
 }
 
 #[test]
+fn pattern_manager_mouse_selects_and_secondary_click_opens_tracker() {
+    let mut app = App::default();
+    app.song.create_pattern(64);
+    app.song.create_pattern(64);
+    app.open_patterns_view();
+    app.interaction_map.register_with_payload(
+        interaction_region::PATTERN_MANAGER_ROW,
+        ratatui::layout::Rect::new(2, 8, 40, 1),
+        InteractionPayload::PatternManagerRow { index: 2 },
+    );
+
+    app.handle_mouse(
+        MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: 3,
+            row: 8,
+            modifiers: KeyModifiers::NONE,
+        },
+        large_mouse_viewport(),
+    );
+
+    assert_eq!(app.pattern_index, 2);
+    assert_eq!(app.mode, AppMode::Patterns);
+    assert_eq!(app.tui_active_view(), TuiView::Patterns);
+
+    app.interaction_map = InteractionMap::new();
+    app.interaction_map.register_with_payload(
+        interaction_region::PATTERN_MANAGER_ROW,
+        ratatui::layout::Rect::new(2, 9, 40, 1),
+        InteractionPayload::PatternManagerRow { index: 1 },
+    );
+    app.handle_mouse(
+        MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Right),
+            column: 3,
+            row: 9,
+            modifiers: KeyModifiers::NONE,
+        },
+        large_mouse_viewport(),
+    );
+
+    assert_eq!(app.pattern_index, 1);
+    assert_eq!(app.mode, AppMode::Normal);
+    assert_eq!(app.tui_active_view(), TuiView::Pattern);
+}
+
+#[test]
+fn pattern_manager_mouse_ignores_drag_and_invalid_payloads() {
+    let mut app = App::default();
+    app.song.create_pattern(64);
+    app.open_patterns_view();
+    app.interaction_map.register_with_payload(
+        interaction_region::PATTERN_MANAGER_ROW,
+        ratatui::layout::Rect::new(2, 8, 40, 1),
+        InteractionPayload::PatternManagerRow { index: 1 },
+    );
+
+    app.handle_mouse(
+        MouseEvent {
+            kind: MouseEventKind::Drag(MouseButton::Left),
+            column: 3,
+            row: 8,
+            modifiers: KeyModifiers::NONE,
+        },
+        large_mouse_viewport(),
+    );
+    assert_eq!(app.pattern_index, 0);
+    assert_eq!(app.mode, AppMode::Patterns);
+
+    app.interaction_map = InteractionMap::new();
+    app.interaction_map.register_with_payload(
+        interaction_region::PATTERN_MANAGER_ROW,
+        ratatui::layout::Rect::new(2, 9, 40, 1),
+        InteractionPayload::PatternManagerRow { index: usize::MAX },
+    );
+    app.handle_mouse(
+        MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Right),
+            column: 3,
+            row: 9,
+            modifiers: KeyModifiers::NONE,
+        },
+        large_mouse_viewport(),
+    );
+
+    assert_eq!(app.pattern_index, 0);
+    assert_eq!(app.mode, AppMode::Patterns);
+}
+
+#[test]
 fn mouse_click_ignores_pattern_headers_gutters_and_panels() {
     let mut app = App::default();
     app.cursor.row = 3;

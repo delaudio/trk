@@ -395,10 +395,11 @@ fn pattern_manager_scrolls_to_active_pattern() {
     let song = long_sequence_song(40);
     let backend = TestBackend::new(48, 10);
     let mut terminal = Terminal::new(backend).expect("test terminal");
+    let mut interactions = InteractionMap::new();
 
     terminal
         .draw(|frame| {
-            render_pattern_manager(frame, Rect::new(0, 0, 48, 10), &song, 30);
+            render_pattern_manager(frame, Rect::new(0, 0, 48, 10), &song, 30, &mut interactions);
         })
         .expect("draw");
 

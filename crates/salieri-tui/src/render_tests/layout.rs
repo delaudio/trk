@@ -238,6 +238,68 @@ fn composite_sequence_borders_and_empty_rows_are_not_slot_targets() {
 }
 
 #[test]
+fn pattern_manager_rows_expose_scrolled_absolute_indices() {
+    let song = long_sequence_song(40);
+    let mut state = render_test_state();
+    state.active_view = TuiView::Patterns;
+    state.pattern_index = 30;
+
+    let map = interaction_map_with_song_and_state(100, 28, &song, state);
+    let regions = map
+        .regions()
+        .iter()
+        .filter(|region| region.id == interaction_region::PATTERN_MANAGER_ROW)
+        .collect::<Vec<_>>();
+    let first = regions.first().expect("first visible pattern");
+
+    assert!(matches!(
+        first.payload,
+        crate::InteractionPayload::PatternManagerRow { index } if index > 0
+    ));
+    assert!(regions.iter().any(|region| {
+        region.payload == crate::InteractionPayload::PatternManagerRow { index: 30 }
+    }));
+    assert!(regions.windows(2).all(|pair| {
+        pair[1].area.y == pair[0].area.y.saturating_add(1)
+            && matches!(
+                (pair[0].payload, pair[1].payload),
+                (
+                    crate::InteractionPayload::PatternManagerRow { index: previous },
+                    crate::InteractionPayload::PatternManagerRow { index: next },
+                ) if next == previous + 1
+            )
+    }));
+}
+
+#[test]
+fn pattern_manager_headers_borders_and_empty_rows_are_not_pattern_targets() {
+    let mut state = render_test_state();
+    state.active_view = TuiView::Patterns;
+    let map = interaction_map_with_state(100, 28, state);
+    let row = map
+        .regions()
+        .iter()
+        .find(|region| region.id == interaction_region::PATTERN_MANAGER_ROW)
+        .expect("pattern row");
+
+    assert_ne!(
+        map.hit_test(row.area.x.saturating_sub(1), row.area.y)
+            .map(|region| region.id),
+        Some(interaction_region::PATTERN_MANAGER_ROW)
+    );
+    assert_ne!(
+        map.hit_test(row.area.x, row.area.y.saturating_sub(1))
+            .map(|region| region.id),
+        Some(interaction_region::PATTERN_MANAGER_ROW)
+    );
+    assert_ne!(
+        map.hit_test(row.area.x, row.area.y.saturating_add(1))
+            .map(|region| region.id),
+        Some(interaction_region::PATTERN_MANAGER_ROW)
+    );
+}
+
+#[test]
 fn sample_browser_entry_regions_preserve_nonzero_viewport_offsets() {
     let entries = vec![
         SampleBrowserEntryView {

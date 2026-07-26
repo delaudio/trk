@@ -648,7 +648,7 @@ fn render_body(
         return;
     }
     if state.active_view == TuiView::Patterns {
-        render_pattern_manager(frame, area, song, state.pattern_index);
+        render_pattern_manager(frame, area, song, state.pattern_index, interactions);
         return;
     }
     if state.active_view == TuiView::Sampler {
@@ -1347,7 +1347,13 @@ fn mixer_channel_style(active: bool, muted: bool, filled: bool) -> Style {
     }
 }
 
-fn render_pattern_manager(frame: &mut Frame<'_>, area: Rect, song: &Song, active_pattern: usize) {
+fn render_pattern_manager(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    song: &Song,
+    active_pattern: usize,
+    interactions: &mut InteractionMap,
+) {
     let mut lines = vec![Line::from(vec![
         Span::styled("PAT  ", Style::default().fg(Color::DarkGray)),
         Span::styled(
@@ -1364,6 +1370,19 @@ fn render_pattern_manager(frame: &mut Frame<'_>, area: Rect, song: &Song, active
         .saturating_sub(footer_lines);
     let start = centered_scroll_offset(song.patterns.len(), active_pattern, visible_items);
     let end = start.saturating_add(visible_items).min(song.patterns.len());
+    let inner = bordered_content_area(area);
+    for (visible_row, index) in (start..end).enumerate() {
+        interactions.register_with_payload(
+            interaction_region::PATTERN_MANAGER_ROW,
+            Rect::new(
+                inner.x,
+                inner.y.saturating_add(1).saturating_add(visible_row as u16),
+                inner.width,
+                1,
+            ),
+            crate::InteractionPayload::PatternManagerRow { index },
+        );
+    }
 
     for (index, pattern) in song
         .patterns

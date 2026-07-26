@@ -130,6 +130,9 @@ impl App {
                 }
             }
             AppMode::Tracks => self.handle_track_list_mouse_click(row),
+            AppMode::Patterns if primary_click || activate => {
+                self.handle_pattern_manager_mouse_click(column, row, activate);
+            }
             AppMode::SampleBrowser => {
                 self.handle_sample_browser_mouse_click(column, row, activate);
             }
@@ -285,6 +288,23 @@ impl App {
             self.notify_info(format!("Sequence position {position:02}"));
         }
         true
+    }
+
+    fn handle_pattern_manager_mouse_click(&mut self, column: u16, row: u16, activate: bool) {
+        let target = self
+            .interaction_map
+            .hit_test(column, row)
+            .filter(|region| region.id == interaction_region::PATTERN_MANAGER_ROW)
+            .map(|region| region.payload);
+        let Some(InteractionPayload::PatternManagerRow { index }) = target else {
+            return;
+        };
+        if index < self.song.patterns.len() {
+            self.select_pattern(index);
+            if activate {
+                self.open_tracker_view();
+            }
+        }
     }
 
     fn handle_track_list_mouse_click(&mut self, row: u16) {
