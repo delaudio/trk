@@ -1,7 +1,7 @@
 ---
 adr: 0012
 title: Control MIDI Settings with the pointer
-status: Accepted
+status: Implemented
 date: 2026-07-26
 owner: default-agent
 supersedes:
@@ -61,7 +61,7 @@ same action paths as the existing keys; all other modal pointer input is inert.
 ## References
 
 - `0003-render-owned-interaction-regions.md`
-- `../plan/todo/0010-midi-settings-pointer-controls.md`
+- `../plan/done/2026-07-26-midi-settings-pointer-controls.md`
 - GitHub issue #258.
 
 ## Revision History
@@ -69,6 +69,7 @@ same action paths as the existing keys; all other modal pointer input is inert.
 | Date | Revision | Author | Change |
 |------|----------|--------|--------|
 | 2026-07-26 | r1 | default-agent | Accepted render-owned virtualized port rows and typed fixed MIDI action targets with modal pointer capture. |
+| 2026-07-26 | r2 | default-agent | Marked Implemented after PR #287 merged with GitHub Actions CI green. |
 
 ## Approvals
 

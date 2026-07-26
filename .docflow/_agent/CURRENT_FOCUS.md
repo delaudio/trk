@@ -8,19 +8,18 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** agent/258-midi-settings-mouse
-- **Active item:** `plan/todo/0010-midi-settings-pointer-controls.md` for GitHub
+- **Branch:** agent/258-docflow-closeout
+- **Active item:** `plan/done/2026-07-26-midi-settings-pointer-controls.md` for GitHub
   issue #258.
 - **Blockers:** none.
-- **Uncommitted work:** virtualized MIDI port targets, typed fixed action
-  targets, modal primary-click routing, empty/outside no-ops, focused tests, and
-  the intentional snapshot pass the full local gate and await commit,
-  Codex-provider review, and push to draft PR #287.
+- **Uncommitted work:** none expected. The committed closeout for implementation
+  squash `d706255`, PR #287, green CI #300, and closed issue #258 awaits
+  Codex-provider review and integration.
 
 ## Last shipped
 
-Issue #257 implementation and Docflow closeout via PRs #285 and #286.
+Issue #258 implementation via PR #287; its Docflow closeout is in progress.
 
 ## Next item
 
-Implement and ship `plan/todo/0010-midi-settings-pointer-controls.md`.
+Audit and claim issue #259.
