@@ -11,12 +11,11 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Branch:** agent/249-docflow-closeout
 - **Active item:** closeout for merged GitHub issue #249.
 - **Blockers:** none.
-- **Uncommitted work:** move plan item 0001 to done and advance ADR 0003 to
-  Implemented.
+- **Uncommitted work:** none; closeout commit `f9d6d0c` is pending integration.
 
 ## Last shipped
 
-Issue #249 via PR #269, merge commit `952f834`.
+Issue #249 via PR #269, squash commit `952f834`.
 
 ## Next item
 
