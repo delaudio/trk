@@ -3,7 +3,7 @@
 └──────────────────────────────────────────────────────────────────────┘
 ┌ Pattern Manager ─────────────────────────────────────────────────────┐
 │PAT  NAME                       ROWS                                  │
-│01  Pattern 01                 64                                     │
+│ 01  Pattern 01                 64                                    │
 │>02  Pattern 02                128                                    │
 │                                                                      │
 │N new   P duplicate   r rename   X/Delete remove   F6 custom length   │

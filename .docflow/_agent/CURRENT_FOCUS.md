@@ -12,8 +12,8 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Active item:** `plan/todo/0006-pattern-manager-row-clicks.md` for GitHub
   issue #254.
 - **Blockers:** none.
-- **Uncommitted work:** none. CI file-size remediation commit `83512ce` is
-  locally green and awaits push after Codex-provider review.
+- **Uncommitted work:** none expected. The Pattern Manager snapshot remediation
+  passes the full local gate and awaits Codex-provider review and push.
 
 ## Last shipped
 
