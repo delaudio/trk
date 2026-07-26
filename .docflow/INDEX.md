@@ -10,3 +10,4 @@ metadata.
 | 0003 | Expose render-owned interaction regions | Implemented | 2026-07-26 | default-agent | tui, ux, input, architecture |
 | 0004 | Select rendered pattern cells with the pointer | Implemented | 2026-07-26 | default-agent | tui, ux, input, tracker |
 | 0005 | Select visible browser entries with the pointer | Implemented | 2026-07-26 | default-agent | tui, ux, input, browser |
+| 0006 | Select composite track rows with the pointer | Accepted | 2026-07-26 | default-agent | tui, ux, input, tracks |
