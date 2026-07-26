@@ -53,6 +53,9 @@ pub enum InteractionPayload {
     CommandPaletteEntry {
         index: usize,
     },
+    HelpTab {
+        index: usize,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -192,6 +195,9 @@ pub mod region {
         InteractionRegionId::new("command-palette.results");
     pub const COMMAND_PALETTE_ENTRY: InteractionRegionId =
         InteractionRegionId::new("command-palette.entry");
+    pub const HELP_TAB: InteractionRegionId = InteractionRegionId::new("help.tab");
+    pub const HELP_CONTENT: InteractionRegionId = InteractionRegionId::new("help.content");
+    pub const HELP_CLOSE: InteractionRegionId = InteractionRegionId::new("help.close");
 
     pub const OVERLAY_HELP: InteractionRegionId = InteractionRegionId::new("overlay.help");
     pub const OVERLAY_MIDI_SETTINGS: InteractionRegionId =

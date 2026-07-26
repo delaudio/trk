@@ -226,13 +226,25 @@ pub enum HelpTab {
 }
 
 impl HelpTab {
-    const ALL: [Self; 5] = [
+    pub const ALL: [Self; 5] = [
         Self::Basics,
         Self::Editing,
         Self::Sampler,
         Self::Midi,
         Self::Commands,
     ];
+
+    #[must_use]
+    pub const fn from_index(index: usize) -> Option<Self> {
+        match index {
+            0 => Some(Self::Basics),
+            1 => Some(Self::Editing),
+            2 => Some(Self::Sampler),
+            3 => Some(Self::Midi),
+            4 => Some(Self::Commands),
+            _ => None,
+        }
+    }
 
     #[must_use]
     pub const fn label(self) -> &'static str {
@@ -456,15 +468,15 @@ pub fn render_with_interactions(
     render_status(frame, vertical[2], state);
 
     if state.show_help {
-        let overlay = render_help_overlay(
+        render_help_overlay(
             frame,
             area,
             state.mode_label,
             state.edit_step,
             state.help_scroll,
             state.help_tab,
+            &mut interactions,
         );
-        interactions.register(interaction_region::OVERLAY_HELP, overlay);
     }
     if let Some(midi_settings) = state.midi_settings {
         let overlay = render_midi_settings_overlay(frame, area, midi_settings);
@@ -3241,6 +3253,9 @@ mod render_command_palette_tests;
 #[cfg(test)]
 #[path = "render_tests/display.rs"]
 mod render_display_tests;
+#[cfg(test)]
+#[path = "render_tests/help_overlay.rs"]
+mod render_help_overlay_tests;
 #[cfg(test)]
 #[path = "render_tests/layout.rs"]
 mod render_layout_tests;

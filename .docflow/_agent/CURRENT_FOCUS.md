@@ -12,8 +12,10 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Active item:** `plan/todo/0009-help-overlay-pointer-controls.md` for GitHub
   issue #257.
 - **Blockers:** none.
-- **Uncommitted work:** accepted ADR 0011 and its plan claim await
-  Codex-provider review before implementation.
+- **Uncommitted work:** render-owned Help tabs, content and close targets,
+  primary-click routing, scoped wheel input, modal outside-click capture, and
+  focused renderer/application tests pass the full local gate and await commit,
+  Codex-provider review, and push to draft PR #285.
 
 ## Last shipped
 

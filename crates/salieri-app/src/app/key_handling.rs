@@ -38,9 +38,6 @@ impl App {
         };
 
         match self.mode {
-            AppMode::Help => {
-                self.help_scroll = self.help_scroll.saturating_add_signed(delta);
-            }
             AppMode::SampleBrowser => self.move_sample_browser_cursor(delta),
             AppMode::ProjectBrowser => self.move_project_browser_cursor(delta),
             AppMode::Sampler => self.pan_sample_waveform(delta.signum()),
@@ -61,6 +58,8 @@ impl App {
             MouseEventKind::ScrollUp | MouseEventKind::ScrollDown => {
                 if self.mode == AppMode::CommandPalette {
                     self.handle_command_palette_mouse_wheel(mouse.column, mouse.row, mouse.kind);
+                } else if self.mode == AppMode::Help {
+                    self.handle_help_mouse_wheel(mouse.column, mouse.row, mouse.kind);
                 } else {
                     self.handle_mouse_wheel(mouse.kind);
                 }
@@ -113,6 +112,12 @@ impl App {
         if self.mode == AppMode::CommandPalette {
             if primary_click {
                 self.handle_command_palette_mouse_click(column, row);
+            }
+            return;
+        }
+        if self.mode == AppMode::Help {
+            if primary_click {
+                self.handle_help_mouse_click(column, row);
             }
             return;
         }
@@ -844,6 +849,38 @@ impl App {
             }
             _ => {}
         }
+    }
+
+    fn handle_help_mouse_click(&mut self, column: u16, row: u16) {
+        let Some(region) = self.interaction_map.hit_test(column, row).copied() else {
+            return;
+        };
+        match (region.id, region.payload) {
+            (interaction_region::HELP_TAB, InteractionPayload::HelpTab { index }) => {
+                if let Some(tab) = HelpTab::from_index(index) {
+                    self.help_tab = tab;
+                    self.help_scroll = 0;
+                }
+            }
+            (interaction_region::HELP_CLOSE, _) => self.close_focus_capture(),
+            _ => {}
+        }
+    }
+
+    fn handle_help_mouse_wheel(&mut self, column: u16, row: u16, kind: MouseEventKind) {
+        if self
+            .interaction_map
+            .hit_test(column, row)
+            .is_none_or(|region| region.id != interaction_region::HELP_CONTENT)
+        {
+            return;
+        }
+        let delta = match kind {
+            MouseEventKind::ScrollUp => -3,
+            MouseEventKind::ScrollDown => 3,
+            _ => return,
+        };
+        self.help_scroll = self.help_scroll.saturating_add_signed(delta);
     }
 }
 
