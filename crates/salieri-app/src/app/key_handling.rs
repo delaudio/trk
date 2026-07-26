@@ -45,7 +45,6 @@ impl App {
             AppMode::ProjectBrowser => self.move_project_browser_cursor(delta),
             AppMode::Sampler => self.pan_sample_waveform(delta.signum()),
             AppMode::DspRack => self.move_dsp_rack_cursor(delta),
-            AppMode::CommandPalette => self.move_command_palette_selection(delta),
             AppMode::Normal | AppMode::Edit => {
                 self.cursor.row = self
                     .cursor
@@ -60,7 +59,11 @@ impl App {
     pub(crate) fn handle_mouse(&mut self, mouse: MouseEvent, viewport: MouseViewport) {
         match mouse.kind {
             MouseEventKind::ScrollUp | MouseEventKind::ScrollDown => {
-                self.handle_mouse_wheel(mouse.kind)
+                if self.mode == AppMode::CommandPalette {
+                    self.handle_command_palette_mouse_wheel(mouse.column, mouse.row, mouse.kind);
+                } else {
+                    self.handle_mouse_wheel(mouse.kind);
+                }
             }
             MouseEventKind::ScrollLeft => self.handle_mouse_horizontal_scroll(-1),
             MouseEventKind::ScrollRight => self.handle_mouse_horizontal_scroll(1),
@@ -106,6 +109,12 @@ impl App {
                 row,
                 "mouse interaction region"
             );
+        }
+        if self.mode == AppMode::CommandPalette {
+            if primary_click {
+                self.handle_command_palette_mouse_click(column, row);
+            }
+            return;
         }
         if row < 3 {
             if column < 12 {

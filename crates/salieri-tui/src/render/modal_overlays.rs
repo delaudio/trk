@@ -5,7 +5,8 @@ use ratatui::{
 };
 use salieri_core::MidiRoutingSettings;
 
-use super::{CommandPaletteViewState, MidiSettingsState};
+use super::{interaction_region, CommandPaletteViewState, InteractionMap, MidiSettingsState};
+use crate::InteractionPayload;
 
 pub(super) fn render_midi_settings_overlay(
     frame: &mut Frame<'_>,
@@ -118,13 +119,40 @@ pub(super) fn render_command_palette_overlay(
     frame: &mut Frame<'_>,
     area: Rect,
     palette: CommandPaletteViewState<'_>,
+    interactions: &mut InteractionMap,
 ) -> Rect {
     let overlay = centered_rect(86, 20, area);
+    interactions.register(interaction_region::OVERLAY_COMMAND_PALETTE, overlay);
     let visible_rows = overlay.height.saturating_sub(6) as usize;
     let selected = palette
         .selected
         .min(palette.entries.len().saturating_sub(1));
     let start = selected.saturating_sub(visible_rows.saturating_sub(1));
+    let visible_count = palette
+        .entries
+        .len()
+        .saturating_sub(start)
+        .min(visible_rows);
+    let result_area = Rect::new(
+        overlay.x.saturating_add(1),
+        overlay.y.saturating_add(3),
+        overlay.width.saturating_sub(2),
+        visible_count as u16,
+    );
+    interactions.register(interaction_region::COMMAND_PALETTE_RESULTS, result_area);
+    for visible_row in 0..visible_count {
+        let index = start + visible_row;
+        interactions.register_with_payload(
+            interaction_region::COMMAND_PALETTE_ENTRY,
+            Rect::new(
+                result_area.x,
+                result_area.y.saturating_add(visible_row as u16),
+                result_area.width,
+                1,
+            ),
+            InteractionPayload::CommandPaletteEntry { index },
+        );
+    }
     let mut lines = vec![
         Line::from(vec![
             Span::styled(" Search: ", Style::default().fg(Color::Cyan)),
@@ -190,8 +218,7 @@ pub(super) fn render_command_palette_overlay(
                 .title(" Command Palette ")
                 .borders(Borders::ALL),
         )
-        .style(Style::default().fg(Color::White))
-        .wrap(Wrap { trim: true });
+        .style(Style::default().fg(Color::White));
     frame.render_widget(Clear, overlay);
     frame.render_widget(paragraph, overlay);
     overlay
