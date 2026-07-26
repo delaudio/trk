@@ -97,7 +97,7 @@ impl App {
         row: u16,
         viewport: MouseViewport,
         activate: bool,
-        select_composite_track: bool,
+        primary_click: bool,
     ) {
         if let Some(region) = self.interaction_map.hit_test(column, row) {
             tracing::trace!(
@@ -122,8 +122,10 @@ impl App {
 
         match self.mode {
             AppMode::Normal | AppMode::Edit => {
-                if !(select_composite_track && self.handle_composite_track_mouse_click(column, row))
-                {
+                let handled_composite = primary_click
+                    && (self.handle_composite_track_mouse_click(column, row)
+                        || self.handle_composite_sequence_mouse_click(column, row));
+                if !handled_composite {
                     self.handle_tracker_mouse_click(column, row);
                 }
             }
@@ -265,6 +267,22 @@ impl App {
         };
         if track < self.song.tracks.len() {
             self.cursor.track = track;
+        }
+        true
+    }
+
+    fn handle_composite_sequence_mouse_click(&mut self, column: u16, row: u16) -> bool {
+        let target = self
+            .interaction_map
+            .hit_test(column, row)
+            .filter(|region| region.id == interaction_region::COMPOSITE_SEQUENCE_ROW)
+            .map(|region| region.payload);
+        let Some(InteractionPayload::CompositeSequenceRow { position }) = target else {
+            return false;
+        };
+        if position < self.song.sequence.len() {
+            self.sequence_cursor = position;
+            self.notify_info(format!("Sequence position {position:02}"));
         }
         true
     }

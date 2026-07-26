@@ -1,4 +1,4 @@
-use super::render_test_support::{long_track_song, render_test_state};
+use super::render_test_support::{long_sequence_song, long_track_song, render_test_state};
 use super::*;
 use crate::{interaction_region, InteractionMap};
 use ratatui::{backend::TestBackend, Terminal};
@@ -168,6 +168,72 @@ fn composite_track_borders_and_empty_rows_are_not_track_targets() {
         map.hit_test(last.area.x, last.area.y.saturating_add(1))
             .map(|region| region.id),
         Some(interaction_region::COMPOSITE_TRACK_ROW)
+    );
+}
+
+#[test]
+fn composite_sequence_rows_expose_scrolled_absolute_positions() {
+    let song = long_sequence_song(40);
+    let mut state = render_test_state();
+    state.sequence_position = Some(30);
+
+    let map = interaction_map_with_song_and_state(100, 28, &song, state);
+    let regions = map
+        .regions()
+        .iter()
+        .filter(|region| region.id == interaction_region::COMPOSITE_SEQUENCE_ROW)
+        .collect::<Vec<_>>();
+    let first = regions.first().expect("first visible song slot");
+
+    assert!(matches!(
+        first.payload,
+        crate::InteractionPayload::CompositeSequenceRow { position } if position > 0
+    ));
+    assert!(regions.iter().any(|region| {
+        region.payload == crate::InteractionPayload::CompositeSequenceRow { position: 30 }
+    }));
+    assert!(regions.windows(2).all(|pair| {
+        pair[1].area.y == pair[0].area.y.saturating_add(1)
+            && matches!(
+                (pair[0].payload, pair[1].payload),
+                (
+                    crate::InteractionPayload::CompositeSequenceRow { position: previous },
+                    crate::InteractionPayload::CompositeSequenceRow { position: next },
+                ) if next == previous + 1
+            )
+    }));
+    assert_eq!(
+        map.hit_test(first.area.x, first.area.y)
+            .map(|region| region.payload),
+        Some(first.payload)
+    );
+}
+
+#[test]
+fn composite_sequence_borders_and_empty_rows_are_not_slot_targets() {
+    let song = long_sequence_song(2);
+    let map = interaction_map_with_song_and_state(100, 28, &song, render_test_state());
+    let panel = map
+        .regions()
+        .iter()
+        .find(|region| region.id == interaction_region::PANEL_SEQUENCE)
+        .expect("song slots panel");
+    let rows = map
+        .regions()
+        .iter()
+        .filter(|region| region.id == interaction_region::COMPOSITE_SEQUENCE_ROW)
+        .collect::<Vec<_>>();
+    let last = rows.last().expect("last song slot row");
+
+    assert_ne!(
+        map.hit_test(panel.area.x, last.area.y)
+            .map(|region| region.id),
+        Some(interaction_region::COMPOSITE_SEQUENCE_ROW)
+    );
+    assert_ne!(
+        map.hit_test(last.area.x, last.area.y.saturating_add(1))
+            .map(|region| region.id),
+        Some(interaction_region::COMPOSITE_SEQUENCE_ROW)
     );
 }
 
