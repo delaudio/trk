@@ -16,16 +16,60 @@ fn interaction_map(width: u16, height: u16) -> InteractionMap {
 }
 
 fn interaction_map_with_state(width: u16, height: u16, state: TuiState<'_>) -> InteractionMap {
+    let song = Song::empty();
+    interaction_map_with_song_and_state(width, height, &song, state)
+}
+
+fn interaction_map_with_song_and_state(
+    width: u16,
+    height: u16,
+    song: &Song,
+    state: TuiState<'_>,
+) -> InteractionMap {
     let backend = TestBackend::new(width, height);
     let mut terminal = Terminal::new(backend).expect("terminal");
-    let song = Song::empty();
     let mut map = InteractionMap::new();
     terminal
         .draw(|frame| {
-            map = render_with_interactions(frame, &song, state);
+            map = render_with_interactions(frame, song, state);
         })
         .expect("draw");
     map
+}
+
+#[test]
+fn exposes_offset_pattern_cells_at_representative_sizes() {
+    let mut song = Song::empty();
+    while song.tracks.len() < 8 {
+        song.create_track();
+    }
+    let mut state = render_test_state();
+    state.cursor.row = 5;
+    state.cursor.track = 1;
+    state.row_offset = 5;
+    state.track_offset = 1;
+
+    for (width, height, first_cell) in [
+        (72, 24, (6_u16, 5_u16)),
+        (100, 28, (34_u16, 5_u16)),
+        (140, 36, (21_u16, 10_u16)),
+    ] {
+        let map = interaction_map_with_song_and_state(width, height, &song, state);
+        let region = map
+            .hit_test(first_cell.0, first_cell.1)
+            .expect("first visible pattern cell");
+
+        assert_eq!(region.id, interaction_region::PATTERN_CELL);
+        assert_eq!(
+            region.payload,
+            crate::InteractionPayload::PatternCell { row: 5, track: 1 }
+        );
+        assert_ne!(
+            map.hit_test(first_cell.0, first_cell.1.saturating_sub(1))
+                .map(|region| region.id),
+            Some(interaction_region::PATTERN_CELL)
+        );
+    }
 }
 
 #[test]

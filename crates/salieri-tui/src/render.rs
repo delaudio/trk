@@ -685,7 +685,7 @@ fn render_body(
         interactions.register(interaction_region::PANEL_MIXER, layout.mixer);
         interactions.register(interaction_region::PANEL_VU, layout.vu);
         interactions.register(interaction_region::PANEL_DEVICE_CHAIN, layout.device_chain);
-        renoise_workspace::render_pattern_workspace(frame, layout, song, state);
+        renoise_workspace::render_pattern_workspace(frame, layout, song, state, interactions);
         return;
     }
 
@@ -709,7 +709,7 @@ fn render_body(
         render_sequence(frame, area, song, state.sequence_position);
     }
     interactions.register(interaction_region::PANEL_PATTERN, resolved.pattern);
-    render_pattern(frame, resolved.pattern, song, state);
+    render_pattern_with_interactions(frame, resolved.pattern, song, state, interactions);
     if let Some(area) = resolved.track_desk {
         interactions.register(interaction_region::PANEL_TRACK_DESK, area);
         render_track_properties(frame, area, song, state);
@@ -2292,7 +2292,18 @@ fn format_cell_summary_lines(cell: &PatternCell) -> [String; 2] {
     ]
 }
 
+#[cfg(test)]
 fn render_pattern(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
+    render_pattern_with_interactions(frame, area, song, state, &mut InteractionMap::new());
+}
+
+fn render_pattern_with_interactions(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    song: &Song,
+    state: TuiState<'_>,
+    interactions: &mut InteractionMap,
+) {
     let Some(pattern) = active_pattern(song, state.pattern_index) else {
         let empty = Paragraph::new("No pattern")
             .block(Block::default().title(" Pattern ").borders(Borders::ALL));
@@ -2301,6 +2312,14 @@ fn render_pattern(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiStat
     };
 
     let viewport = pattern_viewport(area, pattern.row_count(), song.tracks.len(), state);
+    interactions.register_pattern_cells(
+        bordered_content_area(area),
+        1,
+        ROW_GUTTER_WIDTH as u16,
+        pattern_cell_width(state.tracker_layout.pattern_fields) as u16,
+        viewport.visible_rows.clone(),
+        viewport.visible_tracks.clone(),
+    );
     let mut lines = Vec::with_capacity(viewport.row_capacity.saturating_add(1));
     lines.push(pattern_header(
         song,
@@ -2339,6 +2358,15 @@ fn render_pattern(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiStat
     let block = Block::default().title(title).borders(Borders::ALL);
     let paragraph = Paragraph::new(lines).block(block);
     frame.render_widget(paragraph, area);
+}
+
+fn bordered_content_area(area: Rect) -> Rect {
+    Rect::new(
+        area.x.saturating_add(1),
+        area.y.saturating_add(1),
+        area.width.saturating_sub(2),
+        area.height.saturating_sub(2),
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

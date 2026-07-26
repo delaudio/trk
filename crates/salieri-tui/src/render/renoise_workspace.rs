@@ -8,7 +8,9 @@ use ratatui::{
 use salieri_core::{EffectDeviceKind, NoteEvent, PatternCell, Song};
 use salieri_sampler::WaveformBucket;
 
-use super::{renoise_layout::PatternWorkspaceLayout, theme, SamplerViewState, TuiState};
+use super::{
+    renoise_layout::PatternWorkspaceLayout, theme, InteractionMap, SamplerViewState, TuiState,
+};
 
 const RIGHT_WIDTH: u16 = 38;
 const TRACK_CELL_WIDTH: usize = 12;
@@ -19,10 +21,11 @@ pub(super) fn render_pattern_workspace(
     layout: PatternWorkspaceLayout,
     song: &Song,
     state: TuiState<'_>,
+    interactions: &mut InteractionMap,
 ) {
     render_analyzer_strip(frame, layout.analyzer);
     render_util_panel(frame, layout.util, song, state);
-    render_tracker_grid(frame, layout.pattern, song, state);
+    render_tracker_grid(frame, layout.pattern, song, state, interactions);
     render_right_sidebar(frame, layout.inspector, song, state);
     render_effects_panel(frame, layout.effects, song, state);
     render_mixer_panel(frame, layout.mixer, song, state);
@@ -296,7 +299,13 @@ fn render_util_panel(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiS
     frame.render_widget(Paragraph::new(lines).block(theme::block(" UTIL ")), area);
 }
 
-fn render_tracker_grid(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
+fn render_tracker_grid(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    song: &Song,
+    state: TuiState<'_>,
+    interactions: &mut InteractionMap,
+) {
     let Some(pattern) = song.pattern(state.pattern_index) else {
         frame.render_widget(
             Paragraph::new("No pattern").block(theme::block(" Pattern ")),
@@ -320,6 +329,14 @@ fn render_tracker_grid(frame: &mut Frame<'_>, area: Rect, song: &Song, state: Tu
         state.cursor.track,
     );
     let visible_rows = visible_range(row_count, row_capacity, state.row_offset, state.cursor.row);
+    interactions.register_pattern_cells(
+        bordered_content_area(area),
+        2,
+        ROW_WIDTH as u16,
+        TRACK_CELL_WIDTH as u16,
+        visible_rows.clone(),
+        visible_tracks.clone(),
+    );
 
     let mut lines = Vec::with_capacity(row_capacity + 2);
     lines.push(track_header(
@@ -354,6 +371,15 @@ fn render_tracker_grid(frame: &mut Frame<'_>, area: Rect, song: &Song, state: Tu
         pattern.name, row_count, track_count
     );
     frame.render_widget(Paragraph::new(lines).block(theme::block(title)), area);
+}
+
+fn bordered_content_area(area: Rect) -> Rect {
+    Rect::new(
+        area.x.saturating_add(1),
+        area.y.saturating_add(1),
+        area.width.saturating_sub(2),
+        area.height.saturating_sub(2),
+    )
 }
 
 fn render_right_sidebar(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {

@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use ratatui::layout::Rect;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -19,6 +21,17 @@ impl InteractionRegionId {
 pub struct InteractionRegion {
     pub id: InteractionRegionId,
     pub area: Rect,
+    pub payload: InteractionPayload,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum InteractionPayload {
+    #[default]
+    None,
+    PatternCell {
+        row: usize,
+        track: usize,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -35,10 +48,54 @@ impl InteractionMap {
     }
 
     pub fn register(&mut self, id: InteractionRegionId, area: Rect) {
+        self.register_with_payload(id, area, InteractionPayload::None);
+    }
+
+    pub fn register_with_payload(
+        &mut self,
+        id: InteractionRegionId,
+        area: Rect,
+        payload: InteractionPayload,
+    ) {
         if area.width == 0 || area.height == 0 {
             return;
         }
-        self.regions.push(InteractionRegion { id, area });
+        self.regions.push(InteractionRegion { id, area, payload });
+    }
+
+    pub(crate) fn register_pattern_cells(
+        &mut self,
+        content_area: Rect,
+        header_height: u16,
+        row_gutter_width: u16,
+        cell_width: u16,
+        visible_rows: Range<usize>,
+        visible_tracks: Range<usize>,
+    ) {
+        let content_right = content_area.x.saturating_add(content_area.width);
+        let content_bottom = content_area.y.saturating_add(content_area.height);
+        let first_cell_x = content_area.x.saturating_add(row_gutter_width);
+        let first_cell_y = content_area.y.saturating_add(header_height);
+
+        for (visible_row, row) in visible_rows.enumerate() {
+            let y = first_cell_y.saturating_add(visible_row as u16);
+            if y >= content_bottom {
+                break;
+            }
+            for (visible_track, track) in visible_tracks.clone().enumerate() {
+                let x =
+                    first_cell_x.saturating_add((visible_track as u16).saturating_mul(cell_width));
+                if x >= content_right {
+                    break;
+                }
+                let width = cell_width.min(content_right.saturating_sub(x));
+                self.register_with_payload(
+                    region::PATTERN_CELL,
+                    Rect::new(x, y, width, 1),
+                    InteractionPayload::PatternCell { row, track },
+                );
+            }
+        }
     }
 
     #[must_use]
@@ -97,6 +154,7 @@ pub mod region {
     pub const PANEL_VU: InteractionRegionId = InteractionRegionId::new("panel.vu");
     pub const PANEL_DEVICE_CHAIN: InteractionRegionId =
         InteractionRegionId::new("panel.device-chain");
+    pub const PATTERN_CELL: InteractionRegionId = InteractionRegionId::new("pattern.cell");
 
     pub const OVERLAY_HELP: InteractionRegionId = InteractionRegionId::new("overlay.help");
     pub const OVERLAY_MIDI_SETTINGS: InteractionRegionId =
@@ -136,5 +194,21 @@ mod tests {
             Some(region::APP_BODY)
         );
         assert!(map.hit_test(80, 24).is_none());
+    }
+
+    #[test]
+    fn pattern_cells_carry_absolute_row_and_track_payloads() {
+        let mut map = InteractionMap::new();
+        map.register_pattern_cells(Rect::new(1, 1, 17, 5), 1, 5, 6, 4..6, 2..4);
+
+        assert_eq!(
+            map.hit_test(6, 2).map(|region| region.payload),
+            Some(InteractionPayload::PatternCell { row: 4, track: 2 })
+        );
+        assert_eq!(
+            map.hit_test(12, 3).map(|region| region.payload),
+            Some(InteractionPayload::PatternCell { row: 5, track: 3 })
+        );
+        assert!(map.hit_test(5, 2).is_none());
     }
 }

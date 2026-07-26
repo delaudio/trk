@@ -276,8 +276,6 @@ fn run(args: CliArgs) -> Result<()> {
                         MouseViewport {
                             terminal_width: terminal.size().0,
                             terminal_height: terminal.size().1,
-                            visible_rows: terminal.visible_pattern_rows(),
-                            visible_tracks: terminal.visible_pattern_tracks(),
                         },
                     );
                     app.dispatch_event(AppEvent::Runtime(RuntimeEvent::ViewportRefresh {
