@@ -1,7 +1,7 @@
 ---
 adr: 0005
 title: Select visible browser entries with the pointer
-status: Accepted
+status: Implemented
 date: 2026-07-26
 owner: default-agent
 supersedes:
@@ -67,7 +67,7 @@ entry.
 ## References
 
 - `0003-render-owned-interaction-regions.md`
-- `../plan/todo/0003-visible-browser-entry-clicks.md`
+- `../plan/done/2026-07-26-visible-browser-entry-clicks.md`
 - GitHub issue #251.
 
 ## Revision History
@@ -75,9 +75,11 @@ entry.
 | Date | Revision | Author | Change |
 |------|----------|--------|--------|
 | 2026-07-26 | r1 | default-agent | Accepted render-owned entry targets for sample and project browser clicks. |
+| 2026-07-26 | r2 | default-agent | Marked the capability Implemented after PR #273 merged with CI green. |
 
 ## Approvals
 
 | Role | Name | Date | Signature |
 |------|------|------|-----------|
 | Maintainer | fdg | 2026-07-26 | Authorised autonomous implementation of the queued UX issues in chat. |
+| Maintainer | fdg | 2026-07-26 | Authorised autonomous merge and closeout of issue #251 in chat. |
