@@ -110,6 +110,37 @@ fn composite_track_click_rejects_out_of_range_payloads() {
 }
 
 #[test]
+fn composite_track_rows_ignore_drag_and_secondary_clicks() {
+    for kind in [
+        MouseEventKind::Drag(MouseButton::Left),
+        MouseEventKind::Down(MouseButton::Right),
+    ] {
+        let mut app = App::default();
+        while app.song.tracks.len() < 4 {
+            app.song.create_track();
+        }
+        app.interaction_map.register_with_payload(
+            interaction_region::COMPOSITE_TRACK_ROW,
+            ratatui::layout::Rect::new(1, 8, 26, 1),
+            InteractionPayload::CompositeTrackRow { track: 3 },
+        );
+
+        app.handle_mouse(
+            MouseEvent {
+                kind,
+                column: 2,
+                row: 8,
+                modifiers: KeyModifiers::NONE,
+            },
+            large_mouse_viewport(),
+        );
+
+        assert_eq!(app.mode, AppMode::Normal);
+        assert_eq!(app.cursor.track, 0);
+    }
+}
+
+#[test]
 fn mouse_click_ignores_pattern_headers_gutters_and_panels() {
     let mut app = App::default();
     app.cursor.row = 3;

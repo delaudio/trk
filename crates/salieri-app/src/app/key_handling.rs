@@ -64,11 +64,14 @@ impl App {
             }
             MouseEventKind::ScrollLeft => self.handle_mouse_horizontal_scroll(-1),
             MouseEventKind::ScrollRight => self.handle_mouse_horizontal_scroll(1),
-            MouseEventKind::Down(MouseButton::Left) | MouseEventKind::Drag(MouseButton::Left) => {
-                self.handle_mouse_click(mouse.column, mouse.row, viewport, false)
+            MouseEventKind::Down(MouseButton::Left) => {
+                self.handle_mouse_click(mouse.column, mouse.row, viewport, false, true)
+            }
+            MouseEventKind::Drag(MouseButton::Left) => {
+                self.handle_mouse_click(mouse.column, mouse.row, viewport, false, false)
             }
             MouseEventKind::Down(MouseButton::Right) => {
-                self.handle_mouse_click(mouse.column, mouse.row, viewport, true)
+                self.handle_mouse_click(mouse.column, mouse.row, viewport, true, false)
             }
             _ => {}
         }
@@ -94,6 +97,7 @@ impl App {
         row: u16,
         viewport: MouseViewport,
         activate: bool,
+        select_composite_track: bool,
     ) {
         if let Some(region) = self.interaction_map.hit_test(column, row) {
             tracing::trace!(
@@ -118,7 +122,8 @@ impl App {
 
         match self.mode {
             AppMode::Normal | AppMode::Edit => {
-                if !self.handle_composite_track_mouse_click(column, row) {
+                if !(select_composite_track && self.handle_composite_track_mouse_click(column, row))
+                {
                     self.handle_tracker_mouse_click(column, row);
                 }
             }
