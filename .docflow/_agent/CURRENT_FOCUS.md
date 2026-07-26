@@ -8,17 +8,16 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** agent/253-composite-song-slots
-- **Active item:** `plan/todo/0005-composite-song-slot-clicks.md` for GitHub
-  issue #253.
+- **Branch:** agent/253-docflow-closeout
+- **Active item:** close out
+  `plan/done/2026-07-26-composite-song-slot-clicks.md` after PR #277.
 - **Blockers:** none.
-- **Uncommitted work:** worklog update before the required Codex-provider
-  Lachesi review.
+- **Uncommitted work:** atomic Docflow closeout for issue #253.
 
 ## Last shipped
 
-Issue #252 implementation and Docflow closeout via PRs #275 and #276.
+Issue #253 implementation via PR #277 with CI #274 green.
 
 ## Next item
 
-Review and ship `plan/todo/0005-composite-song-slot-clicks.md`.
+Merge this closeout, then begin GitHub issue #254.

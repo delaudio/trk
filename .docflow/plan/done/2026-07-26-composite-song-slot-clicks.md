@@ -30,3 +30,9 @@ transport controls, sequence editing, or the Renoise-style large workspace.
 - `../../adr/0003-render-owned-interaction-regions.md`
 - `../done/2026-07-26-render-owned-interaction-regions.md`
 - GitHub issue #249 (closed by PR #269).
+
+---
+
+Shipped at HEAD `d64d400` via
+[PR #277](https://github.com/delaudio/salieri-tracker/pull/277), with GitHub
+Actions CI run #274 green and issue #253 closed.
