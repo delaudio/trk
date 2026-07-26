@@ -99,6 +99,11 @@ fn mouse_click_selects_project_browser_entries() {
         }),
         ..App::default()
     };
+    app.interaction_map.register_with_payload(
+        interaction_region::PROJECT_BROWSER_ENTRY,
+        ratatui::layout::Rect::new(3, 8, 30, 1),
+        InteractionPayload::ProjectBrowserEntry { index: 1 },
+    );
 
     app.handle_mouse(
         MouseEvent {
@@ -142,6 +147,11 @@ fn mouse_click_selects_sample_browser_entries() {
         }),
         ..App::default()
     };
+    app.interaction_map.register_with_payload(
+        interaction_region::SAMPLE_BROWSER_ENTRY,
+        ratatui::layout::Rect::new(3, 8, 30, 1),
+        InteractionPayload::SampleBrowserEntry { index: 1 },
+    );
 
     app.handle_mouse(
         MouseEvent {
@@ -159,13 +169,113 @@ fn mouse_click_selects_sample_browser_entries() {
 }
 
 #[test]
+fn browser_clicks_ignore_borders_headers_and_empty_rows() {
+    let mut sample_app = App {
+        mode: AppMode::SampleBrowser,
+        sample_browser_view: Some(AppSampleBrowserView {
+            current_dir: PathBuf::from("/tmp/samples"),
+            entries: vec![
+                AppSampleBrowserEntry {
+                    path: PathBuf::from("/tmp/samples/kick.wav"),
+                    name: "kick.wav".to_string(),
+                    kind: SampleBrowserEntryKind::SupportedSample,
+                },
+                AppSampleBrowserEntry {
+                    path: PathBuf::from("/tmp/samples/snare.wav"),
+                    name: "snare.wav".to_string(),
+                    kind: SampleBrowserEntryKind::SupportedSample,
+                },
+            ],
+            cursor: 0,
+            preview: None,
+            message: None,
+        }),
+        ..App::default()
+    };
+    sample_app.interaction_map.register(
+        interaction_region::VIEW_SAMPLE_BROWSER,
+        ratatui::layout::Rect::new(0, 3, 160, 34),
+    );
+
+    sample_app.handle_mouse(
+        MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: 2,
+            row: 12,
+            modifiers: KeyModifiers::NONE,
+        },
+        large_mouse_viewport(),
+    );
+
+    assert_eq!(
+        sample_app
+            .sample_browser_view
+            .as_ref()
+            .map(|browser| browser.cursor),
+        Some(0)
+    );
+
+    let mut project_app = App {
+        mode: AppMode::ProjectBrowser,
+        project_browser_view: Some(AppProjectBrowserView {
+            current_dir: PathBuf::from("/tmp/projects"),
+            entries: vec![
+                AppProjectBrowserEntry {
+                    path: PathBuf::from("/tmp/projects/a.salieri"),
+                    name: "a.salieri".to_string(),
+                    kind: ProjectBrowserEntryKind::Project,
+                    detail: "A".to_string(),
+                },
+                AppProjectBrowserEntry {
+                    path: PathBuf::from("/tmp/projects/b.salieri"),
+                    name: "b.salieri".to_string(),
+                    kind: ProjectBrowserEntryKind::Project,
+                    detail: "B".to_string(),
+                },
+            ],
+            cursor: 0,
+            message: None,
+        }),
+        ..App::default()
+    };
+    project_app.interaction_map.register(
+        interaction_region::VIEW_PROJECT_BROWSER,
+        ratatui::layout::Rect::new(0, 3, 160, 34),
+    );
+
+    project_app.handle_mouse(
+        MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: 2,
+            row: 12,
+            modifiers: KeyModifiers::NONE,
+        },
+        large_mouse_viewport(),
+    );
+
+    assert_eq!(
+        project_app
+            .project_browser_view
+            .as_ref()
+            .map(|browser| browser.cursor),
+        Some(0)
+    );
+}
+
+#[test]
 fn mouse_right_click_assigns_sample_browser_entry_to_current_track() {
     let dir = std::env::temp_dir().join(format!(
         "salieri-mouse-sample-assign-{}",
         std::process::id()
     ));
     std::fs::create_dir_all(&dir).expect("create sample dir");
+    let stale_sample_path = dir.join("kick.wav");
     let sample_path = dir.join("hat.wav");
+    std::fs::write(
+        &stale_sample_path,
+        wav_pcm16_bytes(44_100, 1, &[0, i16::MIN]),
+    )
+    .expect("write stale wav");
     std::fs::write(&sample_path, wav_pcm16_bytes(44_100, 1, &[0, i16::MAX])).expect("write wav");
 
     let mut app = App {
@@ -176,17 +286,29 @@ fn mouse_right_click_assigns_sample_browser_entry_to_current_track() {
         },
         sample_browser_view: Some(AppSampleBrowserView {
             current_dir: dir.clone(),
-            entries: vec![AppSampleBrowserEntry {
-                path: sample_path.clone(),
-                name: "hat.wav".to_string(),
-                kind: SampleBrowserEntryKind::SupportedSample,
-            }],
+            entries: vec![
+                AppSampleBrowserEntry {
+                    path: stale_sample_path.clone(),
+                    name: "kick.wav".to_string(),
+                    kind: SampleBrowserEntryKind::SupportedSample,
+                },
+                AppSampleBrowserEntry {
+                    path: sample_path.clone(),
+                    name: "hat.wav".to_string(),
+                    kind: SampleBrowserEntryKind::SupportedSample,
+                },
+            ],
             cursor: 0,
             preview: None,
             message: None,
         }),
         ..App::default()
     };
+    app.interaction_map.register_with_payload(
+        interaction_region::SAMPLE_BROWSER_ENTRY,
+        ratatui::layout::Rect::new(3, 7, 30, 1),
+        InteractionPayload::SampleBrowserEntry { index: 1 },
+    );
 
     app.handle_mouse(
         MouseEvent {
@@ -210,6 +332,7 @@ fn mouse_right_click_assigns_sample_browser_entry_to_current_track() {
     assert_eq!(sample.path, sample_path.to_string_lossy());
     assert_eq!(app.mode, AppMode::Sampler);
 
+    let _ = std::fs::remove_file(&stale_sample_path);
     let _ = std::fs::remove_file(&sample_path);
     let _ = std::fs::remove_dir(&dir);
 }

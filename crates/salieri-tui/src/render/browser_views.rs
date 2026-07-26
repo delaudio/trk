@@ -4,7 +4,9 @@ use ratatui::{
     widgets::{Paragraph, Scrollbar, ScrollbarOrientation, Wrap},
 };
 
-use crate::ViewportAxis;
+use crate::{
+    interaction_region, InteractionMap, InteractionPayload, InteractionRegionId, ViewportAxis,
+};
 
 use super::{
     render_sampler_view, theme, truncate, ProjectBrowserEntryKind, ProjectBrowserEntryView,
@@ -15,6 +17,7 @@ pub(super) fn render_sample_browser(
     frame: &mut Frame<'_>,
     area: Rect,
     browser: Option<SampleBrowserViewState<'_>>,
+    interactions: &mut InteractionMap,
 ) {
     let Some(browser) = browser else {
         let empty =
@@ -50,12 +53,13 @@ pub(super) fn render_sample_browser(
     if browser.entries.is_empty() {
         lines.push(Line::from("No files"));
     } else {
-        for (index, entry) in browser
+        for (visible_row, (index, entry)) in browser
             .entries
             .iter()
             .enumerate()
             .skip(viewport.offset())
             .take(visible_rows)
+            .enumerate()
         {
             let marker = if index == selected { ">" } else { " " };
             let icon = match entry.kind {
@@ -76,6 +80,13 @@ pub(super) fn render_sample_browser(
                 format!("{marker} {icon} {}", truncate(entry.name, 38)),
                 style,
             )));
+            register_browser_entry(
+                interactions,
+                interaction_region::SAMPLE_BROWSER_ENTRY,
+                left[1],
+                visible_row,
+                InteractionPayload::SampleBrowserEntry { index },
+            );
         }
     }
 
@@ -107,6 +118,7 @@ pub(super) fn render_project_browser(
     frame: &mut Frame<'_>,
     area: Rect,
     browser: Option<ProjectBrowserViewState<'_>>,
+    interactions: &mut InteractionMap,
 ) {
     let Some(browser) = browser else {
         let empty =
@@ -143,16 +155,39 @@ pub(super) fn render_project_browser(
             "No projects. Import demos into fixtures/local/renoise-demos/.",
         )));
     } else if is_renoise_demo_browser(browser) {
-        lines.extend(renoise_demo_project_lines(browser, selected));
+        for (visible_row, (line, entry_index)) in renoise_demo_project_rows(browser, selected)
+            .into_iter()
+            .take(visible_rows)
+            .enumerate()
+        {
+            lines.push(line);
+            if let Some(index) = entry_index {
+                register_browser_entry(
+                    interactions,
+                    interaction_region::PROJECT_BROWSER_ENTRY,
+                    left[1],
+                    visible_row,
+                    InteractionPayload::ProjectBrowserEntry { index },
+                );
+            }
+        }
     } else {
-        for (index, entry) in browser
+        for (visible_row, (index, entry)) in browser
             .entries
             .iter()
             .enumerate()
             .skip(start)
             .take(visible_rows)
+            .enumerate()
         {
             lines.push(project_entry_line(index, entry, selected));
+            register_browser_entry(
+                interactions,
+                interaction_region::PROJECT_BROWSER_ENTRY,
+                left[1],
+                visible_row,
+                InteractionPayload::ProjectBrowserEntry { index },
+            );
         }
     }
 
@@ -209,10 +244,10 @@ fn is_renoise_demo_browser(browser: ProjectBrowserViewState<'_>) -> bool {
         })
 }
 
-fn renoise_demo_project_lines(
+fn renoise_demo_project_rows(
     browser: ProjectBrowserViewState<'_>,
     selected: usize,
-) -> Vec<Line<'static>> {
+) -> Vec<(Line<'static>, Option<usize>)> {
     let sections = ["Samples", "Songs", "Tutorial", "Instruments"];
     let mut lines = Vec::new();
     for section in sections {
@@ -225,12 +260,31 @@ fn renoise_demo_project_lines(
         if entries.is_empty() {
             continue;
         }
-        lines.push(Line::from(theme::label_span(format!("▾ {section}"))));
+        lines.push((Line::from(theme::label_span(format!("▾ {section}"))), None));
         for (index, entry) in entries {
-            lines.push(project_entry_line(index, entry, selected));
+            lines.push((project_entry_line(index, entry, selected), Some(index)));
         }
     }
     lines
+}
+
+fn register_browser_entry(
+    interactions: &mut InteractionMap,
+    id: InteractionRegionId,
+    list_area: Rect,
+    visible_row: usize,
+    payload: InteractionPayload,
+) {
+    let inner = Rect::new(
+        list_area.x.saturating_add(1),
+        list_area.y.saturating_add(1),
+        list_area.width.saturating_sub(2),
+        list_area.height.saturating_sub(2),
+    );
+    let y = inner.y.saturating_add(visible_row as u16);
+    if y < inner.y.saturating_add(inner.height) {
+        interactions.register_with_payload(id, Rect::new(inner.x, y, inner.width, 1), payload);
+    }
 }
 
 fn demo_section(entry: &ProjectBrowserEntryView<'_>) -> &'static str {

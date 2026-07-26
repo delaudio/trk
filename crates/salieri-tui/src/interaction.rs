@@ -32,6 +32,12 @@ pub enum InteractionPayload {
         row: usize,
         track: usize,
     },
+    SampleBrowserEntry {
+        index: usize,
+    },
+    ProjectBrowserEntry {
+        index: usize,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -155,6 +161,10 @@ pub mod region {
     pub const PANEL_DEVICE_CHAIN: InteractionRegionId =
         InteractionRegionId::new("panel.device-chain");
     pub const PATTERN_CELL: InteractionRegionId = InteractionRegionId::new("pattern.cell");
+    pub const SAMPLE_BROWSER_ENTRY: InteractionRegionId =
+        InteractionRegionId::new("sample-browser.entry");
+    pub const PROJECT_BROWSER_ENTRY: InteractionRegionId =
+        InteractionRegionId::new("project-browser.entry");
 
     pub const OVERLAY_HELP: InteractionRegionId = InteractionRegionId::new("overlay.help");
     pub const OVERLAY_MIDI_SETTINGS: InteractionRegionId =
