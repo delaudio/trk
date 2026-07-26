@@ -117,7 +117,11 @@ impl App {
         }
 
         match self.mode {
-            AppMode::Normal | AppMode::Edit => self.handle_tracker_mouse_click(column, row),
+            AppMode::Normal | AppMode::Edit => {
+                if !self.handle_composite_track_mouse_click(column, row) {
+                    self.handle_tracker_mouse_click(column, row);
+                }
+            }
             AppMode::Tracks => self.handle_track_list_mouse_click(row),
             AppMode::SampleBrowser => {
                 self.handle_sample_browser_mouse_click(column, row, activate);
@@ -243,6 +247,21 @@ impl App {
         self.cursor.row = row;
         self.cursor.track = track;
         self.cursor.digit = 0;
+    }
+
+    fn handle_composite_track_mouse_click(&mut self, column: u16, row: u16) -> bool {
+        let target = self
+            .interaction_map
+            .hit_test(column, row)
+            .filter(|region| region.id == interaction_region::COMPOSITE_TRACK_ROW)
+            .map(|region| region.payload);
+        let Some(InteractionPayload::CompositeTrackRow { track }) = target else {
+            return false;
+        };
+        if track < self.song.tracks.len() {
+            self.cursor.track = track;
+        }
+        true
     }
 
     fn handle_track_list_mouse_click(&mut self, row: u16) {

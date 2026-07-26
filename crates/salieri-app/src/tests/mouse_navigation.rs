@@ -51,6 +51,65 @@ fn mouse_click_moves_tracker_cursor_to_grid_cell() {
 }
 
 #[test]
+fn mouse_click_selects_composite_track_without_moving_the_cell_cursor() {
+    let mut app = App::default();
+    while app.song.tracks.len() < 6 {
+        app.song.create_track();
+    }
+    app.cursor.row = 7;
+    app.cursor.field = CellField::Effect;
+    app.cursor.digit = 1;
+    app.interaction_map.register_with_payload(
+        interaction_region::COMPOSITE_TRACK_ROW,
+        ratatui::layout::Rect::new(1, 8, 26, 1),
+        InteractionPayload::CompositeTrackRow { track: 5 },
+    );
+
+    app.handle_mouse(
+        MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: 2,
+            row: 8,
+            modifiers: KeyModifiers::NONE,
+        },
+        large_mouse_viewport(),
+    );
+
+    assert_eq!(app.mode, AppMode::Normal);
+    assert_eq!(app.tui_active_view(), TuiView::Pattern);
+    assert_eq!(app.cursor.track, 5);
+    assert_eq!(app.cursor.row, 7);
+    assert_eq!(app.cursor.field, CellField::Effect);
+    assert_eq!(app.cursor.digit, 1);
+}
+
+#[test]
+fn composite_track_click_rejects_out_of_range_payloads() {
+    let mut app = App::default();
+    app.cursor.row = 4;
+    app.cursor.track = 0;
+    app.interaction_map.register_with_payload(
+        interaction_region::COMPOSITE_TRACK_ROW,
+        ratatui::layout::Rect::new(1, 8, 26, 1),
+        InteractionPayload::CompositeTrackRow { track: usize::MAX },
+    );
+
+    app.handle_mouse(
+        MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: 2,
+            row: 8,
+            modifiers: KeyModifiers::NONE,
+        },
+        large_mouse_viewport(),
+    );
+
+    assert_eq!(app.mode, AppMode::Normal);
+    assert_eq!(app.cursor.row, 4);
+    assert_eq!(app.cursor.track, 0);
+}
+
+#[test]
 fn mouse_click_ignores_pattern_headers_gutters_and_panels() {
     let mut app = App::default();
     app.cursor.row = 3;
