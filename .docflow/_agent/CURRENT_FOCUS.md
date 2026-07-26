@@ -8,18 +8,17 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** agent/250-docflow-closeout
-- **Active item:** close out
-  `plan/done/2026-07-26-rendered-pattern-grid-clicks.md`.
+- **Branch:** agent/251-browser-scroll-clicks
+- **Active item:** `plan/todo/0003-visible-browser-entry-clicks.md` for GitHub
+  issue #251.
 - **Blockers:** none.
-- **Uncommitted work:** none; the closeout commit for implementation squash
-  `7312620` is pending integration.
+- **Uncommitted work:** review closeout for implementation commits `bb154c5`
+  and `db01b4f`.
 
 ## Last shipped
 
-Issue #250 implementation via PR #271, with CI #262 green and issue #250
-closed.
+Issue #250 implementation and Docflow closeout via PRs #271 and #272.
 
 ## Next item
 
-Audit and implement GitHub issue #251.
+Implement and ship `plan/todo/0003-visible-browser-entry-clicks.md`.

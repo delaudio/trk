@@ -4,7 +4,9 @@ use ratatui::{
     widgets::{Paragraph, Scrollbar, ScrollbarOrientation, Wrap},
 };
 
-use crate::ViewportAxis;
+use crate::{
+    interaction_region, InteractionMap, InteractionPayload, InteractionRegionId, ViewportAxis,
+};
 
 use super::{
     render_sampler_view, theme, truncate, ProjectBrowserEntryKind, ProjectBrowserEntryView,
@@ -15,6 +17,7 @@ pub(super) fn render_sample_browser(
     frame: &mut Frame<'_>,
     area: Rect,
     browser: Option<SampleBrowserViewState<'_>>,
+    interactions: &mut InteractionMap,
 ) {
     let Some(browser) = browser else {
         let empty =
@@ -39,7 +42,8 @@ pub(super) fn render_sample_browser(
     .block(theme::block(" Directory "));
     frame.render_widget(path, left[0]);
 
-    let visible_rows = left[1].height.saturating_sub(2) as usize;
+    let list_inner = browser_list_inner(left[1]);
+    let visible_rows = list_inner.height as usize;
     let selected = browser
         .selected
         .min(browser.entries.len().saturating_sub(1));
@@ -50,12 +54,13 @@ pub(super) fn render_sample_browser(
     if browser.entries.is_empty() {
         lines.push(Line::from("No files"));
     } else {
-        for (index, entry) in browser
+        for (visible_row, (index, entry)) in browser
             .entries
             .iter()
             .enumerate()
             .skip(viewport.offset())
             .take(visible_rows)
+            .enumerate()
         {
             let marker = if index == selected { ">" } else { " " };
             let icon = match entry.kind {
@@ -73,15 +78,20 @@ pub(super) fn render_sample_browser(
                 }
             };
             lines.push(Line::from(Span::styled(
-                format!("{marker} {icon} {}", truncate(entry.name, 38)),
+                browser_entry_text(marker, icon, entry.name, list_inner.width as usize),
                 style,
             )));
+            register_browser_entry(
+                interactions,
+                interaction_region::SAMPLE_BROWSER_ENTRY,
+                left[1],
+                visible_row,
+                InteractionPayload::SampleBrowserEntry { index },
+            );
         }
     }
 
-    let list = Paragraph::new(lines)
-        .block(theme::block(" Samples "))
-        .wrap(Wrap { trim: false });
+    let list = Paragraph::new(lines).block(theme::block(" Samples "));
     frame.render_widget(list, left[1]);
     if browser.entries.len() > visible_rows {
         let mut scrollbar_state = viewport.scrollbar_state();
@@ -107,6 +117,7 @@ pub(super) fn render_project_browser(
     frame: &mut Frame<'_>,
     area: Rect,
     browser: Option<ProjectBrowserViewState<'_>>,
+    interactions: &mut InteractionMap,
 ) {
     let Some(browser) = browser else {
         let empty =
@@ -131,7 +142,8 @@ pub(super) fn render_project_browser(
     .block(theme::block(" Directory "));
     frame.render_widget(path, left[0]);
 
-    let visible_rows = left[1].height.saturating_sub(2) as usize;
+    let list_inner = browser_list_inner(left[1]);
+    let visible_rows = list_inner.height as usize;
     let selected = browser
         .selected
         .min(browser.entries.len().saturating_sub(1));
@@ -143,22 +155,56 @@ pub(super) fn render_project_browser(
             "No projects. Import demos into fixtures/local/renoise-demos/.",
         )));
     } else if is_renoise_demo_browser(browser) {
-        lines.extend(renoise_demo_project_lines(browser, selected));
+        let grouped_rows = renoise_demo_project_rows(browser, selected, list_inner.width as usize);
+        let selected_row = grouped_rows
+            .iter()
+            .position(|(_, entry_index)| *entry_index == Some(selected))
+            .unwrap_or(0);
+        let mut viewport = ViewportAxis::new(grouped_rows.len(), visible_rows);
+        viewport.keep_visible(selected_row);
+        for (visible_row, (line, entry_index)) in grouped_rows
+            .into_iter()
+            .skip(viewport.offset())
+            .take(visible_rows)
+            .enumerate()
+        {
+            lines.push(line);
+            if let Some(index) = entry_index {
+                register_browser_entry(
+                    interactions,
+                    interaction_region::PROJECT_BROWSER_ENTRY,
+                    left[1],
+                    visible_row,
+                    InteractionPayload::ProjectBrowserEntry { index },
+                );
+            }
+        }
     } else {
-        for (index, entry) in browser
+        for (visible_row, (index, entry)) in browser
             .entries
             .iter()
             .enumerate()
             .skip(start)
             .take(visible_rows)
+            .enumerate()
         {
-            lines.push(project_entry_line(index, entry, selected));
+            lines.push(project_entry_line(
+                index,
+                entry,
+                selected,
+                list_inner.width as usize,
+            ));
+            register_browser_entry(
+                interactions,
+                interaction_region::PROJECT_BROWSER_ENTRY,
+                left[1],
+                visible_row,
+                InteractionPayload::ProjectBrowserEntry { index },
+            );
         }
     }
 
-    let list = Paragraph::new(lines)
-        .block(theme::block(" Projects "))
-        .wrap(Wrap { trim: false });
+    let list = Paragraph::new(lines).block(theme::block(" Projects "));
     frame.render_widget(list, left[1]);
 
     let mut detail_lines = Vec::new();
@@ -209,10 +255,11 @@ fn is_renoise_demo_browser(browser: ProjectBrowserViewState<'_>) -> bool {
         })
 }
 
-fn renoise_demo_project_lines(
+fn renoise_demo_project_rows(
     browser: ProjectBrowserViewState<'_>,
     selected: usize,
-) -> Vec<Line<'static>> {
+    row_width: usize,
+) -> Vec<(Line<'static>, Option<usize>)> {
     let sections = ["Samples", "Songs", "Tutorial", "Instruments"];
     let mut lines = Vec::new();
     for section in sections {
@@ -225,12 +272,38 @@ fn renoise_demo_project_lines(
         if entries.is_empty() {
             continue;
         }
-        lines.push(Line::from(theme::label_span(format!("▾ {section}"))));
+        lines.push((Line::from(theme::label_span(format!("▾ {section}"))), None));
         for (index, entry) in entries {
-            lines.push(project_entry_line(index, entry, selected));
+            lines.push((
+                project_entry_line(index, entry, selected, row_width),
+                Some(index),
+            ));
         }
     }
     lines
+}
+
+fn register_browser_entry(
+    interactions: &mut InteractionMap,
+    id: InteractionRegionId,
+    list_area: Rect,
+    visible_row: usize,
+    payload: InteractionPayload,
+) {
+    let inner = browser_list_inner(list_area);
+    let y = inner.y.saturating_add(visible_row as u16);
+    if y < inner.y.saturating_add(inner.height) {
+        interactions.register_with_payload(id, Rect::new(inner.x, y, inner.width, 1), payload);
+    }
+}
+
+fn browser_list_inner(area: Rect) -> Rect {
+    Rect::new(
+        area.x.saturating_add(1),
+        area.y.saturating_add(1),
+        area.width.saturating_sub(2),
+        area.height.saturating_sub(2),
+    )
 }
 
 fn demo_section(entry: &ProjectBrowserEntryView<'_>) -> &'static str {
@@ -249,6 +322,7 @@ fn project_entry_line(
     index: usize,
     entry: &ProjectBrowserEntryView<'_>,
     selected: usize,
+    row_width: usize,
 ) -> Line<'static> {
     let marker = if index == selected { ">" } else { " " };
     let icon = match entry.kind {
@@ -271,7 +345,23 @@ fn project_entry_line(
         }
     };
     Line::from(Span::styled(
-        format!("{marker} {icon} {}", truncate(entry.name, 42)),
+        browser_entry_text(marker, icon, entry.name, row_width),
         style,
     ))
+}
+
+fn browser_entry_text(marker: &str, icon: &str, name: &str, row_width: usize) -> String {
+    truncate(&format!("{marker} {icon} {name}"), row_width)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn browser_entry_text_never_exceeds_rendered_row_width() {
+        let text = browser_entry_text(">", "[W]", "a-very-long-browser-entry-name.wav", 12);
+
+        assert!(Line::from(text).width() <= 12);
+    }
 }

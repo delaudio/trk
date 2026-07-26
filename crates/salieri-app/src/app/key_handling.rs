@@ -119,8 +119,12 @@ impl App {
         match self.mode {
             AppMode::Normal | AppMode::Edit => self.handle_tracker_mouse_click(column, row),
             AppMode::Tracks => self.handle_track_list_mouse_click(row),
-            AppMode::SampleBrowser => self.handle_sample_browser_mouse_click(row, activate),
-            AppMode::ProjectBrowser => self.handle_project_browser_mouse_click(row, activate),
+            AppMode::SampleBrowser => {
+                self.handle_sample_browser_mouse_click(column, row, activate);
+            }
+            AppMode::ProjectBrowser => {
+                self.handle_project_browser_mouse_click(column, row, activate);
+            }
             AppMode::Sampler => self.handle_sampler_mouse_click(column, row),
             AppMode::DspRack if self.dsp_device_palette_open => {
                 self.handle_dsp_palette_mouse_click(row);
@@ -251,15 +255,22 @@ impl App {
         self.focus_panel(FocusPanel::Tracks);
     }
 
-    fn handle_sample_browser_mouse_click(&mut self, row: u16, activate: bool) {
-        let Some(cursor) = browser_row_to_cursor(row) else {
+    fn handle_sample_browser_mouse_click(&mut self, column: u16, row: u16, activate: bool) {
+        let target = self
+            .interaction_map
+            .hit_test(column, row)
+            .filter(|region| region.id == interaction_region::SAMPLE_BROWSER_ENTRY)
+            .map(|region| region.payload);
+        let Some(InteractionPayload::SampleBrowserEntry { index }) = target else {
             return;
         };
         if let Some(browser) = &mut self.sample_browser_view {
-            if browser.entries.is_empty() {
+            if index >= browser.entries.len() {
                 return;
             }
-            browser.cursor = cursor.min(browser.entries.len().saturating_sub(1));
+            browser.cursor = index;
+        } else {
+            return;
         }
         self.update_sample_browser_preview();
         if activate {
@@ -267,15 +278,22 @@ impl App {
         }
     }
 
-    fn handle_project_browser_mouse_click(&mut self, row: u16, activate: bool) {
-        let Some(cursor) = browser_row_to_cursor(row) else {
+    fn handle_project_browser_mouse_click(&mut self, column: u16, row: u16, activate: bool) {
+        let target = self
+            .interaction_map
+            .hit_test(column, row)
+            .filter(|region| region.id == interaction_region::PROJECT_BROWSER_ENTRY)
+            .map(|region| region.payload);
+        let Some(InteractionPayload::ProjectBrowserEntry { index }) = target else {
             return;
         };
         if let Some(browser) = &mut self.project_browser_view {
-            if browser.entries.is_empty() {
+            if index >= browser.entries.len() {
                 return;
             }
-            browser.cursor = cursor.min(browser.entries.len().saturating_sub(1));
+            browser.cursor = index;
+        } else {
+            return;
         }
         if activate {
             self.select_project_browser_entry();
@@ -734,11 +752,6 @@ impl App {
             _ => {}
         }
     }
-}
-
-fn browser_row_to_cursor(row: u16) -> Option<usize> {
-    const LIST_FIRST_ROW: u16 = 7;
-    (row >= LIST_FIRST_ROW).then_some((row - LIST_FIRST_ROW) as usize)
 }
 
 #[derive(Debug, Clone, Copy)]

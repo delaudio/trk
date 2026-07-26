@@ -101,6 +101,190 @@ fn exposes_offset_pattern_cells_at_representative_sizes() {
 }
 
 #[test]
+fn sample_browser_entry_regions_preserve_nonzero_viewport_offsets() {
+    let entries = vec![
+        SampleBrowserEntryView {
+            name: "a-very-long-sample-name-that-must-stay-on-one-row.wav",
+            kind: SampleBrowserEntryKind::SupportedSample,
+        };
+        40
+    ];
+    let mut state = render_test_state();
+    state.active_view = TuiView::SampleBrowser;
+    state.sample_browser = Some(SampleBrowserViewState {
+        current_dir: "/tmp/samples",
+        entries: &entries,
+        selected: 30,
+        preview: None,
+        message: None,
+    });
+
+    let map = interaction_map_with_state(72, 24, state);
+    let regions = map
+        .regions()
+        .iter()
+        .filter(|region| region.id == interaction_region::SAMPLE_BROWSER_ENTRY)
+        .collect::<Vec<_>>();
+    let first = regions.first().expect("first visible sample");
+    let last = regions.last().expect("last visible sample");
+
+    assert!(matches!(
+        first.payload,
+        crate::InteractionPayload::SampleBrowserEntry { index } if index > 0
+    ));
+    assert_eq!(
+        last.payload,
+        crate::InteractionPayload::SampleBrowserEntry { index: 30 }
+    );
+    assert_eq!(
+        map.hit_test(first.area.x, first.area.y)
+            .map(|region| region.payload),
+        Some(first.payload)
+    );
+    assert_ne!(
+        map.hit_test(first.area.x.saturating_sub(1), first.area.y)
+            .map(|region| region.id),
+        Some(interaction_region::SAMPLE_BROWSER_ENTRY)
+    );
+    assert!(regions
+        .windows(2)
+        .all(|pair| pair[1].area.y == pair[0].area.y.saturating_add(1)));
+}
+
+#[test]
+fn project_browser_entry_regions_preserve_nonzero_viewport_offsets() {
+    let entries = vec![
+        ProjectBrowserEntryView {
+            name: "a-very-long-project-name-that-must-stay-on-one-row.salieri",
+            path: "/tmp/project.salieri",
+            kind: ProjectBrowserEntryKind::Project,
+            detail: "project",
+        };
+        40
+    ];
+    let mut state = render_test_state();
+    state.active_view = TuiView::ProjectBrowser;
+    state.project_browser = Some(ProjectBrowserViewState {
+        current_dir: "/tmp/projects",
+        entries: &entries,
+        selected: 30,
+        message: None,
+    });
+
+    let map = interaction_map_with_state(72, 24, state);
+    let regions = map
+        .regions()
+        .iter()
+        .filter(|region| region.id == interaction_region::PROJECT_BROWSER_ENTRY)
+        .collect::<Vec<_>>();
+    let first = regions.first().expect("first visible project");
+    let last = regions.last().expect("last visible project");
+
+    assert!(matches!(
+        first.payload,
+        crate::InteractionPayload::ProjectBrowserEntry { index } if index > 0
+    ));
+    assert_eq!(
+        last.payload,
+        crate::InteractionPayload::ProjectBrowserEntry { index: 30 }
+    );
+    assert_eq!(
+        map.hit_test(first.area.x, first.area.y)
+            .map(|region| region.payload),
+        Some(first.payload)
+    );
+    assert_ne!(
+        map.hit_test(first.area.x.saturating_sub(1), first.area.y)
+            .map(|region| region.id),
+        Some(interaction_region::PROJECT_BROWSER_ENTRY)
+    );
+    assert!(regions
+        .windows(2)
+        .all(|pair| pair[1].area.y == pair[0].area.y.saturating_add(1)));
+}
+
+#[test]
+fn grouped_project_browser_section_headers_are_not_entry_regions() {
+    let entries = [
+        ProjectBrowserEntryView {
+            name: "Samples",
+            path: "/tmp/renoise-demos/Samples",
+            kind: ProjectBrowserEntryKind::Directory,
+            detail: "samples",
+        },
+        ProjectBrowserEntryView {
+            name: "DemoSong - Example.xrns",
+            path: "/tmp/renoise-demos/example.xrns",
+            kind: ProjectBrowserEntryKind::Project,
+            detail: "song",
+        },
+    ];
+    let mut state = render_test_state();
+    state.active_view = TuiView::ProjectBrowser;
+    state.project_browser = Some(ProjectBrowserViewState {
+        current_dir: "/tmp/renoise-demos",
+        entries: &entries,
+        selected: 0,
+        message: None,
+    });
+
+    let map = interaction_map_with_state(100, 28, state);
+    let first_entry = map
+        .regions()
+        .iter()
+        .find(|region| region.id == interaction_region::PROJECT_BROWSER_ENTRY)
+        .expect("grouped project entry");
+
+    assert_ne!(
+        map.hit_test(first_entry.area.x, first_entry.area.y.saturating_sub(1))
+            .map(|region| region.id),
+        Some(interaction_region::PROJECT_BROWSER_ENTRY)
+    );
+}
+
+#[test]
+fn grouped_project_browser_scrolls_entry_regions_to_selected_item() {
+    let entries = vec![
+        ProjectBrowserEntryView {
+            name: "DemoSong - A very long project name that must stay on one row.xrns",
+            path: "/tmp/renoise-demos/example.xrns",
+            kind: ProjectBrowserEntryKind::Project,
+            detail: "song",
+        };
+        40
+    ];
+    let mut state = render_test_state();
+    state.active_view = TuiView::ProjectBrowser;
+    state.project_browser = Some(ProjectBrowserViewState {
+        current_dir: "/tmp/renoise-demos",
+        entries: &entries,
+        selected: 30,
+        message: None,
+    });
+
+    let map = interaction_map_with_state(72, 24, state);
+    let regions = map
+        .regions()
+        .iter()
+        .filter(|region| region.id == interaction_region::PROJECT_BROWSER_ENTRY)
+        .collect::<Vec<_>>();
+    let first = regions.first().expect("first grouped project entry");
+    let last = regions.last().expect("selected grouped project entry");
+
+    assert!(matches!(
+        first.payload,
+        crate::InteractionPayload::ProjectBrowserEntry { index } if index > 0
+    ));
+    assert_eq!(
+        last.payload,
+        crate::InteractionPayload::ProjectBrowserEntry { index: 30 }
+    );
+    assert!(regions
+        .windows(2)
+        .all(|pair| pair[1].area.y == pair[0].area.y.saturating_add(1)));
+}
+
+#[test]
 fn overlay_regions_override_covered_workspace_regions() {
     let mut help_state = render_test_state();
     help_state.show_help = true;

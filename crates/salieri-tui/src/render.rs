@@ -664,11 +664,11 @@ fn render_body(
         return;
     }
     if state.active_view == TuiView::SampleBrowser {
-        render_sample_browser(frame, area, state.sample_browser);
+        render_sample_browser(frame, area, state.sample_browser, interactions);
         return;
     }
     if state.active_view == TuiView::ProjectBrowser {
-        render_project_browser(frame, area, state.project_browser);
+        render_project_browser(frame, area, state.project_browser, interactions);
         return;
     }
     if state.active_view == TuiView::AiChat {
