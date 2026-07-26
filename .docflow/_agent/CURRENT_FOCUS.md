@@ -12,7 +12,8 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Active item:** `plan/todo/0002-rendered-pattern-grid-clicks.md` for GitHub
   issue #250.
 - **Blockers:** none.
-- **Uncommitted work:** plan item 0002 preparation.
+- **Uncommitted work:** validation and review notes for implementation commit
+  `2ebf286`.
 
 ## Last shipped
 
