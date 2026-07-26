@@ -12,7 +12,8 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Active item:** `plan/todo/0005-composite-song-slot-clicks.md` for GitHub
   issue #253.
 - **Blockers:** none.
-- **Uncommitted work:** ADR 0007 and plan item 0005 preparation.
+- **Uncommitted work:** worklog update before the required Codex-provider
+  Lachesi review.
 
 ## Last shipped
 
@@ -20,4 +21,4 @@ Issue #252 implementation and Docflow closeout via PRs #275 and #276.
 
 ## Next item
 
-Implement and ship `plan/todo/0005-composite-song-slot-clicks.md`.
+Review and ship `plan/todo/0005-composite-song-slot-clicks.md`.
