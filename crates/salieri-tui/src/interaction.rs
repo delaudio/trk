@@ -47,6 +47,9 @@ pub enum InteractionPayload {
     PatternManagerRow {
         index: usize,
     },
+    SequenceEditorRow {
+        position: usize,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -180,6 +183,8 @@ pub mod region {
         InteractionRegionId::new("composite-sequence.row");
     pub const PATTERN_MANAGER_ROW: InteractionRegionId =
         InteractionRegionId::new("pattern-manager.row");
+    pub const SEQUENCE_EDITOR_ROW: InteractionRegionId =
+        InteractionRegionId::new("sequence-editor.row");
 
     pub const OVERLAY_HELP: InteractionRegionId = InteractionRegionId::new("overlay.help");
     pub const OVERLAY_MIDI_SETTINGS: InteractionRegionId =

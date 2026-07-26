@@ -133,6 +133,9 @@ impl App {
             AppMode::Patterns if primary_click || activate => {
                 self.handle_pattern_manager_mouse_click(column, row, activate);
             }
+            AppMode::Sequence if primary_click || activate => {
+                self.handle_sequence_editor_mouse_click(column, row, activate);
+            }
             AppMode::SampleBrowser => {
                 self.handle_sample_browser_mouse_click(column, row, activate);
             }
@@ -304,6 +307,25 @@ impl App {
             if activate {
                 self.open_tracker_view();
             }
+        }
+    }
+
+    fn handle_sequence_editor_mouse_click(&mut self, column: u16, row: u16, activate: bool) {
+        let target = self
+            .interaction_map
+            .hit_test(column, row)
+            .filter(|region| region.id == interaction_region::SEQUENCE_EDITOR_ROW)
+            .map(|region| region.payload);
+        let Some(InteractionPayload::SequenceEditorRow { position }) = target else {
+            return;
+        };
+        if position >= self.song.sequence.len() {
+            return;
+        }
+        self.sequence_cursor = position;
+        self.notify_info(format!("Sequence position {position:02}"));
+        if activate {
+            self.start_sequence_playback_at(position);
         }
     }
 

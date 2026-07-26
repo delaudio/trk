@@ -49,10 +49,17 @@ fn song_slot_view_renders_selected_muted_empty_and_active_track_clips() {
 
     let backend = TestBackend::new(80, 10);
     let mut terminal = Terminal::new(backend).expect("test terminal");
+    let mut interactions = InteractionMap::new();
 
     terminal
         .draw(|frame| {
-            render_sequence_editor(frame, Rect::new(0, 0, 80, 10), &song, Some(1));
+            render_sequence_editor(
+                frame,
+                Rect::new(0, 0, 80, 10),
+                &song,
+                Some(1),
+                &mut interactions,
+            );
         })
         .expect("draw");
 
@@ -65,4 +72,89 @@ fn song_slot_view_renders_selected_muted_empty_and_active_track_clips() {
     assert!(rendered.contains("P02 Answer"));
     assert!(rendered.contains("[· M ■ ·]"));
     assert!(rendered.contains("Clips: ■ active  · empty  M muted"));
+}
+
+#[test]
+fn sequence_editor_rows_expose_scrolled_absolute_positions_only_for_content_rows() {
+    let song = long_sequence_song(40);
+    let backend = TestBackend::new(48, 10);
+    let mut terminal = Terminal::new(backend).expect("test terminal");
+    let mut interactions = InteractionMap::new();
+
+    terminal
+        .draw(|frame| {
+            render_sequence_editor(
+                frame,
+                Rect::new(0, 0, 48, 10),
+                &song,
+                Some(30),
+                &mut interactions,
+            );
+        })
+        .expect("draw");
+
+    let rows = interactions
+        .regions()
+        .iter()
+        .filter(|region| region.id == interaction_region::SEQUENCE_EDITOR_ROW)
+        .collect::<Vec<_>>();
+    assert_eq!(rows.len(), 3);
+    assert!(rows.iter().any(|region| {
+        region.payload == crate::InteractionPayload::SequenceEditorRow { position: 30 }
+    }));
+    assert!(rows.windows(2).all(|pair| {
+        matches!(
+            (pair[0].payload, pair[1].payload),
+            (
+                crate::InteractionPayload::SequenceEditorRow {
+                    position: previous
+                },
+                crate::InteractionPayload::SequenceEditorRow { position: next },
+            ) if next == previous + 1
+        ) && pair[1].area.y == pair[0].area.y + 1
+    }));
+    assert!(interactions.hit_test(1, 0).is_none());
+    assert!(interactions.hit_test(1, 1).is_none());
+    assert!(interactions.hit_test(1, 5).is_none());
+}
+
+#[test]
+fn narrow_sequence_editor_keeps_rendered_rows_aligned_with_targets() {
+    let song = long_sequence_song(3);
+    let backend = TestBackend::new(20, 10);
+    let mut terminal = Terminal::new(backend).expect("test terminal");
+    let mut interactions = InteractionMap::new();
+
+    terminal
+        .draw(|frame| {
+            render_sequence_editor(
+                frame,
+                Rect::new(0, 0, 20, 10),
+                &song,
+                Some(0),
+                &mut interactions,
+            );
+        })
+        .expect("draw");
+
+    let rows = interactions
+        .regions()
+        .iter()
+        .filter(|region| region.id == interaction_region::SEQUENCE_EDITOR_ROW)
+        .collect::<Vec<_>>();
+    assert_eq!(rows.len(), 3);
+    for (expected_position, region) in rows.into_iter().enumerate() {
+        let rendered_row = (0..20)
+            .map(|x| {
+                terminal.backend().buffer()[(x, region.area.y)]
+                    .symbol()
+                    .to_string()
+            })
+            .collect::<String>();
+        assert!(
+            rendered_row.contains(&format!("{expected_position:02}")),
+            "row {} should render sequence position {expected_position}: {rendered_row:?}",
+            region.area.y
+        );
+    }
 }
