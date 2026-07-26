@@ -13,4 +13,4 @@ metadata.
 | 0006 | Select composite track rows with the pointer | Implemented | 2026-07-26 | default-agent | tui, ux, input, tracks |
 | 0007 | Select composite song slots with the pointer | Implemented | 2026-07-26 | default-agent | tui, ux, input, sequence |
 | 0008 | Select pattern manager rows with the pointer | Implemented | 2026-07-26 | default-agent | tui, ux, input, patterns |
-| 0009 | Select and play sequence editor rows with the pointer | Accepted | 2026-07-26 | default-agent | tui, ux, input, sequence, playback |
+| 0009 | Select and play sequence editor rows with the pointer | Implemented | 2026-07-26 | default-agent | tui, ux, input, sequence, playback |

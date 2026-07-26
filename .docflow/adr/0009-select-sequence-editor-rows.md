@@ -1,7 +1,7 @@
 ---
 adr: 0009
 title: Select and play sequence editor rows with the pointer
-status: Accepted
+status: Implemented
 date: 2026-07-26
 owner: default-agent
 supersedes:
@@ -60,7 +60,7 @@ sequence playback from that position.
 ## References
 
 - `0003-render-owned-interaction-regions.md`
-- `../plan/todo/0007-sequence-editor-row-clicks.md`
+- `../plan/done/2026-07-26-sequence-editor-row-clicks.md`
 - GitHub issue #255.
 
 ## Revision History
@@ -69,9 +69,11 @@ sequence playback from that position.
 |------|----------|--------|--------|
 | 2026-07-26 | r1 | default-agent | Accepted dedicated full-screen Sequence row targets with selection and playback activation semantics. |
 | 2026-07-26 | r2 | default-agent | Required fixed-height narrow rendering and explicit Sequence focus retention during playback activation. |
+| 2026-07-26 | r3 | default-agent | Marked the capability Implemented after PR #281 merged with CI green. |
 
 ## Approvals
 
 | Role | Name | Date | Signature |
 |------|------|------|-----------|
 | Maintainer | fdg | 2026-07-26 | Authorised autonomous implementation of the queued UX issues in chat. |
+| Maintainer | fdg | 2026-07-26 | Authorised autonomous merge and closeout of issue #255 in chat. |
