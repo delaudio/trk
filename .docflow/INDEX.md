@@ -15,3 +15,4 @@ metadata.
 | 0008 | Select pattern manager rows with the pointer | Implemented | 2026-07-26 | default-agent | tui, ux, input, patterns |
 | 0009 | Select and play sequence editor rows with the pointer | Implemented | 2026-07-26 | default-agent | tui, ux, input, sequence, playback |
 | 0010 | Select and activate command palette entries with the pointer | Implemented | 2026-07-26 | default-agent | tui, ux, input, command-palette, overlay |
+| 0011 | Control the Help overlay with the pointer | Accepted | 2026-07-26 | default-agent | tui, ux, input, help, overlay |
