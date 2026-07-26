@@ -8,19 +8,17 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** agent/254-docflow-closeout
-- **Active item:** close out
-  `plan/done/2026-07-26-pattern-manager-row-clicks.md` for GitHub issue #254.
+- **Branch:** agent/255-sequence-view-mouse
+- **Active item:** `plan/todo/0007-sequence-editor-row-clicks.md` for GitHub
+  issue #255.
 - **Blockers:** none.
-- **Uncommitted work:** none expected. Closeout commit `9d4ead6` records
-  implementation squash `08dbdae`, PR #279, green CI #280, and closed issue
-  #254; it awaits integration.
+- **Uncommitted work:** none expected. The ADR 0009 and plan item 0007 claim
+  commit awaits Codex-provider review, push, and its draft PR.
 
 ## Last shipped
 
-Issue #254 implementation via PR #279; its Docflow closeout is in progress.
+Issue #254 implementation and Docflow closeout via PRs #279 and #280.
 
 ## Next item
 
-Audit and claim GitHub issue #255, “Add mouse selection and playback to the
-Sequence view.”
+Implement and ship `plan/todo/0007-sequence-editor-row-clicks.md`.
