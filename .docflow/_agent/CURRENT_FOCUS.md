@@ -12,7 +12,8 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Active item:** `plan/todo/0006-pattern-manager-row-clicks.md` for GitHub
   issue #254.
 - **Blockers:** none.
-- **Uncommitted work:** ADR 0008 and plan item 0006 preparation.
+- **Uncommitted work:** worklog update before the required Codex-provider
+  Lachesi review.
 
 ## Last shipped
 
@@ -20,4 +21,4 @@ Issue #253 implementation and Docflow closeout via PRs #277 and #278.
 
 ## Next item
 
-Implement and ship `plan/todo/0006-pattern-manager-row-clicks.md`.
+Review and ship `plan/todo/0006-pattern-manager-row-clicks.md`.
