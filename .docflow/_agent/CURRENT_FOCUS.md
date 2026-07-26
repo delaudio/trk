@@ -8,19 +8,19 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** agent/257-help-overlay-mouse
-- **Active item:** `plan/todo/0009-help-overlay-pointer-controls.md` for GitHub
+- **Branch:** agent/257-docflow-closeout
+- **Active item:** `plan/done/2026-07-26-help-overlay-pointer-controls.md` for GitHub
   issue #257.
 - **Blockers:** none.
-- **Uncommitted work:** render-owned Help tabs, content and close targets,
-  primary-click routing, scoped wheel input, modal outside-click capture, and
-  focused renderer/application tests pass the full local gate and await commit,
-  Codex-provider review, and push to draft PR #285.
+- **Uncommitted work:** the committed closeout for implementation squash
+  `baf39b6`, PR #285, green CI #295, and closed issue #257 has one audit-state
+  wording remediation from Codex review `run-1785102953216729000` and awaits
+  final re-review and integration.
 
 ## Last shipped
 
-Issue #256 implementation and Docflow closeout via PRs #283 and #284.
+Issue #257 implementation via PR #285; its Docflow closeout is in progress.
 
 ## Next item
 
-Implement and ship `plan/todo/0009-help-overlay-pointer-controls.md`.
+Audit and claim issue #258.

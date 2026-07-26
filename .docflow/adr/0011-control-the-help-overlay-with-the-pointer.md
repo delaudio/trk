@@ -1,7 +1,7 @@
 ---
 adr: 0011
 title: Control the Help overlay with the pointer
-status: Accepted
+status: Implemented
 date: 2026-07-26
 owner: default-agent
 supersedes:
@@ -60,7 +60,7 @@ mode captures all other pointer clicks as no-ops.
 ## References
 
 - `0003-render-owned-interaction-regions.md`
-- `../plan/todo/0009-help-overlay-pointer-controls.md`
+- `../plan/done/2026-07-26-help-overlay-pointer-controls.md`
 - GitHub issue #257.
 
 ## Revision History
@@ -68,6 +68,7 @@ mode captures all other pointer clicks as no-ops.
 | Date | Revision | Author | Change |
 |------|----------|--------|--------|
 | 2026-07-26 | r1 | default-agent | Accepted render-owned Help tab, content, and close targets with modal pointer capture and scoped scrolling. |
+| 2026-07-26 | r2 | default-agent | Marked Implemented after PR #285 merged with GitHub Actions CI green. |
 
 ## Approvals
 
