@@ -117,12 +117,7 @@ impl App {
         }
 
         match self.mode {
-            AppMode::Normal | AppMode::Edit => self.handle_tracker_mouse_click(
-                column,
-                row,
-                viewport.visible_rows,
-                viewport.visible_tracks,
-            ),
+            AppMode::Normal | AppMode::Edit => self.handle_tracker_mouse_click(column, row),
             AppMode::Tracks => self.handle_track_list_mouse_click(row),
             AppMode::SampleBrowser => self.handle_sample_browser_mouse_click(row, activate),
             AppMode::ProjectBrowser => self.handle_project_browser_mouse_click(row, activate),
@@ -228,36 +223,22 @@ impl App {
         self.notify_info(format!("Track {:02}: {sample_name}", track_index + 1));
     }
 
-    fn handle_tracker_mouse_click(
-        &mut self,
-        column: u16,
-        row: u16,
-        visible_rows: usize,
-        visible_tracks: usize,
-    ) {
-        const GRID_FIRST_ROW: u16 = 10;
-        const GRID_FIRST_CELL_COLUMN: u16 = 21;
-        const TRACK_CELL_WIDTH: u16 = 12;
-        const RIGHT_SIDEBAR_START: u16 = 82;
-
-        self.focus_panel(FocusPanel::Tracker);
-        if column >= RIGHT_SIDEBAR_START {
+    fn handle_tracker_mouse_click(&mut self, column: u16, row: u16) {
+        let target = self
+            .interaction_map
+            .hit_test(column, row)
+            .filter(|region| region.id == interaction_region::PATTERN_CELL)
+            .map(|region| region.payload);
+        let Some(InteractionPayload::PatternCell { row, track }) = target else {
+            return;
+        };
+        if row >= self.current_row_count() || track >= self.song.tracks.len() {
             return;
         }
-        if row >= GRID_FIRST_ROW {
-            self.cursor.row = self
-                .row_offset
-                .saturating_add((row - GRID_FIRST_ROW) as usize)
-                .min(self.current_row_count().saturating_sub(1));
-        }
-        if column >= GRID_FIRST_CELL_COLUMN {
-            self.cursor.track = self
-                .track_offset
-                .saturating_add(((column - GRID_FIRST_CELL_COLUMN) / TRACK_CELL_WIDTH) as usize)
-                .min(self.song.tracks.len().saturating_sub(1));
-            self.cursor.digit = 0;
-        }
-        self.keep_active_viewport_visible(visible_rows, visible_tracks);
+        self.focus_panel(FocusPanel::Tracker);
+        self.cursor.row = row;
+        self.cursor.track = track;
+        self.cursor.digit = 0;
     }
 
     fn handle_track_list_mouse_click(&mut self, row: u16) {

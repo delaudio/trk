@@ -177,11 +177,12 @@ use salieri_midi::{
 use salieri_sampler::{Sample, WaveformBucket, WaveformOverview};
 use salieri_transform::{apply_euclidean, EuclideanRhythm};
 use salieri_tui::{
-    render_with_interactions, AiChatMessageRole, AiChatMessageView, AiChatProposalPreviewView,
-    AiChatViewState, CommandPaletteEntryView, CommandPaletteViewState, DspDevicePaletteEntryView,
-    DspDevicePaletteViewState, DspParameterLockStatusView, DspRackTargetView, DspRackViewState,
-    HelpTab, InteractionMap, ManagedPanelId, MidiPortView, MidiSettingsState, NotificationKind,
-    NotificationView, ProjectBrowserEntryKind, ProjectBrowserEntryView, ProjectBrowserViewState,
+    interaction_region, render_with_interactions, AiChatMessageRole, AiChatMessageView,
+    AiChatProposalPreviewView, AiChatViewState, CommandPaletteEntryView, CommandPaletteViewState,
+    DspDevicePaletteEntryView, DspDevicePaletteViewState, DspParameterLockStatusView,
+    DspRackTargetView, DspRackViewState, HelpTab, InteractionMap, InteractionPayload,
+    ManagedPanelId, MidiPortView, MidiSettingsState, NotificationKind, NotificationView,
+    ProjectBrowserEntryKind, ProjectBrowserEntryView, ProjectBrowserViewState,
     SampleBrowserEntryKind, SampleBrowserEntryView, SampleBrowserViewState, SamplerEnvelopeField,
     SamplerViewState, SelectionRect, TrackerLayoutPreset, TrackerLayoutState, TuiState, TuiView,
     ViewportAxis,
@@ -204,8 +205,6 @@ const MAX_LPB: u8 = 32;
 pub(crate) struct MouseViewport {
     terminal_width: u16,
     terminal_height: u16,
-    visible_rows: usize,
-    visible_tracks: usize,
 }
 
 fn main() -> Result<()> {

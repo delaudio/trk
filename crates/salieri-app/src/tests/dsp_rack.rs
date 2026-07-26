@@ -141,8 +141,6 @@ fn dsp_rack_mouse_selects_and_adjusts_parameter() {
     let viewport = MouseViewport {
         terminal_width: 160,
         terminal_height: 40,
-        visible_rows: 12,
-        visible_tracks: 4,
     };
 
     app.handle_mouse(

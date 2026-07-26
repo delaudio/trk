@@ -4,7 +4,8 @@ pub mod render;
 pub mod viewport;
 
 pub use interaction::{
-    region as interaction_region, InteractionMap, InteractionRegion, InteractionRegionId,
+    region as interaction_region, InteractionMap, InteractionPayload, InteractionRegion,
+    InteractionRegionId,
 };
 pub use layout::{
     resolve_managed_layout, resolve_tracker_layout, LayoutDiagnostic, ManagedLayoutDirection,

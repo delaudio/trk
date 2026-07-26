@@ -4,8 +4,6 @@ fn large_mouse_viewport() -> MouseViewport {
     MouseViewport {
         terminal_width: 160,
         terminal_height: 40,
-        visible_rows: 12,
-        visible_tracks: 4,
     }
 }
 
@@ -31,6 +29,11 @@ fn mouse_wheel_moves_tracker_cursor_through_shared_viewport() {
 #[test]
 fn mouse_click_moves_tracker_cursor_to_grid_cell() {
     let mut app = App::default();
+    app.interaction_map.register_with_payload(
+        interaction_region::PATTERN_CELL,
+        ratatui::layout::Rect::new(45, 14, 12, 1),
+        InteractionPayload::PatternCell { row: 4, track: 2 },
+    );
 
     app.handle_mouse(
         MouseEvent {
@@ -45,6 +48,30 @@ fn mouse_click_moves_tracker_cursor_to_grid_cell() {
     assert_eq!(app.mode, AppMode::Normal);
     assert_eq!(app.cursor.row, 4);
     assert_eq!(app.cursor.track, 2);
+}
+
+#[test]
+fn mouse_click_ignores_pattern_headers_gutters_and_panels() {
+    let mut app = App::default();
+    app.cursor.row = 3;
+    app.cursor.track = 1;
+    app.interaction_map.register(
+        interaction_region::PANEL_PATTERN,
+        ratatui::layout::Rect::new(10, 5, 80, 20),
+    );
+
+    app.handle_mouse(
+        MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: 12,
+            row: 6,
+            modifiers: KeyModifiers::NONE,
+        },
+        large_mouse_viewport(),
+    );
+
+    assert_eq!(app.cursor.row, 3);
+    assert_eq!(app.cursor.track, 1);
 }
 
 #[test]
