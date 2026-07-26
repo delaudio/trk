@@ -1,4 +1,4 @@
-use super::render_test_support::render_test_state;
+use super::render_test_support::{long_track_song, render_test_state};
 use super::*;
 use crate::{interaction_region, InteractionMap};
 use ratatui::{backend::TestBackend, Terminal};
@@ -98,6 +98,77 @@ fn exposes_offset_pattern_cells_at_representative_sizes() {
             Some(interaction_region::PATTERN_CELL)
         );
     }
+}
+
+#[test]
+fn composite_track_rows_expose_scrolled_absolute_indices() {
+    let song = long_track_song(20);
+    let mut state = render_test_state();
+    state.cursor.track = 15;
+
+    let map = interaction_map_with_song_and_state(100, 28, &song, state);
+    let regions = map
+        .regions()
+        .iter()
+        .filter(|region| region.id == interaction_region::COMPOSITE_TRACK_ROW)
+        .collect::<Vec<_>>();
+    let first = regions.first().expect("first visible track");
+    let last = regions.last().expect("last visible track");
+
+    assert!(matches!(
+        first.payload,
+        crate::InteractionPayload::CompositeTrackRow { track } if track > 0
+    ));
+    assert_eq!(
+        last.payload,
+        crate::InteractionPayload::CompositeTrackRow { track: 19 }
+    );
+    assert!(regions.iter().any(|region| {
+        region.payload == crate::InteractionPayload::CompositeTrackRow { track: 15 }
+    }));
+    assert!(regions.windows(2).all(|pair| {
+        pair[1].area.y == pair[0].area.y.saturating_add(1)
+            && matches!(
+                (pair[0].payload, pair[1].payload),
+                (
+                    crate::InteractionPayload::CompositeTrackRow { track: previous },
+                    crate::InteractionPayload::CompositeTrackRow { track: next },
+                ) if next == previous + 1
+            )
+    }));
+    assert_eq!(
+        map.hit_test(first.area.x, first.area.y)
+            .map(|region| region.payload),
+        Some(first.payload)
+    );
+}
+
+#[test]
+fn composite_track_borders_and_empty_rows_are_not_track_targets() {
+    let song = long_track_song(2);
+    let map = interaction_map_with_song_and_state(100, 28, &song, render_test_state());
+    let panel = map
+        .regions()
+        .iter()
+        .find(|region| region.id == interaction_region::PANEL_TRACKS)
+        .expect("tracks panel");
+    let rows = map
+        .regions()
+        .iter()
+        .filter(|region| region.id == interaction_region::COMPOSITE_TRACK_ROW)
+        .collect::<Vec<_>>();
+    let last = rows.last().expect("last track row");
+
+    assert_ne!(
+        map.hit_test(panel.area.x, last.area.y)
+            .map(|region| region.id),
+        Some(interaction_region::COMPOSITE_TRACK_ROW)
+    );
+    assert_ne!(
+        map.hit_test(last.area.x, last.area.y.saturating_add(1))
+            .map(|region| region.id),
+        Some(interaction_region::COMPOSITE_TRACK_ROW)
+    );
 }
 
 #[test]

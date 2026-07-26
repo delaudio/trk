@@ -375,10 +375,11 @@ fn tracks_panel_scrolls_to_active_track() {
     let song = long_track_song(30);
     let backend = TestBackend::new(32, 8);
     let mut terminal = Terminal::new(backend).expect("test terminal");
+    let mut interactions = InteractionMap::new();
 
     terminal
         .draw(|frame| {
-            render_tracks(frame, Rect::new(0, 0, 32, 8), &song, 20);
+            render_tracks(frame, Rect::new(0, 0, 32, 8), &song, 20, &mut interactions);
         })
         .expect("draw");
 

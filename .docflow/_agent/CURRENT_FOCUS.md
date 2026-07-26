@@ -8,18 +8,16 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** agent/251-docflow-closeout
-- **Active item:** close out
-  `plan/done/2026-07-26-visible-browser-entry-clicks.md`.
+- **Branch:** agent/252-composite-track-clicks
+- **Active item:** `plan/todo/0004-composite-track-row-clicks.md` for GitHub
+  issue #252.
 - **Blockers:** none.
-- **Uncommitted work:** none; the closeout commit for implementation squash
-  `af5e899` is pending integration.
+- **Uncommitted work:** final review record before publication.
 
 ## Last shipped
 
-Issue #251 implementation via PR #273, with CI #266 green and issue #251
-closed.
+Issue #251 implementation and Docflow closeout via PRs #273 and #274.
 
 ## Next item
 
-Audit and implement GitHub issue #252.
+Publish and ship `plan/todo/0004-composite-track-row-clicks.md`.

@@ -702,7 +702,7 @@ fn render_body(
     let resolved = resolve_tracker_layout(area, tracker_layout);
     if let Some(area) = resolved.tracks {
         interactions.register(interaction_region::PANEL_TRACKS, area);
-        render_tracks(frame, area, song, state.cursor.track);
+        render_tracks(frame, area, song, state.cursor.track, interactions);
     }
     if let Some(area) = resolved.sequence {
         interactions.register(interaction_region::PANEL_SEQUENCE, area);
@@ -768,10 +768,29 @@ fn ranged_title(label: &str, start: usize, end: usize, total: usize) -> String {
     }
 }
 
-fn render_tracks(frame: &mut Frame<'_>, area: Rect, song: &Song, active_track: usize) {
+fn render_tracks(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    song: &Song,
+    active_track: usize,
+    interactions: &mut InteractionMap,
+) {
     let visible_items = list_inner_height(area);
     let start = centered_scroll_offset(song.tracks.len(), active_track, visible_items);
     let end = start.saturating_add(visible_items).min(song.tracks.len());
+    let inner = bordered_content_area(area);
+    for (visible_row, track) in (start..end).enumerate() {
+        interactions.register_with_payload(
+            interaction_region::COMPOSITE_TRACK_ROW,
+            Rect::new(
+                inner.x,
+                inner.y.saturating_add(visible_row as u16),
+                inner.width,
+                1,
+            ),
+            crate::InteractionPayload::CompositeTrackRow { track },
+        );
+    }
     let lines = song
         .tracks
         .iter()
