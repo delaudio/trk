@@ -1,7 +1,7 @@
 ---
 adr: 0006
 title: Select composite track rows with the pointer
-status: Accepted
+status: Implemented
 date: 2026-07-26
 owner: default-agent
 supersedes:
@@ -59,7 +59,7 @@ selects that track while preserving the current tracker row and field.
 ## References
 
 - `0003-render-owned-interaction-regions.md`
-- `../plan/todo/0004-composite-track-row-clicks.md`
+- `../plan/done/2026-07-26-composite-track-row-clicks.md`
 - GitHub issue #252.
 
 ## Revision History
@@ -67,9 +67,11 @@ selects that track while preserving the current tracker row and field.
 | Date | Revision | Author | Change |
 |------|----------|--------|--------|
 | 2026-07-26 | r1 | default-agent | Accepted render-owned track-row targets for the composite tracker layout. |
+| 2026-07-26 | r2 | default-agent | Marked the capability Implemented after PR #275 merged with CI green. |
 
 ## Approvals
 
 | Role | Name | Date | Signature |
 |------|------|------|-----------|
 | Maintainer | fdg | 2026-07-26 | Authorised autonomous implementation of the queued UX issues in chat. |
+| Maintainer | fdg | 2026-07-26 | Authorised autonomous merge and closeout of issue #252 in chat. |

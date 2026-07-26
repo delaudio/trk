@@ -8,16 +8,16 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** agent/252-composite-track-clicks
-- **Active item:** `plan/todo/0004-composite-track-row-clicks.md` for GitHub
-  issue #252.
+- **Branch:** agent/252-docflow-closeout
+- **Active item:** close out
+  `plan/done/2026-07-26-composite-track-row-clicks.md` after PR #275.
 - **Blockers:** none.
-- **Uncommitted work:** final review record before publication.
+- **Uncommitted work:** atomic Docflow closeout for issue #252.
 
 ## Last shipped
 
-Issue #251 implementation and Docflow closeout via PRs #273 and #274.
+Issue #252 implementation via PR #275 with CI #270 green.
 
 ## Next item
 
-Publish and ship `plan/todo/0004-composite-track-row-clicks.md`.
+Merge this closeout, then begin GitHub issue #253.
