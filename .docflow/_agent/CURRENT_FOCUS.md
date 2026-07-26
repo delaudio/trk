@@ -8,15 +8,16 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** main
-- **Active item:** none — no work in flight.
+- **Branch:** agent/249-interaction-regions
+- **Active item:** `plan/todo/0001-render-owned-interaction-regions.md` for
+  GitHub issue #249.
 - **Blockers:** none.
-- **Uncommitted work:** none.
+- **Uncommitted work:** ADR 0003 and plan item 0001 preparation.
 
 ## Last shipped
 
-Docflow bootstrap commit from base `b8a4fee`.
+Docflow bootstrap commit `8be2907`.
 
 ## Next item
 
-`ls .docflow/plan/todo/` for the queue; the lowest-numbered file runs next.
+Implement and ship `plan/todo/0001-render-owned-interaction-regions.md`.
