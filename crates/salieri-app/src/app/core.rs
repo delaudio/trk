@@ -63,6 +63,7 @@ impl App {
             pattern_highlight_interval: config.ui.pattern_highlight_interval,
             show_pattern_top_info: config.ui.show_pattern_top_info,
             tracker_layout: config.ui.layout.tracker_layout(),
+            interaction_map: InteractionMap::new(),
             help_scroll: 0,
             help_tab: HelpTab::Basics,
             command_buffer: String::new(),

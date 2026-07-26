@@ -5,6 +5,7 @@ mod dsp_parameters;
 mod dsp_rack;
 mod help_overlay;
 mod modal_overlays;
+mod renoise_layout;
 mod renoise_workspace;
 mod theme;
 
@@ -52,8 +53,8 @@ use salieri_core::{
 use salieri_sampler::{WaveformBucket, WaveformOverview};
 
 use crate::{
-    resolve_tracker_layout, PatternFieldLayout, TrackerLayoutPreset, TrackerLayoutState,
-    ViewportAxis,
+    interaction_region, resolve_tracker_layout, InteractionMap, PatternFieldLayout,
+    TrackerLayoutPreset, TrackerLayoutState, ViewportAxis,
 };
 use browser_views::{render_project_browser, render_sample_browser};
 use dsp_rack::render_dsp_rack_view;
@@ -427,6 +428,15 @@ impl SelectionRect {
 }
 
 pub fn render(frame: &mut Frame<'_>, song: &Song, state: TuiState<'_>) {
+    let _ = render_with_interactions(frame, song, state);
+}
+
+#[must_use]
+pub fn render_with_interactions(
+    frame: &mut Frame<'_>,
+    song: &Song,
+    state: TuiState<'_>,
+) -> InteractionMap {
     let area = frame.area();
     let vertical = Layout::default()
         .direction(LayoutDirection::Vertical)
@@ -436,13 +446,17 @@ pub fn render(frame: &mut Frame<'_>, song: &Song, state: TuiState<'_>) {
             Constraint::Length(1),
         ])
         .split(area);
+    let mut interactions = InteractionMap::new();
+    interactions.register(interaction_region::APP_HEADER, vertical[0]);
+    interactions.register(interaction_region::APP_BODY, vertical[1]);
+    interactions.register(interaction_region::APP_STATUS, vertical[2]);
 
     render_header(frame, vertical[0], song, state);
-    render_body(frame, vertical[1], song, state);
+    render_body(frame, vertical[1], song, state, &mut interactions);
     render_status(frame, vertical[2], state);
 
     if state.show_help {
-        render_help_overlay(
+        let overlay = render_help_overlay(
             frame,
             area,
             state.mode_label,
@@ -450,19 +464,25 @@ pub fn render(frame: &mut Frame<'_>, song: &Song, state: TuiState<'_>) {
             state.help_scroll,
             state.help_tab,
         );
+        interactions.register(interaction_region::OVERLAY_HELP, overlay);
     }
     if let Some(midi_settings) = state.midi_settings {
-        render_midi_settings_overlay(frame, area, midi_settings);
+        let overlay = render_midi_settings_overlay(frame, area, midi_settings);
+        interactions.register(interaction_region::OVERLAY_MIDI_SETTINGS, overlay);
     }
     if let Some(command_palette) = state.command_palette {
-        render_command_palette_overlay(frame, area, command_palette);
+        let overlay = render_command_palette_overlay(frame, area, command_palette);
+        interactions.register(interaction_region::OVERLAY_COMMAND_PALETTE, overlay);
     }
     if state.quit_confirmation {
-        render_quit_confirmation(frame, area);
+        let overlay = render_quit_confirmation(frame, area);
+        interactions.register(interaction_region::OVERLAY_QUIT_CONFIRMATION, overlay);
     }
     if let Some(message) = state.delete_confirmation {
-        render_delete_confirmation(frame, area, message);
+        let overlay = render_delete_confirmation(frame, area, message);
+        interactions.register(interaction_region::OVERLAY_DELETE_CONFIRMATION, overlay);
     }
+    interactions
 }
 
 pub fn render_waveform_overview(frame: &mut Frame<'_>, area: Rect, overview: &WaveformOverview) {
@@ -607,7 +627,14 @@ fn render_header(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState
     frame.render_widget(header, area);
 }
 
-fn render_body(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
+fn render_body(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    song: &Song,
+    state: TuiState<'_>,
+    interactions: &mut InteractionMap,
+) {
+    interactions.register(active_view_region(state.active_view), area);
     if state.active_view == TuiView::Sequence {
         render_sequence_editor(frame, area, song, state.sequence_position);
         return;
@@ -649,7 +676,16 @@ fn render_body(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'
         return;
     }
     if layout_kind(area.width) == LayoutKind::Large {
-        renoise_workspace::render_pattern_workspace(frame, area, song, state);
+        let layout = renoise_layout::pattern_workspace_layout(area);
+        interactions.register(interaction_region::PANEL_ANALYZER, layout.analyzer);
+        interactions.register(interaction_region::PANEL_UTIL, layout.util);
+        interactions.register(interaction_region::PANEL_PATTERN, layout.pattern);
+        interactions.register(interaction_region::PANEL_INSPECTOR, layout.inspector);
+        interactions.register(interaction_region::PANEL_EFFECTS, layout.effects);
+        interactions.register(interaction_region::PANEL_MIXER, layout.mixer);
+        interactions.register(interaction_region::PANEL_VU, layout.vu);
+        interactions.register(interaction_region::PANEL_DEVICE_CHAIN, layout.device_chain);
+        renoise_workspace::render_pattern_workspace(frame, layout, song, state);
         return;
     }
 
@@ -665,17 +701,37 @@ fn render_body(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'
     }
     let resolved = resolve_tracker_layout(area, tracker_layout);
     if let Some(area) = resolved.tracks {
+        interactions.register(interaction_region::PANEL_TRACKS, area);
         render_tracks(frame, area, song, state.cursor.track);
     }
     if let Some(area) = resolved.sequence {
+        interactions.register(interaction_region::PANEL_SEQUENCE, area);
         render_sequence(frame, area, song, state.sequence_position);
     }
+    interactions.register(interaction_region::PANEL_PATTERN, resolved.pattern);
     render_pattern(frame, resolved.pattern, song, state);
     if let Some(area) = resolved.track_desk {
+        interactions.register(interaction_region::PANEL_TRACK_DESK, area);
         render_track_properties(frame, area, song, state);
     }
     if let Some(area) = resolved.inspector {
+        interactions.register(interaction_region::PANEL_INSPECTOR, area);
         render_instrument_sidebar(frame, area, song, state);
+    }
+}
+
+fn active_view_region(view: TuiView) -> crate::InteractionRegionId {
+    match view {
+        TuiView::Pattern => interaction_region::VIEW_PATTERN,
+        TuiView::Sequence => interaction_region::VIEW_SEQUENCE,
+        TuiView::Clips => interaction_region::VIEW_CLIPS,
+        TuiView::Tracks => interaction_region::VIEW_TRACKS,
+        TuiView::Patterns => interaction_region::VIEW_PATTERNS,
+        TuiView::Sampler => interaction_region::VIEW_SAMPLER,
+        TuiView::DspRack => interaction_region::VIEW_DSP_RACK,
+        TuiView::SampleBrowser => interaction_region::VIEW_SAMPLE_BROWSER,
+        TuiView::ProjectBrowser => interaction_region::VIEW_PROJECT_BROWSER,
+        TuiView::AiChat => interaction_region::VIEW_AI_CHAT,
     }
 }
 

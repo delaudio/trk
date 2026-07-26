@@ -195,7 +195,7 @@ fn run(args: CliArgs) -> Result<()> {
             } else {
                 app.is_playing
             };
-            render(
+            let interaction_map = render_with_interactions(
                 frame,
                 &app.song,
                 TuiState {
@@ -236,6 +236,7 @@ fn run(args: CliArgs) -> Result<()> {
                     tracker_layout: app.tracker_layout,
                 },
             );
+            app.interaction_map = interaction_map;
         })?;
 
         if app.should_quit || terminal.interrupted() {

@@ -177,11 +177,11 @@ use salieri_midi::{
 use salieri_sampler::{Sample, WaveformBucket, WaveformOverview};
 use salieri_transform::{apply_euclidean, EuclideanRhythm};
 use salieri_tui::{
-    render, AiChatMessageRole, AiChatMessageView, AiChatProposalPreviewView, AiChatViewState,
-    CommandPaletteEntryView, CommandPaletteViewState, DspDevicePaletteEntryView,
+    render_with_interactions, AiChatMessageRole, AiChatMessageView, AiChatProposalPreviewView,
+    AiChatViewState, CommandPaletteEntryView, CommandPaletteViewState, DspDevicePaletteEntryView,
     DspDevicePaletteViewState, DspParameterLockStatusView, DspRackTargetView, DspRackViewState,
-    HelpTab, ManagedPanelId, MidiPortView, MidiSettingsState, NotificationKind, NotificationView,
-    ProjectBrowserEntryKind, ProjectBrowserEntryView, ProjectBrowserViewState,
+    HelpTab, InteractionMap, ManagedPanelId, MidiPortView, MidiSettingsState, NotificationKind,
+    NotificationView, ProjectBrowserEntryKind, ProjectBrowserEntryView, ProjectBrowserViewState,
     SampleBrowserEntryKind, SampleBrowserEntryView, SampleBrowserViewState, SamplerEnvelopeField,
     SamplerViewState, SelectionRect, TrackerLayoutPreset, TrackerLayoutState, TuiState, TuiView,
     ViewportAxis,
@@ -239,6 +239,7 @@ struct App {
     pattern_highlight_interval: usize,
     show_pattern_top_info: bool,
     tracker_layout: TrackerLayoutState,
+    interaction_map: InteractionMap,
     help_scroll: usize,
     help_tab: HelpTab,
     command_buffer: String,

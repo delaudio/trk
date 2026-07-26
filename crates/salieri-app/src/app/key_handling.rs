@@ -95,6 +95,14 @@ impl App {
         viewport: MouseViewport,
         activate: bool,
     ) {
+        if let Some(region) = self.interaction_map.hit_test(column, row) {
+            tracing::trace!(
+                region = region.id.as_str(),
+                column,
+                row,
+                "mouse interaction region"
+            );
+        }
         if row < 3 {
             if column < 12 {
                 self.toggle_playback();
