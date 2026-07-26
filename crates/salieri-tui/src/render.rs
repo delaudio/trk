@@ -479,8 +479,7 @@ pub fn render_with_interactions(
         );
     }
     if let Some(midi_settings) = state.midi_settings {
-        let overlay = render_midi_settings_overlay(frame, area, midi_settings);
-        interactions.register(interaction_region::OVERLAY_MIDI_SETTINGS, overlay);
+        render_midi_settings_overlay(frame, area, midi_settings, &mut interactions);
     }
     if let Some(command_palette) = state.command_palette {
         render_command_palette_overlay(frame, area, command_palette, &mut interactions);
@@ -3259,6 +3258,9 @@ mod render_help_overlay_tests;
 #[cfg(test)]
 #[path = "render_tests/layout.rs"]
 mod render_layout_tests;
+#[cfg(test)]
+#[path = "render_tests/midi_settings.rs"]
+mod render_midi_settings_tests;
 #[cfg(test)]
 #[path = "render_tests/overlays.rs"]
 mod render_overlay_tests;

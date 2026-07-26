@@ -12,8 +12,10 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Active item:** `plan/todo/0010-midi-settings-pointer-controls.md` for GitHub
   issue #258.
 - **Blockers:** none.
-- **Uncommitted work:** accepted ADR 0012 and its focused implementation plan
-  await Codex-provider review before code changes.
+- **Uncommitted work:** virtualized MIDI port targets, typed fixed action
+  targets, modal primary-click routing, empty/outside no-ops, focused tests, and
+  the intentional snapshot pass the full local gate and await commit,
+  Codex-provider review, and push to draft PR #287.
 
 ## Last shipped
 

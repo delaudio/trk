@@ -121,6 +121,12 @@ impl App {
             }
             return;
         }
+        if self.mode == AppMode::MidiSettings {
+            if primary_click {
+                self.handle_midi_settings_mouse_click(column, row);
+            }
+            return;
+        }
         if row < 3 {
             if column < 12 {
                 self.toggle_playback();
@@ -881,6 +887,30 @@ impl App {
             _ => return,
         };
         self.help_scroll = self.help_scroll.saturating_add_signed(delta);
+    }
+
+    fn handle_midi_settings_mouse_click(&mut self, column: u16, row: u16) {
+        let Some(region) = self.interaction_map.hit_test(column, row).copied() else {
+            return;
+        };
+        match (region.id, region.payload) {
+            (interaction_region::MIDI_SETTINGS_PORT, InteractionPayload::MidiPortRow { index })
+                if index < self.midi_ports.len() =>
+            {
+                self.midi_port_cursor = index;
+            }
+            (
+                interaction_region::MIDI_SETTINGS_ACTION,
+                InteractionPayload::MidiSettingsAction { action },
+            ) => match action {
+                MidiSettingsAction::Connect => self.connect_selected_midi_port(),
+                MidiSettingsAction::Disconnect => self.disconnect_midi(),
+                MidiSettingsAction::Panic => self.panic_midi(),
+                MidiSettingsAction::Refresh => self.refresh_midi_ports(),
+                MidiSettingsAction::Close => self.restore_previous_focus(),
+            },
+            _ => {}
+        }
     }
 }
 

@@ -9,17 +9,17 @@
 │           │Input: MIDI In Disconnected                                               │-  --- -- -│
 │           │Routing: clock OFF/OFF, transport OFF/OFF, notes ON/ON, cc OFF/OFF, ch    │-  --- -- -│
 │           │all/all, C=60, delay=0ms                                                  │-  --- -- -│
-│           │                                                                          │-  --- -- -│
-│           │00 IAC Driver Bus 1                                                       │-  --- -- -│
+│           │  00 IAC Driver Bus 1                                                     │-  --- -- -│
 │           │> 02 External Synth                                                       │-  --- -- -│
 │           │                                                                          │-  --- -- -│
-│           │Enter connect selected   d disconnect   p panic/all notes off             │-  --- -- -│
-└───────────│F5/r refresh ports   Esc/q close                                          │───────────┘
+│           │                                                                          │-  --- -- -│
+│           │                                                                          │-  --- -- -│
+└───────────│                                                                          │───────────┘
 ┌ Song Slots│                                                                          │───────────┐
 │  00 P01 Pa│                                                                          │           │
 │           │                                                                          │-- Inst -- │
 │           │                                                                          │ Dly -- FX1│
-│           │                                                                          │           │
+│           │[Connect] [Disconnect] [Panic] [Refresh] [Close]                          │           │
 │           └──────────────────────────────────────────────────────────────────────────┘n          │
 │                          ││Audio --              Mst     +0.0 dB         :cell instrument 01     │
 │                          ││Mst     +0.0 dB       █████───── auto         C-j Sampler  F9 Tracks  │
