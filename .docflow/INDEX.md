@@ -11,4 +11,4 @@ metadata.
 | 0004 | Select rendered pattern cells with the pointer | Implemented | 2026-07-26 | default-agent | tui, ux, input, tracker |
 | 0005 | Select visible browser entries with the pointer | Implemented | 2026-07-26 | default-agent | tui, ux, input, browser |
 | 0006 | Select composite track rows with the pointer | Implemented | 2026-07-26 | default-agent | tui, ux, input, tracks |
-| 0007 | Select composite song slots with the pointer | Accepted | 2026-07-26 | default-agent | tui, ux, input, sequence |
+| 0007 | Select composite song slots with the pointer | Implemented | 2026-07-26 | default-agent | tui, ux, input, sequence |

@@ -1,7 +1,7 @@
 ---
 adr: 0007
 title: Select composite song slots with the pointer
-status: Accepted
+status: Implemented
 date: 2026-07-26
 owner: default-agent
 supersedes:
@@ -63,7 +63,7 @@ keyboard sequence navigation.
 ## References
 
 - `0003-render-owned-interaction-regions.md`
-- `../plan/todo/0005-composite-song-slot-clicks.md`
+- `../plan/done/2026-07-26-composite-song-slot-clicks.md`
 - GitHub issue #253.
 
 ## Revision History
@@ -71,9 +71,11 @@ keyboard sequence navigation.
 | Date | Revision | Author | Change |
 |------|----------|--------|--------|
 | 2026-07-26 | r1 | default-agent | Accepted render-owned row targets for composite Song Slot selection. |
+| 2026-07-26 | r2 | default-agent | Marked the capability Implemented after PR #277 merged with CI green. |
 
 ## Approvals
 
 | Role | Name | Date | Signature |
 |------|------|------|-----------|
 | Maintainer | fdg | 2026-07-26 | Authorised autonomous implementation of the queued UX issues in chat. |
+| Maintainer | fdg | 2026-07-26 | Authorised autonomous merge and closeout of issue #253 in chat. |
