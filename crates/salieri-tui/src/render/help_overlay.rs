@@ -1,10 +1,10 @@
 use ratatui::{
-    layout::Rect,
+    layout::{Alignment, Rect},
     prelude::{Color, Frame, Line, Modifier, Span, Style},
     widgets::{Block, Borders, Clear, Paragraph, Scrollbar, ScrollbarOrientation, Wrap},
 };
 
-use crate::ViewportAxis;
+use crate::{interaction_region, InteractionMap, InteractionPayload, ViewportAxis};
 
 use super::HelpTab;
 
@@ -15,50 +15,131 @@ pub(super) fn render_help_overlay(
     edit_step: usize,
     scroll: usize,
     tab: HelpTab,
+    interactions: &mut InteractionMap,
 ) -> Rect {
     let overlay = large_overlay_rect(area);
-    let visible_rows = overlay.height.saturating_sub(2) as usize;
-    let lines = help_lines(mode_label, edit_step, tab);
+    interactions.register(interaction_region::OVERLAY_HELP, overlay);
+    let inner = Rect::new(
+        overlay.x.saturating_add(1),
+        overlay.y.saturating_add(1),
+        overlay.width.saturating_sub(2),
+        overlay.height.saturating_sub(2),
+    );
+    let controls_area = Rect::new(inner.x, inner.y, inner.width, 1);
+    let hint_area = Rect::new(
+        inner.x,
+        inner.y.saturating_add(1),
+        inner.width,
+        u16::from(inner.height > 1),
+    );
+    let content_area = Rect::new(
+        inner.x,
+        inner.y.saturating_add(2),
+        inner.width,
+        inner.height.saturating_sub(2),
+    );
+    interactions.register(interaction_region::HELP_CONTENT, content_area);
+
+    let lines = help_content_lines(mode_label, edit_step, tab);
+    let visible_rows = content_area.height as usize;
     let line_count = lines.len();
     let mut viewport = ViewportAxis::with_offset(lines.len(), visible_rows, scroll);
     viewport.clamp();
     let max_scroll = viewport.max_offset();
     let scroll = viewport.offset();
     let title = if max_scroll == 0 {
-        format!(" Help: {} | Tab/Shift+Tab pages ", tab.label())
+        format!(" Help: {} ", tab.label())
     } else {
-        format!(
-            " Help: {} {}/{} | Tab/Shift+Tab pages ",
-            tab.label(),
-            scroll + 1,
-            max_scroll + 1
-        )
+        format!(" Help: {} {}/{} ", tab.label(), scroll + 1, max_scroll + 1)
     };
 
+    frame.render_widget(Clear, overlay);
+    frame.render_widget(Block::default().title(title).borders(Borders::ALL), overlay);
+    render_help_controls(frame, controls_area, tab, interactions);
+    frame.render_widget(
+        Paragraph::new(" Tab/Right next page   Shift+Tab/Left previous page   Up/Down scroll")
+            .style(Style::default().fg(Color::DarkGray)),
+        hint_area,
+    );
     let paragraph = Paragraph::new(lines)
-        .block(Block::default().title(title).borders(Borders::ALL))
         .scroll((scroll as u16, 0))
         .wrap(Wrap { trim: false })
         .style(Style::default().fg(Color::White));
-    frame.render_widget(Clear, overlay);
-    frame.render_widget(paragraph, overlay);
+    frame.render_widget(paragraph, content_area);
     if line_count > visible_rows {
         let mut scrollbar_state = viewport.scrollbar_state();
         frame.render_stateful_widget(
             Scrollbar::default().orientation(ScrollbarOrientation::VerticalRight),
-            overlay,
+            content_area,
             &mut scrollbar_state,
         );
     }
     overlay
 }
 
-fn help_lines(mode_label: &str, edit_step: usize, tab: HelpTab) -> Vec<Line<'static>> {
-    let mut lines = vec![
-        help_tab_line(tab),
-        Line::from("  Tab/Right next page   Shift+Tab/Left previous page   Up/Down scroll"),
-        Line::from(""),
-    ];
+fn render_help_controls(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    active: HelpTab,
+    interactions: &mut InteractionMap,
+) {
+    const CLOSE_LABEL: &str = "[ Close ]";
+    let close_width = (CLOSE_LABEL.len() as u16).min(area.width);
+    let close_area = Rect::new(
+        area.x
+            .saturating_add(area.width.saturating_sub(close_width)),
+        area.y,
+        close_width,
+        area.height,
+    );
+    let tab_width = area
+        .width
+        .saturating_sub(close_width)
+        .saturating_sub(u16::from(area.width > close_width));
+    let tabs_area = Rect::new(area.x, area.y, tab_width, area.height);
+    let mut spans = Vec::new();
+    let mut cursor_x = tabs_area.x;
+    let tabs_right = tabs_area.x.saturating_add(tabs_area.width);
+    for (index, tab) in HelpTab::ALL.iter().copied().enumerate() {
+        if index > 0 {
+            const SEPARATOR: &str = " | ";
+            spans.push(Span::raw(SEPARATOR));
+            cursor_x = cursor_x.saturating_add(SEPARATOR.len() as u16);
+        }
+        let label = format!(" {} ", tab.label());
+        let visible_width = (label.len() as u16).min(tabs_right.saturating_sub(cursor_x));
+        interactions.register_with_payload(
+            interaction_region::HELP_TAB,
+            Rect::new(cursor_x, area.y, visible_width, area.height),
+            InteractionPayload::HelpTab { index },
+        );
+        let style = if tab == active {
+            Style::default()
+                .fg(Color::Black)
+                .bg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::White)
+        };
+        spans.push(Span::styled(label, style));
+        cursor_x = cursor_x.saturating_add(visible_width);
+    }
+    frame.render_widget(Paragraph::new(Line::from(spans)), tabs_area);
+    interactions.register(interaction_region::HELP_CLOSE, close_area);
+    frame.render_widget(
+        Paragraph::new(CLOSE_LABEL)
+            .alignment(Alignment::Right)
+            .style(
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        close_area,
+    );
+}
+
+fn help_content_lines(mode_label: &str, edit_step: usize, tab: HelpTab) -> Vec<Line<'static>> {
+    let mut lines = Vec::new();
 
     match tab {
         HelpTab::Basics => lines.extend(help_basics_lines(mode_label)),
@@ -82,25 +163,6 @@ fn large_overlay_rect(area: Rect) -> Rect {
         width: width.min(area.width),
         height: height.min(area.height),
     }
-}
-
-fn help_tab_line(active: HelpTab) -> Line<'static> {
-    let mut spans = Vec::new();
-    for (index, tab) in HelpTab::ALL.iter().copied().enumerate() {
-        if index > 0 {
-            spans.push(Span::raw(" | "));
-        }
-        let style = if tab == active {
-            Style::default()
-                .fg(Color::Black)
-                .bg(Color::Yellow)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(Color::White)
-        };
-        spans.push(Span::styled(format!(" {} ", tab.label()), style));
-    }
-    Line::from(spans)
 }
 
 fn help_basics_lines(mode_label: &str) -> Vec<Line<'static>> {

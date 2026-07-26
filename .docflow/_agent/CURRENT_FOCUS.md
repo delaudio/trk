@@ -8,19 +8,19 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** agent/256-docflow-closeout
-- **Active item:** `plan/done/2026-07-26-command-palette-entry-clicks.md` for GitHub
-  issue #256.
+- **Branch:** agent/257-help-overlay-mouse
+- **Active item:** `plan/todo/0009-help-overlay-pointer-controls.md` for GitHub
+  issue #257.
 - **Blockers:** none.
-- **Uncommitted work:** none expected. The committed closeout for implementation
-  squash `41860c6`, PR #283, green CI #290, and closed issue #256 awaits
-  Codex-provider review and integration.
+- **Uncommitted work:** render-owned Help tabs, content and close targets,
+  primary-click routing, scoped wheel input, modal outside-click capture, and
+  focused renderer/application tests pass the full local gate and await commit,
+  Codex-provider review, and push to draft PR #285.
 
 ## Last shipped
 
-Issue #256 implementation via PR #283; its Docflow closeout is in progress.
+Issue #256 implementation and Docflow closeout via PRs #283 and #284.
 
 ## Next item
 
-Audit and claim issue #257 for clickable Help overlay tabs, scoped scrolling,
-and close control.
+Implement and ship `plan/todo/0009-help-overlay-pointer-controls.md`.
