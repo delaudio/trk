@@ -12,7 +12,8 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Active item:** `plan/todo/0003-visible-browser-entry-clicks.md` for GitHub
   issue #251.
 - **Blockers:** none.
-- **Uncommitted work:** ADR 0005 and plan item 0003 preparation.
+- **Uncommitted work:** validation and review notes for implementation commit
+  `bb154c5`.
 
 ## Last shipped
 
