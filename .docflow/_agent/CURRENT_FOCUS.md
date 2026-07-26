@@ -12,8 +12,8 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Active item:** `plan/todo/0006-pattern-manager-row-clicks.md` for GitHub
   issue #254.
 - **Blockers:** none.
-- **Uncommitted work:** worklog update before the required Codex-provider
-  Lachesi review.
+- **Uncommitted work:** CI file-size remediation is locally green and awaits
+  commit, Codex-provider Lachesi review, and push.
 
 ## Last shipped
 

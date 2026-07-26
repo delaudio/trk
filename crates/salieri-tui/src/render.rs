@@ -3237,6 +3237,9 @@ mod render_layout_tests;
 #[path = "render_tests/overlays.rs"]
 mod render_overlay_tests;
 #[cfg(test)]
+#[path = "render_tests/pattern_manager.rs"]
+mod render_pattern_manager_tests;
+#[cfg(test)]
 #[path = "render_tests/pattern.rs"]
 mod render_pattern_tests;
 #[cfg(test)]
