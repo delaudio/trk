@@ -1,7 +1,7 @@
 ---
 adr: 0004
 title: Select rendered pattern cells with the pointer
-status: Accepted
+status: Implemented
 date: 2026-07-26
 owner: default-agent
 supersedes:
@@ -72,7 +72,7 @@ rendered frame.
 ## References
 
 - `0003-render-owned-interaction-regions.md`
-- `../plan/todo/0002-rendered-pattern-grid-clicks.md`
+- `../plan/done/2026-07-26-rendered-pattern-grid-clicks.md`
 - GitHub issue #250.
 
 ## Revision History
@@ -80,9 +80,11 @@ rendered frame.
 | Date | Revision | Author | Change |
 |------|----------|--------|--------|
 | 2026-07-26 | r1 | default-agent | Accepted the rendered pattern-cell selection contract and documented the intentional Full-layout alignment. |
+| 2026-07-26 | r2 | default-agent | Marked the capability Implemented after PR #271 merged with CI green. |
 
 ## Approvals
 
 | Role | Name | Date | Signature |
 |------|------|------|-----------|
 | Maintainer | fdg | 2026-07-26 | Authorised autonomous implementation of the queued UX issues in chat. |
+| Maintainer | fdg | 2026-07-26 | Authorised autonomous merge and closeout of issue #250 in chat. |
