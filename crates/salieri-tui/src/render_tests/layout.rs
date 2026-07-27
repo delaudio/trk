@@ -91,19 +91,19 @@ fn transport_header_uses_complete_width_appropriate_segments() {
     let cases = [
         (
             72,
-            " [▷] [■]  BPM: 120  LPB: 4  STOPPED  PAT: 01  ROW: 0000/0000",
+            " [▷] [■] [●×]  BPM: 120  LPB: 4  STOPPED  PAT: 01  ROW: 0000/0000",
         ),
         (
             80,
-            " [▷] [■]  BPM: 120  LPB: 4  STOPPED  PAT: 01  ROW: 0000/0000  Sync: Internal",
+            " [▷] [■] [●×]  BPM: 120  LPB: 4  STOPPED  PAT: 01  ROW: 0000/0000",
         ),
         (
             100,
-            " [▷] [■]  BPM: 120  LPB: 4  STOPPED  PAT: 01  ROW: 0000/0000  Sync: Internal  MIDI Disconnected",
+            " [▷] [■] [●×]  BPM: 120  LPB: 4  STOPPED  PAT: 01  ROW: 0000/0000  Sync: Internal",
         ),
         (
             140,
-            " [▷] [■] BPM:120 LPB:4 Oct:4 Vel:100 Sw:0% Sync:Int CPU:0% STOPPED PAT:01 ROW:0000/0000 MIDI Disconnected ORD:00 LOOP:ON TRK:01 FLD:NOTE",
+            " [▷] [■] [●×] BPM:120 LPB:4 Oct:4 V:100 Sw:0% Syn:Int CPU:0% STOPPED PAT:01 ROW:0000/0000 MIDI Disconnected ORD:00 LOOP:ON TRK:01 FLD:NOTE",
         ),
     ];
 
@@ -134,15 +134,15 @@ fn optional_header_markers_are_omitted_atomically_when_they_do_not_fit() {
         ..render_test_state()
     };
 
-    let constrained = compose_transport_header(&song, state, 136);
+    let constrained = compose_transport_header(&song, state, 138);
     let constrained_text = super::render_test_support::line_text(&constrained.line);
-    assert_eq!(constrained.line.width(), 136);
+    assert_eq!(constrained.line.width(), 138);
     assert!(!constrained_text.contains(" SEL"));
     assert!(!constrained_text.ends_with(" *"));
 
-    let wide = compose_transport_header(&song, state, 142);
+    let wide = compose_transport_header(&song, state, 144);
     let wide_text = super::render_test_support::line_text(&wide.line);
-    assert_eq!(wide.line.width(), 142);
+    assert_eq!(wide.line.width(), 144);
     assert!(wide_text.ends_with(" SEL *"));
 }
 
@@ -163,7 +163,7 @@ fn measured_header_candidates_never_exceed_dynamic_boundaries() {
         ..render_test_state()
     };
 
-    for available_width in [60, 61, 70, 78, 98, 118, 132, 138] {
+    for available_width in [0, 1, 7, 8, 13, 14, 60, 61, 70, 78, 98, 118, 132, 138] {
         let header = compose_transport_header(&song, state, available_width);
         assert!(
             header.line.width() <= usize::from(available_width),

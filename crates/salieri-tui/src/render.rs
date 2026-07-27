@@ -564,18 +564,12 @@ fn render_header(
     let block = theme::block(" Salieri Tracker ");
     let inner = block.inner(area);
     let header = compose_transport_header(song, state, inner.width);
-    register_transport_action(
-        interactions,
-        inner,
-        header.play_column,
-        crate::TransportAction::Play,
-    );
-    register_transport_action(
-        interactions,
-        inner,
-        header.stop_column,
-        crate::TransportAction::Stop,
-    );
+    if let Some(column) = header.play_column {
+        register_transport_action(interactions, inner, column, crate::TransportAction::Play);
+    }
+    if let Some(column) = header.stop_column {
+        register_transport_action(interactions, inner, column, crate::TransportAction::Stop);
+    }
     let paragraph = Paragraph::new(header.line)
         .block(block)
         .style(theme::base());
@@ -584,34 +578,38 @@ fn render_header(
 
 struct TransportHeader {
     line: Line<'static>,
-    play_column: u16,
-    stop_column: u16,
+    play_column: Option<u16>,
+    stop_column: Option<u16>,
 }
 
 struct TransportHeaderBuilder {
     spans: Vec<Span<'static>>,
     width: u16,
-    play_column: u16,
-    stop_column: u16,
+    play_column: Option<u16>,
+    stop_column: Option<u16>,
 }
 
 impl TransportHeaderBuilder {
-    fn new(state: TuiState<'_>, show_record: bool) -> Self {
-        let mut header = Self {
+    fn empty() -> Self {
+        Self {
             spans: Vec::new(),
             width: 0,
-            play_column: 0,
-            stop_column: 0,
-        };
+            play_column: None,
+            stop_column: None,
+        }
+    }
+
+    fn new(state: TuiState<'_>, show_record: bool) -> Self {
+        let mut header = Self::empty();
         header.push(theme::label_span(" ["));
-        header.play_column = header.width;
+        header.play_column = Some(header.width);
         header.push(theme::value_span(if state.is_playing {
             "▶"
         } else {
             "▷"
         }));
         header.push(theme::label_span("] ["));
-        header.stop_column = header.width;
+        header.stop_column = Some(header.width);
         header.push(theme::value_span("■"));
         header.push(theme::label_span("]"));
         if show_record {
@@ -683,7 +681,15 @@ fn compose_transport_header(
         return core.finish();
     }
 
-    TransportHeaderBuilder::new(state, false).finish()
+    let controls = TransportHeaderBuilder::new(state, true);
+    if controls.line_width() <= available_width {
+        return controls.finish();
+    }
+    let play_stop = TransportHeaderBuilder::new(state, false);
+    if play_stop.line_width() <= available_width {
+        return play_stop.finish();
+    }
+    TransportHeaderBuilder::empty().finish()
 }
 
 fn compose_core_transport_header(
@@ -692,7 +698,7 @@ fn compose_core_transport_header(
     playback: &'static str,
     playhead: &str,
 ) -> TransportHeaderBuilder {
-    let mut header = TransportHeaderBuilder::new(state, false);
+    let mut header = TransportHeaderBuilder::new(state, true);
     header.push(theme::label_span("  BPM: "));
     header.push(theme::value_span(song.transport.bpm.to_string()));
     header.push(theme::label_span("  LPB: "));
@@ -749,18 +755,18 @@ fn compose_full_transport_header(
     playhead: &str,
     available_width: u16,
 ) -> TransportHeaderBuilder {
-    let mut header = TransportHeaderBuilder::new(state, false);
+    let mut header = TransportHeaderBuilder::new(state, true);
     header.push(theme::label_span(" BPM:"));
     header.push(theme::value_span(song.transport.bpm.to_string()));
     header.push(theme::label_span(" LPB:"));
     header.push(theme::value_span(song.transport.lines_per_beat.to_string()));
     header.push(theme::label_span(" Oct:"));
     header.push(theme::value_span(state.octave.to_string()));
-    header.push(theme::label_span(" Vel:"));
+    header.push(theme::label_span(" V:"));
     header.push(theme::value_span("100"));
     header.push(theme::label_span(" Sw:"));
     header.push(theme::value_span("0%"));
-    header.push(theme::label_span(" Sync:"));
+    header.push(theme::label_span(" Syn:"));
     header.push(theme::value_span("Int"));
     header.push(theme::label_span(" CPU:"));
     header.push(theme::value_span("0%"));
