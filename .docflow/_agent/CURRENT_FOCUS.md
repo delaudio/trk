@@ -12,10 +12,10 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Active item:** `plan/done/2026-07-27-distinct-transport-click-targets.md`
   for closed GitHub issue #260.
 - **Blockers:** none.
-- **Uncommitted work:** Docflow closeout records implementation squash
-  `c0b3ff4`, PR #291, green CI #310, closed issue #260, and final implementation
-  Codex review `run-1785142037991171000`; closeout validation and review are
-  pending before integration.
+- **Pending integration:** committed Docflow closeout records implementation
+  squash `c0b3ff4`, PR #291, green CI #310, closed issue #260, and final
+  implementation Codex review `run-1785142037991171000`. The full local gate
+  and closeout Codex review `run-1785142426377596000` are complete.
 
 ## Last shipped
 
