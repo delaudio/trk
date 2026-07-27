@@ -5,8 +5,8 @@
 │DSP Rack  Target: [Track] [Master]  |  Track 01 Drums  |  Native audio DSP chain; tracker FX colum│
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ┌ Track 01: Drums ───────────────────────────────┐┌ Master ────────────────────────────────────────┐
-│  Empty chain  A add native DSP, :fx edits track││  Empty chain  A add native DSP, :fx edits track│
-│                                                ││                                                │
+│  Empty chain                                   ││  Empty chain                                   │
+│  A add native DSP; :fx edits tracker cell FX   ││  A add native DSP; :fx edits tracker cell FX   │
 │                                                ││                                                │
 │                                                ││                                                │
 │                                                ││                                                │

@@ -116,13 +116,11 @@ fn render_dsp_chain(
     interactions.register(interaction_region::DSP_CHAIN, area);
     let mut lines = Vec::new();
     if chain.effects.is_empty() {
-        lines.push(Line::from(vec![
-            Span::styled("  Empty chain", theme::muted()),
-            Span::styled(
-                "  A add native DSP, :fx edits tracker cell FX",
-                theme::muted(),
-            ),
-        ]));
+        lines.push(Line::from(Span::styled("  Empty chain", theme::muted())));
+        lines.push(Line::from(Span::styled(
+            "  A add native DSP; :fx edits tracker cell FX",
+            theme::muted(),
+        )));
     } else {
         for (index, effect) in chain.effects.iter().enumerate().take(inner.height as usize) {
             let is_selected =

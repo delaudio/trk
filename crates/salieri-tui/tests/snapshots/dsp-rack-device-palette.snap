@@ -5,8 +5,8 @@
 │DSP Rack  Target: [Track] [Master]  |  Track 01 Drums  |  Native audio DSP chain; tracker FX colum│
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ┌ Track 01: Drums ───────────────────────────────┐┌ Master ────────────────────────────────────────┐
-│ ┌ Add DSP Device -> Master ────────────────────────────────────┐A add native DSP, :fx edits track│
-│ │01 Gain         utility level                                 │                                 │
+│ ┌ Add DSP Device -> Master ────────────────────────────────────┐                                 │
+│ │01 Gain         utility level                                 │DSP; :fx edits tracker cell FX   │
 │ │02 Pan          left/right placement                          │                                 │
 │ │>03 Filter       multimode filter                             │                                 │
 │ │04 Reverb       room/space                                    │                                 │
