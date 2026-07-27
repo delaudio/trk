@@ -8,22 +8,20 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** agent/267-docflow-closeout
-- **Active item:** close out
-  `plan/done/2026-07-27-hovered-wheel-routing.md` after GitHub issue #267
-  shipped.
+- **Branch:** agent/268-cross-size-mouse-regressions
+- **Active item:** implement
+  `plan/todo/0020-cross-size-mouse-regressions.md` for GitHub issue #268.
 - **Blockers:** none.
-- **Pending integration:** implementation squash `3b20b85` is on `main`, PR
-  #305 and CI #338 are green, issue #267 is closed, and final implementation
-  Codex review `run-1785165122597923000` was clean. The atomic Docflow
-  move/status/index/worklog closeout is committed; finding
-  `584abc8b44e9078a` is being remediated by updating the ADR's moved-plan
-  reference. Final gate, Codex rerun, PR, CI, and merge remain.
+- **Pending integration:** audit found the application tests use synthetic
+  fixed hitboxes while renderer tests do not dispatch input. Add a render-to-
+  dispatch test harness and a four-size interaction matrix before gate,
+  Codex review, PR, CI, and merge.
 
 ## Last shipped
 
-Issue #267 implementation via PR #305.
+Issue #267 Docflow closeout via PR #306.
 
 ## Next item
 
-Audit and implement GitHub issue #268 after the #267 Docflow closeout merges.
+Implement the cross-size matrix for issue #268, then close out its Docflow
+records after merge.
