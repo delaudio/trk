@@ -35,6 +35,21 @@ impl App {
         self.dispatch_intent(AppIntent::Transport(TransportIntent::TogglePlayback));
     }
 
+    pub(super) fn handle_transport_mouse_click(&mut self, column: u16, row: u16) {
+        let Some(region) = self.interaction_map.hit_test(column, row).copied() else {
+            return;
+        };
+        let (interaction_region::TRANSPORT_ACTION, InteractionPayload::TransportAction { action }) =
+            (region.id, region.payload)
+        else {
+            return;
+        };
+        match action {
+            TransportAction::Play => self.start_playback(),
+            TransportAction::Stop => self.stop_playback(),
+        }
+    }
+
     pub(crate) fn toggle_loop(&mut self) {
         self.dispatch_intent(AppIntent::Transport(TransportIntent::ToggleLoop));
     }

@@ -12,9 +12,10 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Active item:** `plan/todo/0012-distinct-transport-click-targets.md` for
   GitHub issue #260.
 - **Blockers:** none.
-- **Uncommitted work:** ADR 0014 and plan 0012 claim distinct render-owned Play
-  and Stop targets, existing start/stop intent routing, and inert Record/header
-  chrome before implementation and validation.
+- **Uncommitted work:** distinct one-cell Play and Stop targets now route
+  primary clicks through existing start/stop intents; Record, header chrome,
+  secondary clicks, drags, and invalid payloads are inert. Focused tests and
+  the full local gate are green before implementation commit and Codex review.
 
 ## Last shipped
 

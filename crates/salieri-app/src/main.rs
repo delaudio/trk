@@ -185,7 +185,7 @@ use salieri_tui::{
     NotificationKind, NotificationView, ProjectBrowserEntryKind, ProjectBrowserEntryView,
     ProjectBrowserViewState, SampleBrowserEntryKind, SampleBrowserEntryView,
     SampleBrowserViewState, SamplerEnvelopeField, SamplerViewState, SelectionRect,
-    TrackerLayoutPreset, TrackerLayoutState, TuiState, TuiView, ViewportAxis,
+    TrackerLayoutPreset, TrackerLayoutState, TransportAction, TuiState, TuiView, ViewportAxis,
 };
 use serde::{Deserialize, Serialize};
 use task_runtime::TaskRuntime;

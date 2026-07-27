@@ -19,6 +19,7 @@ mod mouse_help_overlay;
 mod mouse_midi_settings;
 mod mouse_navigation;
 mod mouse_sequence_view;
+mod mouse_transport_header;
 mod navigation_editing;
 mod pattern_commands;
 mod pattern_operations;

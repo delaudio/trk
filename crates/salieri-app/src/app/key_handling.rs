@@ -134,8 +134,8 @@ impl App {
             return;
         }
         if row < 3 {
-            if column < 12 {
-                self.toggle_playback();
+            if primary_click {
+                self.handle_transport_mouse_click(column, row);
             }
             return;
         }

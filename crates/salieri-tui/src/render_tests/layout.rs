@@ -38,6 +38,53 @@ fn interaction_map_with_song_and_state(
 }
 
 #[test]
+fn transport_symbols_expose_distinct_play_and_stop_targets_at_supported_widths() {
+    for width in [16, 72, 100, 140] {
+        let map = interaction_map(width, 24);
+        let play = map
+            .regions()
+            .iter()
+            .find(|region| {
+                region.payload
+                    == crate::InteractionPayload::TransportAction {
+                        action: crate::TransportAction::Play,
+                    }
+            })
+            .expect("visible Play target");
+        let stop = map
+            .regions()
+            .iter()
+            .find(|region| {
+                region.payload
+                    == crate::InteractionPayload::TransportAction {
+                        action: crate::TransportAction::Stop,
+                    }
+            })
+            .expect("visible Stop target");
+
+        assert_eq!(play.area, ratatui::layout::Rect::new(3, 1, 1, 1));
+        assert_eq!(stop.area, ratatui::layout::Rect::new(7, 1, 1, 1));
+        assert_eq!(
+            map.hit_test(3, 1).map(|region| region.payload),
+            Some(crate::InteractionPayload::TransportAction {
+                action: crate::TransportAction::Play,
+            })
+        );
+        assert_eq!(
+            map.hit_test(7, 1).map(|region| region.payload),
+            Some(crate::InteractionPayload::TransportAction {
+                action: crate::TransportAction::Stop,
+            })
+        );
+        assert_ne!(
+            map.hit_test(11, 1).map(|region| region.id),
+            Some(interaction_region::TRANSPORT_ACTION),
+            "Record must not be a transport action at width {width}"
+        );
+    }
+}
+
+#[test]
 fn full_pattern_cells_fill_the_registered_interaction_width() {
     let spans = cell_spans(
         &PatternCell::default(),

@@ -5,7 +5,7 @@ pub mod viewport;
 
 pub use interaction::{
     region as interaction_region, ConfirmationAction, InteractionMap, InteractionPayload,
-    InteractionRegion, InteractionRegionId, MidiSettingsAction,
+    InteractionRegion, InteractionRegionId, MidiSettingsAction, TransportAction,
 };
 pub use layout::{
     resolve_managed_layout, resolve_tracker_layout, LayoutDiagnostic, ManagedLayoutDirection,
