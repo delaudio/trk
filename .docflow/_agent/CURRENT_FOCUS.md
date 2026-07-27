@@ -17,8 +17,11 @@ If status files and git disagree, git is authoritative; correct this file.
   modal capture, and exact rendered-content tests are implemented. Codex
   finding `164be98a98636f7b` was remediated by excluding panel chrome and empty
   padding. Findings `cead2b3f0dbae5a5` and `0866b57f655cb756` from the
-  bounded rerun are being remediated by excluding trailing horizontal padding;
-  affected tests, final Codex rerun, PR, CI, merge, and closeout remain.
+  first rerun were remediated by excluding trailing horizontal padding.
+  Residual finding `bf629098969816b7` is being remediated by registering the
+  same bounded row-content target from the shared pattern-cell helper for both
+  standalone and large Renoise layouts; affected tests, pre-push Codex review,
+  PR, CI, merge, and closeout remain.
 
 ## Last shipped
 

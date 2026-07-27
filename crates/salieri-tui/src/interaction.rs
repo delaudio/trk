@@ -191,6 +191,19 @@ impl InteractionMap {
         visible_rows: Range<usize>,
         visible_tracks: Range<usize>,
     ) {
+        let rendered_width = usize::from(row_gutter_width)
+            .saturating_add(visible_tracks.len().saturating_mul(usize::from(cell_width)));
+        self.register(
+            region::PATTERN_GRID,
+            Rect::new(
+                content_area.x,
+                content_area.y.saturating_add(header_height),
+                u16::try_from(rendered_width)
+                    .unwrap_or(u16::MAX)
+                    .min(content_area.width),
+                u16::try_from(visible_rows.len()).unwrap_or(u16::MAX),
+            ),
+        );
         let content_right = content_area.x.saturating_add(content_area.width);
         let content_bottom = content_area.y.saturating_add(content_area.height);
         let first_cell_x = content_area.x.saturating_add(row_gutter_width);
@@ -394,7 +407,11 @@ mod tests {
             Some(InteractionPayload::PatternCell { row: 5, track: 3 })
         );
         assert_eq!(map.scroll_target_at(6, 2), Some(ScrollTarget::PatternRows));
-        assert!(map.hit_test(5, 2).is_none());
+        assert_eq!(
+            map.hit_test(5, 2).map(|region| region.id),
+            Some(region::PATTERN_GRID)
+        );
+        assert_eq!(map.scroll_target_at(5, 2), Some(ScrollTarget::PatternRows));
     }
 
     #[test]

@@ -2487,23 +2487,6 @@ fn render_pattern_with_interactions(
 
     let viewport = pattern_viewport(area, pattern.row_count(), song.tracks.len(), state);
     let content_area = bordered_content_area(area);
-    let rendered_width = ROW_GUTTER_WIDTH.saturating_add(
-        viewport
-            .visible_tracks
-            .len()
-            .saturating_mul(pattern_cell_width(state.tracker_layout.pattern_fields)),
-    );
-    interactions.register(
-        interaction_region::PATTERN_GRID,
-        Rect::new(
-            content_area.x,
-            content_area.y.saturating_add(1),
-            u16::try_from(rendered_width)
-                .unwrap_or(u16::MAX)
-                .min(content_area.width),
-            u16::try_from(viewport.visible_rows.len()).unwrap_or(u16::MAX),
-        ),
-    );
     interactions.register_pattern_cells(
         content_area,
         1,
