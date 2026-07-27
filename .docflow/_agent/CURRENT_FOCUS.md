@@ -8,18 +8,20 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** agent/266-responsive-status-bar
-- **Active item:** implement
-  `plan/todo/0018-responsive-contextual-status-bar.md` for GitHub issue #266.
+- **Branch:** agent/266-docflow-closeout
+- **Active item:** close out
+  `plan/done/2026-07-27-responsive-contextual-status-bar.md` for GitHub issue
+  #266.
 - **Blockers:** none.
-- **Pending integration:** findings `76d5b270c8673633` and
-  `dc8ec7f08dff6595` from Codex review `run-1785158047714184000` are remediated;
-  the full gate, clean Codex review, PR, CI, merge, and closeout remain.
+- **Pending integration:** PR #303 merged at `4e84d78`, CI #334 is green,
+  issue #266 is closed, and final implementation Codex review
+  `run-1785158693422236000` is clean. This documentation closeout still needs
+  its local gate, mandatory Codex review, PR, CI, and merge.
 
 ## Last shipped
 
-Issue #265 closeout via PR #302.
+Issue #266 implementation via PR #303.
 
 ## Next item
 
-Implement, verify, review, push, merge, and close issue #266.
+Merge this closeout, then audit and implement issue #267.
