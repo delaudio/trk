@@ -561,80 +561,226 @@ fn render_header(
     state: TuiState<'_>,
     interactions: &mut InteractionMap,
 ) {
-    let pattern_name = active_pattern(song, state.pattern_index)
-        .map_or("No Pattern", |pattern| pattern.name.as_str());
-    let dirty = if state.dirty { "*" } else { "" };
+    let block = theme::block(" Salieri Tracker ");
+    let inner = block.inner(area);
+    let header = compose_transport_header(song, state, inner.width);
+    register_transport_action(
+        interactions,
+        inner,
+        header.play_column,
+        crate::TransportAction::Play,
+    );
+    register_transport_action(
+        interactions,
+        inner,
+        header.stop_column,
+        crate::TransportAction::Stop,
+    );
+    let paragraph = Paragraph::new(header.line)
+        .block(block)
+        .style(theme::base());
+    frame.render_widget(paragraph, area);
+}
+
+struct TransportHeader {
+    line: Line<'static>,
+    play_column: u16,
+    stop_column: u16,
+}
+
+struct TransportHeaderBuilder {
+    spans: Vec<Span<'static>>,
+    width: u16,
+    play_column: u16,
+    stop_column: u16,
+}
+
+impl TransportHeaderBuilder {
+    fn new(state: TuiState<'_>, show_record: bool) -> Self {
+        let mut header = Self {
+            spans: Vec::new(),
+            width: 0,
+            play_column: 0,
+            stop_column: 0,
+        };
+        header.push(theme::label_span(" ["));
+        header.play_column = header.width;
+        header.push(theme::value_span(if state.is_playing {
+            "▶"
+        } else {
+            "▷"
+        }));
+        header.push(theme::label_span("] ["));
+        header.stop_column = header.width;
+        header.push(theme::value_span("■"));
+        header.push(theme::label_span("]"));
+        if show_record {
+            header.push(theme::disabled_span(" [●×]"));
+        }
+        header
+    }
+
+    fn push(&mut self, span: Span<'static>) {
+        self.width = self
+            .width
+            .saturating_add(u16::try_from(span.width()).unwrap_or(u16::MAX));
+        self.spans.push(span);
+    }
+
+    fn push_if_fits(&mut self, span: Span<'static>, available_width: u16) {
+        let span_width = u16::try_from(span.width()).unwrap_or(u16::MAX);
+        if self.width.saturating_add(span_width) <= available_width {
+            self.push(span);
+        }
+    }
+
+    fn line_width(&self) -> u16 {
+        self.width
+    }
+
+    fn finish(self) -> TransportHeader {
+        TransportHeader {
+            line: Line::from(self.spans),
+            play_column: self.play_column,
+            stop_column: self.stop_column,
+        }
+    }
+}
+
+fn compose_transport_header(
+    song: &Song,
+    state: TuiState<'_>,
+    available_width: u16,
+) -> TransportHeader {
     let playback = if state.is_playing {
         "PLAYING"
     } else {
         "STOPPED"
     };
-    let loop_state = if state.loop_pattern { "ON" } else { "OFF" };
     let playhead = state
         .playhead_row
         .map_or_else(|| "0000".to_string(), |row| format!("{row:04}"));
-    let sequence_position = state.sequence_position.unwrap_or(0);
-    let line = Line::from(vec![
-        theme::label_span(" ["),
-        theme::value_span(if state.is_playing { "▶" } else { "▷" }),
-        theme::label_span("] ["),
-        theme::value_span("■"),
-        theme::label_span("] ["),
-        theme::value_span("●"),
-        theme::label_span("]  BPM: "),
-        theme::value_span(song.transport.bpm.to_string()),
-        theme::label_span("  LPB: "),
-        theme::value_span(song.transport.lines_per_beat.to_string()),
-        theme::label_span("  Oct: "),
-        theme::value_span(state.octave.to_string()),
-        theme::label_span("  Vel: "),
-        theme::value_span("100"),
-        theme::label_span("  Swing: "),
-        theme::value_span("0%"),
-        theme::label_span("  Sync: "),
-        theme::value_span("Internal"),
-        theme::muted_span("  |  "),
-        theme::label_span("CPU: "),
-        theme::value_span("00.0%"),
-        theme::muted_span("  |  "),
-        Span::styled(
+
+    if available_width < 60 {
+        return TransportHeaderBuilder::new(state, false).finish();
+    }
+
+    if available_width < 132 {
+        let mut header = TransportHeaderBuilder::new(state, false);
+        header.push(theme::label_span("  BPM: "));
+        header.push(theme::value_span(song.transport.bpm.to_string()));
+        header.push(theme::label_span("  LPB: "));
+        header.push(theme::value_span(song.transport.lines_per_beat.to_string()));
+        header.push(theme::muted_span("  "));
+        header.push(Span::styled(
             playback,
             if state.is_playing {
                 theme::playing()
             } else {
                 theme::muted()
             },
-        ),
-        theme::muted_span("  |  "),
-        theme::label_span("PAT: "),
-        theme::value_span(format!("{:02}", state.pattern_index + 1)),
-        theme::label_span("  LINE: "),
-        theme::value_span(format!("{playhead}/{:04}", state.cursor.row)),
-        theme::muted_span("  |  "),
-        theme::value_span(state.midi_status.to_string()),
-        theme::label_span("  ORDER: "),
-        theme::value_span(format!("{sequence_position:02}")),
-        theme::label_span("  LOOP: "),
-        theme::value_span(loop_state),
-        theme::label_span("  TRK: "),
-        theme::value_span(format!("{:02}", state.cursor.track + 1)),
-        theme::label_span("  FIELD: "),
-        theme::value_span(state.cursor.field.to_string()),
-        theme::muted_span(if state.selection.is_some() {
-            "  SEL"
+        ));
+        header.push(theme::label_span("  PAT: "));
+        header.push(theme::value_span(format!("{:02}", state.pattern_index + 1)));
+        header.push(theme::label_span("  ROW: "));
+        header.push(theme::value_span(format!(
+            "{playhead}/{:04}",
+            state.cursor.row
+        )));
+        let midi_status = theme::value_span(state.midi_status.to_string());
+        let midi_segment_width = 2_usize.saturating_add(midi_status.width());
+        if header
+            .line_width()
+            .saturating_add(u16::try_from(midi_segment_width).unwrap_or(u16::MAX))
+            <= available_width
+        {
+            header.push(theme::muted_span("  "));
+            header.push(midi_status);
+        } else if available_width >= 76 {
+            header.push(theme::label_span("  Sync: "));
+            header.push(theme::value_span("Internal"));
+        }
+        return header.finish();
+    }
+
+    let mut header = TransportHeaderBuilder::new(state, true);
+    header.push(theme::label_span(" BPM:"));
+    header.push(theme::value_span(song.transport.bpm.to_string()));
+    header.push(theme::label_span(" LPB:"));
+    header.push(theme::value_span(song.transport.lines_per_beat.to_string()));
+    header.push(theme::label_span(" Oct:"));
+    header.push(theme::value_span(state.octave.to_string()));
+    header.push(theme::label_span(" Vel:"));
+    header.push(theme::value_span("100"));
+    header.push(theme::label_span(" Sw:"));
+    header.push(theme::value_span("0%"));
+    header.push(theme::label_span(" Sync:"));
+    header.push(theme::value_span("Int"));
+    header.push(theme::label_span(" CPU:"));
+    header.push(theme::value_span("0%"));
+    header.push(theme::muted_span(" "));
+    header.push(Span::styled(
+        playback,
+        if state.is_playing {
+            theme::playing()
         } else {
-            ""
-        }),
-        theme::muted_span("  |  MIDI MAP  1 2 3 4 5 6 7 8"),
-        theme::muted_span(dirty),
-        theme::muted_span(format!("  {}", truncate(pattern_name, 18))),
-    ]);
-    let block = theme::block(" Salieri Tracker ");
-    let inner = block.inner(area);
-    register_transport_action(interactions, inner, 2, crate::TransportAction::Play);
-    register_transport_action(interactions, inner, 6, crate::TransportAction::Stop);
-    let header = Paragraph::new(line).block(block).style(theme::base());
-    frame.render_widget(header, area);
+            theme::muted()
+        },
+    ));
+    header.push(theme::label_span(" PAT:"));
+    header.push(theme::value_span(format!("{:02}", state.pattern_index + 1)));
+    header.push(theme::label_span(" ROW:"));
+    header.push(theme::value_span(format!(
+        "{playhead}/{:04}",
+        state.cursor.row
+    )));
+    header.push(theme::label_span(" MIDI:"));
+    let trailing = vec![
+        theme::label_span(" ORD:"),
+        theme::value_span(format!("{:02}", state.sequence_position.unwrap_or(0))),
+        theme::label_span(" LOOP:"),
+        theme::value_span(if state.loop_pattern { "ON" } else { "OFF" }),
+        theme::label_span(" TRK:"),
+        theme::value_span(format!("{:02}", state.cursor.track + 1)),
+        theme::label_span(" FLD:"),
+        theme::value_span(state.cursor.field.to_string()),
+    ];
+    let expanded_midi = theme::value_span(state.midi_status.to_string());
+    let required_width = header
+        .line_width()
+        .saturating_add(u16::try_from(expanded_midi.width()).unwrap_or(u16::MAX))
+        .saturating_add(spans_width(&trailing));
+    if required_width <= available_width {
+        header.push(expanded_midi);
+    } else {
+        header.push(theme::value_span(compact_midi_status(state.midi_status)));
+    }
+    for span in trailing {
+        header.push(span);
+    }
+    if state.selection.is_some() {
+        header.push_if_fits(theme::muted_span(" SEL"), available_width);
+    }
+    if state.dirty {
+        header.push_if_fits(theme::muted_span(" *"), available_width);
+    }
+    header.finish()
+}
+
+fn spans_width(spans: &[Span<'_>]) -> u16 {
+    spans.iter().fold(0, |width, span| {
+        width.saturating_add(u16::try_from(span.width()).unwrap_or(u16::MAX))
+    })
+}
+
+fn compact_midi_status(status: &str) -> &'static str {
+    if status.contains("Disconnected") {
+        "Off"
+    } else if status.contains("Connected") {
+        "On"
+    } else {
+        "—"
+    }
 }
 
 fn register_transport_action(

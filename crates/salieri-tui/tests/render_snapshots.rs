@@ -253,6 +253,14 @@ fn snapshots_small_layout() {
 }
 
 #[test]
+fn snapshots_compact_layout() {
+    assert_snapshot(
+        "responsive-compact",
+        render_snapshot(Song::empty(), test_state(), 80, 24),
+    );
+}
+
+#[test]
 fn snapshots_medium_layout() {
     assert_snapshot(
         "responsive-medium",
@@ -264,7 +272,7 @@ fn snapshots_medium_layout() {
 fn snapshots_large_layout() {
     assert_snapshot(
         "responsive-large",
-        render_snapshot(Song::empty(), test_state(), 140, 32),
+        render_snapshot(Song::empty(), test_state(), 140, 36),
     );
 }
 

@@ -12,8 +12,9 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Active item:** implement
   `plan/todo/0017-responsive-transport-header.md` for GitHub issue #265.
 - **Blockers:** none.
-- **Pending integration:** claim the item, implement atomic width-aware header
-  compositions, run the full local gate and mandatory Codex review, then open
+- **Pending integration:** atomic 72/80/100/140-column header compositions,
+  exact Play/Stop targets, focused tests, and intentional snapshots are
+  implemented. Run the full local gate and mandatory Codex review, then open
   and merge the implementation PR with CI green.
 
 ## Last shipped

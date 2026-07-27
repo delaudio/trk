@@ -85,6 +85,68 @@ fn transport_symbols_expose_distinct_play_and_stop_targets_at_supported_widths()
 }
 
 #[test]
+fn transport_header_uses_complete_width_appropriate_segments() {
+    let song = Song::empty();
+    let state = render_test_state();
+    let cases = [
+        (
+            72,
+            " [▷] [■]  BPM: 120  LPB: 4  STOPPED  PAT: 01  ROW: 0000/0000",
+        ),
+        (
+            80,
+            " [▷] [■]  BPM: 120  LPB: 4  STOPPED  PAT: 01  ROW: 0000/0000  Sync: Internal",
+        ),
+        (
+            100,
+            " [▷] [■]  BPM: 120  LPB: 4  STOPPED  PAT: 01  ROW: 0000/0000  MIDI Disconnected",
+        ),
+        (
+            140,
+            " [▷] [■] [●×] BPM:120 LPB:4 Oct:4 Vel:100 Sw:0% Sync:Int CPU:0% STOPPED PAT:01 ROW:0000/0000 MIDI:Off ORD:00 LOOP:ON TRK:01 FLD:NOTE",
+        ),
+    ];
+
+    for (terminal_width, expected) in cases {
+        let available_width = terminal_width - 2;
+        let header = compose_transport_header(&song, state, available_width);
+        let actual = super::render_test_support::line_text(&header.line);
+
+        assert_eq!(actual, expected, "terminal width {terminal_width}");
+        assert!(
+            header.line.width() <= usize::from(available_width),
+            "terminal width {terminal_width}: {actual}"
+        );
+    }
+}
+
+#[test]
+fn optional_header_markers_are_omitted_atomically_when_they_do_not_fit() {
+    let song = Song::empty();
+    let state = TuiState {
+        selection: Some(SelectionRect {
+            row_start: 0,
+            row_end: 1,
+            track_start: 0,
+            track_end: 1,
+        }),
+        dirty: true,
+        ..render_test_state()
+    };
+
+    let constrained = compose_transport_header(&song, state, 132);
+    let constrained_text = super::render_test_support::line_text(&constrained.line);
+    assert_eq!(constrained.line.width(), 132);
+    assert!(!constrained_text.contains(" SEL"));
+    assert!(!constrained_text.ends_with(" *"));
+
+    let wide = compose_transport_header(&song, state, 138);
+    let wide_text = super::render_test_support::line_text(&wide.line);
+    assert_eq!(wide.line.width(), 138);
+    assert!(wide_text.ends_with(" SEL *"));
+}
+
+#[test]
 fn full_pattern_cells_fill_the_registered_interaction_width() {
     let spans = cell_spans(
         &PatternCell::default(),
