@@ -2,7 +2,7 @@ use super::render_test_support::render_test_state;
 use super::*;
 use crate::{DspRackChain, InteractionPayload};
 use ratatui::{backend::TestBackend, Terminal};
-use salieri_core::{EffectDevice, Song};
+use salieri_core::{DelaySpec, EffectDevice, Song};
 
 fn rack_interactions(
     width: u16,
@@ -225,6 +225,86 @@ fn dsp_device_rows_carry_chain_and_visible_absolute_index() {
             index: 0,
         })
     );
+}
+
+#[test]
+fn dsp_device_rows_scroll_to_the_selected_absolute_index() {
+    let track_effects = (0..20)
+        .map(|index| EffectDevice::gain(index + 1, 1.0))
+        .collect::<Vec<_>>();
+    let interactions = rack_view_interactions(
+        72,
+        24,
+        DspRackViewState {
+            track_name: "Track 01",
+            track_number: 1,
+            track_effects: &track_effects,
+            master_effects: &[],
+            selected_target: DspRackTargetView::Track,
+            selected_index: 18,
+            selected_parameter_index: 0,
+            selected_lock_status: DspParameterLockStatusView::Unlocked,
+            device_palette: None,
+        },
+    );
+    let rows = interactions
+        .regions()
+        .iter()
+        .filter(|region| {
+            matches!(
+                region.payload,
+                InteractionPayload::DspDeviceRow {
+                    target: DspRackChain::Track,
+                    ..
+                }
+            )
+        })
+        .collect::<Vec<_>>();
+
+    assert!(matches!(
+        rows.first().map(|region| region.payload),
+        Some(InteractionPayload::DspDeviceRow { index, .. }) if index > 0
+    ));
+    assert!(rows.iter().any(|region| {
+        region.payload
+            == InteractionPayload::DspDeviceRow {
+                target: DspRackChain::Track,
+                index: 18,
+            }
+    }));
+}
+
+#[test]
+fn dsp_parameter_rows_scroll_to_the_selected_absolute_index() {
+    let effects = [EffectDevice::delay(1, DelaySpec::default())];
+    let interactions = rack_view_interactions(
+        72,
+        16,
+        DspRackViewState {
+            track_name: "Track 01",
+            track_number: 1,
+            track_effects: &effects,
+            master_effects: &[],
+            selected_target: DspRackTargetView::Track,
+            selected_index: 0,
+            selected_parameter_index: 5,
+            selected_lock_status: DspParameterLockStatusView::Unlocked,
+            device_palette: None,
+        },
+    );
+    let rows = interactions
+        .regions()
+        .iter()
+        .filter(|region| region.id == interaction_region::DSP_PARAMETER_ROW)
+        .collect::<Vec<_>>();
+
+    assert!(matches!(
+        rows.first().map(|region| region.payload),
+        Some(InteractionPayload::DspParameterRow { index }) if index > 0
+    ));
+    assert!(rows
+        .iter()
+        .any(|region| { region.payload == InteractionPayload::DspParameterRow { index: 5 } }));
 }
 
 #[test]

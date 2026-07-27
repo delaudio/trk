@@ -12,10 +12,11 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Active item:** implement
   `plan/todo/0020-cross-size-mouse-regressions.md` for GitHub issue #268.
 - **Blockers:** none.
-- **Pending integration:** audit found the application tests use synthetic
-  fixed hitboxes while renderer tests do not dispatch input. Add a render-to-
-  dispatch test harness and a four-size interaction matrix before gate,
-  Codex review, PR, CI, and merge.
+- **Pending integration:** the render-to-dispatch harness and four-size matrix
+  now cover pattern cells, scrolled composite lists, scrolled browsers, Help,
+  scrolled DSP lists/palette, sampler controls, and adjacent no-ops. The new
+  tests exposed and fixed missing DSP device/parameter virtualization. Full
+  gate, Codex review, PR, CI, and merge remain.
 
 ## Last shipped
 
