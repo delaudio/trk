@@ -172,7 +172,9 @@ impl App {
             AppMode::DspRack if self.dsp_device_palette_open => {
                 self.handle_dsp_palette_mouse_click(row);
             }
-            AppMode::DspRack => self.handle_dsp_rack_mouse_click(row, activate),
+            AppMode::DspRack => {
+                self.handle_dsp_rack_mouse_click(column, row, activate, primary_click);
+            }
             _ => {}
         }
     }

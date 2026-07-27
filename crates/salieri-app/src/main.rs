@@ -180,12 +180,13 @@ use salieri_tui::{
     interaction_region, render_with_interactions, AiChatMessageRole, AiChatMessageView,
     AiChatProposalPreviewView, AiChatViewState, CommandPaletteEntryView, CommandPaletteViewState,
     ConfirmationAction, DspDevicePaletteEntryView, DspDevicePaletteViewState,
-    DspParameterLockStatusView, DspRackTargetView, DspRackViewState, HelpTab, InteractionMap,
-    InteractionPayload, ManagedPanelId, MidiPortView, MidiSettingsAction, MidiSettingsState,
-    NotificationKind, NotificationView, ProjectBrowserEntryKind, ProjectBrowserEntryView,
-    ProjectBrowserViewState, SampleBrowserEntryKind, SampleBrowserEntryView,
-    SampleBrowserViewState, SamplerEnvelopeField, SamplerViewState, SelectionRect,
-    TrackerLayoutPreset, TrackerLayoutState, TransportAction, TuiState, TuiView, ViewportAxis,
+    DspParameterLockStatusView, DspRackChain, DspRackTargetView, DspRackViewState, HelpTab,
+    InteractionMap, InteractionPayload, ManagedPanelId, MidiPortView, MidiSettingsAction,
+    MidiSettingsState, NotificationKind, NotificationView, ProjectBrowserEntryKind,
+    ProjectBrowserEntryView, ProjectBrowserViewState, SampleBrowserEntryKind,
+    SampleBrowserEntryView, SampleBrowserViewState, SamplerEnvelopeField, SamplerViewState,
+    SelectionRect, TrackerLayoutPreset, TrackerLayoutState, TransportAction, TuiState, TuiView,
+    ViewportAxis,
 };
 use serde::{Deserialize, Serialize};
 use task_runtime::TaskRuntime;

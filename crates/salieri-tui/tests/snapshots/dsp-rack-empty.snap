@@ -2,11 +2,11 @@
 │ [▷] [■] [●]  BPM: 120  LPB: 4  Oct: 4  Vel: 100  Swing: 0%  Sync: Internal  |  CPU: 00.0%  |  STO│
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ┌ Native DSP ──────────────────────────────────────────────────────────────────────────────────────┐
-│DSP Rack  Track 01 Drums  |  Target: Track  |  Native audio DSP chain; tracker FX columns stay in │
+│DSP Rack  Target: [Track] [Master]  |  Track 01 Drums  |  Native audio DSP chain; tracker FX colum│
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ┌ Track 01: Drums ───────────────────────────────┐┌ Master ────────────────────────────────────────┐
-│Empty chain  A add native DSP, :fx edits tracker││Empty chain  A add native DSP, :fx edits tracker│
-│cell FX                                         ││cell FX                                         │
+│  Empty chain                                   ││  Empty chain                                   │
+│  A add native DSP; :fx edits tracker cell FX   ││  A add native DSP; :fx edits tracker cell FX   │
 │                                                ││                                                │
 │                                                ││                                                │
 │                                                ││                                                │

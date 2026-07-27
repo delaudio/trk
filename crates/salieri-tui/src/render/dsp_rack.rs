@@ -5,15 +5,23 @@ use ratatui::{
 };
 use salieri_core::{EffectDevice, EffectDeviceKind};
 
+use crate::{interaction_region, DspRackChain, InteractionMap, InteractionPayload};
+
 use super::{
     centered_scroll_offset, dsp_parameters::render_dsp_parameter_panel, theme, truncate,
     DspDevicePaletteViewState, DspRackTargetView, DspRackViewState,
 };
 
+const HEADER_PREFIX: &str = "DSP Rack  Target: ";
+const TRACK_CONTROL: &str = "[Track]";
+const TARGET_SEPARATOR: &str = " ";
+const MASTER_CONTROL: &str = "[Master]";
+
 pub(super) fn render_dsp_rack_view(
     frame: &mut Frame<'_>,
     area: Rect,
     rack: Option<DspRackViewState<'_>>,
+    interactions: &mut InteractionMap,
 ) {
     let Some(rack) = rack else {
         let empty = Paragraph::new("DSP rack unavailable")
@@ -31,23 +39,29 @@ pub(super) fn render_dsp_rack_view(
             Constraint::Min(6),
         ])
         .split(area);
-    let selected_label = match rack.selected_target {
-        DspRackTargetView::Track => "Track",
-        DspRackTargetView::Master => "Master",
-    };
+    let header_block = Block::default().title(" Native DSP ").borders(Borders::ALL);
+    let header_inner = header_block.inner(sections[0]);
     let header = Paragraph::new(Line::from(vec![
-        theme::label_span("DSP Rack  "),
+        theme::label_span(HEADER_PREFIX),
+        dsp_target_control(
+            TRACK_CONTROL,
+            rack.selected_target == DspRackTargetView::Track,
+        ),
+        theme::muted_span(TARGET_SEPARATOR),
+        dsp_target_control(
+            MASTER_CONTROL,
+            rack.selected_target == DspRackTargetView::Master,
+        ),
+        theme::muted_span("  |  "),
         theme::value_span(format!(
             "Track {:02} {}",
             rack.track_number, rack.track_name
         )),
-        theme::muted_span("  |  "),
-        theme::label_span("Target: "),
-        theme::value_span(selected_label),
         theme::muted_span("  |  Native audio DSP chain; tracker FX columns stay in pattern cells"),
     ]))
-    .block(Block::default().title(" Native DSP ").borders(Borders::ALL));
+    .block(header_block);
     frame.render_widget(header, sections[0]);
+    register_dsp_target_controls(interactions, header_inner);
 
     let columns = Layout::default()
         .direction(LayoutDirection::Horizontal)
@@ -56,18 +70,26 @@ pub(super) fn render_dsp_rack_view(
     render_dsp_chain(
         frame,
         columns[0],
-        format!(" Track {:02}: {} ", rack.track_number, rack.track_name),
-        rack.track_effects,
-        rack.selected_target == DspRackTargetView::Track,
-        rack.selected_index,
+        DspChainView {
+            title: format!(" Track {:02}: {} ", rack.track_number, rack.track_name),
+            effects: rack.track_effects,
+            selected: rack.selected_target == DspRackTargetView::Track,
+            selected_index: rack.selected_index,
+            target: DspRackChain::Track,
+        },
+        interactions,
     );
     render_dsp_chain(
         frame,
         columns[1],
-        " Master ".to_string(),
-        rack.master_effects,
-        rack.selected_target == DspRackTargetView::Master,
-        rack.selected_index,
+        DspChainView {
+            title: " Master ".to_string(),
+            effects: rack.master_effects,
+            selected: rack.selected_target == DspRackTargetView::Master,
+            selected_index: rack.selected_index,
+            target: DspRackChain::Master,
+        },
+        interactions,
     );
     render_dsp_parameter_panel(frame, sections[2], rack);
     if let Some(palette) = rack.device_palette {
@@ -75,30 +97,34 @@ pub(super) fn render_dsp_rack_view(
     }
 }
 
+struct DspChainView<'a> {
+    title: String,
+    effects: &'a [EffectDevice],
+    selected: bool,
+    selected_index: usize,
+    target: DspRackChain,
+}
+
 fn render_dsp_chain(
     frame: &mut Frame<'_>,
     area: Rect,
-    title: String,
-    effects: &[EffectDevice],
-    selected: bool,
-    selected_index: usize,
+    chain: DspChainView<'_>,
+    interactions: &mut InteractionMap,
 ) {
+    let block = Block::default().title(chain.title).borders(Borders::ALL);
+    let inner = block.inner(area);
+    interactions.register(interaction_region::DSP_CHAIN, area);
     let mut lines = Vec::new();
-    if effects.is_empty() {
-        lines.push(Line::from(vec![
-            Span::styled("  Empty chain", theme::muted()),
-            Span::styled(
-                "  A add native DSP, :fx edits tracker cell FX",
-                theme::muted(),
-            ),
-        ]));
+    if chain.effects.is_empty() {
+        lines.push(Line::from(Span::styled("  Empty chain", theme::muted())));
+        lines.push(Line::from(Span::styled(
+            "  A add native DSP; :fx edits tracker cell FX",
+            theme::muted(),
+        )));
     } else {
-        for (index, effect) in effects
-            .iter()
-            .enumerate()
-            .take(area.height.saturating_sub(2) as usize)
-        {
-            let is_selected = selected && index == selected_index.min(effects.len() - 1);
+        for (index, effect) in chain.effects.iter().enumerate().take(inner.height as usize) {
+            let is_selected =
+                chain.selected && index == chain.selected_index.min(chain.effects.len() - 1);
             let marker = if is_selected { ">" } else { " " };
             let style = if is_selected {
                 Style::default()
@@ -124,12 +150,73 @@ fn render_dsp_chain(
                 ),
                 style,
             )));
+            interactions.register_with_payload(
+                interaction_region::DSP_DEVICE_ROW,
+                Rect::new(
+                    inner.x,
+                    inner.y.saturating_add(index as u16),
+                    inner.width,
+                    1,
+                ),
+                InteractionPayload::DspDeviceRow {
+                    target: chain.target,
+                    index,
+                },
+            );
         }
     }
-    let paragraph = Paragraph::new(lines)
-        .block(Block::default().title(title).borders(Borders::ALL))
-        .wrap(Wrap { trim: true });
+    let paragraph = Paragraph::new(lines).block(block);
     frame.render_widget(paragraph, area);
+}
+
+fn dsp_target_control(label: &'static str, selected: bool) -> Span<'static> {
+    let style = if selected {
+        Style::default()
+            .fg(Color::Black)
+            .bg(Color::Yellow)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        theme::base()
+    };
+    Span::styled(label, style)
+}
+
+fn register_dsp_target_controls(interactions: &mut InteractionMap, inner: Rect) {
+    let track_offset = HEADER_PREFIX.len() as u16;
+    register_dsp_target_control(
+        interactions,
+        inner,
+        track_offset,
+        TRACK_CONTROL.len() as u16,
+        DspRackChain::Track,
+    );
+    let master_offset = track_offset
+        .saturating_add(TRACK_CONTROL.len() as u16)
+        .saturating_add(TARGET_SEPARATOR.len() as u16);
+    register_dsp_target_control(
+        interactions,
+        inner,
+        master_offset,
+        MASTER_CONTROL.len() as u16,
+        DspRackChain::Master,
+    );
+}
+
+fn register_dsp_target_control(
+    interactions: &mut InteractionMap,
+    inner: Rect,
+    offset: u16,
+    width: u16,
+    target: DspRackChain,
+) {
+    if inner.height == 0 || offset.saturating_add(width) > inner.width {
+        return;
+    }
+    interactions.register_with_payload(
+        interaction_region::DSP_RACK_TARGET,
+        Rect::new(inner.x.saturating_add(offset), inner.y, width, 1),
+        InteractionPayload::DspRackTarget { target },
+    );
 }
 
 fn device_kind_label(kind: &EffectDeviceKind) -> &'static str {

@@ -692,7 +692,7 @@ fn render_body(
         return;
     }
     if state.active_view == TuiView::DspRack {
-        render_dsp_rack_view(frame, area, state.dsp_rack);
+        render_dsp_rack_view(frame, area, state.dsp_rack, interactions);
         return;
     }
     if state.active_view == TuiView::SampleBrowser {
@@ -3277,6 +3277,9 @@ mod render_confirmation_dialog_tests;
 #[cfg(test)]
 #[path = "render_tests/display.rs"]
 mod render_display_tests;
+#[cfg(test)]
+#[path = "render_tests/dsp_rack.rs"]
+mod render_dsp_rack_tests;
 #[cfg(test)]
 #[path = "render_tests/help_overlay.rs"]
 mod render_help_overlay_tests;
