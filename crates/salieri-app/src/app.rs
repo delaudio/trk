@@ -16,6 +16,7 @@ mod dsp_rack;
 mod key_handling;
 mod live_bridge_actions;
 mod midi_actions;
+mod mouse_wheel;
 mod navigation;
 mod pattern_operations;
 mod performance_actions;

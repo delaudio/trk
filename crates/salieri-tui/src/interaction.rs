@@ -68,6 +68,24 @@ pub enum SamplerAction {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScrollTarget {
+    PatternRows,
+    Tracks,
+    Sequence,
+    Clips,
+    Patterns,
+    SampleBrowser,
+    ProjectBrowser,
+    SamplerWaveform,
+    DspDevices { target: DspRackChain },
+    DspParameters,
+    DspPalette,
+    CommandPalette,
+    HelpContent,
+    MidiPorts,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DspRackChain {
     Track,
     Master,
@@ -216,6 +234,47 @@ impl InteractionMap {
             .rev()
             .find(|region| contains(region.area, column, row))
     }
+
+    #[must_use]
+    pub fn scroll_target_at(&self, column: u16, row: u16) -> Option<ScrollTarget> {
+        let hit = self.hit_test(column, row)?;
+        match (hit.id, hit.payload) {
+            (region::PATTERN_CELL | region::PANEL_PATTERN, _) => Some(ScrollTarget::PatternRows),
+            (region::COMPOSITE_TRACK_ROW | region::PANEL_TRACKS | region::VIEW_TRACKS, _) => {
+                Some(ScrollTarget::Tracks)
+            }
+            (
+                region::COMPOSITE_SEQUENCE_ROW
+                | region::SEQUENCE_EDITOR_ROW
+                | region::PANEL_SEQUENCE
+                | region::VIEW_SEQUENCE,
+                _,
+            ) => Some(ScrollTarget::Sequence),
+            (region::VIEW_CLIPS, _) => Some(ScrollTarget::Clips),
+            (region::PATTERN_MANAGER_ROW | region::VIEW_PATTERNS, _) => {
+                Some(ScrollTarget::Patterns)
+            }
+            (region::SAMPLE_BROWSER_ENTRY | region::VIEW_SAMPLE_BROWSER, _) => {
+                Some(ScrollTarget::SampleBrowser)
+            }
+            (region::PROJECT_BROWSER_ENTRY | region::VIEW_PROJECT_BROWSER, _) => {
+                Some(ScrollTarget::ProjectBrowser)
+            }
+            (region::SAMPLER_WAVEFORM, _) => Some(ScrollTarget::SamplerWaveform),
+            (region::DSP_DEVICE_ROW, InteractionPayload::DspDeviceRow { target, .. })
+            | (region::DSP_CHAIN, InteractionPayload::DspRackTarget { target }) => {
+                Some(ScrollTarget::DspDevices { target })
+            }
+            (region::DSP_PARAMETER_ROW, _) => Some(ScrollTarget::DspParameters),
+            (region::DSP_PALETTE_ENTRY, _) => Some(ScrollTarget::DspPalette),
+            (region::COMMAND_PALETTE_RESULTS | region::COMMAND_PALETTE_ENTRY, _) => {
+                Some(ScrollTarget::CommandPalette)
+            }
+            (region::HELP_CONTENT, _) => Some(ScrollTarget::HelpContent),
+            (region::MIDI_SETTINGS_PORT, _) => Some(ScrollTarget::MidiPorts),
+            _ => None,
+        }
+    }
 }
 
 fn contains(area: Rect, column: u16, row: u16) -> bool {
@@ -290,6 +349,7 @@ pub mod region {
     pub const DSP_PALETTE_ENTRY: InteractionRegionId =
         InteractionRegionId::new("dsp-rack.palette-entry");
     pub const SAMPLER_ACTION: InteractionRegionId = InteractionRegionId::new("sampler.action");
+    pub const SAMPLER_WAVEFORM: InteractionRegionId = InteractionRegionId::new("sampler.waveform");
 
     pub const OVERLAY_HELP: InteractionRegionId = InteractionRegionId::new("overlay.help");
     pub const OVERLAY_MIDI_SETTINGS: InteractionRegionId =
@@ -344,6 +404,30 @@ mod tests {
             map.hit_test(12, 3).map(|region| region.payload),
             Some(InteractionPayload::PatternCell { row: 5, track: 3 })
         );
+        assert_eq!(map.scroll_target_at(6, 2), Some(ScrollTarget::PatternRows));
         assert!(map.hit_test(5, 2).is_none());
+    }
+
+    #[test]
+    fn scroll_target_uses_the_topmost_semantic_region() {
+        let mut map = InteractionMap::new();
+        map.register(region::PANEL_PATTERN, Rect::new(0, 0, 80, 20));
+        map.register(region::PANEL_TRACKS, Rect::new(0, 0, 20, 20));
+        map.register(region::OVERLAY_HELP, Rect::new(10, 4, 60, 12));
+        map.register(region::HELP_CONTENT, Rect::new(12, 6, 56, 8));
+
+        assert_eq!(map.scroll_target_at(5, 5), Some(ScrollTarget::Tracks));
+        assert_eq!(map.scroll_target_at(11, 5), None);
+        assert_eq!(map.scroll_target_at(12, 6), Some(ScrollTarget::HelpContent));
+    }
+
+    #[test]
+    fn non_scrollable_chrome_has_no_scroll_target() {
+        let mut map = InteractionMap::new();
+        map.register(region::APP_HEADER, Rect::new(0, 0, 80, 3));
+        map.register(region::PANEL_INSPECTOR, Rect::new(60, 3, 20, 20));
+
+        assert_eq!(map.scroll_target_at(5, 1), None);
+        assert_eq!(map.scroll_target_at(65, 8), None);
     }
 }

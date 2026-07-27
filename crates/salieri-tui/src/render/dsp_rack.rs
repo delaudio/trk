@@ -113,7 +113,13 @@ fn render_dsp_chain(
 ) {
     let block = Block::default().title(chain.title).borders(Borders::ALL);
     let inner = block.inner(area);
-    interactions.register(interaction_region::DSP_CHAIN, area);
+    interactions.register_with_payload(
+        interaction_region::DSP_CHAIN,
+        area,
+        InteractionPayload::DspRackTarget {
+            target: chain.target,
+        },
+    );
     let mut lines = Vec::new();
     if chain.effects.is_empty() {
         lines.push(Line::from(Span::styled("  Empty chain", theme::muted())));

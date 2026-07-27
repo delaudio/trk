@@ -8,6 +8,8 @@ use ratatui::{
 use salieri_core::{EffectDeviceKind, NoteEvent, PatternCell, Song};
 use salieri_sampler::WaveformBucket;
 
+use crate::interaction_region;
+
 use super::{
     renoise_layout::PatternWorkspaceLayout,
     sampler_view::render_sampler_controls,
@@ -119,6 +121,7 @@ fn render_sampler_waveform(
         render_sampler_controls(frame, sections[1], None, interactions);
         return;
     };
+    interactions.register(interaction_region::SAMPLER_WAVEFORM, sections[0]);
     let width = sections[0].width.saturating_sub(4) as usize;
     let visible = sample
         .waveform_end_bucket

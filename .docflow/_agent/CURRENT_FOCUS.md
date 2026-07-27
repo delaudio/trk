@@ -12,9 +12,10 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Active item:** implement `plan/todo/0019-hovered-wheel-routing.md` for
   GitHub issue #267.
 - **Blockers:** none.
-- **Pending integration:** classify scroll targets from render-owned regions,
-  route both wheel axes by pointer coordinates, preserve modal capture, and
-  add focused routing tests.
+- **Pending integration:** semantic scroll-target classification,
+  coordinate-based vertical/horizontal routing, loaded-waveform targeting,
+  modal capture, and focused tests are implemented; full gate, Codex review,
+  PR, CI, merge, and closeout remain.
 
 ## Last shipped
 

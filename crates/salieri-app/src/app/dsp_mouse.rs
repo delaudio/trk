@@ -1,6 +1,12 @@
 use super::*;
 
 impl App {
+    pub(crate) fn move_hovered_dsp_devices(&mut self, target: DspRackChain, delta: isize) {
+        self.dsp_rack_target = app_dsp_rack_target(target);
+        self.keep_dsp_rack_cursor_in_bounds();
+        self.move_dsp_rack_cursor(delta);
+    }
+
     pub(crate) fn handle_dsp_rack_mouse_click(
         &mut self,
         column: u16,
