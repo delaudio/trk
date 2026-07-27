@@ -199,6 +199,14 @@ fn variable_midi_status_is_rendered_whole_or_omitted() {
                     "partial or inferred MIDI status at width {available_width}: {text}"
                 );
             }
+            if available_width >= 138 {
+                for static_segment in [" ORD:", " LOOP:", " TRK:", " FLD:"] {
+                    assert!(
+                        text.contains(static_segment),
+                        "missing {static_segment} at width {available_width}: {text}"
+                    );
+                }
+            }
         }
     }
 }

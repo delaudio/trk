@@ -659,10 +659,27 @@ fn compose_transport_header(
         .playhead_row
         .map_or_else(|| "0000".to_string(), |row| format!("{row:04}"));
 
-    let full =
-        compose_full_transport_header(song, state, playback, playhead.as_str(), available_width);
+    let full = compose_full_transport_header(
+        song,
+        state,
+        playback,
+        playhead.as_str(),
+        available_width,
+        true,
+    );
     if full.line_width() <= available_width {
         return full.finish();
+    }
+    let full_without_midi = compose_full_transport_header(
+        song,
+        state,
+        playback,
+        playhead.as_str(),
+        available_width,
+        false,
+    );
+    if full_without_midi.line_width() <= available_width {
+        return full_without_midi.finish();
     }
 
     let synchronized = compose_synchronized_transport_header(
@@ -754,6 +771,7 @@ fn compose_full_transport_header(
     playback: &'static str,
     playhead: &str,
     available_width: u16,
+    include_midi: bool,
 ) -> TransportHeaderBuilder {
     let mut header = TransportHeaderBuilder::new(state, true);
     header.push(theme::label_span(" BPM:"));
@@ -800,8 +818,10 @@ fn compose_full_transport_header(
         theme::muted_span(" "),
         theme::value_span(state.midi_status.to_string()),
     ];
-    for span in midi_segment {
-        header.push(span);
+    if include_midi {
+        for span in midi_segment {
+            header.push(span);
+        }
     }
     for span in trailing {
         header.push(span);
