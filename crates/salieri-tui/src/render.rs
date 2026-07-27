@@ -8,6 +8,7 @@ mod modal_overlays;
 mod renoise_layout;
 mod renoise_workspace;
 mod sampler_view;
+mod status_bar;
 mod theme;
 
 use ratatui::{
@@ -65,6 +66,7 @@ use modal_overlays::{
     render_quit_confirmation,
 };
 use sampler_view::render_sampler_view;
+use status_bar::render_status;
 
 const ROW_GUTTER_WIDTH: usize = 5;
 const PATTERN_CELL_WIDTH: usize = 28;
@@ -2829,92 +2831,6 @@ fn pattern_cell_width(field_layout: PatternFieldLayout) -> usize {
         PatternFieldLayout::NoteFx => 13,
         PatternFieldLayout::InstrumentFx => 12,
     }
-}
-
-fn render_status(frame: &mut Frame<'_>, area: Rect, state: TuiState<'_>) {
-    if let Some(command_line) = state.command_line {
-        let status = Paragraph::new(format!(" :{command_line}"));
-        frame.render_widget(status, area);
-        return;
-    }
-
-    if let Some(notification) = state.notification {
-        let label = match notification.kind {
-            NotificationKind::Info => "INFO",
-            NotificationKind::Success => "OK",
-            NotificationKind::Warning => "WARN",
-            NotificationKind::Error => "ERR",
-        };
-        let style = match notification.kind {
-            NotificationKind::Info => theme::label(),
-            NotificationKind::Success => theme::playing(),
-            NotificationKind::Warning => theme::warning(),
-            NotificationKind::Error => theme::error(),
-        };
-        let status = Paragraph::new(Line::from(vec![
-            Span::styled(format!(" {label} "), style.add_modifier(Modifier::BOLD)),
-            Span::styled(notification.message.to_string(), theme::base()),
-        ]));
-        frame.render_widget(status, area);
-        return;
-    }
-
-    let text = if state.active_view == TuiView::Sequence {
-        format!(
-            " {} | H Help | Esc Pattern | A Add | R Remove | Y Duplicate | T Set Pattern | </> Move | Enter Play | : Command | Ctrl+S Save | Ctrl+Shift+S Save As | q Quit ",
-            state.mode_label
-        )
-    } else if state.active_view == TuiView::Tracks {
-        format!(
-            " {} | H Help | Esc Pattern | N New | D Duplicate | r Rename | c Channel | Del Delete | {{/}} Move | M/S Mute/Solo | : Command | Ctrl+S Save | Ctrl+Shift+S Save As | q Quit ",
-            state.mode_label
-        )
-    } else if state.active_view == TuiView::Patterns {
-        format!(
-            " {} | H Help | Esc Pattern | N New | P Duplicate | r Rename | X/Del Delete | 1-5 Length Presets | F6 Length | : Command | Ctrl+S Save | Ctrl+Shift+S Save As | q Quit ",
-            state.mode_label
-        )
-    } else if state.active_view == TuiView::Sampler {
-        format!(
-            " {} | H Help | Esc Pattern | Tab ADSR | [/]/{{/}} Adjust | +/- Zoom | Left/Right Pan | b Browse | F7 Sequence | F9 Tracks | F10 Patterns | : Command | Ctrl+S Save | q Quit ",
-            state.mode_label
-        )
-    } else if state.active_view == TuiView::DspRack {
-        format!(
-            " {} | H Help | Esc Pattern | Tab Track/Master | Up/Down Device | [/]/Left/Right Param | A Add | P/R/C Lock | Ctrl+S Save | q Quit ",
-            state.mode_label
-        )
-    } else if state.active_view == TuiView::SampleBrowser {
-        format!(
-            " {} | H Help | Esc Sampler | Up/Down Select | A Assign | Right-click Assign | Enter Load/Open | Backspace Parent | : Command | q Quit ",
-            state.mode_label
-        )
-    } else if state.active_view == TuiView::ProjectBrowser {
-        format!(
-            " {} | H Help | Esc Tracker | Up/Down Select | Enter Open | Backspace Parent | r Refresh | : Command | q Quit ",
-            state.mode_label
-        )
-    } else if state.active_view == TuiView::AiChat {
-        format!(
-            " {} | Enter Submit | a Apply | r Reject | p Preview | Ctrl+C Cancel Task | Esc Tracker | : Command | q Quit ",
-            state.mode_label
-        )
-    } else {
-        let field_segment = if state.tracker_layout.pattern_fields == PatternFieldLayout::Full {
-            String::new()
-        } else {
-            format!(" | Fields {}", state.tracker_layout.pattern_fields.label())
-        };
-        format!(
-            " {}{} | Step {}{} | Ctrl+P Palette | H Help | Focus :t/:p/:se/:tr/:sa/:sb/:o | F4-MIDI | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern | A/Y/R Seq | : Command | i Edit | V Select | Ctrl+S Save | q Quit ",
-            state.mode_label,
-            if state.selection.is_some() { " SEL" } else { "" },
-            state.edit_step,
-            field_segment
-        )
-    };
-    let status = Paragraph::new(text).style(theme::base());
-    frame.render_widget(status, area);
 }
 
 fn render_ai_chat_view(frame: &mut Frame<'_>, area: Rect, chat: Option<AiChatViewState<'_>>) {

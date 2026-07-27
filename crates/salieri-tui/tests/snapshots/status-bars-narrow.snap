@@ -1,0 +1,12 @@
+Pattern         | NORMAL | Step 1 | Ctrl+P Palette | H Help | Space Play/Stop | Enter Row
+Sequence        | SEQUENCE | H Help | Esc Pattern | A Add | R Remove | Y Duplicate
+Clips           | CLIPS | H Help | Esc Pattern | Arrows Select | Enter Queue
+Tracks          | TRACKS | H Help | Esc Pattern | N New | D Duplicate | r Rename
+Patterns        | PATTERNS | H Help | Esc Pattern | N New | P Duplicate | r Rename
+Sampler         | SAMPLER | H Help | Esc Pattern | Tab ADSR | [/]/{/} Adjust | +/- Zoom
+DSP Rack        | DSP RACK | H Help | Esc Pattern | Tab Track/Master | Up/Down Device
+Sample Browser  | SAMPLE BROWSER | H Help | Esc Sampler | Up/Down Select | A Assign
+Project Browser | PROJECT BROWSER | H Help | Esc Tracker | Up/Down Select | Enter Open
+AI Chat         | AI CHAT | Enter Submit | a Apply | r Reject | p Preview
+Command input   | :write demo.salieri
+Notification    | OK Project saved
