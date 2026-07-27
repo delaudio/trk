@@ -30,8 +30,8 @@ use salieri_core::{
 };
 
 use super::{
-    parameter_flags_label, parameter_meter, theme, truncate, DspParameterLockStatusView,
-    DspRackTargetView, DspRackViewState,
+    centered_scroll_offset, parameter_flags_label, parameter_meter, theme, truncate,
+    DspParameterLockStatusView, DspRackTargetView, DspRackViewState,
 };
 use crate::{interaction_region, InteractionMap, InteractionPayload};
 
@@ -55,16 +55,12 @@ pub(super) fn render_dsp_parameter_panel(
         DspRackTargetView::Track => format!("Track {:02}", rack.track_number),
         DspRackTargetView::Master => "Master".to_string(),
     };
-    let mut lines = dsp_parameter_lines(
+    let lines = dsp_parameter_lines(
         &effect.kind,
         rack.selected_parameter_index,
         rack.selected_lock_status,
     );
     let parameter_count = lines.len();
-    lines.push(Line::from(Span::styled(
-        "P lock current value   R reset row   C clear row   [/] select   Left/Right adjust",
-        theme::muted(),
-    )));
     let block = Block::default()
         .title(format!(
             " Parameters: {target} {:02} {} ",
@@ -73,19 +69,33 @@ pub(super) fn render_dsp_parameter_panel(
         ))
         .borders(Borders::ALL);
     let inner = block.inner(area);
-    for index in 0..parameter_count.min(inner.height as usize) {
+    let visible_parameters = usize::from(inner.height.saturating_sub(1));
+    let start = centered_scroll_offset(
+        parameter_count,
+        rack.selected_parameter_index,
+        visible_parameters,
+    );
+    let end = start
+        .saturating_add(visible_parameters)
+        .min(parameter_count);
+    let mut visible_lines = lines[start..end].to_vec();
+    visible_lines.push(Line::from(Span::styled(
+        "P lock current value   R reset row   C clear row   [/] select   Left/Right adjust",
+        theme::muted(),
+    )));
+    for (visible_index, index) in (start..end).enumerate() {
         interactions.register_with_payload(
             interaction_region::DSP_PARAMETER_ROW,
             Rect::new(
                 inner.x,
-                inner.y.saturating_add(index as u16),
+                inner.y.saturating_add(visible_index as u16),
                 inner.width,
                 1,
             ),
             InteractionPayload::DspParameterRow { index },
         );
     }
-    let paragraph = Paragraph::new(lines).block(block);
+    let paragraph = Paragraph::new(visible_lines).block(block);
     frame.render_widget(paragraph, area);
 }
 

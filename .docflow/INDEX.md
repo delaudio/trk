@@ -26,3 +26,4 @@ metadata.
 | 0019 | Compose the transport header by width | Implemented | 2026-07-27 | default-agent | tui, ux, responsive, transport |
 | 0020 | Compose contextual status hints by width | Implemented | 2026-07-27 | default-agent | tui, ux, responsive, status, shortcuts |
 | 0021 | Route wheel input by rendered region | Implemented | 2026-07-27 | default-agent | tui, ux, input, mouse, scrolling |
+| 0022 | Verify pointer dispatch against rendered geometry | Accepted | 2026-07-27 | default-agent | tui, ux, input, mouse, testing, responsive |

@@ -122,7 +122,12 @@ fn render_dsp_chain(
             theme::muted(),
         )));
     } else {
-        for (index, effect) in chain.effects.iter().enumerate().take(inner.height as usize) {
+        let visible_items = inner.height as usize;
+        let start =
+            centered_scroll_offset(chain.effects.len(), chain.selected_index, visible_items);
+        let end = start.saturating_add(visible_items).min(chain.effects.len());
+        for (visible_index, index) in (start..end).enumerate() {
+            let effect = &chain.effects[index];
             let is_selected =
                 chain.selected && index == chain.selected_index.min(chain.effects.len() - 1);
             let marker = if is_selected { ">" } else { " " };
@@ -154,7 +159,7 @@ fn render_dsp_chain(
                 interaction_region::DSP_DEVICE_ROW,
                 Rect::new(
                     inner.x,
-                    inner.y.saturating_add(index as u16),
+                    inner.y.saturating_add(visible_index as u16),
                     inner.width,
                     1,
                 ),

@@ -31,6 +31,7 @@ mod sampler_mouse;
 mod state;
 mod text_notes;
 mod tracker_actions;
+mod tui_render;
 mod tui_state;
 mod view_key_handling;
 mod workspace_actions;
