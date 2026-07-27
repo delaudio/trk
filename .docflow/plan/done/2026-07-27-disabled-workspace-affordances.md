@@ -33,3 +33,9 @@ No placeholder feature is implemented by this item.
 - `../done/2026-07-26-render-owned-interaction-regions.md`
 - `../done/2026-07-27-sampler-direct-pointer-controls.md`
 - GitHub issues #249 and #263 (closed).
+
+---
+
+Shipped at HEAD `a7c93e3` via
+[PR #299](https://github.com/delaudio/salieri-tracker/pull/299), with GitHub
+Actions CI run #326 green and issue #264 closed.

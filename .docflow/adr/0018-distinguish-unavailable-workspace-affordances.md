@@ -1,7 +1,7 @@
 ---
 adr: 0018
 title: Distinguish unavailable workspace affordances
-status: Accepted
+status: Implemented
 date: 2026-07-27
 owner: default-agent
 supersedes:
@@ -66,7 +66,7 @@ active or accent treatment and their existing pointer behavior.
 ## References
 
 - `0003-render-owned-interaction-regions.md`
-- `../plan/todo/0016-disabled-workspace-affordances.md`
+- `../plan/done/2026-07-27-disabled-workspace-affordances.md`
 - GitHub issue #264.
 
 ## Revision History
@@ -74,6 +74,7 @@ active or accent treatment and their existing pointer behavior.
 | Date | Revision | Author | Change |
 |------|----------|--------|--------|
 | 2026-07-27 | r1 | default-agent | Accepted explicit disabled treatment for unavailable workspace chrome. |
+| 2026-07-27 | r2 | default-agent | Marked Implemented after PR #299 merged with GitHub Actions CI green. |
 
 ## Approvals
 
