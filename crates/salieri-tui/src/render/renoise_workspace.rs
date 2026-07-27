@@ -9,7 +9,8 @@ use salieri_core::{EffectDeviceKind, NoteEvent, PatternCell, Song};
 use salieri_sampler::WaveformBucket;
 
 use super::{
-    renoise_layout::PatternWorkspaceLayout, theme, InteractionMap, SamplerViewState, TuiState,
+    renoise_layout::PatternWorkspaceLayout, sampler_view::render_sampler_controls, theme,
+    InteractionMap, SamplerViewState, TuiState,
 };
 
 const RIGHT_WIDTH: u16 = 38;
@@ -37,6 +38,7 @@ pub(super) fn render_sampler_workspace(
     frame: &mut Frame<'_>,
     area: Rect,
     sampler: Option<SamplerViewState<'_>>,
+    interactions: &mut InteractionMap,
 ) {
     let rows = Layout::default()
         .direction(LayoutDirection::Vertical)
@@ -52,7 +54,7 @@ pub(super) fn render_sampler_workspace(
         ])
         .split(rows[1]);
     render_sampler_list(frame, columns[0], sampler);
-    render_sampler_waveform(frame, columns[1], sampler);
+    render_sampler_waveform(frame, columns[1], sampler, interactions);
     render_sampler_properties(frame, columns[2], sampler);
 }
 
@@ -101,15 +103,21 @@ fn render_sampler_waveform(
     frame: &mut Frame<'_>,
     area: Rect,
     sampler: Option<SamplerViewState<'_>>,
+    interactions: &mut InteractionMap,
 ) {
+    let sections = Layout::default()
+        .direction(LayoutDirection::Vertical)
+        .constraints([Constraint::Min(8), Constraint::Length(4)])
+        .split(area);
     let Some(sample) = sampler else {
         frame.render_widget(
             Paragraph::new("No sample loaded").block(theme::block(" Waveform ")),
-            area,
+            sections[0],
         );
+        render_sampler_controls(frame, sections[1], None, interactions);
         return;
     };
-    let width = area.width.saturating_sub(4) as usize;
+    let width = sections[0].width.saturating_sub(4) as usize;
     let visible = sample
         .waveform_end_bucket
         .min(sample.overview.buckets.len())
@@ -122,9 +130,9 @@ fn render_sampler_waveform(
         .take(visible)
         .copied()
         .collect::<Vec<_>>();
-    let zoom = format!(
-        "[ Draw ] [ Adjust ] [ Slice ]  Z: {}%  [Snap]  Crossing",
-        sample.waveform_zoom.saturating_mul(50).max(50)
+    let view = format!(
+        "View {}..{}  Zoom {}x",
+        sample.waveform_start_bucket, sample.waveform_end_bucket, sample.waveform_zoom
     );
     let lines = vec![
         Line::from(vec![
@@ -137,7 +145,7 @@ fn render_sampler_waveform(
                 sample.overview.duration_seconds
             )),
         ]),
-        Line::from(theme::muted_span(zoom)),
+        Line::from(theme::muted_span(view)),
         Line::from(theme::muted_span(
             "00     10     20     30     40     50     60     70     80",
         )),
@@ -178,8 +186,9 @@ fn render_sampler_waveform(
     ];
     frame.render_widget(
         Paragraph::new(lines).block(theme::block(format!(" Samples  ■  {} ", sample.name))),
-        area,
+        sections[0],
     );
+    render_sampler_controls(frame, sections[1], Some(sample), interactions);
 }
 
 fn render_sampler_properties(

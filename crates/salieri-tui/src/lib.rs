@@ -5,8 +5,8 @@ pub mod viewport;
 
 pub use interaction::{
     region as interaction_region, ConfirmationAction, DspRackChain, InteractionMap,
-    InteractionPayload, InteractionRegion, InteractionRegionId, MidiSettingsAction,
-    TransportAction,
+    InteractionPayload, InteractionRegion, InteractionRegionId, MidiSettingsAction, SamplerAction,
+    SamplerEnvelopeField, TransportAction,
 };
 pub use layout::{
     resolve_managed_layout, resolve_tracker_layout, LayoutDiagnostic, ManagedLayoutDirection,
@@ -20,7 +20,7 @@ pub use render::{
     DspDevicePaletteViewState, DspParameterLockStatusView, DspRackTargetView, DspRackViewState,
     HelpTab, MidiPortView, MidiSettingsState, NotificationKind, NotificationView,
     ProjectBrowserEntryKind, ProjectBrowserEntryView, ProjectBrowserViewState,
-    SampleBrowserEntryKind, SampleBrowserEntryView, SampleBrowserViewState, SamplerEnvelopeField,
-    SamplerViewState, SelectionRect, TuiState, TuiView, WaveformGlyphs,
+    SampleBrowserEntryKind, SampleBrowserEntryView, SampleBrowserViewState, SamplerViewState,
+    SelectionRect, TuiState, TuiView, WaveformGlyphs,
 };
 pub use viewport::{OverscrollPolicy, Viewport2D, ViewportAxis};

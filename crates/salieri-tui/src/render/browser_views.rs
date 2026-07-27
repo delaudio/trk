@@ -103,7 +103,7 @@ pub(super) fn render_sample_browser(
     }
 
     if let Some(preview) = browser.preview {
-        render_sampler_view(frame, columns[1], Some(preview));
+        render_sampler_view(frame, columns[1], Some(preview), None);
     } else {
         let message = browser.message.unwrap_or("Select a WAV file to preview it");
         let preview = Paragraph::new(message)

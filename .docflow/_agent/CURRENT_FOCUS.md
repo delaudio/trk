@@ -12,8 +12,10 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Active item:** `plan/todo/0015-sampler-direct-pointer-controls.md` for
   GitHub issue #263.
 - **Blockers:** none.
-- **Pending integration:** claim ADR and plan are ready; implementation,
-  verification, commit, mandatory Codex review, PR, CI, and merge remain.
+- **Pending integration:** typed controls, application routing, responsive
+  renderer coverage, pointer no-op coverage, and intentional snapshots are
+  complete. The full local gate passes; commit, mandatory Codex review, PR, CI,
+  and merge remain.
 
 ## Last shipped
 

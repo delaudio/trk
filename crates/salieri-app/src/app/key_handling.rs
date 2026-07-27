@@ -168,7 +168,7 @@ impl App {
             AppMode::ProjectBrowser => {
                 self.handle_project_browser_mouse_click(column, row, activate);
             }
-            AppMode::Sampler => self.handle_sampler_mouse_click(column, row),
+            AppMode::Sampler if primary_click => self.handle_sampler_mouse_click(column, row),
             AppMode::DspRack if self.dsp_device_palette_open => {
                 self.handle_dsp_palette_mouse_click(column, row, primary_click);
             }
@@ -409,14 +409,6 @@ impl App {
         }
         if activate {
             self.select_project_browser_entry();
-        }
-    }
-
-    fn handle_sampler_mouse_click(&mut self, column: u16, row: u16) {
-        if row == 3 && (15..=25).contains(&column) {
-            self.focus_panel(FocusPanel::Sampler);
-        } else if column <= 28 {
-            self.open_sample_browser_view(None);
         }
     }
 
