@@ -16,8 +16,9 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Pending integration:** implementation squash `3b20b85` is on `main`, PR
   #305 and CI #338 are green, issue #267 is closed, and final implementation
   Codex review `run-1785165122597923000` was clean. The atomic Docflow
-  move/status/index/worklog closeout still needs gate, Codex review, PR, CI,
-  and merge.
+  move/status/index/worklog closeout is committed; finding
+  `584abc8b44e9078a` is being remediated by updating the ADR's moved-plan
+  reference. Final gate, Codex rerun, PR, CI, and merge remain.
 
 ## Last shipped
 

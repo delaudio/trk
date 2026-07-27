@@ -66,7 +66,7 @@ fall-through to covered workspace regions.
 ## References
 
 - `0003-render-owned-interaction-regions.md`
-- `../plan/todo/0019-hovered-wheel-routing.md`
+- `../plan/done/2026-07-27-hovered-wheel-routing.md`
 - GitHub issue #249 (closed).
 - GitHub issue #267.
 
