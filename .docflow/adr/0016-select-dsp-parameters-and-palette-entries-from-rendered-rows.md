@@ -1,7 +1,7 @@
 ---
 adr: 0016
 title: Select DSP parameters and palette entries from rendered rows
-status: Accepted
+status: Implemented
 date: 2026-07-27
 owner: default-agent
 supersedes:
@@ -66,7 +66,7 @@ derives DSP indices from terminal coordinates.
 ## References
 
 - `0003-render-owned-interaction-regions.md`
-- `../plan/todo/0014-dsp-parameter-palette-row-clicks.md`
+- `../plan/done/2026-07-27-dsp-parameter-palette-row-clicks.md`
 - GitHub issue #262.
 
 ## Revision History
@@ -74,6 +74,7 @@ derives DSP indices from terminal coordinates.
 | Date | Revision | Author | Change |
 |------|----------|--------|--------|
 | 2026-07-27 | r1 | default-agent | Accepted render-owned DSP parameter and palette-row targets. |
+| 2026-07-27 | r2 | default-agent | Marked Implemented after PR #295 merged with GitHub Actions CI green. |
 
 ## Approvals
 
