@@ -1,7 +1,7 @@
 use ratatui::{
     layout::Rect,
     prelude::{Color, Frame, Line, Modifier, Span, Style},
-    widgets::{Block, Borders, Paragraph, Wrap},
+    widgets::{Block, Borders, Paragraph},
 };
 use salieri_core::{
     native_balance_descriptor, native_bitcrusher_bit_depth_descriptor,
@@ -33,11 +33,13 @@ use super::{
     parameter_flags_label, parameter_meter, theme, truncate, DspParameterLockStatusView,
     DspRackTargetView, DspRackViewState,
 };
+use crate::{interaction_region, InteractionMap, InteractionPayload};
 
 pub(super) fn render_dsp_parameter_panel(
     frame: &mut Frame<'_>,
     area: Rect,
     rack: DspRackViewState<'_>,
+    interactions: &mut InteractionMap,
 ) {
     let Some(effect) = selected_dsp_effect(&rack) else {
         let paragraph = Paragraph::new(Line::from(vec![
@@ -58,21 +60,32 @@ pub(super) fn render_dsp_parameter_panel(
         rack.selected_parameter_index,
         rack.selected_lock_status,
     );
+    let parameter_count = lines.len();
     lines.push(Line::from(Span::styled(
         "P lock current value   R reset row   C clear row   [/] select   Left/Right adjust",
         theme::muted(),
     )));
-    let paragraph = Paragraph::new(lines)
-        .block(
-            Block::default()
-                .title(format!(
-                    " Parameters: {target} {:02} {} ",
-                    rack.selected_index + 1,
-                    effect.name
-                ))
-                .borders(Borders::ALL),
-        )
-        .wrap(Wrap { trim: true });
+    let block = Block::default()
+        .title(format!(
+            " Parameters: {target} {:02} {} ",
+            rack.selected_index + 1,
+            effect.name
+        ))
+        .borders(Borders::ALL);
+    let inner = block.inner(area);
+    for index in 0..parameter_count.min(inner.height as usize) {
+        interactions.register_with_payload(
+            interaction_region::DSP_PARAMETER_ROW,
+            Rect::new(
+                inner.x,
+                inner.y.saturating_add(index as u16),
+                inner.width,
+                1,
+            ),
+            InteractionPayload::DspParameterRow { index },
+        );
+    }
+    let paragraph = Paragraph::new(lines).block(block);
     frame.render_widget(paragraph, area);
 }
 

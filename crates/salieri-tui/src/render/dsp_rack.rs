@@ -1,7 +1,7 @@
 use ratatui::{
     layout::{Constraint, Direction as LayoutDirection, Layout, Rect},
     prelude::{Color, Frame, Line, Modifier, Span, Style},
-    widgets::{Block, Borders, Clear, Paragraph, Wrap},
+    widgets::{Block, Borders, Clear, Paragraph},
 };
 use salieri_core::{EffectDevice, EffectDeviceKind};
 
@@ -91,9 +91,9 @@ pub(super) fn render_dsp_rack_view(
         },
         interactions,
     );
-    render_dsp_parameter_panel(frame, sections[2], rack);
+    render_dsp_parameter_panel(frame, sections[2], rack, interactions);
     if let Some(palette) = rack.device_palette {
-        render_dsp_device_palette(frame, area, palette, rack.selected_target);
+        render_dsp_device_palette(frame, area, palette, rack.selected_target, interactions);
     }
 }
 
@@ -371,6 +371,7 @@ fn render_dsp_device_palette(
     area: Rect,
     palette: DspDevicePaletteViewState<'_>,
     target: DspRackTargetView,
+    interactions: &mut InteractionMap,
 ) {
     let width = area.width.saturating_sub(4).min(64);
     let height = (palette.entries.len() as u16 + 2)
@@ -386,7 +387,11 @@ fn render_dsp_device_palette(
         DspRackTargetView::Track => "Track",
         DspRackTargetView::Master => "Master",
     };
-    let visible_entries = overlay.height.saturating_sub(2) as usize;
+    let block = Block::default()
+        .title(format!(" Add DSP Device -> {target} "))
+        .borders(Borders::ALL);
+    let inner = block.inner(overlay);
+    let visible_entries = inner.height as usize;
     let start = centered_scroll_offset(palette.entries.len(), palette.selected, visible_entries);
     let end = (start + visible_entries).min(palette.entries.len());
     let mut lines = Vec::new();
@@ -411,16 +416,19 @@ fn render_dsp_device_palette(
             ),
             style,
         )));
+        interactions.register_with_payload(
+            interaction_region::DSP_PALETTE_ENTRY,
+            Rect::new(
+                inner.x,
+                inner.y.saturating_add(index as u16),
+                inner.width,
+                1,
+            ),
+            InteractionPayload::DspPaletteEntry {
+                index: absolute_index,
+            },
+        );
     }
     frame.render_widget(Clear, overlay);
-    frame.render_widget(
-        Paragraph::new(lines)
-            .block(
-                Block::default()
-                    .title(format!(" Add DSP Device -> {target} "))
-                    .borders(Borders::ALL),
-            )
-            .wrap(Wrap { trim: true }),
-        overlay,
-    );
+    frame.render_widget(Paragraph::new(lines).block(block), overlay);
 }

@@ -104,6 +104,12 @@ pub enum InteractionPayload {
         target: DspRackChain,
         index: usize,
     },
+    DspParameterRow {
+        index: usize,
+    },
+    DspPaletteEntry {
+        index: usize,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -256,6 +262,10 @@ pub mod region {
     pub const DSP_RACK_TARGET: InteractionRegionId = InteractionRegionId::new("dsp-rack.target");
     pub const DSP_CHAIN: InteractionRegionId = InteractionRegionId::new("dsp-rack.chain");
     pub const DSP_DEVICE_ROW: InteractionRegionId = InteractionRegionId::new("dsp-rack.device-row");
+    pub const DSP_PARAMETER_ROW: InteractionRegionId =
+        InteractionRegionId::new("dsp-rack.parameter-row");
+    pub const DSP_PALETTE_ENTRY: InteractionRegionId =
+        InteractionRegionId::new("dsp-rack.palette-entry");
 
     pub const OVERLAY_HELP: InteractionRegionId = InteractionRegionId::new("overlay.help");
     pub const OVERLAY_MIDI_SETTINGS: InteractionRegionId =

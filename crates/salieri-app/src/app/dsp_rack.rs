@@ -179,12 +179,11 @@ impl App {
         }
     }
 
-    pub(crate) fn select_dsp_parameter_from_mouse(&mut self, row: u16) -> bool {
-        let Some(cursor) = dsp_parameter_row_to_cursor(row) else {
+    pub(crate) fn select_dsp_parameter(&mut self, index: usize) -> bool {
+        if index >= self.selected_dsp_parameter_count() {
             return false;
-        };
-        self.dsp_parameter_cursor = cursor;
-        self.keep_dsp_parameter_cursor_in_bounds();
+        }
+        self.dsp_parameter_cursor = index;
         true
     }
 
@@ -264,11 +263,11 @@ impl App {
         self.notify_success(format!("{label} assigned"));
     }
 
-    pub(crate) fn handle_dsp_palette_mouse_click(&mut self, row: u16) -> bool {
-        let Some(cursor) = dsp_palette_row_to_cursor(row) else {
+    pub(crate) fn assign_dsp_palette_entry(&mut self, index: usize) -> bool {
+        if index >= DSP_DEVICE_PALETTE.len() {
             return false;
-        };
-        self.dsp_device_palette_cursor = cursor.min(DSP_DEVICE_PALETTE.len().saturating_sub(1));
+        }
+        self.dsp_device_palette_cursor = index;
         self.assign_selected_dsp_device();
         true
     }
@@ -421,16 +420,6 @@ fn default_dsp_device(index: usize) -> Option<EffectDevice> {
         15 => Some(EffectDevice::limiter(16, LimiterSpec::default())),
         _ => None,
     }
-}
-
-fn dsp_palette_row_to_cursor(row: u16) -> Option<usize> {
-    const PALETTE_FIRST_ROW: u16 = 8;
-    row.checked_sub(PALETTE_FIRST_ROW).map(usize::from)
-}
-
-fn dsp_parameter_row_to_cursor(row: u16) -> Option<usize> {
-    const PARAMETER_FIRST_ROW: u16 = 19;
-    row.checked_sub(PARAMETER_FIRST_ROW).map(usize::from)
 }
 
 fn editable_effect_parameter(

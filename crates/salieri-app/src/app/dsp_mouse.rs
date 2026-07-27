@@ -11,10 +11,41 @@ impl App {
         if self.handle_dsp_rack_selection_target(column, row, primary_click) {
             return;
         }
-        let selected_parameter = self.select_dsp_parameter_from_mouse(row);
-        if selected_parameter && activate {
-            self.adjust_selected_dsp_parameter(1.0);
+        let Some(region) = self.interaction_map.hit_test(column, row).copied() else {
+            return;
+        };
+        match (region.id, region.payload) {
+            (
+                interaction_region::DSP_PARAMETER_ROW,
+                InteractionPayload::DspParameterRow { index },
+            ) if primary_click || activate => {
+                if self.select_dsp_parameter(index) && activate {
+                    self.adjust_selected_dsp_parameter(1.0);
+                }
+            }
+            (interaction_region::DSP_PARAMETER_ROW, _) => {}
+            _ => {}
         }
+    }
+
+    pub(crate) fn handle_dsp_palette_mouse_click(
+        &mut self,
+        column: u16,
+        row: u16,
+        primary_click: bool,
+    ) {
+        if !primary_click {
+            return;
+        }
+        let target = self
+            .interaction_map
+            .hit_test(column, row)
+            .filter(|region| region.id == interaction_region::DSP_PALETTE_ENTRY)
+            .map(|region| region.payload);
+        let Some(InteractionPayload::DspPaletteEntry { index }) = target else {
+            return;
+        };
+        self.assign_dsp_palette_entry(index);
     }
 
     fn handle_dsp_rack_selection_target(

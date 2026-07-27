@@ -6,10 +6,10 @@
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ┌ Track 01: Drums ───────────────────────────────┐┌ Master ────────────────────────────────────────┐
 │ ┌ Add DSP Device -> Master ────────────────────────────────────┐                                 │
-│ │01 Gain         utility level                                 │DSP; :fx edits tracker cell FX   │
-│ │02 Pan          left/right placement                          │                                 │
+│ │ 01 Gain         utility level                                │DSP; :fx edits tracker cell FX   │
+│ │ 02 Pan          left/right placement                         │                                 │
 │ │>03 Filter       multimode filter                             │                                 │
-│ │04 Reverb       room/space                                    │                                 │
+│ │ 04 Reverb       room/space                                   │                                 │
 │ └──────────────────────────────────────────────────────────────┘                                 │
 │                                                ││                                                │
 │                                                ││                                                │

@@ -12,8 +12,8 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Active item:** `plan/todo/0014-dsp-parameter-palette-row-clicks.md` for
   GitHub issue #262.
 - **Blockers:** none.
-- **Pending integration:** ADR 0016 is accepted and the plan item is claimed;
-  implementation is next.
+- **Pending integration:** implementation and focused coverage are complete;
+  the full local gate passes. Commit and mandatory Codex review are next.
 
 ## Last shipped
 

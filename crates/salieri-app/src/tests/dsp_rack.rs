@@ -142,6 +142,11 @@ fn dsp_rack_mouse_selects_and_adjusts_parameter() {
         terminal_width: 160,
         terminal_height: 40,
     };
+    app.interaction_map.register_with_payload(
+        interaction_region::DSP_PARAMETER_ROW,
+        ratatui::layout::Rect::new(2, 19, 40, 1),
+        InteractionPayload::DspParameterRow { index: 0 },
+    );
 
     app.handle_mouse(
         MouseEvent {
