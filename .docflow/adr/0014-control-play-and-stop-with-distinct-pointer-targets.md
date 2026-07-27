@@ -1,7 +1,7 @@
 ---
 adr: 0014
 title: Control Play and Stop with distinct pointer targets
-status: Accepted
+status: Implemented
 date: 2026-07-27
 owner: default-agent
 supersedes:
@@ -58,7 +58,7 @@ and stop paths; Record and all other header coordinates remain inert.
 ## References
 
 - `0003-render-owned-interaction-regions.md`
-- `../plan/todo/0012-distinct-transport-click-targets.md`
+- `../plan/done/2026-07-27-distinct-transport-click-targets.md`
 - GitHub issue #260.
 
 ## Revision History
@@ -66,6 +66,7 @@ and stop paths; Record and all other header coordinates remain inert.
 | Date | Revision | Author | Change |
 |------|----------|--------|--------|
 | 2026-07-27 | r1 | default-agent | Accepted distinct render-owned Play and Stop targets routed through existing transport intents. |
+| 2026-07-27 | r2 | default-agent | Marked Implemented after PR #291 merged with GitHub Actions CI green. |
 
 ## Approvals
 

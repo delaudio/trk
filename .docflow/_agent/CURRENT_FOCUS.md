@@ -8,21 +8,19 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** agent/260-transport-click-targets
-- **Active item:** `plan/todo/0012-distinct-transport-click-targets.md` for
-  GitHub issue #260.
+- **Branch:** agent/260-docflow-closeout
+- **Active item:** `plan/done/2026-07-27-distinct-transport-click-targets.md`
+  for closed GitHub issue #260.
 - **Blockers:** none.
-- **Uncommitted work:** distinct one-cell Play and Stop targets now route
-  primary clicks through existing start/stop intents; Record, header chrome,
-  secondary clicks, drags, and invalid payloads are inert. Finding
-  `4d3563fb53cee5c1` from Codex review `run-1785141606254197000` is being
-  remediated by detecting live clip state so header Stop also clears it under
-  Command capture or after navigating away from Clips.
+- **Uncommitted work:** Docflow closeout records implementation squash
+  `c0b3ff4`, PR #291, green CI #310, closed issue #260, and final implementation
+  Codex review `run-1785142037991171000`; closeout validation and review are
+  pending before integration.
 
 ## Last shipped
 
-Issue #259 implementation and Docflow closeout via PRs #289 and #290.
+Issue #260 implementation via PR #291.
 
 ## Next item
 
-Implement and ship `plan/todo/0012-distinct-transport-click-targets.md`.
+Audit and implement GitHub issue #261 after the #260 closeout merges.
