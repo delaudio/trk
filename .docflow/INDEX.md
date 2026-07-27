@@ -21,3 +21,4 @@ metadata.
 | 0014 | Control Play and Stop with distinct pointer targets | Implemented | 2026-07-27 | default-agent | tui, ux, input, transport, playback |
 | 0015 | Select DSP targets and device rows with the pointer | Implemented | 2026-07-27 | default-agent | tui, ux, input, dsp, audio |
 | 0016 | Select DSP parameters and palette entries from rendered rows | Implemented | 2026-07-27 | default-agent | tui, ux, input, dsp, audio, palette |
+| 0017 | Control supported sampler actions with the pointer | Accepted | 2026-07-27 | default-agent | tui, ux, input, sampler, waveform |
