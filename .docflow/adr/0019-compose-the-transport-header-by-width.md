@@ -63,7 +63,7 @@ set at large widths.
 ## References
 
 - `0014-control-play-and-stop-with-distinct-pointer-targets.md`
-- `../plan/todo/0017-responsive-transport-header.md`
+- `../plan/done/2026-07-27-responsive-transport-header.md`
 - GitHub issue #265.
 
 ## Revision History
