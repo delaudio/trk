@@ -85,6 +85,156 @@ fn transport_symbols_expose_distinct_play_and_stop_targets_at_supported_widths()
 }
 
 #[test]
+fn transport_header_uses_complete_width_appropriate_segments() {
+    let song = Song::empty();
+    let state = render_test_state();
+    let cases = [
+        (
+            72,
+            " [▷] [■] [●×] BPM:120 LPB:4 STOPPED PAT:01 ROW:0000/0000",
+        ),
+        (
+            80,
+            " [▷] [■] [●×] BPM:120 LPB:4 STOPPED PAT:01 ROW:0000/0000  Sync: Internal",
+        ),
+        (
+            100,
+            " [▷] [■] [●×] BPM:120 LPB:4 STOPPED PAT:01 ROW:0000/0000  Sync: Internal",
+        ),
+        (
+            140,
+            " [▷] [■] [●×] BPM:120 LPB:4 Oct:4 V:100 Sw:0% Syn:Int CPU0% STOPPED PAT:01 ROW:0000/0000 MIDI Disconnected ORD:00 LOOP:ON TRK:01 FLD:NOTE",
+        ),
+    ];
+
+    for (terminal_width, expected) in cases {
+        let available_width = terminal_width - 2;
+        let header = compose_transport_header(&song, state, available_width);
+        let actual = super::render_test_support::line_text(&header.line);
+
+        assert_eq!(actual, expected, "terminal width {terminal_width}");
+        assert!(
+            header.line.width() <= usize::from(available_width),
+            "terminal width {terminal_width}: {actual}"
+        );
+    }
+
+    let loop_off = compose_transport_header(
+        &song,
+        TuiState {
+            loop_pattern: false,
+            ..state
+        },
+        138,
+    );
+    let loop_off_text = super::render_test_support::line_text(&loop_off.line);
+    assert_eq!(loop_off.line.width(), 138);
+    assert!(loop_off_text.contains("MIDI Disconnected"));
+    assert!(loop_off_text.contains("LOOP:OFF"));
+}
+
+#[test]
+fn optional_header_markers_are_omitted_atomically_when_they_do_not_fit() {
+    let song = Song::empty();
+    let state = TuiState {
+        selection: Some(SelectionRect {
+            row_start: 0,
+            row_end: 1,
+            track_start: 0,
+            track_end: 1,
+        }),
+        dirty: true,
+        ..render_test_state()
+    };
+
+    let constrained = compose_transport_header(&song, state, 137);
+    let constrained_text = super::render_test_support::line_text(&constrained.line);
+    assert_eq!(constrained.line.width(), 137);
+    assert!(!constrained_text.contains(" SEL"));
+    assert!(!constrained_text.ends_with(" *"));
+
+    let wide = compose_transport_header(&song, state, 143);
+    let wide_text = super::render_test_support::line_text(&wide.line);
+    assert_eq!(wide.line.width(), 143);
+    assert!(wide_text.ends_with(" SEL *"));
+}
+
+#[test]
+fn measured_header_candidates_never_exceed_dynamic_boundaries() {
+    let song = Song::empty();
+    let state = TuiState {
+        cursor: Cursor {
+            row: 12_345,
+            track: 123,
+            field: CellField::Instrument,
+            digit: 0,
+        },
+        pattern_index: 123,
+        playhead_row: Some(54_321),
+        midi_status: "MIDI Disconnected | MIDI In Rec+Clock",
+        sequence_position: Some(123),
+        ..render_test_state()
+    };
+
+    for available_width in [0, 1, 7, 8, 13, 14, 60, 61, 70, 78, 98, 118, 132, 138] {
+        let header = compose_transport_header(&song, state, available_width);
+        let text = super::render_test_support::line_text(&header.line);
+        assert!(
+            header.line.width() <= usize::from(available_width),
+            "available width {available_width}: {}",
+            text
+        );
+        if matches!(available_width, 70 | 78) {
+            for required in ["BPM:", "LPB:", "STOPPED", "PAT:>4", "ROW:>321/>345"] {
+                assert!(text.contains(required), "missing {required}: {text}");
+            }
+        }
+    }
+}
+
+#[test]
+fn variable_midi_status_is_rendered_whole_or_omitted() {
+    let song = Song::empty();
+    for status in [
+        "MIDI Disconnected",
+        "MIDI Disconnected | MIDI In Rec",
+        "MIDI Connecting 2",
+        "MIDI No Outputs",
+        "MIDI Error: device unavailable",
+    ] {
+        let state = TuiState {
+            midi_status: status,
+            ..render_test_state()
+        };
+        for available_width in [98, 118, 120, 138, 158] {
+            let header = compose_transport_header(&song, state, available_width);
+            let text = super::render_test_support::line_text(&header.line);
+            assert!(header.line.width() <= usize::from(available_width));
+            assert!(
+                !text.contains("MIDI:On") && !text.contains("MIDI:Off") && !text.contains("MIDI:—")
+            );
+            if text.contains("MIDI") {
+                assert!(
+                    text.contains(status),
+                    "partial or inferred MIDI status at width {available_width}: {text}"
+                );
+            }
+            if available_width < 138 {
+                assert!(!text.contains(status));
+            }
+            if available_width >= 138 {
+                for static_segment in [" ORD:", " LOOP:", " TRK:", " FLD:"] {
+                    assert!(
+                        text.contains(static_segment),
+                        "missing {static_segment} at width {available_width}: {text}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn full_pattern_cells_fill_the_registered_interaction_width() {
     let spans = cell_spans(
         &PatternCell::default(),

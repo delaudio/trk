@@ -23,3 +23,4 @@ metadata.
 | 0016 | Select DSP parameters and palette entries from rendered rows | Implemented | 2026-07-27 | default-agent | tui, ux, input, dsp, audio, palette |
 | 0017 | Control supported sampler actions with the pointer | Implemented | 2026-07-27 | default-agent | tui, ux, input, sampler, waveform |
 | 0018 | Distinguish unavailable workspace affordances | Implemented | 2026-07-27 | default-agent | tui, ux, affordance, sampler, workspace |
+| 0019 | Compose the transport header by width | Accepted | 2026-07-27 | default-agent | tui, ux, responsive, transport |
