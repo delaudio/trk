@@ -91,15 +91,15 @@ fn transport_header_uses_complete_width_appropriate_segments() {
     let cases = [
         (
             72,
-            " [▷] [■] [●×]  BPM: 120  LPB: 4  STOPPED  PAT: 01  ROW: 0000/0000",
+            " [▷] [■] [●×] BPM:120 LPB:4 STOPPED PAT:01 ROW:0000/0000",
         ),
         (
             80,
-            " [▷] [■] [●×]  BPM: 120  LPB: 4  STOPPED  PAT: 01  ROW: 0000/0000",
+            " [▷] [■] [●×] BPM:120 LPB:4 STOPPED PAT:01 ROW:0000/0000  Sync: Internal",
         ),
         (
             100,
-            " [▷] [■] [●×]  BPM: 120  LPB: 4  STOPPED  PAT: 01  ROW: 0000/0000  Sync: Internal",
+            " [▷] [■] [●×] BPM:120 LPB:4 STOPPED PAT:01 ROW:0000/0000  Sync: Internal",
         ),
         (
             140,
@@ -178,11 +178,17 @@ fn measured_header_candidates_never_exceed_dynamic_boundaries() {
 
     for available_width in [0, 1, 7, 8, 13, 14, 60, 61, 70, 78, 98, 118, 132, 138] {
         let header = compose_transport_header(&song, state, available_width);
+        let text = super::render_test_support::line_text(&header.line);
         assert!(
             header.line.width() <= usize::from(available_width),
             "available width {available_width}: {}",
-            super::render_test_support::line_text(&header.line)
+            text
         );
+        if matches!(available_width, 70 | 78) {
+            for required in ["BPM:", "LPB:", "STOPPED", "PAT:>4", "ROW:>321/>345"] {
+                assert!(text.contains(required), "missing {required}: {text}");
+            }
+        }
     }
 }
 

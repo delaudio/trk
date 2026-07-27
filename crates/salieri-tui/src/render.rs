@@ -655,40 +655,27 @@ fn compose_transport_header(
     } else {
         "STOPPED"
     };
-    let playhead = state
-        .playhead_row
-        .map_or_else(|| "0000".to_string(), |row| format!("{row:04}"));
+    let playhead = state.playhead_row.unwrap_or(0);
 
-    let full = compose_full_transport_header(
-        song,
-        state,
-        playback,
-        playhead.as_str(),
-        available_width,
-        true,
-    );
+    let full =
+        compose_full_transport_header(song, state, playback, playhead, available_width, true);
     if full.line_width() <= available_width {
         return full.finish();
     }
-    let full_without_midi = compose_full_transport_header(
-        song,
-        state,
-        playback,
-        playhead.as_str(),
-        available_width,
-        false,
-    );
+    let full_without_midi =
+        compose_full_transport_header(song, state, playback, playhead, available_width, false);
     if full_without_midi.line_width() <= available_width {
         return full_without_midi.finish();
     }
 
-    let synchronized =
-        compose_synchronized_transport_header(song, state, playback, playhead.as_str());
-    if synchronized.line_width() <= available_width {
-        return synchronized.finish();
+    if available_width >= 76 {
+        let synchronized = compose_synchronized_transport_header(song, state, playback, playhead);
+        if synchronized.line_width() <= available_width {
+            return synchronized.finish();
+        }
     }
 
-    let core = compose_core_transport_header(song, state, playback, playhead.as_str());
+    let core = compose_core_transport_header(song, state, playback, playhead);
     if core.line_width() <= available_width {
         return core.finish();
     }
@@ -708,14 +695,14 @@ fn compose_core_transport_header(
     song: &Song,
     state: TuiState<'_>,
     playback: &'static str,
-    playhead: &str,
+    playhead: usize,
 ) -> TransportHeaderBuilder {
     let mut header = TransportHeaderBuilder::new(state, true);
-    header.push(theme::label_span("  BPM: "));
+    header.push(theme::label_span(" BPM:"));
     header.push(theme::value_span(song.transport.bpm.to_string()));
-    header.push(theme::label_span("  LPB: "));
+    header.push(theme::label_span(" LPB:"));
     header.push(theme::value_span(song.transport.lines_per_beat.to_string()));
-    header.push(theme::muted_span("  "));
+    header.push(theme::muted_span(" "));
     header.push(Span::styled(
         playback,
         if state.is_playing {
@@ -724,12 +711,13 @@ fn compose_core_transport_header(
             theme::muted()
         },
     ));
-    header.push(theme::label_span("  PAT: "));
-    header.push(theme::value_span(format!("{:02}", state.pattern_index + 1)));
-    header.push(theme::label_span("  ROW: "));
+    header.push(theme::label_span(" PAT:"));
+    header.push(theme::value_span(fixed_decimal(state.pattern_index + 1, 2)));
+    header.push(theme::label_span(" ROW:"));
     header.push(theme::value_span(format!(
-        "{playhead}/{:04}",
-        state.cursor.row
+        "{}/{}",
+        fixed_decimal(playhead, 4),
+        fixed_decimal(state.cursor.row, 4)
     )));
     header
 }
@@ -738,7 +726,7 @@ fn compose_synchronized_transport_header(
     song: &Song,
     state: TuiState<'_>,
     playback: &'static str,
-    playhead: &str,
+    playhead: usize,
 ) -> TransportHeaderBuilder {
     let mut header = compose_core_transport_header(song, state, playback, playhead);
     header.push(theme::label_span("  Sync: "));
@@ -750,7 +738,7 @@ fn compose_full_transport_header(
     song: &Song,
     state: TuiState<'_>,
     playback: &'static str,
-    playhead: &str,
+    playhead: usize,
     available_width: u16,
     include_midi: bool,
 ) -> TransportHeaderBuilder {
@@ -779,19 +767,20 @@ fn compose_full_transport_header(
         },
     ));
     header.push(theme::label_span(" PAT:"));
-    header.push(theme::value_span(format!("{:02}", state.pattern_index + 1)));
+    header.push(theme::value_span(fixed_decimal(state.pattern_index + 1, 2)));
     header.push(theme::label_span(" ROW:"));
     header.push(theme::value_span(format!(
-        "{playhead}/{:04}",
-        state.cursor.row
+        "{}/{}",
+        fixed_decimal(playhead, 4),
+        fixed_decimal(state.cursor.row, 4)
     )));
     let trailing = vec![
         theme::label_span(" ORD:"),
-        theme::value_span(format!("{:02}", state.sequence_position.unwrap_or(0))),
+        theme::value_span(fixed_decimal(state.sequence_position.unwrap_or(0), 2)),
         theme::label_span(" LOOP:"),
         theme::value_span(if state.loop_pattern { "ON" } else { "OFF" }),
         theme::label_span(" TRK:"),
-        theme::value_span(format!("{:02}", state.cursor.track + 1)),
+        theme::value_span(fixed_decimal(state.cursor.track + 1, 2)),
         theme::label_span(" FLD:"),
         theme::value_span(state.cursor.field.to_string()),
     ];
@@ -814,6 +803,17 @@ fn compose_full_transport_header(
         header.push_if_fits(theme::muted_span(" *"), available_width);
     }
     header
+}
+
+fn fixed_decimal(value: usize, width: usize) -> String {
+    let value = value.to_string();
+    if value.len() <= width {
+        return format!("{value:0>width$}");
+    }
+    if width <= 1 {
+        return ">".repeat(width);
+    }
+    format!(">{}", &value[value.len() - (width - 1)..])
 }
 
 fn register_transport_action(
