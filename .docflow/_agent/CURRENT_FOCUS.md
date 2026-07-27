@@ -22,8 +22,10 @@ If status files and git disagree, git is authoritative; correct this file.
   same bounded row-content target from the shared pattern-cell helper for both
   standalone and large Renoise layouts. Low-severity pre-push finding
   `c2425e60acbd6266` is being remediated by including Renoise's rendered
-  trailing row gutter without widening the standalone target; affected tests,
-  final pre-push Codex review, PR, CI, merge, and closeout remain.
+  trailing row gutter without widening the standalone target. Pre-push finding
+  `e83f058069907bce` is being remediated by restoring command-prompt wheel
+  capture on both axes; affected tests, final pre-push Codex review, PR, CI,
+  merge, and closeout remain.
 
 ## Last shipped
 

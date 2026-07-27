@@ -83,6 +83,7 @@ fn non_scrollable_regions_and_unsupported_horizontal_axes_are_no_ops() {
 #[test]
 fn modal_modes_capture_both_wheel_axes_outside_their_scrollable_content() {
     for mode in [
+        AppMode::Command,
         AppMode::CommandPalette,
         AppMode::Help,
         AppMode::MidiSettings,

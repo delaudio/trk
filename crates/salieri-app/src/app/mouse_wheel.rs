@@ -15,7 +15,7 @@ impl App {
             self.handle_help_mouse_wheel(column, row, kind);
             return;
         }
-        if self.mode == AppMode::Dialog {
+        if matches!(self.mode, AppMode::Command | AppMode::Dialog) {
             return;
         }
 
@@ -91,7 +91,11 @@ impl App {
     pub(super) fn handle_mouse_horizontal_scroll(&mut self, column: u16, row: u16, delta: isize) {
         if matches!(
             self.mode,
-            AppMode::CommandPalette | AppMode::Help | AppMode::MidiSettings | AppMode::Dialog
+            AppMode::Command
+                | AppMode::CommandPalette
+                | AppMode::Help
+                | AppMode::MidiSettings
+                | AppMode::Dialog
         ) || (self.mode == AppMode::DspRack && self.dsp_device_palette_open)
         {
             return;
