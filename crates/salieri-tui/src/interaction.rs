@@ -47,6 +47,12 @@ pub enum TransportAction {
     Stop,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DspRackChain {
+    Track,
+    Master,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum InteractionPayload {
     #[default]
@@ -90,6 +96,13 @@ pub enum InteractionPayload {
     },
     TransportAction {
         action: TransportAction,
+    },
+    DspRackTarget {
+        target: DspRackChain,
+    },
+    DspDeviceRow {
+        target: DspRackChain,
+        index: usize,
     },
 }
 
@@ -240,6 +253,9 @@ pub mod region {
         InteractionRegionId::new("midi-settings.action");
     pub const CONFIRMATION_ACTION: InteractionRegionId =
         InteractionRegionId::new("confirmation.action");
+    pub const DSP_RACK_TARGET: InteractionRegionId = InteractionRegionId::new("dsp-rack.target");
+    pub const DSP_CHAIN: InteractionRegionId = InteractionRegionId::new("dsp-rack.chain");
+    pub const DSP_DEVICE_ROW: InteractionRegionId = InteractionRegionId::new("dsp-rack.device-row");
 
     pub const OVERLAY_HELP: InteractionRegionId = InteractionRegionId::new("overlay.help");
     pub const OVERLAY_MIDI_SETTINGS: InteractionRegionId =

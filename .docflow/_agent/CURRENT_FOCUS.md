@@ -12,8 +12,8 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Active item:** `plan/todo/0013-dsp-target-device-row-clicks.md` for GitHub
   issue #261.
 - **Blockers:** none.
-- **Pending integration:** ADR 0015 is accepted and the plan item is claimed;
-  implementation is next.
+- **Pending integration:** implementation and focused coverage are complete;
+  the full local gate passes. Commit and mandatory Codex review are next.
 
 ## Last shipped
 

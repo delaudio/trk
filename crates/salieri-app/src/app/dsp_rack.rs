@@ -188,13 +188,6 @@ impl App {
         true
     }
 
-    pub(crate) fn handle_dsp_rack_mouse_click(&mut self, row: u16, activate: bool) {
-        let selected_parameter = self.select_dsp_parameter_from_mouse(row);
-        if selected_parameter && activate {
-            self.adjust_selected_dsp_parameter(1.0);
-        }
-    }
-
     pub(crate) fn set_selected_dsp_parameter_lock(&mut self) {
         let Some(parameter) = self.selected_dsp_parameter() else {
             self.notify_warning("No editable DSP parameter selected");
@@ -432,12 +425,12 @@ fn default_dsp_device(index: usize) -> Option<EffectDevice> {
 
 fn dsp_palette_row_to_cursor(row: u16) -> Option<usize> {
     const PALETTE_FIRST_ROW: u16 = 8;
-    (row >= PALETTE_FIRST_ROW).then_some(usize::from(row - PALETTE_FIRST_ROW))
+    row.checked_sub(PALETTE_FIRST_ROW).map(usize::from)
 }
 
 fn dsp_parameter_row_to_cursor(row: u16) -> Option<usize> {
     const PARAMETER_FIRST_ROW: u16 = 19;
-    (row >= PARAMETER_FIRST_ROW).then_some(usize::from(row - PARAMETER_FIRST_ROW))
+    row.checked_sub(PARAMETER_FIRST_ROW).map(usize::from)
 }
 
 fn editable_effect_parameter(
