@@ -1,7 +1,7 @@
 ---
 adr: 0017
 title: Control supported sampler actions with the pointer
-status: Accepted
+status: Implemented
 date: 2026-07-27
 owner: default-agent
 supersedes:
@@ -69,7 +69,7 @@ the existing keyboard bindings.
 ## References
 
 - `0003-render-owned-interaction-regions.md`
-- `../plan/todo/0015-sampler-direct-pointer-controls.md`
+- `../plan/done/2026-07-27-sampler-direct-pointer-controls.md`
 - GitHub issue #263.
 
 ## Revision History
@@ -77,6 +77,7 @@ the existing keyboard bindings.
 | Date | Revision | Author | Change |
 |------|----------|--------|--------|
 | 2026-07-27 | r1 | default-agent | Accepted typed direct controls for supported sampler actions. |
+| 2026-07-27 | r2 | default-agent | Marked Implemented after PR #297 merged with GitHub Actions CI green. |
 
 ## Approvals
 

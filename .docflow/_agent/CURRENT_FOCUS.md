@@ -8,19 +8,19 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** agent/263-sampler-direct-controls
-- **Active item:** `plan/todo/0015-sampler-direct-pointer-controls.md` for
-  GitHub issue #263.
+- **Branch:** agent/263-docflow-closeout
+- **Active item:** close out
+  `plan/done/2026-07-27-sampler-direct-pointer-controls.md` for GitHub issue
+  #263.
 - **Blockers:** none.
-- **Pending integration:** typed controls, application routing, responsive
-  renderer coverage, pointer no-op coverage, and intentional snapshots are
-  complete. The full local gate passes; commit, mandatory Codex review, PR, CI,
-  and merge remain.
+- **Pending integration:** PR #297 merged at `2275f54`, CI #322 is green, and
+  issue #263 is closed. This documentation closeout still needs its local gate,
+  mandatory Codex review, PR, CI, and merge.
 
 ## Last shipped
 
-Issue #262 closeout via PR #296.
+Issue #263 implementation via PR #297.
 
 ## Next item
 
-Implement typed direct sampler controls for issue #263.
+Audit and implement the next queued UX issue, #264.
