@@ -59,16 +59,17 @@ fn stop_click_is_idempotent_when_playback_is_already_stopped() {
 
 #[test]
 fn stop_click_clears_clip_launcher_and_transport_state_in_clips_view() {
-    let mut app = App {
-        mode: AppMode::Clips,
-        active_clip_scene: Some(0),
-        queued_clip_scene: Some(1),
-        is_playing: true,
-        playhead_row: Some(12),
-        ..App::default()
-    };
+    let mut app = App::default();
+    app.open_clip_launcher_view();
+    app.open_command_prompt();
+    app.active_clip_scene = Some(0);
+    app.queued_clip_scene = Some(1);
+    app.is_playing = true;
+    app.playhead_row = Some(12);
     register_action(&mut app, TransportAction::Stop, 7);
 
+    assert_eq!(app.mode, AppMode::Command);
+    assert_eq!(app.tui_active_view(), TuiView::Clips);
     click(&mut app, MouseEventKind::Down(MouseButton::Left), 7, 1);
 
     assert_eq!(app.active_clip_scene, None);

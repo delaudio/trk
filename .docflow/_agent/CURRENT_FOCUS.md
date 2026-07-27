@@ -15,9 +15,9 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Uncommitted work:** distinct one-cell Play and Stop targets now route
   primary clicks through existing start/stop intents; Record, header chrome,
   secondary clicks, drags, and invalid payloads are inert. Finding
-  `ace5c3038357c884` from Codex review `run-1785141204358351000` is being
-  remediated by clearing clip-launcher and global transport state from the
-  header Stop action in Clips view.
+  `4d3563fb53cee5c1` from Codex review `run-1785141606254197000` is being
+  remediated by detecting live clip state so header Stop also clears it under
+  Command capture or after navigating away from Clips.
 
 ## Last shipped
 

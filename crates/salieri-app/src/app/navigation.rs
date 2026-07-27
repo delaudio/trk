@@ -47,7 +47,7 @@ impl App {
         match action {
             TransportAction::Play => self.start_playback(),
             TransportAction::Stop => {
-                if self.mode == AppMode::Clips {
+                if self.active_clip_scene.is_some() || self.queued_clip_scene.is_some() {
                     self.stop_clip_launcher();
                 }
                 self.stop_playback();
