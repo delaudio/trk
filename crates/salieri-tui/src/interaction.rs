@@ -86,6 +86,14 @@ pub enum ScrollTarget {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct PatternGridGeometry {
+    pub header_height: u16,
+    pub row_gutter_width: u16,
+    pub trailing_gutter_width: u16,
+    pub cell_width: u16,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DspRackChain {
     Track,
     Master,
@@ -185,19 +193,22 @@ impl InteractionMap {
     pub(crate) fn register_pattern_cells(
         &mut self,
         content_area: Rect,
-        header_height: u16,
-        row_gutter_width: u16,
-        cell_width: u16,
+        geometry: PatternGridGeometry,
         visible_rows: Range<usize>,
         visible_tracks: Range<usize>,
     ) {
-        let rendered_width = usize::from(row_gutter_width)
-            .saturating_add(visible_tracks.len().saturating_mul(usize::from(cell_width)));
+        let rendered_width = usize::from(geometry.row_gutter_width)
+            .saturating_add(
+                visible_tracks
+                    .len()
+                    .saturating_mul(usize::from(geometry.cell_width)),
+            )
+            .saturating_add(usize::from(geometry.trailing_gutter_width));
         self.register(
             region::PATTERN_GRID,
             Rect::new(
                 content_area.x,
-                content_area.y.saturating_add(header_height),
+                content_area.y.saturating_add(geometry.header_height),
                 u16::try_from(rendered_width)
                     .unwrap_or(u16::MAX)
                     .min(content_area.width),
@@ -206,8 +217,8 @@ impl InteractionMap {
         );
         let content_right = content_area.x.saturating_add(content_area.width);
         let content_bottom = content_area.y.saturating_add(content_area.height);
-        let first_cell_x = content_area.x.saturating_add(row_gutter_width);
-        let first_cell_y = content_area.y.saturating_add(header_height);
+        let first_cell_x = content_area.x.saturating_add(geometry.row_gutter_width);
+        let first_cell_y = content_area.y.saturating_add(geometry.header_height);
 
         for (visible_row, row) in visible_rows.enumerate() {
             let y = first_cell_y.saturating_add(visible_row as u16);
@@ -215,12 +226,12 @@ impl InteractionMap {
                 break;
             }
             for (visible_track, track) in visible_tracks.clone().enumerate() {
-                let x =
-                    first_cell_x.saturating_add((visible_track as u16).saturating_mul(cell_width));
+                let x = first_cell_x
+                    .saturating_add((visible_track as u16).saturating_mul(geometry.cell_width));
                 if x >= content_right {
                     break;
                 }
-                let width = cell_width.min(content_right.saturating_sub(x));
+                let width = geometry.cell_width.min(content_right.saturating_sub(x));
                 self.register_with_payload(
                     region::PATTERN_CELL,
                     Rect::new(x, y, width, 1),
@@ -396,7 +407,17 @@ mod tests {
     #[test]
     fn pattern_cells_carry_absolute_row_and_track_payloads() {
         let mut map = InteractionMap::new();
-        map.register_pattern_cells(Rect::new(1, 1, 17, 5), 1, 5, 6, 4..6, 2..4);
+        map.register_pattern_cells(
+            Rect::new(1, 1, 17, 5),
+            PatternGridGeometry {
+                header_height: 1,
+                row_gutter_width: 5,
+                trailing_gutter_width: 0,
+                cell_width: 6,
+            },
+            4..6,
+            2..4,
+        );
 
         assert_eq!(
             map.hit_test(6, 2).map(|region| region.payload),

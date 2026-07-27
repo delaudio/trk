@@ -348,9 +348,12 @@ fn render_tracker_grid(
     let visible_rows = visible_range(row_count, row_capacity, state.row_offset, state.cursor.row);
     interactions.register_pattern_cells(
         bordered_content_area(area),
-        2,
-        ROW_WIDTH as u16,
-        TRACK_CELL_WIDTH as u16,
+        super::PatternGridGeometry {
+            header_height: 2,
+            row_gutter_width: ROW_WIDTH as u16,
+            trailing_gutter_width: ROW_WIDTH as u16,
+            cell_width: TRACK_CELL_WIDTH as u16,
+        },
         visible_rows.clone(),
         visible_tracks.clone(),
     );

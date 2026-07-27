@@ -68,6 +68,17 @@ fn large_workspace_pattern_gutter_is_a_bounded_scroll_target() {
         interactions.scroll_target_at(grid.area.x, grid.area.y.saturating_sub(1)),
         None
     );
+    let right_gutter_x = interactions
+        .regions()
+        .iter()
+        .filter(|region| region.id == interaction_region::PATTERN_CELL)
+        .map(|region| region.area.x.saturating_add(region.area.width))
+        .max()
+        .expect("right edge of visible cells");
+    assert_eq!(
+        interactions.scroll_target_at(right_gutter_x, grid.area.y),
+        Some(crate::ScrollTarget::PatternRows)
+    );
     assert_eq!(
         interactions.scroll_target_at(grid.area.x.saturating_add(grid.area.width), grid.area.y),
         None

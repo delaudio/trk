@@ -55,8 +55,9 @@ use salieri_core::{
 use salieri_sampler::{WaveformBucket, WaveformOverview};
 
 use crate::{
-    interaction_region, resolve_tracker_layout, InteractionMap, PatternFieldLayout,
-    SamplerEnvelopeField, TrackerLayoutPreset, TrackerLayoutState, ViewportAxis,
+    interaction::PatternGridGeometry, interaction_region, resolve_tracker_layout, InteractionMap,
+    PatternFieldLayout, SamplerEnvelopeField, TrackerLayoutPreset, TrackerLayoutState,
+    ViewportAxis,
 };
 use browser_views::{render_project_browser, render_sample_browser};
 use dsp_rack::render_dsp_rack_view;
@@ -2489,9 +2490,12 @@ fn render_pattern_with_interactions(
     let content_area = bordered_content_area(area);
     interactions.register_pattern_cells(
         content_area,
-        1,
-        ROW_GUTTER_WIDTH as u16,
-        pattern_cell_width(state.tracker_layout.pattern_fields) as u16,
+        PatternGridGeometry {
+            header_height: 1,
+            row_gutter_width: ROW_GUTTER_WIDTH as u16,
+            trailing_gutter_width: 0,
+            cell_width: pattern_cell_width(state.tracker_layout.pattern_fields) as u16,
+        },
         viewport.visible_rows.clone(),
         viewport.visible_tracks.clone(),
     );

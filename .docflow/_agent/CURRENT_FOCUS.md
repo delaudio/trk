@@ -20,8 +20,10 @@ If status files and git disagree, git is authoritative; correct this file.
   first rerun were remediated by excluding trailing horizontal padding.
   Residual finding `bf629098969816b7` is being remediated by registering the
   same bounded row-content target from the shared pattern-cell helper for both
-  standalone and large Renoise layouts; affected tests, pre-push Codex review,
-  PR, CI, merge, and closeout remain.
+  standalone and large Renoise layouts. Low-severity pre-push finding
+  `c2425e60acbd6266` is being remediated by including Renoise's rendered
+  trailing row gutter without widening the standalone target; affected tests,
+  final pre-push Codex review, PR, CI, merge, and closeout remain.
 
 ## Last shipped
 
