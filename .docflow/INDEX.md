@@ -27,4 +27,4 @@ metadata.
 | 0020 | Compose contextual status hints by width | Implemented | 2026-07-27 | default-agent | tui, ux, responsive, status, shortcuts |
 | 0021 | Route wheel input by rendered region | Implemented | 2026-07-27 | default-agent | tui, ux, input, mouse, scrolling |
 | 0022 | Verify pointer dispatch against rendered geometry | Implemented | 2026-07-27 | default-agent | tui, ux, input, mouse, testing, responsive |
-| 0023 | Adopt trk as the sole product identity | Accepted | 2026-07-27 | default-agent | identity, naming, repository, migration |
+| 0023 | Adopt trk as the sole product identity | Implemented | 2026-07-27 | default-agent | identity, naming, repository, migration |
