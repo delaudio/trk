@@ -8,18 +8,17 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** `agent/rename-trk-docflow-closeout`
-- **Active item:** integrate the completed plan/ADR closeout after implementation
-  PR #310 merged with CI green and issue #309 closed.
+- **Branch:** `main` is authoritative once this state-sync change lands; the
+  source branch exists only to satisfy PR-based integration.
+- **Active item:** none; the plan queue is empty.
 - **Blockers:** none.
-- **Pending integration:** the Docflow closeout commit and PR only; product
-  implementation is already on `main`.
+- **Pending integration:** none after this state-sync change lands.
 
 ## Last shipped
 
-Issue #309 implementation via PR #310, with CI green and ADR 0023 Implemented.
+Issue #309 implementation via PR #310 and Docflow closeout via PR #311, both
+with CI green; ADR 0023 is Implemented.
 
 ## Next item
 
-Commit and integrate the Docflow closeout, then return to `main` and audit the
-open GitHub issue queue.
+Audit the open GitHub issue queue and select the next smallest actionable item.
