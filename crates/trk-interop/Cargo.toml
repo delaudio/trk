@@ -1,0 +1,10 @@
+[package]
+name = "trk-interop"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+flate2.workspace = true
+trk-core = { path = "../trk-core" }
+thiserror.workspace = true

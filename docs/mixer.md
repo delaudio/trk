@@ -3,7 +3,7 @@
 The mixer foundation is intentionally small and audio-only. MIDI output routing
 continues to use track mute/solo and MIDI channel settings.
 
-Mixer state is saved in `.salieri` projects:
+Mixer state is saved in `.trk` projects:
 
 - `masterGain` scales internal sampler output;
 - each track has audio `gain`, `pan`, `muted`, `solo`, and send levels;
@@ -66,5 +66,5 @@ The expanded native effect catalog and implementation order are maintained in
 MIDI-only tracks are not captured in audio export and are not affected by audio
 mixer mute/solo or DSP chains.
 
-`salieri-audio::measure_levels` provides peak/RMS level data for rendered audio.
+`trk-audio::measure_levels` provides peak/RMS level data for rendered audio.
 Realtime meter transport and graphical meter rendering are future work.

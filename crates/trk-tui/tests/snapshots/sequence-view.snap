@@ -1,0 +1,24 @@
+┌ trk ─────────────────────────────────────────────────────────────────┐
+│ [▷] [■] [●×] BPM:120 LPB:4 STOPPED PAT:01 ROW:0000/0000              │
+└──────────────────────────────────────────────────────────────────────┘
+┌ Song Slot View ──────────────────────────────────────────────────────┐
+│POS  PATTERN             CLIPS                                        │
+│>00  P01 Pattern 01         [· · · ·]                                 │
+│                                                                      │
+│A add current pattern   R remove   Y duplicate   T set current        │
+│</> move position   Enter play from position   Esc pattern view       │
+│Clips: ■ active  · empty  M muted                                     │
+│                                                                      │
+│                                                                      │
+│                                                                      │
+│                                                                      │
+│                                                                      │
+│                                                                      │
+│                                                                      │
+│                                                                      │
+│                                                                      │
+│                                                                      │
+│                                                                      │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+ SEQUENCE | H Help | Esc Pattern | A Add | R Remove | Y Duplicate·······

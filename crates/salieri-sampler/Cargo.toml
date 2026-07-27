@@ -1,9 +1,0 @@
-[package]
-name = "salieri-sampler"
-edition.workspace = true
-license.workspace = true
-version.workspace = true
-
-[dependencies]
-salieri-core = { path = "../salieri-core" }
-thiserror.workspace = true

@@ -14,7 +14,7 @@ tags: [process, conventions]
 
 ## Context
 
-Salieri Tracker needs significant decisions to be discoverable, traceable, and
+trk needs significant decisions to be discoverable, traceable, and
 durable — not held in chat logs, issue threads, or one person's memory. The
 lightweight Architecture Decision Record practice records each decision as one
 small, numbered, immutable file stored beside the code, so the reasons behind

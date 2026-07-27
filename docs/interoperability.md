@@ -1,18 +1,19 @@
 # Interoperability
 
-Salieri native `.salieri` JSON remains the canonical project format. Import/export is handled by the dedicated `salieri-interop` crate so external format details do not leak into the core model.
+trk native `.trk` JSON remains the canonical project format. Import/export is handled by the dedicated `trk-interop` crate so external format details do not leak into the core model.
 
 Current MIDI file support is intentionally narrow:
 
 - export the selected pattern as Standard MIDI File format 0;
-- import Standard MIDI File format 0 with PPQN timing, tempo meta events, note on, and note off;
+- import Standard MIDI File format 0 or 1 with PPQN timing, tempo meta events, note on, and note off;
+- merge supported format 1 track events on their absolute PPQN positions and split long imports into consecutive 64-row trk patterns;
 - map imported MIDI channels onto existing tracks by channel, creating tracks only when needed;
-- reject unsupported MIDI formats, SMPTE timing, SysEx, and unsupported event types with explicit errors.
+- reject MIDI formats other than 0/1, SMPTE timing, SysEx, and unsupported event types with explicit errors.
 
 Current MusicXML support is a notation-interchange subset:
 
 - import `score-partwise` MusicXML parts as tracker tracks;
-- map `work-title`, `creator`, part names, tempo, note pitch, velocity, rests, and duration positions into Salieri metadata, transport, tracks, and pattern rows;
+- map `work-title`, `creator`, part names, tempo, note pitch, velocity, rests, and duration positions into trk metadata, transport, tracks, and pattern rows;
 - export a selected pattern as `score-partwise` with `part-list`, one part per track, 4/4 measures, row-sized note/rest durations, tempo, title, and author metadata;
 - validate MusicXML and MIDI round-trip survivability with readable text or JSON reports;
 - report unsupported notation constructs such as chords, ties, tuplets, grace notes, lyrics, `backup`, and `forward` as structured diagnostics instead of silently claiming lossless import.
@@ -20,19 +21,20 @@ Current MusicXML support is a notation-interchange subset:
 Current XRNS support is library-level and intentionally lossy:
 
 - inspect XRNS ZIP archives, locate root stored-or-deflated `Song.xml`, enumerate sample payloads, and report track, pattern, instrument, sample, and device metadata;
-- import a constrained XML subset into a validated `.salieri` `Song`;
+- import a constrained XML subset into a validated `.trk` `Song`;
 - map track names, pattern row counts, sequence order, note/velocity/instrument/volume/pan/delay cells, the first two effect commands, instrument IDs, supported WAV sample payloads, mixer gain/pan, and recognized native DSP device chains;
 - report unsupported samples, devices, extra effect columns, unknown effect commands, quantized timing, malformed archives/XML, nested/encrypted archives, and validation failures as structured diagnostics.
 
-The CLI can write the supported subset directly to a Salieri project:
+The CLI can write the supported subset directly to a trk project:
 
 ```bash
-salieri import xrns input.xrns output.salieri
-salieri import xrns input.xrns output.salieri --sample-dir fixtures/local/samples/demo --sample-path-prefix samples/demo
-salieri import musicxml score.musicxml score.salieri
-salieri export musicxml score.salieri score.musicxml --pattern 1
-salieri validate roundtrip score.salieri report.txt
-salieri validate roundtrip score.salieri report.json --format json
+trk import midi input.mid output.trk
+trk import xrns input.xrns output.trk
+trk import xrns input.xrns output.trk --sample-dir fixtures/local/samples/demo --sample-path-prefix samples/demo
+trk import musicxml score.musicxml score.trk
+trk export musicxml score.trk score.musicxml --pattern 1
+trk validate roundtrip score.trk report.txt
+trk validate roundtrip score.trk report.json --format json
 ```
 
 `--sample-dir` extracts supported WAV payloads from the XRNS archive and rewrites imported sample references to the stored path prefix. This is intended for local demo libraries and manual parity checks; third-party Renoise demo songs and samples should stay under ignored local folders unless their license explicitly allows redistribution.
@@ -41,33 +43,33 @@ Round-trip expectations:
 
 - MIDI note pitch, velocity, row placement, channel, and BPM are preserved for the supported subset;
 - MusicXML note pitch, velocity, row placement, tempo, title, author, and part names are preserved for the supported monophonic partwise subset;
-- Salieri-specific concepts such as pattern names, sequence positions, tracker commands, mute/solo state, sampler metadata, mixer state, and native DSP chains are not represented in MIDI files;
-- MusicXML does not preserve Salieri sequence, tracker commands, sampler metadata, mixer state, native DSP chains, clip state, or multi-note chord semantics in the current subset;
-- `.salieri` should be used for lossless project storage and Git diffs.
+- trk-specific concepts such as pattern names, sequence positions, tracker commands, mute/solo state, sampler metadata, mixer state, and native DSP chains are not represented in MIDI files;
+- MusicXML does not preserve trk sequence, tracker commands, sampler metadata, mixer state, native DSP chains, clip state, or multi-note chord semantics in the current subset;
+- `.trk` should be used for lossless project storage and Git diffs.
 
 ## Tracker And Renoise Research
 
 Tracker module formats such as MOD, XM, IT, and S3M are not just pattern containers. They combine patterns, embedded samples, instrument behavior, effect memory, tempo/tick timing, channel state, and historical player quirks. A faithful import path needs either a module player compatibility layer or a deliberately lossy semantic importer.
 
-Renoise XRNS is a better first target for Salieri than MOD/XM/IT/S3M because XRNS is a ZIP container with XML song data and embedded sample data. Renoise also exposes note columns, effect columns, pattern lines, samples, instruments, sample mappings, and device chains through its public song model. This does not make XRNS trivial, but it means an importer can start from structured project data instead of reverse-engineering player behavior.
+Renoise XRNS is a better first target for trk than MOD/XM/IT/S3M because XRNS is a ZIP container with XML song data and embedded sample data. Renoise also exposes note columns, effect columns, pattern lines, samples, instruments, sample mappings, and device chains through its public song model. This does not make XRNS trivial, but it means an importer can start from structured project data instead of reverse-engineering player behavior.
 
 References used for this decision:
 
 - Renoise forum notes from Renoise developers describe XRNS/XRNI/XRNT as standard ZIP archives containing XML plus sample data: <https://forum.renoise.com/t/accessing-the-xml-and-sample-files-in-xrns-xrni-and-xrnt-files/18683> and <https://forum.renoise.com/t/is-there-a-way-i-could-get-a-copy-of-the-file-formats-xrns-xrni/48894/2>.
-- Renoise Lua Song API documents the song concepts Salieri must map: instruments, samples, sample mappings, patterns, note columns, effect columns, automation, and device chains: <https://files.renoise.com/xrnx/documentation/Renoise.Song.API.lua.html>.
-- Tracker module format references describe MOD/S3M/XM/IT effect timing, tick behavior, volume columns, and effect parameter memory, which are not equivalent to Salieri's current row-event model: <https://pollak.thebe.de/b/module-formats---introduction/>.
+- Renoise Lua Song API documents the song concepts trk must map: instruments, samples, sample mappings, patterns, note columns, effect columns, automation, and device chains: <https://files.renoise.com/xrnx/documentation/Renoise.Song.API.lua.html>.
+- Tracker module format references describe MOD/S3M/XM/IT effect timing, tick behavior, volume columns, and effect parameter memory, which are not equivalent to trk's current row-event model: <https://pollak.thebe.de/b/module-formats---introduction/>.
 
 ## Compatibility Matrix
 
 | Source data | Lossless now | Approximate | Unsupported for first pass |
 | --- | --- | --- | --- |
 | Pattern row count, track count, note pitch, note-off/cut intent | XRNS subset when directly represented; MusicXML monophonic partwise notes/rests | SMF row quantization | MOD/XM/IT/S3M quirks until a module parser/player exists |
-| Velocity/volume/pan/delay/effect columns | XRNS note/effect columns plus supported FX1/FX2 timing commands | Deferred Renoise effect commands as preserved tracker commands with warnings | Effect columns beyond FX2 and DSP/device parameter commands without a Salieri equivalent |
+| Velocity/volume/pan/delay/effect columns | XRNS note/effect columns plus supported FX1/FX2 timing commands | Deferred Renoise effect commands as preserved tracker commands with warnings | Effect columns beyond FX2 and DSP/device parameter commands without a trk equivalent |
 | WAV/AIFF/FLAC sample references embedded in XRNS | WAV samples after extraction/normalization | Non-WAV sample formats after decode support exists | Plugin instruments and generator devices |
-| Instruments and sample mappings | Single-sample instruments and simple key mapping | Multi-sample instruments as multiple Salieri instruments | Keyzones, velocity layers, slicing, modulation sets |
+| Instruments and sample mappings | Single-sample instruments and simple key mapping | Multi-sample instruments as multiple trk instruments | Keyzones, velocity layers, slicing, modulation sets |
 | Mixer gain/pan and native DSP chains | Directly mappable utility, filter, delay/reverb, drive/bitcrusher, modulation, and dynamics devices by supported name | Unsupported Renoise device chains reported with original names | Third-party plugins, meta-device modulation, LFO control devices, and routing-only devices |
-| Automation | None lossless yet | Sample gain or mixer/DSP automation after Salieri automation targets expand | Arbitrary device automation |
-| Arrangement/sequence | Pattern order can map to Salieri sequence | Pattern aliases/clips flattened with warnings | Renoise features without Salieri sequence equivalents |
+| Automation | None lossless yet | Sample gain or mixer/DSP automation after trk automation targets expand | Arbitrary device automation |
+| Arrangement/sequence | Pattern order can map to trk sequence | Pattern aliases/clips flattened with warnings | Renoise features without trk sequence equivalents |
 
 ## Decision
 
@@ -75,8 +77,8 @@ First implementation target: **XRNS read/import subset**, not legacy tracker mod
 
 The first target is split into two stages:
 
-1. **XRNS inspector and diagnostics**: read the ZIP, locate `Song.xml` and sample payloads, parse enough metadata to report tracks, patterns, instruments, samples, device-chain kinds, and unsupported features without mutating a Salieri project. Implemented by #62.
-2. **XRNS minimal importer**: convert a constrained subset into `.salieri`: pattern length/order, note pitch, velocity, instrument number, volume, pan, delay, first effect command, simple sample-backed instruments, track names, mixer gain/pan, and native gain/pan DSP devices. Implemented by #61.
+1. **XRNS inspector and diagnostics**: read the ZIP, locate `Song.xml` and sample payloads, parse enough metadata to report tracks, patterns, instruments, samples, device-chain kinds, and unsupported features without mutating a trk project. Implemented by #62.
+2. **XRNS minimal importer**: convert a constrained subset into `.trk`: pattern length/order, note pitch, velocity, instrument number, volume, pan, delay, first effect command, simple sample-backed instruments, track names, mixer gain/pan, and native gain/pan DSP devices. Implemented by #61.
 
 The importer must be explicit about loss. It should return an import report with warnings, not silently discard project data.
 
@@ -85,17 +87,17 @@ The importer must be explicit about loss. It should return an import report with
 Accept initially:
 
 - ZIP container with stored or deflated `Song.xml` at archive root;
-- pattern lines with note columns that can map to Salieri note, velocity, instrument, volume, pan, and delay fields;
-- at most two effect commands mapped to Salieri's FX1/FX2 tracker commands per cell;
-- pattern sequence/order that can map to Salieri sequence entries;
-- sample-backed instruments whose sample payload can be loaded by `salieri-sampler` after extraction/preparation;
+- pattern lines with note columns that can map to trk note, velocity, instrument, volume, pan, and delay fields;
+- at most two effect commands mapped to trk's FX1/FX2 tracker commands per cell;
+- pattern sequence/order that can map to trk sequence entries;
+- sample-backed instruments whose sample payload can be loaded by `trk-sampler` after extraction/preparation;
 - mixer track gain/pan and native DSP devices when they can be recognized safely.
 
 Warn and preserve where possible:
 
 - additional effect columns beyond FX2;
 - unknown or deferred effect commands that can be preserved without playback semantics;
-- pattern timing that does not divide cleanly into Salieri row timing;
+- pattern timing that does not divide cleanly into trk row timing;
 - unsupported sample formats that may become available after decoder support;
 - device chains with unsupported native, LFO/meta, automation, or routing devices.
 
@@ -106,23 +108,23 @@ Reject with explicit errors:
 - encrypted or nested archives;
 - projects requiring plugin instruments for note playback;
 - unsupported structural versions when the importer cannot identify safe fields;
-- imports that would create invalid Salieri projects after validation.
+- imports that would create invalid trk projects after validation.
 
 ## Legacy Module Formats
 
-MOD, XM, S3M, and IT should remain explicit unsupported formats until Salieri has either:
+MOD, XM, S3M, and IT should remain explicit unsupported formats until trk has either:
 
 - a module parser/player compatibility layer that can evaluate tick timing, effect memory, pattern jumps, arpeggios, slides, retrigger, sample offset, tempo changes, global volume, and volume-column effects; or
 - a declared lossy importer mode that only extracts samples and coarse note data.
 
-The current `salieri-interop` probe can inspect:
+The current `trk-interop` probe can inspect:
 
 - MOD title, channel count for common signatures, pattern count, 31 sample headers, raw effect command nibbles from pattern data, and contiguous sample payloads when the module is not truncated;
 - XM title, channel count, pattern count, and instrument count from the module header;
 - S3M title, active channel count, pattern count, and instrument count from the module header;
 - IT title, enabled channel count, pattern count, and instrument count from the module header.
 
-The probe deliberately does not decode player-compatible note data or effect semantics. It always reports timing/effect-memory diagnostics because those semantics are not represented by Salieri's current row-event model.
+The probe deliberately does not decode player-compatible note data or effect semantics. It always reports timing/effect-memory diagnostics because those semantics are not represented by trk's current row-event model.
 
 Recommendation: keep the first legacy-module feature as **sample extraction only**, with metadata/effect diagnostics shown before extraction. The initial extraction implementation is safe for MOD sample payloads; XM/S3M/IT sample extraction still needs their instrument/sample offset tables decoded before payload bytes can be returned. Coarse note import should wait for a second spike that either embeds a player-compatibility layer or defines an explicitly lossy effect/timing translation table. This must not claim MOD/XM/S3M/IT song import.
 
@@ -141,8 +143,8 @@ Interop should expose structured diagnostics rather than strings only:
 - `UnsupportedSampleFormat`: sample path and codec/extension;
 - `UnsupportedEffectCommand`: pattern, track, row, command, and value;
 - `DroppedExtraEffectColumn`: pattern, track, row, and column index;
-- `TimingQuantized`: source position and resulting Salieri row;
-- `ValidationFailed`: produced project did not pass Salieri validation.
+- `TimingQuantized`: source position and resulting trk row;
+- `ValidationFailed`: produced project did not pass trk validation.
 - `MalformedModule`: legacy module header/data is too short or has the wrong signature;
 - `UnsupportedTimingSemantics`: module tick/control-flow timing cannot be represented losslessly;
 - `UnsupportedEffectMemory`: module effect memory/channel state cannot be represented losslessly;

@@ -1,6 +1,6 @@
 # Tracker effect commands
 
-Salieri tracks per-step FX commands through a catalog instead of treating every
+trk tracks per-step FX commands through a catalog instead of treating every
 unknown code as an implicit no-op.
 
 ## Supported playback commands

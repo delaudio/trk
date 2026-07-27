@@ -1,6 +1,6 @@
 # Undo And Redo Transactions
 
-Salieri owns undo and redo in `salieri-app`. Persistent musical state is edited
+trk owns undo and redo in `trk-app`. Persistent musical state is edited
 through a staged `SongTransaction`; the live song changes only after the whole
 transaction succeeds. A failed outer transaction is discarded, and a failed
 nested transaction restores its local checkpoint before control returns to the

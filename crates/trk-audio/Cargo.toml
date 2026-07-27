@@ -1,0 +1,17 @@
+[package]
+name = "trk-audio"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[features]
+default = []
+c-dsp-boundary = []
+
+[dependencies]
+cpal = "0.15.3"
+trk-sampler = { path = "../trk-sampler" }
+thiserror.workspace = true
+
+[build-dependencies]
+cc = "1.2.67"

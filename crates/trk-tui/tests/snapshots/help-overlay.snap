@@ -1,0 +1,36 @@
+┌ trk ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ [▷] [■] [●×] BPM:120 LPB:4 STOPPED PAT:01 ROW:0000/0000  Sync: Internal                                              │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌─────┌ Help: Basics ────────────────────────────────────────────────────────────────────────────────────────────┐─────┐
+│-18dB│ Basics  |  Editing  |  Sampler  |  MIDI  |  Commands                                            [ Close ]│     │
+│-36dB│ Tab/Right next page   Shift+Tab/Left previous page   Up/Down scroll                                      │7 8  │
+└─────│Global                                                                                                    │─────┘
+┌ UTIL│  Ctrl+P Command Palette   ?/H Help   :h/:help Help   q Quit   Space Play/Stop                            │─────┐
+│UTIL │  Shift+Space Start                                                                                       │     │
+│     │  Enter Play Row   Shift+Enter Play Sequence From Cursor   L Loop   F8 Stop                               │     │
+│BPM  │  F7 Sequence View   F9 Track View   F10 Pattern View   Ctrl+J Sampler View                               │     │
+│LPB  │  :t Tracker   :p Patterns   :se Sequence   :tr Tracks   :sa Sampler   :sb Browser                        │     │
+│OCT  │  Esc returns from focused views                                                                          │     │
+│--   │  :play pattern from start   :play sequence arrangement                                                   │     │
+│     │  Ctrl+S Save   Ctrl+Shift+S Save As   Ctrl+Z Undo   Ctrl+Y Redo   Ctrl+Arrows BPM/LPB                    │     │
+│Follo│                                                                                                          │     │
+│  Pat│Navigation                                                                                                │     │
+│Scrol│  Arrows or h/j/k/l move   Tab/Shift+Tab track   PageUp/PageDown jump                                     │     │
+│  Pag│  Home/End pattern bounds   gg first row   G last row                                                     │     │
+│     │                                                                                                          │     │
+│Edit │Mode: HELP   Close: Esc, q, or ?                                                                          │     │
+│     │                                                                                                          │     │
+│     │                                                                                                          │     │
+│     │                                                                                                          │     │
+│     │                                                                                                          │     │
+│     │                                                                                                          │     │
+│     │                                                                                                          │     │
+└─────│                                                                                                          │─────┘
+┌ Effe│                                                                                                          │─────┐
+│#  Ef│                                                                                                          │     │
+│01 --│                                                                                                          │     │
+│02 --│                                                                                                          │     │
+│03 --└──────────────────────────────────────────────────────────────────────────────────────────────────────────┘     │
+│04 --                      ││Width    ██████────── +1.00    ││-48      -3.4 dB  -3.1││05 --                           │
+└───────────────────────────┘└───────────────────────────────┘└──────────────────────┘└────────────────────────────────┘
+ HELP | Step 1 | Ctrl+P Palette | H Help | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern·······

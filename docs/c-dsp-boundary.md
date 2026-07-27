@@ -1,7 +1,7 @@
 # C/C++ DSP Integration Boundary
 
-Salieri may wrap selected C or C++ DSP algorithms as native modules when the
-code is vendored, reviewed, and adapted to Salieri's plain-data module contract.
+trk may wrap selected C or C++ DSP algorithms as native modules when the
+code is vendored, reviewed, and adapted to trk's plain-data module contract.
 This is separate from loading arbitrary third-party binaries at runtime.
 
 ## Boundary rules
@@ -18,7 +18,7 @@ This is separate from loading arbitrary third-party binaries at runtime.
 
 ## Proof of concept
 
-`salieri-audio` provides the optional `c-dsp-boundary` feature. It compiles the
+`trk-audio` provides the optional `c-dsp-boundary` feature. It compiles the
 project-authored C gain fixture in `src/c_dsp/vendor/` and exposes it through
 `CNativeGainModule`, which mirrors the native module prepare/process/reset
 lifecycle.
@@ -32,7 +32,7 @@ external dependency.
 
 | Algorithm | Source | License | Distribution notes |
 | --- | --- | --- | --- |
-| `salieri_c_gain` | Project-authored fixture in `crates/salieri-audio/src/c_dsp/vendor/` | MIT, same as this repository | No third-party source; safe to build in CI under `c-dsp-boundary`. |
+| `trk_c_gain` | Project-authored fixture in `crates/trk-audio/src/c_dsp/vendor/` | MIT, same as this repository | No third-party source; safe to build in CI under `c-dsp-boundary`. |
 
 Future wrappers must add a row before landing. The row should identify the
 upstream project, exact version or commit, license, attribution requirements,

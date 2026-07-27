@@ -33,5 +33,5 @@ and other overlays are unchanged.
 ---
 
 Shipped at HEAD `baf39b6` via
-[PR #285](https://github.com/delaudio/salieri-tracker/pull/285), with GitHub
+[PR #285](https://github.com/delaudio/trk/pull/285), with GitHub
 Actions CI run #295 green and issue #257 closed.

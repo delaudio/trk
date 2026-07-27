@@ -1,20 +1,20 @@
 # Composition graph workflow
 
 Composition graphs are reviewable arrangement plans above tracker patterns. The
-first supported schema is `salieri.composition-graph.v1`; it names narrative
+first supported schema is `trk.composition-graph.v1`; it names narrative
 sections, links each section to an existing 1-based pattern number, records
 motifs/evidence, and compiles deterministically into the project sequence.
 
-The graph file validates independently from `.salieri` projects:
+The graph file validates independently from `.trk` projects:
 
 ```bash
-salieri graph validate arrangement.graph.json
+trk graph validate arrangement.graph.json
 ```
 
 Compile a graph into a new project file:
 
 ```bash
-salieri graph compile arrangement.graph.json song.salieri arranged.salieri
+trk graph compile arrangement.graph.json song.trk arranged.trk
 ```
 
 Compilation is intentionally narrow in this first version: it clears the output
@@ -27,7 +27,7 @@ Example:
 
 ```json
 {
-  "schema": "salieri.composition-graph.v1",
+  "schema": "trk.composition-graph.v1",
   "title": "Narrative arc",
   "sections": [
     {

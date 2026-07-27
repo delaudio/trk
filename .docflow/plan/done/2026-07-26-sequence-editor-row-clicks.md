@@ -38,5 +38,5 @@ the full-screen Sequence view.
 ---
 
 Shipped at HEAD `ceacbd0` via
-[PR #281](https://github.com/delaudio/salieri-tracker/pull/281), with GitHub
+[PR #281](https://github.com/delaudio/trk/pull/281), with GitHub
 Actions CI run #285 green and issue #255 closed.

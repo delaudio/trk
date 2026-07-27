@@ -1,8 +1,8 @@
 # AI-Assisted Edits
 
-AI-assisted composition is post-MVP and optional. The initial boundary is the `salieri-ai` crate, which models requests, reviewable proposals, and explicit application of edits to a `salieri-core::Song`.
+AI-assisted composition is post-MVP and optional. The initial boundary is the `trk-ai` crate, which models requests, reviewable proposals, and explicit application of edits to a `trk-core::Song`.
 
-The crate does not contact network services. External providers can be added later behind an explicit provider implementation, but project data must not leave the machine unless the user invokes that provider intentionally. The built-in default is `local_deterministic`; `mock` is available for tests and dry runs. Future command-backed providers must pass configured binary and environment checks before Salieri queues work.
+The crate does not contact network services. External providers can be added later behind an explicit provider implementation, but project data must not leave the machine unless the user invokes that provider intentionally. The built-in default is `local_deterministic`; `mock` is available for tests and dry runs. Future command-backed providers must pass configured binary and environment checks before trk queues work.
 
 Current foundation:
 
@@ -71,7 +71,7 @@ dependency. Configure `[ai].guidance_dirs` with directories containing `.md`,
 `.txt`, or `.json` files. `:ai guidance list` appends the discovered local files
 to the chat thread, `:ai guidance show FILE` appends the selected file contents,
 and `:ai guidance apply FILE` keeps that file active for subsequent prompts.
-When guidance is active, Salieri prepends the local file content and source path
+When guidance is active, trk prepends the local file content and source path
 to the prompt sent to the configured provider while preserving the user-visible
 chat prompt unchanged. `:ai guidance clear` removes the active guidance. Missing
 files, unreadable directories, ambiguous selectors, unsupported extensions, and

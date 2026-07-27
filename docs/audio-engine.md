@@ -4,9 +4,9 @@ Internal audio is post-MVP. The current product remains MIDI-first.
 
 ## CPAL Evaluation
 
-CPAL is the preferred first backend for macOS and Linux because it provides a Rust-native cross-platform audio callback model and can later support Windows without changing the tracker core. Salieri should keep CPAL isolated inside `salieri-audio`; no core, TUI, or project model code should depend directly on CPAL types.
+CPAL is the preferred first backend for macOS and Linux because it provides a Rust-native cross-platform audio callback model and can later support Windows without changing the tracker core. trk should keep CPAL isolated inside `trk-audio`; no core, TUI, or project model code should depend directly on CPAL types.
 
-`salieri-audio` defines the lifecycle boundary and includes a first CPAL backend:
+`trk-audio` defines the lifecycle boundary and includes a first CPAL backend:
 
 - `AudioRuntime` owns an audio thread and command channel;
 - `AudioBackend` abstracts start/stop behavior;

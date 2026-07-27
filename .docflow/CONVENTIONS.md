@@ -2,7 +2,7 @@
 
 ## Project
 
-Project name: Salieri Tracker.
+Project name: trk.
 
 Artefact root: `.docflow/` — `adr/`, `plan/`, `INDEX.md`, and this file live
 under this root; `AGENTS.md` and `CLAUDE.md` stay at the repository root.

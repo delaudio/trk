@@ -1,22 +1,25 @@
 # Architecture Notes
 
-Salieri is split into workspace crates so the musical model stays independent from terminal and MIDI backends.
+trk is split into workspace crates so the musical model stays independent from terminal and MIDI backends.
 
 The measured module audit, target shape, and ordered refactor work are maintained in the [Architecture Quality Roadmap](architecture-roadmap.md).
 
 ## Crates
 
-- `salieri-audio`: post-MVP audio thread lifecycle, backend abstraction, realtime command boundary, and offline audio export primitives. It must not depend on Ratatui or project serialization.
-- `salieri-ai`: post-MVP AI-assist boundary for local or external proposal providers. It must never contact external services implicitly, and generated edits must be reviewable before they are applied.
-- `salieri-core`: song model, tracks, patterns, rows, cells, sequence operations, transport math, and playback event scheduling. It must not depend on Ratatui, Crossterm, MIDI, terminal state, audio backends, or filesystem APIs.
-- `salieri-interop`: post-MVP import/export boundary for MIDI files and future tracker formats. Salieri native `.salieri` files remain canonical.
-- `salieri-midi`: MIDI messages, separated input/output traits, fake MIDI endpoints for tests, `midir` input/output connections, port listing, panic/all-notes-off, and conversion from core playback events.
-- `salieri-sampler`: post-MVP WAV loading, preview buffer generation, and sample-to-track assignment metadata. It must stay optional for the MIDI-first playback path.
-- `salieri-transform`: post-MVP deterministic song and pattern transforms. It must remain pure core-model logic so app and CLI integrations can wrap edits in undoable operations.
-- `salieri-tui`: Ratatui rendering only. It receives immutable song data and view state from the app layer.
-- `salieri-app`: CLI parsing, config loading, persistence, terminal lifecycle, input handling, undo/redo, playback runtime, MIDI connection state, and coordination between crates.
+- `trk-audio`: post-MVP audio thread lifecycle, backend abstraction, realtime command boundary, and offline audio export primitives. It must not depend on Ratatui or project serialization.
+- `trk-ai`: post-MVP AI-assist boundary for local or external proposal providers. It must never contact external services implicitly, and generated edits must be reviewable before they are applied.
+- `trk-core`: song model, tracks, patterns, rows, cells, sequence operations, transport math, and playback event scheduling. It must not depend on Ratatui, Crossterm, MIDI, terminal state, audio backends, or filesystem APIs.
+- `trk-interop`: post-MVP import/export boundary for MIDI files and future tracker formats. trk native `.trk` files remain canonical.
+- `trk-midi`: MIDI messages, separated input/output traits, fake MIDI endpoints for tests, `midir` input/output connections, port listing, panic/all-notes-off, and conversion from core playback events.
+- `trk-sampler`: post-MVP WAV loading, preview buffer generation, and sample-to-track assignment metadata. It must stay optional for the MIDI-first playback path.
+- `trk-transform`: post-MVP deterministic song and pattern transforms. It must remain pure core-model logic so app and CLI integrations can wrap edits in undoable operations.
+- `trk-tui`: Ratatui rendering only. It receives immutable song data and view state from the app layer.
+- `trk-app`: CLI parsing, config loading, persistence, terminal lifecycle, input handling, undo/redo, playback runtime, MIDI connection state, and coordination between crates.
 
-Plugin hosting is explicitly deferred by [ADR 0001](adr/0001-plugin-hosting.md). No VST, AU, or CLAP SDK types should be introduced until a later ADR chooses a host strategy.
+Plugin hosting is explicitly deferred in the
+[plugin-hosting evaluation](plugin-hosting-evaluation.md). No VST, AU, or CLAP
+SDK types should be introduced until a separate architecture review chooses a
+host strategy.
 
 ## Runtime Shape
 
@@ -46,15 +49,15 @@ Detailed timing assumptions and jitter test limits are tracked in [timing.md](ti
 Internal crate dependencies point toward stable domain data and away from application and presentation concerns. The allowed graph is:
 
 ```text
-salieri-app -> salieri-ai, salieri-audio, salieri-core, salieri-interop,
-               salieri-midi, salieri-sampler, salieri-transform, salieri-tui
-salieri-tui -> salieri-core, salieri-sampler
-salieri-audio -> salieri-sampler -> salieri-core
-salieri-ai -> salieri-core
-salieri-interop -> salieri-core
-salieri-midi -> salieri-core
-salieri-transform -> salieri-core
-salieri-core -> (none)
+trk-app -> trk-ai, trk-audio, trk-core, trk-interop,
+               trk-midi, trk-sampler, trk-transform, trk-tui
+trk-tui -> trk-core, trk-sampler
+trk-audio -> trk-sampler -> trk-core
+trk-ai -> trk-core
+trk-interop -> trk-core
+trk-midi -> trk-core
+trk-transform -> trk-core
+trk-core -> (none)
 ```
 
 The machine-readable policy and concise ownership statements live in `config/crate-dependency-policy.json`. Run `python3 scripts/check_crate_dependencies.py` locally; CI runs the same check against structured `cargo metadata` output. Every workspace crate must have a policy entry, and adding an internal dependency that is not explicitly allowed fails the check.
@@ -63,16 +66,16 @@ Ownership of cross-cutting responsibilities is split as follows:
 
 | Responsibility | Owner | Boundary |
 | --- | --- | --- |
-| Serializable song data and validation | `salieri-core` | Plain domain data; no filesystem, backend, or UI types |
-| Native project persistence | `salieri-app` | File loading, migration orchestration, and atomic writes |
-| External format serialization | `salieri-interop` | Imports/exports domain data through `salieri-core` |
-| Playback semantics | `salieri-core` | Deterministic transport math and scheduled events |
-| Realtime coordination | `salieri-app` | Threads, lifecycle, routing, and status propagation |
-| Audio and MIDI I/O | `salieri-audio`, `salieri-midi` | Backend-specific processing at the workspace edge |
-| UI state and input | `salieri-app` | Mutable application/view state and input dispatch |
-| Rendering | `salieri-tui` | Immutable inputs and presentation only |
-| Background tasks | `salieri-app` | The [task runtime](tasks.md) owns IDs, lifecycle, progress, cooperative cancellation, diagnostics, and typed results |
-| External integrations | `salieri-ai`, `salieri-interop`, `salieri-midi`, `salieri-audio` | Provider or protocol details stay out of core and TUI |
+| Serializable song data and validation | `trk-core` | Plain domain data; no filesystem, backend, or UI types |
+| Native project persistence | `trk-app` | File loading, migration orchestration, and atomic writes |
+| External format serialization | `trk-interop` | Imports/exports domain data through `trk-core` |
+| Playback semantics | `trk-core` | Deterministic transport math and scheduled events |
+| Realtime coordination | `trk-app` | Threads, lifecycle, routing, and status propagation |
+| Audio and MIDI I/O | `trk-audio`, `trk-midi` | Backend-specific processing at the workspace edge |
+| UI state and input | `trk-app` | Mutable application/view state and input dispatch |
+| Rendering | `trk-tui` | Immutable inputs and presentation only |
+| Background tasks | `trk-app` | The [task runtime](tasks.md) owns IDs, lifecycle, progress, cooperative cancellation, diagnostics, and typed results |
+| External integrations | `trk-ai`, `trk-interop`, `trk-midi`, `trk-audio` | Provider or protocol details stay out of core and TUI |
 
 New feature issues should name the owning crate and any required dependency edges. Put musical invariants and serializable state in core; deterministic transformations in transform; format adapters in interop; protocol and device adapters in MIDI/audio; pure rendering in TUI; and coordination, filesystem access, configuration, or user interaction in app. A feature that does not fit these rules should update the ownership decision before introducing a new edge.
 
@@ -84,10 +87,10 @@ The first format version is intentionally close to the internal model. Future mi
 
 ## Test Boundaries
 
-- Core behavior belongs in `salieri-core` unit tests.
-- MIDI byte conversion and fake output behavior belong in `salieri-midi`.
-- Rendering smoke/snapshot-style tests belong in `salieri-tui`.
-- CLI, config, persistence, input mapping, undo/redo, and playback runtime coordination belong in `salieri-app`.
+- Core behavior belongs in `trk-core` unit tests.
+- MIDI byte conversion and fake output behavior belong in `trk-midi`.
+- Rendering smoke/snapshot-style tests belong in `trk-tui`.
+- CLI, config, persistence, input mapping, undo/redo, and playback runtime coordination belong in `trk-app`.
 
 ## Rust Module Size Budgets
 

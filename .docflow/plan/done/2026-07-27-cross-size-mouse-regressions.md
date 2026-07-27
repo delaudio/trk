@@ -33,5 +33,5 @@ no-ops.
 ---
 
 Shipped at HEAD `76fe0f1` via
-[PR #307](https://github.com/delaudio/salieri-tracker/pull/307), with GitHub
+[PR #307](https://github.com/delaudio/trk/pull/307), with GitHub
 Actions CI run #342 green and issue #268 closed.

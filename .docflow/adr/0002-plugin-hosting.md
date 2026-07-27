@@ -14,7 +14,7 @@ tags: [audio, plugins, post-mvp]
 
 ## Context
 
-Salieri is currently MIDI-first, with internal audio foundations now present for
+trk is currently MIDI-first, with internal audio foundations now present for
 assigned WAV samples, offline audio export, mixer gain/pan, and a minimal native
 DSP graph. These foundations make plugin hosting more plausible than it was at
 MVP planning time, but they do not yet make it safe to start.
@@ -24,7 +24,7 @@ plugin scanning, binary loading, preset/state serialization, sandboxing
 concerns, crash isolation, UI/editor lifecycle issues, and platform-specific
 distribution work. Those concerns are larger than the current native audio
 surface, and they would force plugin SDK concepts into project and runtime
-boundaries before Salieri's own instrument, routing, and device abstractions are
+boundaries before trk's own instrument, routing, and device abstractions are
 stable.
 
 The current internal audio gaps that still matter for plugin hosting are:
@@ -44,19 +44,19 @@ Plugin formats under consideration:
   component/controller separation, state, buses, parameters, and realtime
   processing.
 - Audio Unit: native macOS ecosystem support, but Apple-platform specific and
-  unsuitable as the only portable plugin direction for Salieri's initial
+  unsuitable as the only portable plugin direction for trk's initial
   macOS/Linux target.
 - CLAP: permissive modern API with strong Linux positioning and simpler
   extension-oriented design, but a smaller installed plugin ecosystem than VST3.
 
 ## Capability statement
 
-Salieri defers direct plugin hosting and remains DAW/MIDI-first for third-party
+trk defers direct plugin hosting and remains DAW/MIDI-first for third-party
 instruments and effects while native sampler, mixer, DSP, routing, and export
 boundaries mature.
 
 Plugin hosting remains a post-MVP research track, not an implementation track.
-Before implementation issues are opened, Salieri must have:
+Before implementation issues are opened, trk must have:
 
 - a stable internal audio callback architecture;
 - deterministic offline rendering semantics;
@@ -76,7 +76,7 @@ Unit should be treated as an optional macOS-specific bridge, not the primary
 abstraction.
 
 Any future plugin-hosting implementation must live behind a dedicated boundary
-such as `salieri-plugin-host`. `salieri-core` may store stable serializable
+such as `trk-plugin-host`. `trk-core` may store stable serializable
 plugin references only after a follow-up ADR defines the schema; it must not
 depend on VST3, AU, CLAP, or host crate types.
 
@@ -85,7 +85,7 @@ depend on VST3, AU, CLAP, or host crate types.
 - As a maintainer, I want plugin hosting deferred behind explicit prerequisites,
   so that core audio boundaries can stabilize before third-party binary loading
   enters the runtime.
-- As a user, I want Salieri to keep working as a MIDI-first tracker that can
+- As a user, I want trk to keep working as a MIDI-first tracker that can
   drive DAW-hosted instruments externally, so that plugin support is not a
   blocker for tracker editing.
 - As a future implementer, I want the first plugin-hosting work to start from a
@@ -106,7 +106,7 @@ depend on VST3, AU, CLAP, or host crate types.
 - Implementing plugin scanning, plugin loading, plugin UI hosting, plugin state
   serialization, or realtime plugin processing.
 - Rejecting VST3, Audio Unit, or CLAP permanently.
-- Changing Salieri's current MIDI/DAW interoperability path.
+- Changing trk's current MIDI/DAW interoperability path.
 
 ## Open questions
 

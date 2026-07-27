@@ -1,0 +1,9 @@
+[package]
+name = "trk-ai"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+trk-core = { path = "../trk-core" }
+thiserror.workspace = true

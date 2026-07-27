@@ -1,6 +1,6 @@
 # Background Tasks
 
-`salieri-app` owns a small runtime for work that must not block terminal input
+`trk-app` owns a small runtime for work that must not block terminal input
 or rendering. A backend receives jobs, while `TaskRuntime` owns the stable task
 IDs and user-visible state.
 

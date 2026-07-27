@@ -1,6 +1,6 @@
 # Rename product and repository to trk
 
-Owning ADR: `../../adr/0023-rename-salieri-tracker-to-trk.md`
+Owning ADR: `../../adr/0023-adopt-trk-as-sole-product-identity.md`
 
 GitHub issue: #309
 

@@ -28,20 +28,20 @@ check_stty_restored() {
   echo "OK: $label restored terminal mode"
 }
 
-echo "Building salieri..."
+echo "Building trk..."
 cargo build --quiet
 
 echo
-echo "1. Normal exit: Salieri will open. Press q to quit."
+echo "1. Normal exit: trk will open. Press q to quit."
 before="$(stty -g)"
-target/debug/salieri
+target/debug/trk
 check_stty_restored "normal exit" "$before"
 
 echo
-echo "2. Panic recovery: Salieri will intentionally panic after terminal setup."
+echo "2. Panic recovery: trk will intentionally panic after terminal setup."
 before="$(stty -g)"
 set +e
-SALIERI_DEBUG_PANIC_AFTER_TERMINAL_ENTER=1 target/debug/salieri >/tmp/salieri-terminal-panic.log 2>&1
+TRK_DEBUG_PANIC_AFTER_TERMINAL_ENTER=1 target/debug/trk >/tmp/trk-terminal-panic.log 2>&1
 status=$?
 set -e
 if [[ "$status" -eq 0 ]]; then
@@ -51,9 +51,9 @@ fi
 check_stty_restored "panic" "$before"
 
 echo
-echo "3. SIGINT recovery: Salieri will open and receive external SIGINT."
+echo "3. SIGINT recovery: trk will open and receive external SIGINT."
 before="$(stty -g)"
-target/debug/salieri &
+target/debug/trk &
 pid=$!
 sleep 1
 kill -INT "$pid"

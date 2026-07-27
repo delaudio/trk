@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Local Renoise demo parity harness.
 
-Reimports local XRNS files into ignored Salieri fixtures and writes a JSON
+Reimports local XRNS files into ignored trk fixtures and writes a JSON
 summary that can be compared over time. Use --synthetic for CI-safe smoke runs
 that do not require third-party Renoise demo assets.
 """
@@ -76,7 +76,7 @@ def parse_args() -> argparse.Namespace:
         "--output-dir",
         type=Path,
         default=DEFAULT_OUTPUT_DIR,
-        help="ignored output directory for imported .salieri files",
+        help="ignored output directory for imported .trk files",
     )
     parser.add_argument(
         "--report",
@@ -85,14 +85,14 @@ def parse_args() -> argparse.Namespace:
         help="JSON summary report path",
     )
     parser.add_argument(
-        "--salieri",
-        default=os.environ.get("SALIERI_BIN", "cargo run -q -p salieri-app --"),
-        help="Salieri command prefix; defaults to cargo run",
+        "--trk",
+        default=os.environ.get("TRK_BIN", "cargo run -q -p trk-app --"),
+        help="trk command prefix; defaults to cargo run",
     )
     parser.add_argument(
         "--convert-samples-to-wav",
         action="store_true",
-        help="pass through to salieri import xrns",
+        help="pass through to trk import xrns",
     )
     parser.add_argument(
         "--synthetic",
@@ -104,7 +104,7 @@ def parse_args() -> argparse.Namespace:
 
 def resolve_inputs(args: argparse.Namespace) -> tuple[list[Path], callable]:
     if args.synthetic:
-        temp_dir = Path(tempfile.mkdtemp(prefix="salieri-xrns-parity-"))
+        temp_dir = Path(tempfile.mkdtemp(prefix="trk-xrns-parity-"))
         xrns_path = temp_dir / "parity-smoke-song.xrns"
         with zipfile.ZipFile(xrns_path, "w", compression=zipfile.ZIP_STORED) as archive:
             archive.write(SYNTHETIC_XML, "Song.xml")
@@ -126,10 +126,10 @@ def resolve_inputs(args: argparse.Namespace) -> tuple[list[Path], callable]:
 
 def import_song(args: argparse.Namespace, xrns_file: Path) -> dict:
     slug = slugify(xrns_file.stem)
-    output_path = args.output_dir / f"{slug}.salieri"
+    output_path = args.output_dir / f"{slug}.trk"
     sample_dir = args.output_dir / "samples" / slug
     command = [
-        *shlex.split(args.salieri),
+        *shlex.split(args.trk),
         "import",
         "xrns",
         str(xrns_file),

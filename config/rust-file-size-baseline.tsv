@@ -1,6 +1,6 @@
 # path<TAB>maximum-lines<TAB>tracking-issue
-crates/salieri-app/src/playback_runtime.rs	1691	#108
-crates/salieri-audio/src/lib.rs	2047	#109
-crates/salieri-core/src/model.rs	3194	#107
-crates/salieri-interop/src/lib.rs	2613	#111
-crates/salieri-tui/src/render.rs	3620	#105
+crates/trk-app/src/playback_runtime.rs	1691	#108
+crates/trk-audio/src/lib.rs	2047	#109
+crates/trk-core/src/model.rs	3194	#107
+crates/trk-interop/src/lib.rs	2613	#111
+crates/trk-tui/src/render.rs	3620	#105

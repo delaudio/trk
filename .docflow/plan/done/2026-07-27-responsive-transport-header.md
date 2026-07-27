@@ -32,5 +32,5 @@ targets and all existing transport behavior.
 ---
 
 Shipped at HEAD `632c0c5` via
-[PR #301](https://github.com/delaudio/salieri-tracker/pull/301), with GitHub
+[PR #301](https://github.com/delaudio/trk/pull/301), with GitHub
 Actions CI run #330 green and issue #265 closed.

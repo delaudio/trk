@@ -1,0 +1,29 @@
+[package]
+name = "trk-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "trk"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+crossterm.workspace = true
+ctrlc.workspace = true
+ratatui.workspace = true
+trk-audio = { path = "../trk-audio" }
+trk-ai = { path = "../trk-ai" }
+trk-core = { path = "../trk-core" }
+trk-interop = { path = "../trk-interop" }
+trk-midi = { path = "../trk-midi" }
+trk-sampler = { path = "../trk-sampler" }
+trk-transform = { path = "../trk-transform" }
+trk-tui = { path = "../trk-tui" }
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

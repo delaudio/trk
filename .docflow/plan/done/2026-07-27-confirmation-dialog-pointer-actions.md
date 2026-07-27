@@ -33,5 +33,5 @@ Dialog semantics, keyboard behavior, hover, and other overlays are unchanged.
 ---
 
 Shipped at HEAD `9c9f256` via
-[PR #289](https://github.com/delaudio/salieri-tracker/pull/289), with GitHub
+[PR #289](https://github.com/delaudio/trk/pull/289), with GitHub
 Actions CI run #306 green and issue #259 closed.

@@ -31,5 +31,5 @@ main view.
 ---
 
 Shipped at HEAD `4e84d78` via
-[PR #303](https://github.com/delaudio/salieri-tracker/pull/303), with GitHub
+[PR #303](https://github.com/delaudio/trk/pull/303), with GitHub
 Actions CI run #334 green and issue #266 closed.

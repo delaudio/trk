@@ -1,0 +1,10 @@
+[package]
+name = "trk-midi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+midir.workspace = true
+trk-core = { path = "../trk-core" }
+thiserror.workspace = true

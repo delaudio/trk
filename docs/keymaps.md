@@ -1,6 +1,6 @@
 # Configurable Keymaps
 
-Salieri resolves user key bindings when configuration loads. Each binding belongs
+trk resolves user key bindings when configuration loads. Each binding belongs
 to one application mode and maps one key press to a typed command. Configured
 bindings take precedence in that mode; every other key keeps its built-in
 behavior.

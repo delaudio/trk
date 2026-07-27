@@ -32,5 +32,5 @@ keyboard navigation, mute/solo controls, or track ordering.
 ---
 
 Shipped at HEAD `d2f9b3b` via
-[PR #275](https://github.com/delaudio/salieri-tracker/pull/275), with GitHub
+[PR #275](https://github.com/delaudio/trk/pull/275), with GitHub
 Actions CI run #270 green and issue #252 closed.

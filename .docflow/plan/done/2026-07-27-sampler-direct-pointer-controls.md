@@ -38,5 +38,5 @@ sampler operations are unchanged.
 ---
 
 Shipped at HEAD `2275f54` via
-[PR #297](https://github.com/delaudio/salieri-tracker/pull/297), with GitHub
+[PR #297](https://github.com/delaudio/trk/pull/297), with GitHub
 Actions CI run #322 green and issue #263 closed.

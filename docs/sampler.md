@@ -1,8 +1,8 @@
 # Sampler Foundation
 
-The sampler work is post-MVP and intentionally lives outside `salieri-core`, `salieri-midi`, and `salieri-tui`.
+The sampler work is post-MVP and intentionally lives outside `trk-core`, `trk-midi`, and `trk-tui`.
 
-`salieri-sampler` currently provides:
+`trk-sampler` currently provides:
 
 - WAV loading for 16-bit PCM and 32-bit float RIFF/WAVE files;
 - normalized interleaved `f32` sample buffers;
@@ -10,13 +10,13 @@ The sampler work is post-MVP and intentionally lives outside `salieri-core`, `sa
 - persistent sample references, sample-backed instruments, playback settings, and assignment metadata for mapping instruments to tracker tracks;
 - deterministic waveform overviews for CLI and TUI rendering.
 
-This keeps the MIDI-first runtime intact. Existing pattern playback still emits MIDI, while `salieri-core::sampler_events` defines the data contract the audio layer consumes: track id, sample id/path, note pitch, velocity, gain, pan, pitch ratio, and scheduled position. The playback runtime loads assigned WAV files, applies sample tuning, gain/pan, sample start/end, and amplitude-envelope settings, prepares them for the default CPAL output format, and routes assigned sample events to realtime audio commands for audible sampler playback.
+This keeps the MIDI-first runtime intact. Existing pattern playback still emits MIDI, while `trk-core::sampler_events` defines the data contract the audio layer consumes: track id, sample id/path, note pitch, velocity, gain, pan, pitch ratio, and scheduled position. The playback runtime loads assigned WAV files, applies sample tuning, gain/pan, sample start/end, and amplitude-envelope settings, prepares them for the default CPAL output format, and routes assigned sample events to realtime audio commands for audible sampler playback.
 
 Users can inspect supported WAV files without opening the tracker UI:
 
 ```sh
-salieri sample inspect path/to/sample.wav --format text --buckets 64
-salieri sample inspect path/to/sample.wav --format json --width 32
+trk sample inspect path/to/sample.wav --format text --buckets 64
+trk sample inspect path/to/sample.wav --format json --width 32
 ```
 
 Inside the tracker, `:sample view PATH` loads a WAV reference into the sampler view and renders its metadata and waveform preview. `Ctrl+J` opens the sampler view even when no sample is loaded. `:sample browse [DIR]` opens the in-app sample browser; `:sample choose [DIR]` uses a configured external chooser.
@@ -52,7 +52,7 @@ After loading a WAV, assign it to the current track:
 :sample assignments
 ```
 
-Assignments are saved in `.salieri` project files. Loading old projects with direct `sampleAssignments` automatically creates compatible sample-backed instruments, and the sampler view shows the assigned instrument and track for the currently loaded sample.
+Assignments are saved in `.trk` project files. Loading old projects with direct `sampleAssignments` automatically creates compatible sample-backed instruments, and the sampler view shows the assigned instrument and track for the currently loaded sample.
 `replace` swaps the sample on a track and removes the previous sample reference when it is no longer used.
 `unload` removes the currently viewed sample reference only when it is unassigned, while `cleanup` prunes all unused sample references.
 
@@ -72,7 +72,7 @@ adds a project sample reference, and optionally assigns it to a track. The
 recorder state machine is independent from the platform input source, so
 headless and CI environments can test transitions with fake input frames.
 
-Playback settings are also saved in `.salieri` project files:
+Playback settings are also saved in `.trk` project files:
 
 - XRNS import preserves representable Renoise sample root note, transpose, fine tune, gain, pan, loop window, and ADSR-style envelope metadata;
 - `start` and `end` set a frame window used by realtime playback and offline audio export;

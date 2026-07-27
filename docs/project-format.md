@@ -1,6 +1,6 @@
 # Project Format Compatibility
 
-Salieri project files use JSON and the `.salieri` extension.
+trk project files use JSON and the `.trk` extension.
 
 Every project file must contain:
 
@@ -19,7 +19,7 @@ Older version-1 files that omit those arrays still load as projects with no
 sampler assignments.
 
 `sampleAssignments` remains a compatibility field for the early sampler model.
-On load, Salieri normalizes those assignments into sample-backed instruments and
+On load, trk normalizes those assignments into sample-backed instruments and
 track instrument assignments. New sample assignment edits keep both the
 compatibility assignment and the instrument assignment in sync.
 
@@ -53,7 +53,7 @@ neutral envelope. Supported `mode` values are `oneShot`, legacy `loop`
 ```
 
 Sample paths are stored as portable project data. Relative paths resolve from the
-directory containing the `.salieri` project first. User configuration can also
+directory containing the `.trk` project first. User configuration can also
 define `workspace.sample_library` as the default library used by sample browsing
 and future sample-import workflows, but project files do not embed that
 machine-specific library root.
@@ -175,7 +175,7 @@ IDs live in [Native DSP Roadmap](native-dsp-roadmap.md).
 
 ## Loading Rules
 
-On load, Salieri:
+On load, trk:
 
 1. parses the JSON into the versioned project envelope;
 2. routes the project through the migration entry point;
@@ -216,7 +216,7 @@ Loaded projects are rejected when they contain:
 - sequence entries referencing missing pattern IDs;
 - sample assignments referencing missing track or sample IDs.
 
-Save operations run the same validation before writing. This prevents Salieri from creating a `.salieri` file it would reject on the next load.
+Save operations run the same validation before writing. This prevents trk from creating a `.trk` file it would reject on the next load.
 
 ## Fixture Policy
 

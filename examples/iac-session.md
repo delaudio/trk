@@ -1,11 +1,11 @@
 # IAC Driver Session
 
-This example starts Salieri with the included macOS IAC Driver config and sends MIDI to a DAW.
+This example starts trk with the included macOS IAC Driver config and sends MIDI to a DAW.
 
 ## 1. List Ports
 
 ```bash
-salieri --list-midi-outputs
+trk --list-midi-outputs
 ```
 
 Expected macOS IAC output:
@@ -17,16 +17,16 @@ Expected macOS IAC output:
 ## 2. Test One Note
 
 ```bash
-salieri --config config/iac-driver.toml --midi-test-output 0 --midi-test-channel 1 --midi-test-note 60
+trk --config config/iac-driver.toml --midi-test-output 0 --midi-test-channel 1 --midi-test-note 60
 ```
 
 ## 3. Run The TUI
 
 ```bash
-salieri --config config/iac-driver.toml --midi-log salieri-midi.log
+trk --config config/iac-driver.toml --midi-log trk-midi.log
 ```
 
-Inside Salieri:
+Inside trk:
 
 ```text
 F4          open MIDI settings
@@ -40,7 +40,7 @@ Space       play/stop
 ## 4. Monitor Messages
 
 ```bash
-tail -f salieri-midi.log
+tail -f trk-midi.log
 ```
 
 If the log shows note-on/note-off messages but the DAW is silent, check the DAW input routing, channel filter, monitoring state, and whether an instrument is loaded on the destination track.

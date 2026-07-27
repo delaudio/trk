@@ -1,12 +1,12 @@
 # Report, Critique, and Revision Workflows
 
-Salieri can generate deterministic local markdown reports from `.salieri`
+trk can generate deterministic local markdown reports from `.trk`
 projects:
 
 ```bash
-salieri report project song.salieri reports/project.md
-salieri report critique song.salieri reports/critique.md
-salieri report project song.salieri
+trk report project song.trk reports/project.md
+trk report critique song.trk reports/critique.md
+trk report project song.trk
 ```
 
 The project report summarizes tempo, tracks, patterns, sequence length, note

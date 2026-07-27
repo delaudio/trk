@@ -1,6 +1,6 @@
 # Audio Export
 
-Audio export renders assigned-sample playback offline through `salieri-audio`.
+Audio export renders assigned-sample playback offline through `trk-audio`.
 
 Supported format:
 
@@ -9,8 +9,8 @@ Supported format:
 CLI usage:
 
 ```bash
-salieri export audio input.salieri output.wav --pattern 1
-salieri export audio input.salieri output.wav --sequence --sample-rate 48000 --channels 2
+trk export audio input.trk output.wav --pattern 1
+trk export audio input.trk output.wav --sequence --sample-rate 48000 --channels 2
 ```
 
 Current behavior:
@@ -26,17 +26,17 @@ Current behavior:
 - prepare samples for the requested output sample rate and channel count before rendering;
 - write output files atomically through the app layer so failed exports are non-destructive.
 
-Offline sampler rendering uses plain event data: track id, sample id, target frame, gain, pan, pitch ratio, and velocity. The app adapts `salieri-core::sampler_events` and persisted mixer DSP chains into those specs while keeping `salieri-audio` independent from project serialization and TUI state. Pattern automation and mixer state are resolved before events cross into `salieri-audio`.
+Offline sampler rendering uses plain event data: track id, sample id, target frame, gain, pan, pitch ratio, and velocity. The app adapts `trk-core::sampler_events` and persisted mixer DSP chains into those specs while keeping `trk-audio` independent from project serialization and TUI state. Pattern automation and mixer state are resolved before events cross into `trk-audio`.
 
 Render plans and stems:
 
 ```bash
-salieri export plan song.salieri plan.json --pattern 1 --tracks 1,2
-salieri export plan song.salieri --sequence
-salieri export stems song.salieri stems/ --pattern 1 --tracks 1,2
-salieri export stems song.salieri stems/ --sequence
-salieri export strudel song.salieri strudel.js --patterns 1,2
-salieri export strudel song.salieri --sequence
+trk export plan song.trk plan.json --pattern 1 --tracks 1,2
+trk export plan song.trk --sequence
+trk export stems song.trk stems/ --pattern 1 --tracks 1,2
+trk export stems song.trk stems/ --sequence
+trk export strudel song.trk strudel.js --patterns 1,2
+trk export strudel song.trk --sequence
 ```
 
 `export plan` emits JSON describing the render target, selected tracks, sampler
@@ -65,4 +65,4 @@ successfully, and can assign it immediately to a target track. It uses the same
 internal sampler/native audio path and the same external MIDI-only limitation as
 CLI audio export.
 
-The current renderer is deliberately small because Salieri is still MIDI-first. It renders sampler-backed tracks only; MIDI output sent to DAWs or external synths is not captured. Forward, backward, ping-pong, and reverse sample playback modes match the realtime sampler. Future internal instruments, mixer routing, broader DSP devices, freeze-style export, and higher-quality resampling should render into `RenderedAudio` or a streaming equivalent, then reuse the same export format boundary.
+The current renderer is deliberately small because trk is still MIDI-first. It renders sampler-backed tracks only; MIDI output sent to DAWs or external synths is not captured. Forward, backward, ping-pong, and reverse sample playback modes match the realtime sampler. Future internal instruments, mixer routing, broader DSP devices, freeze-style export, and higher-quality resampling should render into `RenderedAudio` or a streaming equivalent, then reuse the same export format boundary.

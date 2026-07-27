@@ -4,7 +4,7 @@ This file provides guidance to coding agents working in this repository.
 
 ## What this repository is
 
-Salieri Tracker is a MIDI-first terminal music tracker implemented as a Rust
+trk is a MIDI-first terminal music tracker implemented as a Rust
 workspace. The codebase contains the core song model, MIDI import/export,
 sampler/audio foundations, tracker TUI, and the CLI application. Project
 decisions live in `.docflow/` and are intentionally internal builder artefacts.

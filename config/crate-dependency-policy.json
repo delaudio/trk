@@ -1,47 +1,47 @@
 {
-  "salieri-ai": {
-    "allowedDependencies": ["salieri-core"],
+  "trk-ai": {
+    "allowedDependencies": ["trk-core"],
     "owns": "Provider-neutral, reviewable AI proposals and transformations"
   },
-  "salieri-app": {
+  "trk-app": {
     "allowedDependencies": [
-      "salieri-ai",
-      "salieri-audio",
-      "salieri-core",
-      "salieri-interop",
-      "salieri-midi",
-      "salieri-sampler",
-      "salieri-transform",
-      "salieri-tui"
+      "trk-ai",
+      "trk-audio",
+      "trk-core",
+      "trk-interop",
+      "trk-midi",
+      "trk-sampler",
+      "trk-transform",
+      "trk-tui"
     ],
     "owns": "CLI, configuration, persistence, runtime coordination, input, and app state"
   },
-  "salieri-audio": {
-    "allowedDependencies": ["salieri-sampler"],
+  "trk-audio": {
+    "allowedDependencies": ["trk-sampler"],
     "owns": "Realtime audio backends, DSP, offline rendering, and audio export"
   },
-  "salieri-core": {
+  "trk-core": {
     "allowedDependencies": [],
     "owns": "Serializable music model, validation, transport math, and playback events"
   },
-  "salieri-interop": {
-    "allowedDependencies": ["salieri-core"],
+  "trk-interop": {
+    "allowedDependencies": ["trk-core"],
     "owns": "External music format import, export, and diagnostics"
   },
-  "salieri-midi": {
-    "allowedDependencies": ["salieri-core"],
+  "trk-midi": {
+    "allowedDependencies": ["trk-core"],
     "owns": "MIDI protocol conversion and input/output adapters"
   },
-  "salieri-sampler": {
-    "allowedDependencies": ["salieri-core"],
+  "trk-sampler": {
+    "allowedDependencies": ["trk-core"],
     "owns": "Sample decoding, inspection, preview, and assignment workflows"
   },
-  "salieri-transform": {
-    "allowedDependencies": ["salieri-core"],
+  "trk-transform": {
+    "allowedDependencies": ["trk-core"],
     "owns": "Deterministic, side-effect-free musical transformations"
   },
-  "salieri-tui": {
-    "allowedDependencies": ["salieri-core", "salieri-sampler"],
+  "trk-tui": {
+    "allowedDependencies": ["trk-core", "trk-sampler"],
     "owns": "Ratatui rendering and presentation-only view contracts"
   }
 }

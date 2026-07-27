@@ -3,7 +3,7 @@
 ## Decision
 
 Use WebAssembly first as a browser/Web Audio export boundary for selected
-Salieri modules. Do not make WASM the primary terminal realtime DSP runtime yet.
+trk modules. Do not make WASM the primary terminal realtime DSP runtime yet.
 Native Rust modules and reviewed C/C++ wrappers remain the realtime path until a
 follow-up spike measures desktop WASM host overhead, memory behavior, and
 scheduling safety under realistic callback deadlines.
@@ -17,7 +17,7 @@ This decision is based on:
   block rendering, a default 128-frame render quantum, and AudioWorklet
   processors running on the audio rendering thread:
   <https://www.w3.org/TR/webaudio-1.1/>
-- The existing Salieri native module and #115 C/C++ boundary, which already
+- The existing trk native module and #115 C/C++ boundary, which already
   provide deterministic offline/realtime processing without adding a sandboxed
   runtime to the terminal app.
 
@@ -31,7 +31,7 @@ This decision is based on:
 
 ## ABI v1
 
-The host-side ABI contract lives in `salieri-audio::wasm_dsp`.
+The host-side ABI contract lives in `trk-audio::wasm_dsp`.
 
 - Audio buffers are interleaved `f32`.
 - `WASM_DSP_ABI_VERSION` is `1`.

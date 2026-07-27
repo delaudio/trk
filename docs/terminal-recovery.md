@@ -1,6 +1,6 @@
 # Terminal Recovery Verification
 
-Salieri uses a `TerminalGuard` that restores raw mode, cursor visibility, alternate screen, and mouse capture on drop. The app also installs:
+trk uses a `TerminalGuard` that restores raw mode, cursor visibility, alternate screen, and mouse capture on drop. The app also installs:
 
 - a panic hook that restores the terminal before forwarding to the original panic hook;
 - a SIGINT handler that restores the terminal and asks the main loop to exit.

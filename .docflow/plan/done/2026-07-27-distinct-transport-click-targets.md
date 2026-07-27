@@ -33,5 +33,5 @@ are unchanged.
 ---
 
 Shipped at HEAD `c0b3ff4` via
-[PR #291](https://github.com/delaudio/salieri-tracker/pull/291), with GitHub
+[PR #291](https://github.com/delaudio/trk/pull/291), with GitHub
 Actions CI run #310 green and issue #260 closed.
