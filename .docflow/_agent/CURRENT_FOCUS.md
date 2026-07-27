@@ -8,19 +8,17 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** agent/263-docflow-closeout
-- **Active item:** close out
-  `plan/done/2026-07-27-sampler-direct-pointer-controls.md` for GitHub issue
-  #263.
+- **Branch:** agent/264-disabled-workspace-controls
+- **Active item:** `plan/todo/0016-disabled-workspace-affordances.md` for
+  GitHub issue #264.
 - **Blockers:** none.
-- **Pending integration:** PR #297 merged at `2275f54`, CI #322 is green, and
-  issue #263 is closed. This documentation closeout still needs its local gate,
-  mandatory Codex review, PR, CI, and merge.
+- **Pending integration:** claim ADR and plan are ready; implementation,
+  verification, commit, mandatory Codex review, PR, CI, and merge remain.
 
 ## Last shipped
 
-Issue #263 implementation via PR #297.
+Issue #263 closeout via PR #298.
 
 ## Next item
 
-Audit and implement the next queued UX issue, #264.
+Implement explicit disabled workspace affordances for issue #264.
