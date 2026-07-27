@@ -99,7 +99,7 @@ fn transport_header_uses_complete_width_appropriate_segments() {
         ),
         (
             100,
-            " [▷] [■]  BPM: 120  LPB: 4  STOPPED  PAT: 01  ROW: 0000/0000  MIDI Disconnected",
+            " [▷] [■]  BPM: 120  LPB: 4  STOPPED  PAT: 01  ROW: 0000/0000  Sync: Internal  MIDI Disconnected",
         ),
         (
             140,

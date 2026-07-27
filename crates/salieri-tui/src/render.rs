@@ -687,6 +687,10 @@ fn compose_transport_header(
             "{playhead}/{:04}",
             state.cursor.row
         )));
+        if available_width >= 76 {
+            header.push(theme::label_span("  Sync: "));
+            header.push(theme::value_span("Internal"));
+        }
         let midi_status = theme::value_span(state.midi_status.to_string());
         let midi_segment_width = 2_usize.saturating_add(midi_status.width());
         if header
@@ -696,9 +700,6 @@ fn compose_transport_header(
         {
             header.push(theme::muted_span("  "));
             header.push(midi_status);
-        } else if available_width >= 76 {
-            header.push(theme::label_span("  Sync: "));
-            header.push(theme::value_span("Internal"));
         }
         return header.finish();
     }
