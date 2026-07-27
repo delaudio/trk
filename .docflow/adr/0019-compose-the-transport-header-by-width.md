@@ -1,7 +1,7 @@
 ---
 adr: 0019
 title: Compose the transport header by width
-status: Accepted
+status: Implemented
 date: 2026-07-27
 owner: default-agent
 supersedes:
@@ -63,7 +63,7 @@ set at large widths.
 ## References
 
 - `0014-control-play-and-stop-with-distinct-pointer-targets.md`
-- `../plan/todo/0017-responsive-transport-header.md`
+- `../plan/done/2026-07-27-responsive-transport-header.md`
 - GitHub issue #265.
 
 ## Revision History
@@ -71,6 +71,7 @@ set at large widths.
 | Date | Revision | Author | Change |
 |------|----------|--------|--------|
 | 2026-07-27 | r1 | default-agent | Accepted width-aware atomic transport-header compositions. |
+| 2026-07-27 | r2 | default-agent | Marked Implemented after PR #301 merged with GitHub Actions CI green. |
 
 ## Approvals
 

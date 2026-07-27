@@ -28,3 +28,9 @@ targets and all existing transport behavior.
 - `../../adr/0014-control-play-and-stop-with-distinct-pointer-targets.md`
 - `../done/2026-07-27-distinct-transport-click-targets.md`
 - GitHub issue #260 (closed).
+
+---
+
+Shipped at HEAD `632c0c5` via
+[PR #301](https://github.com/delaudio/salieri-tracker/pull/301), with GitHub
+Actions CI run #330 green and issue #265 closed.
