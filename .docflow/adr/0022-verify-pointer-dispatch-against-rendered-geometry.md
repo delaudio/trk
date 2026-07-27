@@ -1,7 +1,7 @@
 ---
 adr: 0022
 title: Verify pointer dispatch against rendered geometry
-status: Accepted
+status: Implemented
 date: 2026-07-27
 owner: default-agent
 supersedes:
@@ -63,7 +63,7 @@ supported compact, medium, and large terminal sizes.
 ## References
 
 - `0003-render-owned-interaction-regions.md`
-- `../plan/todo/0020-cross-size-mouse-regressions.md`
+- `../plan/done/2026-07-27-cross-size-mouse-regressions.md`
 - GitHub issue #268.
 
 ## Revision History
@@ -71,6 +71,7 @@ supported compact, medium, and large terminal sizes.
 | Date | Revision | Author | Change |
 |------|----------|--------|--------|
 | 2026-07-27 | r1 | default-agent | Accepted render-derived, cross-size pointer regression contracts. |
+| 2026-07-27 | r2 | default-agent | Marked implemented after PR #307 merged with CI green and issue #268 closed. |
 
 ## Approvals
 
