@@ -8,19 +8,18 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** `agent/rename-trk`
-- **Active item:** implement plan item
-  `plan/todo/0021-rename-product-and-repository-to-trk.md` under Accepted ADR
-  0023.
+- **Branch:** `agent/rename-trk-docflow-closeout`
+- **Active item:** integrate the completed plan/ADR closeout after implementation
+  PR #310 merged with CI green and issue #309 closed.
 - **Blockers:** none.
-- **Pending integration:** verified hard-cutover implementation is ready for
-  commit and PR integration in `delaudio/trk`.
+- **Pending integration:** the Docflow closeout commit and PR only; product
+  implementation is already on `main`.
 
 ## Last shipped
 
-Issue #268 implementation and Docflow closeout via PRs #307 and #309.
+Issue #309 implementation via PR #310, with CI green and ADR 0023 Implemented.
 
 ## Next item
 
-Commit and push the verified implementation, open the PR, wait for CI, and
-squash-merge before closing issue #309 and completing Docflow closeout.
+Commit and integrate the Docflow closeout, then return to `main` and audit the
+open GitHub issue queue.

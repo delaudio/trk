@@ -34,3 +34,9 @@ legacy identity.
 
 - `../../adr/0001-record-architecture-decisions.md`
 - The product owner has accepted the manual-migration hard cutover.
+
+---
+
+Shipped at HEAD `7c417bd` via
+[PR #310](https://github.com/delaudio/trk/pull/310), with GitHub Actions run
+`30311149178` green for that merged HEAD and issue #309 closed.

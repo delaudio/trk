@@ -1,7 +1,7 @@
 ---
 adr: 0023
 title: Adopt trk as the sole product identity
-status: Accepted
+status: Implemented
 date: 2026-07-27
 owner: default-agent
 supersedes:
@@ -79,7 +79,7 @@ for the legacy name.
 ## References
 
 - `0001-record-architecture-decisions.md`
-- `../plan/todo/0021-rename-product-and-repository-to-trk.md`
+- `../plan/done/2026-07-27-rename-product-and-repository-to-trk.md`
 - GitHub issue #309.
 
 ## Revision History
@@ -88,6 +88,7 @@ for the legacy name.
 |------|----------|--------|--------|
 | 2026-07-27 | r1 | default-agent | Proposed the hard cutover to the `trk` identity. |
 | 2026-07-27 | r2 | default-agent | Accepted the guided hard-cutover assessment and queued implementation. |
+| 2026-07-27 | r3 | default-agent | Marked implemented after PR #310 merged with CI green and issue #309 closed. |
 
 ## Approvals
 
