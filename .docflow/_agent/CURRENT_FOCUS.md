@@ -16,7 +16,9 @@ If status files and git disagree, git is authoritative; correct this file.
   coordinate-based vertical/horizontal routing, loaded-waveform targeting,
   modal capture, and exact rendered-content tests are implemented. Codex
   finding `164be98a98636f7b` was remediated by excluding panel chrome and empty
-  padding; full gate, final Codex review, PR, CI, merge, and closeout remain.
+  padding. Findings `cead2b3f0dbae5a5` and `0866b57f655cb756` from the
+  bounded rerun are being remediated by excluding trailing horizontal padding;
+  affected tests, final Codex rerun, PR, CI, merge, and closeout remain.
 
 ## Last shipped
 

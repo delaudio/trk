@@ -59,4 +59,9 @@ fn clip_launcher_renders_scene_grid_statuses() {
         interactions.scroll_target_at(grid.area.x, grid.area.y.saturating_sub(1)),
         None
     );
+    assert!(grid.area.x.saturating_add(grid.area.width) < 79);
+    assert_eq!(
+        interactions.scroll_target_at(grid.area.x.saturating_add(grid.area.width), grid.area.y),
+        None
+    );
 }

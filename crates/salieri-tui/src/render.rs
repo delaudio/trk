@@ -70,6 +70,7 @@ use status_bar::render_status;
 
 const ROW_GUTTER_WIDTH: usize = 5;
 const PATTERN_CELL_WIDTH: usize = 28;
+const CLIP_SCENE_WIDTH: usize = 14;
 const TRACK_LIST_NAME_WIDTH: usize = 11;
 const SEQUENCE_SLOT_PATTERN_WIDTH: usize = 18;
 const MEDIUM_MIN_WIDTH: u16 = 80;
@@ -1294,12 +1295,15 @@ fn render_clip_launcher(
         .saturating_add(visible_items)
         .min(song.clip_scenes.len());
     let inner = bordered_content_area(area);
+    let rendered_width = CLIP_SCENE_WIDTH.saturating_add(visible_tracks.saturating_mul(4));
     interactions.register(
         interaction_region::CLIP_GRID,
         Rect::new(
             inner.x,
             inner.y.saturating_add(1),
-            inner.width,
+            u16::try_from(rendered_width)
+                .unwrap_or(u16::MAX)
+                .min(inner.width),
             u16::try_from(end.saturating_sub(start)).unwrap_or(u16::MAX),
         ),
     );
@@ -2483,12 +2487,20 @@ fn render_pattern_with_interactions(
 
     let viewport = pattern_viewport(area, pattern.row_count(), song.tracks.len(), state);
     let content_area = bordered_content_area(area);
+    let rendered_width = ROW_GUTTER_WIDTH.saturating_add(
+        viewport
+            .visible_tracks
+            .len()
+            .saturating_mul(pattern_cell_width(state.tracker_layout.pattern_fields)),
+    );
     interactions.register(
         interaction_region::PATTERN_GRID,
         Rect::new(
             content_area.x,
             content_area.y.saturating_add(1),
-            content_area.width,
+            u16::try_from(rendered_width)
+                .unwrap_or(u16::MAX)
+                .min(content_area.width),
             u16::try_from(viewport.visible_rows.len()).unwrap_or(u16::MAX),
         ),
     );
