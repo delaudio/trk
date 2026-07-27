@@ -9,7 +9,9 @@ use salieri_core::{EffectDeviceKind, NoteEvent, PatternCell, Song};
 use salieri_sampler::WaveformBucket;
 
 use super::{
-    renoise_layout::PatternWorkspaceLayout, sampler_view::render_sampler_controls, theme,
+    renoise_layout::PatternWorkspaceLayout,
+    sampler_view::render_sampler_controls,
+    theme::{self, workspace_tab, WorkspaceTabState},
     InteractionMap, SamplerViewState, TuiState,
 };
 
@@ -60,11 +62,11 @@ pub(super) fn render_sampler_workspace(
 
 fn render_sampler_tabs(frame: &mut Frame<'_>, area: Rect) {
     let line = Line::from(vec![
-        tab("Edit", false),
-        tab("Mix", false),
-        tab("Sampler", true),
-        tab("Plugin", false),
-        tab("MIDI", false),
+        workspace_tab("Edit", WorkspaceTabState::Disabled),
+        workspace_tab("Mix", WorkspaceTabState::Disabled),
+        workspace_tab("Sampler", WorkspaceTabState::Active),
+        workspace_tab("Plugin", WorkspaceTabState::Disabled),
+        workspace_tab("MIDI", WorkspaceTabState::Disabled),
     ]);
     frame.render_widget(Paragraph::new(line).block(theme::block("")), area);
 }
@@ -136,7 +138,7 @@ fn render_sampler_waveform(
     );
     let lines = vec![
         Line::from(vec![
-            theme::label_span("● Record  "),
+            theme::disabled_span("Record×  "),
             theme::value_span(format!(
                 "{} [{}Hz {}ch {:.2}s]",
                 sample.name,
@@ -180,8 +182,8 @@ fn render_sampler_waveform(
                 Style::default().fg(theme::TEXT),
             ),
         ]),
-        Line::from(theme::muted_span(
-            "Undo | ◊NORM | ↔ | ✂ | FFT | No Loop | ◀ ▶ ≡",
+        Line::from(theme::disabled_span(
+            "Undo× | Normalize× | Slice× | FFT× | Loop× | Preview×",
         )),
     ];
     frame.render_widget(
@@ -198,10 +200,10 @@ fn render_sampler_properties(
 ) {
     let mut lines = vec![
         Line::from(vec![
-            tab("Songs", false),
-            tab("Instr.", false),
-            tab("Samples", true),
-            tab("Other", false),
+            workspace_tab("Songs", WorkspaceTabState::Disabled),
+            workspace_tab("Instr.", WorkspaceTabState::Disabled),
+            workspace_tab("Samples", WorkspaceTabState::Active),
+            workspace_tab("Other", WorkspaceTabState::Disabled),
         ]),
         Line::from(""),
         kv("Name", sampler.map_or("-", |sample| sample.name)),
@@ -232,7 +234,7 @@ fn render_sampler_properties(
                 format_window(sample.start_frame, sample.end_frame),
             ),
             Line::from(""),
-            Line::from(theme::label_span("BROWSER")),
+            Line::from(theme::muted_span("BROWSER (read-only)")),
             Line::from(theme::muted_span("~/Music/DemoSong/")),
             Line::from(vec![
                 theme::label_span("> "),
@@ -281,8 +283,8 @@ fn render_analyzer_strip(frame: &mut Frame<'_>, area: Rect) {
     );
     frame.render_widget(
         Paragraph::new(vec![
-            Line::from(theme::label_span("MIDI MAP")),
-            Line::from(theme::value_span(" 1 2 3 4 5 6 7 8")),
+            Line::from(theme::disabled_span("MIDI MAP×")),
+            Line::from(theme::disabled_span(" 1 2 3 4 5 6 7 8")),
         ])
         .block(theme::block("")),
         columns[2],
@@ -409,10 +411,10 @@ fn render_right_sidebar(frame: &mut Frame<'_>, area: Rect, song: &Song, state: T
     };
     let mut lines = vec![
         Line::from(vec![
-            tab("Songs", true),
-            tab("Instr.", false),
-            tab("Samples", false),
-            tab("Other", false),
+            workspace_tab("Songs", WorkspaceTabState::Active),
+            workspace_tab("Instr.", WorkspaceTabState::Enabled),
+            workspace_tab("Samples", WorkspaceTabState::Enabled),
+            workspace_tab("Other", WorkspaceTabState::Disabled),
         ]),
         Line::from(""),
         kv("Name", selected_song),
@@ -752,17 +754,6 @@ fn format_window(start: Option<usize>, end: Option<usize>) -> String {
         (None, Some(end)) => format!("-..{end}"),
         (None, None) => "-".to_string(),
     }
-}
-
-fn tab(label: &str, active: bool) -> Span<'static> {
-    Span::styled(
-        format!(" {label} "),
-        if active {
-            theme::active()
-        } else {
-            theme::muted()
-        },
-    )
 }
 
 fn effect_name(kind: &EffectDeviceKind) -> &'static str {

@@ -3192,3 +3192,6 @@ mod render_test_support;
 #[cfg(test)]
 #[path = "render_tests/waveform.rs"]
 mod render_waveform_tests;
+#[cfg(test)]
+#[path = "render_tests/workspace_affordances.rs"]
+mod render_workspace_affordance_tests;

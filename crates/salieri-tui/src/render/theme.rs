@@ -14,6 +14,13 @@ pub(super) const PLAYING: Color = Color::Rgb(0, 210, 96);
 pub(super) const METER: Color = Color::Rgb(0, 190, 100);
 pub(super) const ERROR: Color = Color::LightRed;
 
+#[derive(Clone, Copy)]
+pub(super) enum WorkspaceTabState {
+    Active,
+    Enabled,
+    Disabled,
+}
+
 pub(super) fn base() -> Style {
     Style::default().fg(TEXT).bg(SURFACE)
 }
@@ -28,6 +35,13 @@ pub(super) fn label() -> Style {
 
 pub(super) fn muted() -> Style {
     Style::default().fg(MUTED).bg(SURFACE)
+}
+
+pub(super) fn disabled() -> Style {
+    Style::default()
+        .fg(BORDER)
+        .bg(SURFACE)
+        .add_modifier(Modifier::DIM)
 }
 
 pub(super) fn active() -> Style {
@@ -80,4 +94,16 @@ pub(super) fn value_span(text: impl Into<String>) -> Span<'static> {
 
 pub(super) fn muted_span(text: impl Into<String>) -> Span<'static> {
     Span::styled(text.into(), muted())
+}
+
+pub(super) fn disabled_span(text: impl Into<String>) -> Span<'static> {
+    Span::styled(text.into(), disabled())
+}
+
+pub(super) fn workspace_tab(text: &str, state: WorkspaceTabState) -> Span<'static> {
+    match state {
+        WorkspaceTabState::Active => Span::styled(format!(" {text} "), active()),
+        WorkspaceTabState::Enabled => Span::styled(format!(" {text} "), label()),
+        WorkspaceTabState::Disabled => Span::styled(format!(" {text}× "), disabled()),
+    }
 }
