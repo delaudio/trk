@@ -14,8 +14,10 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Blockers:** none.
 - **Uncommitted work:** distinct one-cell Play and Stop targets now route
   primary clicks through existing start/stop intents; Record, header chrome,
-  secondary clicks, drags, and invalid payloads are inert. Focused tests and
-  the full local gate are green before implementation commit and Codex review.
+  secondary clicks, drags, and invalid payloads are inert. Finding
+  `ace5c3038357c884` from Codex review `run-1785141204358351000` is being
+  remediated by clearing clip-launcher and global transport state from the
+  header Stop action in Clips view.
 
 ## Last shipped
 

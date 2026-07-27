@@ -46,7 +46,12 @@ impl App {
         };
         match action {
             TransportAction::Play => self.start_playback(),
-            TransportAction::Stop => self.stop_playback(),
+            TransportAction::Stop => {
+                if self.mode == AppMode::Clips {
+                    self.stop_clip_launcher();
+                }
+                self.stop_playback();
+            }
         }
     }
 
