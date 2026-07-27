@@ -29,3 +29,9 @@ are unchanged.
 - `../../adr/0003-render-owned-interaction-regions.md`
 - `../done/2026-07-26-render-owned-interaction-regions.md`
 - GitHub issue #249 (closed by PR #269).
+
+---
+
+Shipped at HEAD `c0b3ff4` via
+[PR #291](https://github.com/delaudio/salieri-tracker/pull/291), with GitHub
+Actions CI run #310 green and issue #260 closed.
