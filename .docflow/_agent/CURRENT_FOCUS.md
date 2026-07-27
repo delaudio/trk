@@ -12,8 +12,10 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Active item:** `plan/todo/0016-disabled-workspace-affordances.md` for
   GitHub issue #264.
 - **Blockers:** none.
-- **Pending integration:** claim ADR and plan are ready; implementation,
-  verification, commit, mandatory Codex review, PR, CI, and merge remain.
+- **Pending integration:** active/enabled/disabled tab states, shared disabled
+  styling, placeholder audit, non-mutating click coverage, style/interaction
+  coverage, and intentional snapshots are complete. The full local gate passes;
+  commit, mandatory Codex review, PR, CI, and merge remain.
 
 ## Last shipped
 

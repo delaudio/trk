@@ -15,6 +15,7 @@ mod midi_import_tui;
 mod midi_routing;
 mod mouse_command_palette;
 mod mouse_confirmation_dialogs;
+mod mouse_disabled_workspace;
 mod mouse_dsp_rack;
 mod mouse_help_overlay;
 mod mouse_midi_settings;
