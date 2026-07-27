@@ -72,7 +72,15 @@ pub(super) fn render_sampler_view(
         render_sampler_controls(frame, sections[1], Some(sampler), interactions);
     }
     if let Some(interactions) = interactions {
-        interactions.register(interaction_region::SAMPLER_WAVEFORM, sections[2]);
+        interactions.register(
+            interaction_region::SAMPLER_WAVEFORM,
+            Rect::new(
+                sections[2].x.saturating_add(1),
+                sections[2].y.saturating_add(1),
+                sections[2].width.saturating_sub(2),
+                sections[2].height.saturating_sub(2),
+            ),
+        );
     }
     render_waveform_overview_with_window(
         frame,

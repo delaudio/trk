@@ -41,8 +41,8 @@ fall-through to covered workspace regions.
 
 ## Acceptance criteria
 
-1. Pattern cells and the rendered pattern panel route vertical wheel input to
-   pattern rows.
+1. Pattern cells and rendered pattern-row content route vertical wheel input
+   to pattern rows; the panel border, header, and empty padding are no-ops.
 2. Track, sequence, pattern-manager, browser, DSP, clip, and MIDI list regions
    route vertical wheel input to their own bounded selections.
 3. Help, command palette, MIDI settings, and confirmation overlays capture
@@ -75,6 +75,7 @@ fall-through to covered workspace regions.
 | Date | Revision | Author | Change |
 |------|----------|--------|--------|
 | 2026-07-27 | r1 | default-agent | Accepted render-owned semantic scroll targets and coordinate-based wheel routing. |
+| 2026-07-27 | r2 | default-agent | Restricted wheel targets to rendered content rows and explicitly excluded chrome and empty padding. |
 
 ## Approvals
 

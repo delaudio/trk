@@ -847,7 +847,7 @@ fn render_body(
         return;
     }
     if state.active_view == TuiView::Clips {
-        render_clip_launcher(frame, area, song, state);
+        render_clip_launcher(frame, area, song, state, interactions);
         return;
     }
     if state.active_view == TuiView::Tracks {
@@ -1267,7 +1267,13 @@ fn render_track_editor(frame: &mut Frame<'_>, area: Rect, song: &Song, active_tr
     render_instrument_matrix(frame, sections[1], song, active_track);
 }
 
-fn render_clip_launcher(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
+fn render_clip_launcher(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    song: &Song,
+    state: TuiState<'_>,
+    interactions: &mut InteractionMap,
+) {
     let visible_tracks = song
         .tracks
         .len()
@@ -1287,6 +1293,16 @@ fn render_clip_launcher(frame: &mut Frame<'_>, area: Rect, song: &Song, state: T
     let end = start
         .saturating_add(visible_items)
         .min(song.clip_scenes.len());
+    let inner = bordered_content_area(area);
+    interactions.register(
+        interaction_region::CLIP_GRID,
+        Rect::new(
+            inner.x,
+            inner.y.saturating_add(1),
+            inner.width,
+            u16::try_from(end.saturating_sub(start)).unwrap_or(u16::MAX),
+        ),
+    );
 
     let mut lines = Vec::new();
     let mut header = String::from("SCENE        ");
@@ -2466,8 +2482,18 @@ fn render_pattern_with_interactions(
     };
 
     let viewport = pattern_viewport(area, pattern.row_count(), song.tracks.len(), state);
+    let content_area = bordered_content_area(area);
+    interactions.register(
+        interaction_region::PATTERN_GRID,
+        Rect::new(
+            content_area.x,
+            content_area.y.saturating_add(1),
+            content_area.width,
+            u16::try_from(viewport.visible_rows.len()).unwrap_or(u16::MAX),
+        ),
+    );
     interactions.register_pattern_cells(
-        bordered_content_area(area),
+        content_area,
         1,
         ROW_GUTTER_WIDTH as u16,
         pattern_cell_width(state.tracker_layout.pattern_fields) as u16,
@@ -3287,6 +3313,9 @@ mod render_test_support;
 #[cfg(test)]
 #[path = "render_tests/waveform.rs"]
 mod render_waveform_tests;
+#[cfg(test)]
+#[path = "render_tests/wheel_regions.rs"]
+mod render_wheel_region_tests;
 #[cfg(test)]
 #[path = "render_tests/workspace_affordances.rs"]
 mod render_workspace_affordance_tests;

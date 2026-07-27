@@ -11,7 +11,7 @@ fn large_mouse_viewport() -> MouseViewport {
 fn mouse_wheel_moves_tracker_cursor_through_shared_viewport() {
     let mut app = App::default();
     app.interaction_map.register(
-        interaction_region::PANEL_PATTERN,
+        interaction_region::PATTERN_GRID,
         ratatui::layout::Rect::new(20, 3, 100, 30),
     );
 

@@ -121,7 +121,10 @@ fn render_sampler_waveform(
         render_sampler_controls(frame, sections[1], None, interactions);
         return;
     };
-    interactions.register(interaction_region::SAMPLER_WAVEFORM, sections[0]);
+    interactions.register(
+        interaction_region::SAMPLER_WAVEFORM,
+        bordered_content_area(sections[0]),
+    );
     let width = sections[0].width.saturating_sub(4) as usize;
     let visible = sample
         .waveform_end_bucket

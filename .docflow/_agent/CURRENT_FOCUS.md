@@ -14,8 +14,9 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Blockers:** none.
 - **Pending integration:** semantic scroll-target classification,
   coordinate-based vertical/horizontal routing, loaded-waveform targeting,
-  modal capture, and focused tests are implemented; full gate, Codex review,
-  PR, CI, merge, and closeout remain.
+  modal capture, and exact rendered-content tests are implemented. Codex
+  finding `164be98a98636f7b` was remediated by excluding panel chrome and empty
+  padding; full gate, final Codex review, PR, CI, merge, and closeout remain.
 
 ## Last shipped
 

@@ -37,9 +37,9 @@ fn vertical_wheel_routes_composite_panels_without_cross_mutation() {
             .expect("append sequence pattern");
     }
     app.cursor.row = 10;
-    register(&mut app, interaction_region::PANEL_TRACKS, 0);
-    register(&mut app, interaction_region::PANEL_SEQUENCE, 20);
-    register(&mut app, interaction_region::PANEL_PATTERN, 40);
+    register(&mut app, interaction_region::COMPOSITE_TRACK_ROW, 0);
+    register(&mut app, interaction_region::COMPOSITE_SEQUENCE_ROW, 20);
+    register(&mut app, interaction_region::PATTERN_GRID, 40);
 
     wheel(&mut app, MouseEventKind::ScrollDown, 42, 8);
     assert_eq!(
@@ -70,7 +70,7 @@ fn non_scrollable_regions_and_unsupported_horizontal_axes_are_no_ops() {
     app.cursor.track = 2;
     register(&mut app, interaction_region::PANEL_INSPECTOR, 0);
     register(&mut app, interaction_region::PANEL_TRACKS, 20);
-    register(&mut app, interaction_region::PANEL_PATTERN, 40);
+    register(&mut app, interaction_region::PATTERN_GRID, 40);
 
     wheel(&mut app, MouseEventKind::ScrollDown, 2, 8);
     wheel(&mut app, MouseEventKind::ScrollRight, 22, 8);
@@ -94,7 +94,7 @@ fn modal_modes_capture_both_wheel_axes_outside_their_scrollable_content() {
         };
         app.cursor.row = 8;
         app.cursor.track = 1;
-        register(&mut app, interaction_region::PANEL_PATTERN, 0);
+        register(&mut app, interaction_region::PATTERN_GRID, 0);
 
         wheel(&mut app, MouseEventKind::ScrollDown, 2, 8);
         wheel(&mut app, MouseEventKind::ScrollRight, 2, 8);
@@ -109,7 +109,7 @@ fn manager_clip_and_midi_lists_move_their_own_bounded_selection() {
     while patterns.song.patterns.len() < 6 {
         patterns.song.create_pattern(64);
     }
-    register(&mut patterns, interaction_region::VIEW_PATTERNS, 0);
+    register(&mut patterns, interaction_region::PATTERN_MANAGER_ROW, 0);
     wheel(&mut patterns, MouseEventKind::ScrollDown, 2, 8);
     assert_eq!(patterns.pattern_index, 3);
 
@@ -123,7 +123,7 @@ fn manager_clip_and_midi_lists_move_their_own_bounded_selection() {
             .create_clip_scene_from_pattern("Scene", 0)
             .expect("create clip scene");
     }
-    register(&mut clips, interaction_region::VIEW_CLIPS, 0);
+    register(&mut clips, interaction_region::CLIP_GRID, 0);
     wheel(&mut clips, MouseEventKind::ScrollDown, 2, 8);
     wheel(&mut clips, MouseEventKind::ScrollRight, 2, 8);
     assert_eq!((clips.clip_scene_cursor, clips.clip_track_cursor), (3, 1));
@@ -167,7 +167,7 @@ fn browser_and_dsp_regions_route_to_the_hovered_list() {
         }),
         ..App::default()
     };
-    register(&mut samples, interaction_region::VIEW_SAMPLE_BROWSER, 0);
+    register(&mut samples, interaction_region::SAMPLE_BROWSER_ENTRY, 0);
     wheel(&mut samples, MouseEventKind::ScrollDown, 2, 8);
     assert_eq!(
         samples.sample_browser_view.as_ref().map(|view| view.cursor),
@@ -192,7 +192,7 @@ fn browser_and_dsp_regions_route_to_the_hovered_list() {
         }),
         ..App::default()
     };
-    register(&mut projects, interaction_region::VIEW_PROJECT_BROWSER, 0);
+    register(&mut projects, interaction_region::PROJECT_BROWSER_ENTRY, 0);
     wheel(&mut projects, MouseEventKind::ScrollDown, 2, 8);
     assert_eq!(
         projects
@@ -210,10 +210,11 @@ fn browser_and_dsp_regions_route_to_the_hovered_list() {
     enter_command(&mut dsp, "dsp master pan 0.000");
     enter_command(&mut dsp, "focus dsp");
     dsp.interaction_map.register_with_payload(
-        interaction_region::DSP_CHAIN,
+        interaction_region::DSP_DEVICE_ROW,
         ratatui::layout::Rect::new(0, 4, 40, 10),
-        InteractionPayload::DspRackTarget {
+        InteractionPayload::DspDeviceRow {
             target: DspRackChain::Track,
+            index: 0,
         },
     );
     wheel(&mut dsp, MouseEventKind::ScrollDown, 2, 8);
@@ -242,10 +243,11 @@ fn browser_and_dsp_regions_route_to_the_hovered_list() {
     dsp.close_dsp_device_palette();
 
     dsp.interaction_map.register_with_payload(
-        interaction_region::DSP_CHAIN,
+        interaction_region::DSP_DEVICE_ROW,
         ratatui::layout::Rect::new(90, 4, 30, 10),
-        InteractionPayload::DspRackTarget {
+        InteractionPayload::DspDeviceRow {
             target: DspRackChain::Master,
+            index: 0,
         },
     );
     wheel(&mut dsp, MouseEventKind::ScrollDown, 92, 8);

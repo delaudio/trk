@@ -12,7 +12,8 @@ Preserve modal capture and existing bounded navigation behavior.
 
 ## Exit criteria
 
-1. Pattern panel and cell regions scroll pattern rows (ADR AC1).
+1. Pattern cells and rendered pattern-row content scroll pattern rows while
+   borders, headers, and empty padding remain inert (ADR AC1).
 2. Every currently scrollable list routes to its own bounded selection
    (ADR AC2).
 3. Modal overlays capture wheel events without workspace fall-through
