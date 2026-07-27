@@ -48,15 +48,23 @@ fn compose_shortcut_status(state: TuiState<'_>, available_width: u16) -> String 
         return String::new();
     }
 
-    for (index, action) in actions.iter().enumerate() {
-        if index == 3 {
-            if let Some(context) = contextual_status_segment(state) {
-                let candidate = format!("{text} | {context}");
-                if Line::from(candidate.as_str()).width() <= available_width {
-                    text = candidate;
-                }
-            }
+    for action in actions.iter().take(3) {
+        let candidate = format!("{text} | {action}");
+        if Line::from(candidate.as_str()).width() > available_width {
+            return finish_status_line(text, available_width);
         }
+        text = candidate;
+    }
+
+    if let Some(context) = contextual_status_segment(state) {
+        let candidate = format!("{text} | {context}");
+        if Line::from(candidate.as_str()).width() > available_width {
+            return finish_status_line(text, available_width);
+        }
+        text = candidate;
+    }
+
+    for action in actions.iter().skip(3) {
         let candidate = format!("{text} | {action}");
         if Line::from(candidate.as_str()).width() > available_width {
             break;
@@ -64,6 +72,10 @@ fn compose_shortcut_status(state: TuiState<'_>, available_width: u16) -> String 
         text = candidate;
     }
 
+    finish_status_line(text, available_width)
+}
+
+fn finish_status_line(mut text: String, available_width: usize) -> String {
     if Line::from(text.as_str()).width() < available_width {
         text.push(' ');
     }
@@ -307,6 +319,30 @@ mod tests {
                 );
             }
             assert!(Line::from(text).width() <= 72);
+        }
+    }
+
+    #[test]
+    fn widening_compact_pattern_status_never_removes_an_already_visible_segment() {
+        let mut state = render_test_state();
+        state.tracker_layout.pattern_fields = PatternFieldLayout::Note;
+        let (_, actions) = status_segments(state);
+        let mut visible = Vec::new();
+
+        for width in 72..=160 {
+            let text = compose_shortcut_status(state, width);
+            for segment in visible.iter().copied() {
+                assert!(text.contains(segment), "width {width} removed {segment}");
+            }
+            for segment in actions
+                .iter()
+                .copied()
+                .chain(std::iter::once("Fields note"))
+            {
+                if text.contains(segment) && !visible.contains(&segment) {
+                    visible.push(segment);
+                }
+            }
         }
     }
 

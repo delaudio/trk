@@ -44,7 +44,11 @@ fn render_status_matrix(width: u16) -> String {
             width,
             24,
         );
-        let status = rendered.lines().last().unwrap_or_default().trim_end();
+        let status = rendered
+            .lines()
+            .last()
+            .unwrap_or_default()
+            .trim_end_matches('·');
         output.push_str(&format!("{label:<16}|{status}\n"));
     }
 
@@ -64,7 +68,11 @@ fn render_status_matrix(width: u16) -> String {
     output.push_str(&format!(
         "{:<16}|{}\n",
         "Command input",
-        command.lines().last().unwrap_or_default().trim_end()
+        command
+            .lines()
+            .last()
+            .unwrap_or_default()
+            .trim_end_matches('·')
     ));
 
     let notification = render_snapshot(
@@ -82,7 +90,11 @@ fn render_status_matrix(width: u16) -> String {
     output.push_str(&format!(
         "{:<16}|{}\n",
         "Notification",
-        notification.lines().last().unwrap_or_default().trim_end()
+        notification
+            .lines()
+            .last()
+            .unwrap_or_default()
+            .trim_end_matches('·')
     ));
     output
 }

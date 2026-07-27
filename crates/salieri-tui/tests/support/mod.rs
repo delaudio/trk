@@ -51,7 +51,7 @@ pub fn render_snapshot(song: Song, state: TuiState<'_>, width: u16, height: u16)
     terminal
         .draw(|frame| render(frame, &song, state))
         .expect("draw");
-    buffer_text(terminal.backend().buffer())
+    visualize_status_padding(buffer_text(terminal.backend().buffer()))
 }
 
 pub fn render_waveform_snapshot(overview: WaveformOverview) -> String {
@@ -66,13 +66,25 @@ pub fn render_waveform_snapshot(overview: WaveformOverview) -> String {
 fn buffer_text(buffer: &ratatui::buffer::Buffer) -> String {
     let mut output = String::new();
     for y in 0..buffer.area.height {
-        let mut row = String::new();
         for x in 0..buffer.area.width {
-            row.push_str(buffer[(x, y)].symbol());
+            output.push_str(buffer[(x, y)].symbol());
         }
-        output.push_str(row.trim_end());
         output.push('\n');
     }
+    output
+}
+
+fn visualize_status_padding(mut output: String) -> String {
+    if !output.ends_with('\n') {
+        return output;
+    }
+    output.pop();
+    let row_start = output.rfind('\n').map_or(0, |index| index + 1);
+    let content_end = row_start + output[row_start..].trim_end_matches(' ').len();
+    let padding = output.len().saturating_sub(content_end);
+    output.truncate(content_end);
+    output.push_str(&"·".repeat(padding));
+    output.push('\n');
     output
 }
 
@@ -131,7 +143,7 @@ fn snapshot_path(name: &str) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use super::line_diff;
+    use super::{line_diff, visualize_status_padding};
 
     #[test]
     fn diff_identifies_first_changed_line_with_context() {
@@ -139,5 +151,16 @@ mod tests {
         assert!(diff.contains("first differing line: 2"));
         assert!(diff.contains("    2 - two"));
         assert!(diff.contains("+ changed"));
+    }
+
+    #[test]
+    fn status_padding_is_visible_and_keeps_the_full_row_width() {
+        let rendered = visualize_status_padding("body\nstatus   \n".to_string());
+
+        assert_eq!(rendered, "body\nstatus···\n");
+        assert_eq!(
+            rendered.lines().last().unwrap_or_default().chars().count(),
+            9
+        );
     }
 }

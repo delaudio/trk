@@ -12,9 +12,9 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Active item:** implement
   `plan/todo/0018-responsive-contextual-status-bar.md` for GitHub issue #266.
 - **Blockers:** none.
-- **Pending integration:** atomic priority-ordered status composition,
-  command/notification priority, and 72/100-column all-view snapshots are
-  implemented; full gate, Codex review, PR, CI, merge, and closeout remain.
+- **Pending integration:** findings `76d5b270c8673633` and
+  `dc8ec7f08dff6595` from Codex review `run-1785158047714184000` are remediated;
+  the full gate, clean Codex review, PR, CI, merge, and closeout remain.
 
 ## Last shipped
 
