@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-pidfile="${TMPDIR:-/tmp}/salieri-yazi-audition.pid"
+pidfile="${TMPDIR:-/tmp}/trk-yazi-audition.pid"
 
 stop_previous() {
   if [ -f "$pidfile" ]; then

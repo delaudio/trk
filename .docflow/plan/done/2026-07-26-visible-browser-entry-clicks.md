@@ -35,5 +35,5 @@ ordering, preview logic, or scrollbar behaviour.
 ---
 
 Shipped at HEAD `af5e899` via
-[PR #273](https://github.com/delaudio/salieri-tracker/pull/273), with GitHub
+[PR #273](https://github.com/delaudio/trk/pull/273), with GitHub
 Actions CI run #266 green and issue #251 closed.

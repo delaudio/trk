@@ -22,7 +22,7 @@ Semantics:
 - rows before the first point use the sample reference gain;
 - realtime playback and offline audio export observe the same scheduled sampler
   event gain;
-- automation lanes are saved inside each pattern in `.salieri` project files.
+- automation lanes are saved inside each pattern in `.trk` project files.
 
 Current limitations:
 

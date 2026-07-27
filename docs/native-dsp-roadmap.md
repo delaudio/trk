@@ -1,13 +1,13 @@
 # Native DSP Roadmap
 
 This document is the maintained parity matrix and implementation roadmap for
-Salieri native effects. It starts from the current gain/pan DSP foundation and
+trk native effects. It starts from the current gain/pan DSP foundation and
 keeps direct VST, AU, and CLAP hosting out of scope per
-[ADR 0001](adr/0001-plugin-hosting.md).
+the [plugin-hosting evaluation](plugin-hosting-evaluation.md).
 
-Native DSP means Salieri-owned devices represented by stable project data,
-processed by `salieri-audio`, and described through
-`salieri-core::ParameterDescriptor`. The same descriptor/value model must drive
+Native DSP means trk-owned devices represented by stable project data,
+processed by `trk-audio`, and described through
+`trk-core::ParameterDescriptor`. The same descriptor/value model must drive
 project validation, TUI inspection/editing, per-step parameter locks, realtime
 playback, and offline export.
 
@@ -27,13 +27,13 @@ playback, and offline export.
   and covered by tests.
 - **Partial**: some model or UI exists, but routing, automation, processing, or
   tests are incomplete.
-- **Planned**: explicit Salieri-native scope exists and is queued.
+- **Planned**: explicit trk-native scope exists and is queued.
 - **Deferred**: valid future direction, but blocked by prerequisites.
 - **Out of scope**: intentionally not a native DSP device.
 
 ## Renoise-Parity Matrix
 
-| Renoise DSP family | Salieri category | Current Salieri status | Planned Salieri coverage | Notes |
+| Renoise DSP family | trk category | Current trk status | Planned trk coverage | Notes |
 | --- | --- | --- | --- | --- |
 | Gain, gainer, stereo expander, DC/utility, channel tools | Track insert, master, utility | Implemented | #125 native utility audio devices | Native gain, pan, balance, stereo width, and phase invert cover the initial utility-device suite. Mono/channel swap and DC blocking remain future extensions if justified. |
 | EQ and filters | Track insert, sampler-local | Implemented | #126 native multimode filter; parametric EQ deferred | Multimode LP/HP/BP/notch uses a stable state-variable filter. Sampler-local modulation/key tracking remains coordinated with #121. |
@@ -45,12 +45,12 @@ playback, and offline export.
 | Meta devices, LFO device, hydra, key/velocity trackers | Automation/modulation system | Deferred | Follow-up after #123 and #137 | These control parameters rather than process audio directly. Do not model them as ordinary audio insert devices. |
 | Send device and routing utilities | Mixer routing | Partial | #84 foundation | Audio sends now have routing and deterministic summing rules; expanded send-specific utilities and UI remain follow-up scope. |
 | Native instrument devices | Instrument/module layer | Partial | #116 boundary exists; concrete instruments deferred | Instruments use the same module/state contract but are not part of this effect roadmap except where sampler-local processing overlaps #121. |
-| Reviewed C/C++ DSP wrappers | Native module boundary | Implemented foundation | #115 C/C++ DSP boundary | Optional feature-gated wrappers may adapt vendored, license-reviewed algorithms into Salieri-owned modules. They must expose plain descriptors/state and stay separate from arbitrary binary hosting. |
+| Reviewed C/C++ DSP wrappers | Native module boundary | Implemented foundation | #115 C/C++ DSP boundary | Optional feature-gated wrappers may adapt vendored, license-reviewed algorithms into trk-owned modules. They must expose plain descriptors/state and stay separate from arbitrary binary hosting. |
 | WebAssembly DSP modules | Export/runtime boundary | Evaluated | #117 WebAssembly DSP evaluation | Recommended first for browser/Web Audio export. Desktop sandboxed realtime execution remains deferred until runtime overhead and callback safety are proven. |
 | Faust-generated modules | Native module source format | Evaluated | #118 Faust DSP evaluation | Recommend C++ generation into the #115 wrapper boundary first; WebAssembly is reserved for web export after native behavior is proven. |
 | RNBO exports | Interop boundary | Evaluated | #119 RNBO interoperability evaluation | C++ source export can be reviewed through #115 and Web Export can target #117. Do not make RNBO a core module system or persist opaque runtime state. |
 | Tracker note/effect commands: delay, retrigger, arpeggio, slides, sample offset | Pattern command library | Partial | #85 expanded per-step FX commands | These are row playback semantics, not DSP devices. They may also write parameter locks once #123 exists. |
-| Third-party plugins | Plugin host boundary | Deferred | Future ADR only | Direct VST/AU/CLAP hosting remains out of scope for this roadmap. |
+| Third-party plugins | Plugin host boundary | Deferred | Future architecture review only | Direct VST/AU/CLAP hosting remains out of scope for this roadmap. |
 
 ## Baseline Device Catalog
 
@@ -393,7 +393,7 @@ Implementation notes:
 
 0. **#115 C/C++ DSP boundary**: optional FFI wrapper pattern for reviewed
    native algorithms. The foundation compiles a project-authored C gain fixture
-   under `c-dsp-boundary`, keeps unsafe calls isolated in `salieri-audio`, and
+   under `c-dsp-boundary`, keeps unsafe calls isolated in `trk-audio`, and
    validates deterministic fixed-buffer processing before broader wrappers.
 1. **#125 Utility devices**: lowest DSP risk; hardens descriptor catalog,
    bypass, TUI editing, realtime/offline tests, and state migration patterns.
@@ -414,7 +414,7 @@ shared gates below.
 
 ## Shared Gates For Every Native Effect Issue
 
-- Define descriptors in `salieri-core` using stable IDs and serializable
+- Define descriptors in `trk-core` using stable IDs and serializable
   `ParameterValue` defaults.
 - Persist device state without backend, TUI, plugin SDK, or project-loader types.
 - Validate all values through descriptors; do not duplicate range constants in
@@ -429,7 +429,7 @@ shared gates below.
   audio callback.
 - Cover lifecycle, validation, bypass, reset, latency/tail, and deterministic
   realtime/offline rendering in tests.
-- Keep `salieri-audio` independent from project serialization and TUI internals.
+- Keep `trk-audio` independent from project serialization and TUI internals.
 
 ## Relationship To Other Work
 

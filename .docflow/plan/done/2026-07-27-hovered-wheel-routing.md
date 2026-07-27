@@ -33,5 +33,5 @@ Preserve modal capture and existing bounded navigation behavior.
 ---
 
 Shipped at HEAD `3b20b85` via
-[PR #305](https://github.com/delaudio/salieri-tracker/pull/305), with GitHub
+[PR #305](https://github.com/delaudio/trk/pull/305), with GitHub
 Actions CI run #338 green and issue #267 closed.

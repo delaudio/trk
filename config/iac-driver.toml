@@ -10,8 +10,8 @@ follow_playhead = true
 [midi]
 default_output = "IAC Driver (Bus 1)"
 default_input = "IAC Driver (Bus 1)"
-log_file = "salieri-midi.log"
+log_file = "trk-midi.log"
 
 [sample_browser]
 start_dir = "~/Downloads"
-chooser_command = 'YAZI_CONFIG_HOME="$HOME/.config/yazi-readonly" yazi --chooser-file "$SALIERI_CHOOSER_FILE" "$SALIERI_SAMPLE_START_DIR"'
+chooser_command = 'YAZI_CONFIG_HOME="$HOME/.config/yazi-readonly" yazi --chooser-file "$TRK_CHOOSER_FILE" "$TRK_SAMPLE_START_DIR"'

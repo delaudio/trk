@@ -36,5 +36,5 @@ semantics are unchanged.
 ---
 
 Shipped at HEAD `b748451` via
-[PR #293](https://github.com/delaudio/salieri-tracker/pull/293), with GitHub
+[PR #293](https://github.com/delaudio/trk/pull/293), with GitHub
 Actions CI run #314 green and issue #261 closed.

@@ -1,7 +1,7 @@
 # MIDI Input And Sync
 
-The MIDI output path remains in `salieri-midi::output`; input is separated in
-`salieri-midi::input` so input failures cannot corrupt output playback state.
+The MIDI output path remains in `trk-midi::output`; input is separated in
+`trk-midi::input` so input failures cannot corrupt output playback state.
 
 The input path provides:
 
@@ -19,7 +19,7 @@ The input path provides:
 List input ports from the CLI:
 
 ```bash
-salieri --list-midi-inputs
+trk --list-midi-inputs
 ```
 
 Connect and record from command mode:
@@ -55,7 +55,7 @@ default_input = "IAC Driver Bus 1"
 
 ## Boundaries
 
-MIDI input does not mutate `salieri-core` directly. Realtime recording translates
+MIDI input does not mutate `trk-core` directly. Realtime recording translates
 input packets into app-level edits, then applies normal undoable song mutations.
 Unsupported messages, parse failures, input list/connect failures, and device
 disconnects are reported as app status/notifications without affecting MIDI

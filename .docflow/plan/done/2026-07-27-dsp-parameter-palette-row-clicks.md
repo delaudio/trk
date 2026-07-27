@@ -37,5 +37,5 @@ unchanged.
 ---
 
 Shipped at HEAD `eb5fcc8` via
-[PR #295](https://github.com/delaudio/salieri-tracker/pull/295), with GitHub
+[PR #295](https://github.com/delaudio/trk/pull/295), with GitHub
 Actions CI run #318 green and issue #262 closed.

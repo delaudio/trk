@@ -1032,100 +1032,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
-name = "salieri-ai"
-version = "0.1.0"
-dependencies = [
- "salieri-core",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "salieri-app"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "crossterm",
- "ctrlc",
- "ratatui",
- "salieri-ai",
- "salieri-audio",
- "salieri-core",
- "salieri-interop",
- "salieri-midi",
- "salieri-sampler",
- "salieri-transform",
- "salieri-tui",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "toml",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "salieri-audio"
-version = "0.1.0"
-dependencies = [
- "cc",
- "cpal",
- "salieri-sampler",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "salieri-core"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "salieri-interop"
-version = "0.1.0"
-dependencies = [
- "flate2",
- "salieri-core",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "salieri-midi"
-version = "0.1.0"
-dependencies = [
- "midir",
- "salieri-core",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "salieri-sampler"
-version = "0.1.0"
-dependencies = [
- "salieri-core",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "salieri-transform"
-version = "0.1.0"
-dependencies = [
- "salieri-core",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "salieri-tui"
-version = "0.1.0"
-dependencies = [
- "ratatui",
- "salieri-core",
- "salieri-sampler",
-]
-
-[[package]]
 name = "same-file"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1486,6 +1392,100 @@ dependencies = [
  "tracing",
  "tracing-core",
  "tracing-log",
+]
+
+[[package]]
+name = "trk-ai"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.18",
+ "trk-core",
+]
+
+[[package]]
+name = "trk-app"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "crossterm",
+ "ctrlc",
+ "ratatui",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "toml",
+ "tracing",
+ "tracing-subscriber",
+ "trk-ai",
+ "trk-audio",
+ "trk-core",
+ "trk-interop",
+ "trk-midi",
+ "trk-sampler",
+ "trk-transform",
+ "trk-tui",
+]
+
+[[package]]
+name = "trk-audio"
+version = "0.1.0"
+dependencies = [
+ "cc",
+ "cpal",
+ "thiserror 2.0.18",
+ "trk-sampler",
+]
+
+[[package]]
+name = "trk-core"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "trk-interop"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "thiserror 2.0.18",
+ "trk-core",
+]
+
+[[package]]
+name = "trk-midi"
+version = "0.1.0"
+dependencies = [
+ "midir",
+ "thiserror 2.0.18",
+ "trk-core",
+]
+
+[[package]]
+name = "trk-sampler"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.18",
+ "trk-core",
+]
+
+[[package]]
+name = "trk-transform"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.18",
+ "trk-core",
+]
+
+[[package]]
+name = "trk-tui"
+version = "0.1.0"
+dependencies = [
+ "ratatui",
+ "trk-core",
+ "trk-sampler",
 ]
 
 [[package]]

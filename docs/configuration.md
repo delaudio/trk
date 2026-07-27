@@ -1,6 +1,6 @@
 # Configuration
 
-Salieri resolves configuration before starting MIDI, audio, or the TUI. The
+trk resolves configuration before starting MIDI, audio, or the TUI. The
 configuration boundary owns defaults, TOML loading, CLI overrides, validation,
 and preference metadata.
 
@@ -12,9 +12,9 @@ Settings are applied in this order:
 2. A user TOML file.
 3. Supported CLI overrides such as `--midi-log`.
 
-`--config PATH` selects an explicit file. Without it, Salieri checks
-`$XDG_CONFIG_HOME/salieri/config.toml`, then
-`$HOME/.config/salieri/config.toml`. A missing file keeps the built-in defaults.
+`--config PATH` selects an explicit file. Without it, trk checks
+`$XDG_CONFIG_HOME/trk/config.toml`, then
+`$HOME/.config/trk/config.toml`. A missing file keeps the built-in defaults.
 
 ## Example
 
@@ -77,26 +77,26 @@ send_mode = "disabled"        # disabled, pre_fader, or post_fader
 [midi]
 default_output = "IAC Driver Bus 1"
 default_input = "IAC Driver Bus 1"
-log_file = "salieri-midi.log"
+log_file = "trk-midi.log"
 
 [ai]
 provider = "local_deterministic"
 model = "local-deterministic"
-session_file = "~/.config/salieri/ai-session.json"
+session_file = "~/.config/trk/ai-session.json"
 retention_messages = 200
-guidance_dirs = ["~/Music/Salieri/Guidance"]
+guidance_dirs = ["~/Music/trk/Guidance"]
 
 [sample_browser]
-chooser_command = "yazi --chooser-file $SALIERI_CHOOSER_FILE"
+chooser_command = "yazi --chooser-file $TRK_CHOOSER_FILE"
 start_dir = "~/Samples" # legacy fallback; prefer workspace.sample_library
 
 [project_browser]
-start_dir = "~/Music/Salieri" # legacy fallback; prefer workspace.project_library
-recent_file = "~/.config/salieri/recent-projects.json"
+start_dir = "~/Music/trk" # legacy fallback; prefer workspace.project_library
+recent_file = "~/.config/trk/recent-projects.json"
 
 [workspace]
-project_library = "~/Music/Salieri/Projects"
-sample_library = "~/Music/Salieri/Samples"
+project_library = "~/Music/trk/Projects"
+sample_library = "~/Music/trk/Samples"
 recent_project_limit = 12
 
 [history]
@@ -108,7 +108,7 @@ cell-value entry; `0` keeps the cursor on the edited row.
 
 `[ai]` defaults to the local deterministic provider, which never contacts a
 network service. `mock` is available for tests and scripted dry runs. `command`
-is reserved for future CLI adapters; when selected, Salieri checks
+is reserved for future CLI adapters; when selected, trk checks
 `command_path` and every `required_env` entry before queuing an AI task and
 reports missing binaries or credentials as normal diagnostics.
 `session_file` enables local JSON chat history autosave/load, and
@@ -131,8 +131,8 @@ and presentation code. Applying visual themes remains dedicated rendering work.
 ## Workspace Libraries
 
 `[workspace] project_library` is the default project folder. When no project is
-open, `:write` saves `untitled.salieri` there. `:saveas NAME` resolves bare names
-to that folder and adds `.salieri` when no extension is provided. Salieri creates
+open, `:write` saves `untitled.trk` there. `:saveas NAME` resolves bare names
+to that folder and adds `.trk` when no extension is provided. trk creates
 the project library lazily during those save actions; it does not create folders
 just because configuration was loaded.
 

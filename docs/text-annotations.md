@@ -1,7 +1,7 @@
 # Text Annotations
 
 Text annotations are optional project notes, lyrics, and cue markers stored in
-`.salieri` project files. They do not affect playback.
+`.trk` project files. They do not affect playback.
 
 Command-mode usage:
 

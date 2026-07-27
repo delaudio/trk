@@ -1,6 +1,6 @@
 # Application Events And Actions
 
-Salieri routes user intent and runtime updates through a typed application
+trk routes user intent and runtime updates through a typed application
 boundary before mutating `App` state or invoking a side-effecting backend.
 
 ## Flow

@@ -36,5 +36,5 @@ clicks, and drag gestures are unchanged.
 ---
 
 Shipped at HEAD `d706255` via
-[PR #287](https://github.com/delaudio/salieri-tracker/pull/287), with GitHub
+[PR #287](https://github.com/delaudio/trk/pull/287), with GitHub
 Actions CI run #300 green and issue #258 closed.

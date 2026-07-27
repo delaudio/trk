@@ -1,12 +1,12 @@
 # Style Analysis and Comparison
 
-Salieri can analyze `.salieri` projects into deterministic style summaries:
+trk can analyze `.trk` projects into deterministic style summaries:
 
 ```bash
-salieri analyze song.salieri
-salieri analyze song.salieri style.json --format json
-salieri compare draft.salieri final.salieri
-salieri compare draft.salieri final.salieri compare.json --format json
+trk analyze song.trk
+trk analyze song.trk style.json --format json
+trk compare draft.trk final.trk
+trk compare draft.trk final.trk compare.json --format json
 ```
 
 Analysis covers:
@@ -25,7 +25,7 @@ Inside the TUI:
 
 ```text
 :analyze
-:compare path/to/other.salieri
+:compare path/to/other.trk
 ```
 
 The TUI commands do not mutate the project. They append the full report to the

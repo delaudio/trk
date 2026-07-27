@@ -1,6 +1,6 @@
 # Workspace Manifest
 
-The workspace manifest is a portable JSON file named `.salieri-workspace.json`
+The workspace manifest is a portable JSON file named `.trk-workspace.json`
 at a user-chosen workspace root. It gives projects, samples, preset profiles,
 reports, and guidance files one shared local model while keeping paths relative
 to the workspace root.
@@ -23,14 +23,14 @@ creates default artifact directories:
 - `presets`
 - `reports`
 - `guidance`
-- `.salieri-trash`
+- `.trk-trash`
 
 `:workspace index ROOT` scans those directories and reports counts for project,
 sample, preset profile, report, and guidance files. The index is local and
 derived; the manifest remains the portable source of metadata.
 
 `:workspace trash ROOT PATH` moves a file inside the workspace to
-`.salieri-trash` and records the original and trashed relative paths in the
+`.trk-trash` and records the original and trashed relative paths in the
 manifest. It does not delete the file. `:workspace restore ROOT PATH` restores a
 record by original or trashed relative path and removes the trash record. Restore
 fails if the target path already exists.

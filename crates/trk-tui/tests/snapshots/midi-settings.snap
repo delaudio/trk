@@ -1,0 +1,28 @@
+┌ trk ─────────────────────────────────────────────────────────────────────────────────────────────┐
+│ [▷] [■] [●×] BPM:120 LPB:4 STOPPED PAT:01 ROW:0000/0000  Sync: Internal                          │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌ Tracks ──────────────────┐┌ Pattern Editor ──────────────────────────────────────────────────────┐
+│> 01 Drums       CH10 --  ││ROW             Drums                        Bass                     │
+│  02 Bass  ┌ MIDI Settings ───────────────────────────────────────────────────────────┐-  --- -- -│
+│  03 Lead  │Output Ports                                                              │-  --- -- -│
+│  04 Pad   │Status: MIDI Disconnected                                                 │-  --- -- -│
+│           │Input: MIDI In Disconnected                                               │-  --- -- -│
+│           │Routing: clock OFF/OFF, transport OFF/OFF, notes ON/ON, cc OFF/OFF, ch    │-  --- -- -│
+│           │all/all, C=60, delay=0ms                                                  │-  --- -- -│
+│           │  00 IAC Driver Bus 1                                                     │-  --- -- -│
+│           │> 02 External Synth                                                       │-  --- -- -│
+│           │                                                                          │-  --- -- -│
+│           │                                                                          │-  --- -- -│
+│           │                                                                          │-  --- -- -│
+└───────────│                                                                          │───────────┘
+┌ Song Slots│                                                                          │───────────┐
+│  00 P01 Pa│                                                                          │           │
+│           │                                                                          │-- Inst -- │
+│           │                                                                          │ Dly -- FX1│
+│           │[Connect] [Disconnect] [Panic] [Refresh] [Close]                          │           │
+│           └──────────────────────────────────────────────────────────────────────────┘n          │
+│                          ││Audio --              Mst     +0.0 dB         :cell instrument 01     │
+│                          ││Mst     +0.0 dB       █████───── auto         C-j Sampler  F9 Tracks  │
+│                          ││█████───── auto       Sends 00   FX 00                                │
+└──────────────────────────┘└──────────────────────────────────────────────────────────────────────┘
+ MIDI | Step 1 | Ctrl+P Palette | H Help | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop···

@@ -1,13 +1,13 @@
 # Sampler parity roadmap
 
-This matrix tracks Salieri's sampler against the practical workflows covered by
+This matrix tracks trk's sampler against the practical workflows covered by
 Ableton Simpler and Renoise Sampler. It is intentionally capability-based rather
-than UI-compatible: Salieri keeps a tracker-native model and does not attempt to
+than UI-compatible: trk keeps a tracker-native model and does not attempt to
 load Ableton/Renoise presets.
 
 Status meanings:
 
-- **Implemented**: persisted in `.salieri`, exposed through current commands or
+- **Implemented**: persisted in `.trk`, exposed through current commands or
   view state, and covered by deterministic core/audio behavior where applicable.
 - **Partial**: model or UI exists, but important runtime/editor behavior is not
   complete.
@@ -17,9 +17,9 @@ Status meanings:
   work.
 - **Out of scope**: intentionally excluded from this sampler track.
 
-| Capability | Status | Salieri mapping |
+| Capability | Status | trk mapping |
 | --- | --- | --- |
-| Sample-backed instruments/presets | Implemented | `.salieri` stores sample references, sample-backed instruments, track assignments, root note, gain, and playback settings. |
+| Sample-backed instruments/presets | Implemented | `.trk` stores sample references, sample-backed instruments, track assignments, root note, gain, and playback settings. |
 | One-shot playback | Implemented | `sample.playback.mode = oneShot`, rendered by realtime sampler and offline export. |
 | Sample start/end | Implemented | `sample.playback.startFrame` and `sample.playback.endFrame`, edited by `:sample start` / `:sample end`, used by realtime/offline rendering. |
 | Gain | Implemented | `sample.gain`, automatable through existing sample-gain automation and parameter-lock commands. |
@@ -41,7 +41,7 @@ Status meanings:
 | Multisample keyzones / velocity zones | Deferred | Requires instrument zone persistence and voice selection rules. |
 | Granular / wavetable sampling | Out of scope | Explicitly outside this sampler parity track until the conventional sampler and modulation APIs are stable. |
 | Ableton/Renoise preset compatibility | Out of scope | The project targets workflow parity, not foreign preset formats or UI compatibility. |
-| Plugin-hosted instruments/effects | Out of scope | Deferred by ADR 0001; no VST/AU/CLAP host types belong in the sampler model. |
+| Plugin-hosted instruments/effects | Out of scope | Deferred by the plugin-hosting evaluation; no VST/AU/CLAP host types belong in the sampler model. |
 
 ## Descriptor coverage
 

@@ -8,21 +8,19 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** agent/268-docflow-closeout
-- **Active item:** close out
-  `plan/done/2026-07-27-cross-size-mouse-regressions.md` after GitHub issue
-  #268 shipped.
+- **Branch:** `agent/rename-trk`
+- **Active item:** implement plan item
+  `plan/todo/0021-rename-product-and-repository-to-trk.md` under Accepted ADR
+  0023.
 - **Blockers:** none.
-- **Pending integration:** implementation squash `76fe0f1` is on `main`, PR
-  #307 and CI #342 are green, issue #268 is closed, and final implementation
-  Codex review `run-1785167467297022000` was clean. The atomic Docflow
-  move/status/index/worklog closeout still needs gate, Codex review, PR, CI,
-  and merge.
+- **Pending integration:** verified hard-cutover implementation is ready for
+  commit and PR integration in `delaudio/trk`.
 
 ## Last shipped
 
-Issue #268 implementation via PR #307.
+Issue #268 implementation and Docflow closeout via PRs #307 and #309.
 
 ## Next item
 
-No queued UX issue remains after this closeout.
+Commit and push the verified implementation, open the PR, wait for CI, and
+squash-merge before closing issue #309 and completing Docflow closeout.

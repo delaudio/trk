@@ -30,5 +30,5 @@ rows are unchanged.
 ---
 
 Shipped at HEAD `08dbdae` via
-[PR #279](https://github.com/delaudio/salieri-tracker/pull/279), with GitHub
+[PR #279](https://github.com/delaudio/trk/pull/279), with GitHub
 Actions CI run #280 green and issue #254 closed.

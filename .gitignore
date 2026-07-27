@@ -1,6 +1,6 @@
 /target/
-/salieri-midi.log
-/untitled.salieri
+/trk-midi.log
+/untitled.trk
 /fixtures/local/
 __pycache__/
 *.py[cod]

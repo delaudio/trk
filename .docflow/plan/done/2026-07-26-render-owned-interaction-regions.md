@@ -30,4 +30,4 @@ is queued as a separate GitHub issue.
 ---
 
 Shipped at HEAD `952f834` via
-[PR #269](https://github.com/delaudio/salieri-tracker/pull/269).
+[PR #269](https://github.com/delaudio/trk/pull/269).

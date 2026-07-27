@@ -1,0 +1,194 @@
+{
+  "formatVersion": 1,
+  "song": {
+    "metadata": {
+      "title": "Foundations Fixture",
+      "author": "trk Tests"
+    },
+    "transport": {
+      "bpm": 132,
+      "linesPerBeat": 8,
+      "swing": 0.0
+    },
+    "tracks": [
+      {
+        "id": 1,
+        "name": "Drums",
+        "midiChannel": 10,
+        "muted": false,
+        "solo": false,
+        "armed": true
+      },
+      {
+        "id": 2,
+        "name": "Bass",
+        "midiChannel": 1,
+        "muted": false,
+        "solo": false,
+        "armed": false
+      }
+    ],
+    "patterns": [
+      {
+        "id": 1,
+        "name": "Pattern 01",
+        "rows": [
+          {
+            "cells": [
+              {
+                "note": {
+                  "type": "note",
+                  "pitch": 48
+                },
+                "velocity": 100
+              },
+              {}
+            ]
+          },
+          {
+            "cells": [
+              {},
+              {}
+            ]
+          },
+          {
+            "cells": [
+              {},
+              {}
+            ]
+          },
+          {
+            "cells": [
+              {},
+              {}
+            ]
+          },
+          {
+            "cells": [
+              {
+                "note": {
+                  "type": "noteOff"
+                }
+              },
+              {}
+            ]
+          },
+          {
+            "cells": [
+              {},
+              {}
+            ]
+          },
+          {
+            "cells": [
+              {},
+              {}
+            ]
+          },
+          {
+            "cells": [
+              {},
+              {}
+            ]
+          }
+        ],
+        "automation": [
+          {
+            "target": {
+              "type": "sampleGain",
+              "sample": 1
+            },
+            "interpolation": "step",
+            "points": [
+              {
+                "row": 2,
+                "value": 0.5
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "sequence": [
+      1
+    ],
+    "mixer": {
+      "masterGain": 0.9,
+      "tracks": [
+        {
+          "track": 1,
+          "gain": 0.7,
+          "pan": -0.2,
+          "muted": false,
+          "solo": false,
+          "effects": [
+            {
+              "id": 1,
+              "name": "Gain",
+              "bypassed": false,
+              "type": "gain",
+              "gain": 0.8
+            }
+          ]
+        },
+        {
+          "track": 2,
+          "gain": 1.0,
+          "pan": 0.0,
+          "muted": false,
+          "solo": false
+        }
+      ],
+      "masterEffects": [
+        {
+          "id": 1,
+          "name": "Pan",
+          "bypassed": false,
+          "type": "pan",
+          "pan": 0.1
+        }
+      ]
+    },
+    "samples": [
+      {
+        "id": 1,
+        "name": "bass.wav",
+        "path": "samples/bass.wav",
+        "rootPitch": 48,
+        "gain": 0.8,
+        "playback": {
+          "mode": "loop",
+          "startFrame": 10,
+          "endFrame": 1000,
+          "loopStartFrame": 100,
+          "loopEndFrame": 900,
+          "envelope": {
+            "attackSeconds": 0.01,
+            "decaySeconds": 0.05,
+            "sustain": 0.75,
+            "releaseSeconds": 0.1
+          }
+        }
+      }
+    ],
+    "sampleAssignments": [
+      {
+        "track": 1,
+        "sample": 1
+      }
+    ],
+    "instruments": [
+      {
+        "id": 1,
+        "name": "bass.wav",
+        "sample": 1
+      }
+    ],
+    "trackInstrumentAssignments": [
+      {
+        "track": 1,
+        "instrument": 1
+      }
+    ]
+  }
+}

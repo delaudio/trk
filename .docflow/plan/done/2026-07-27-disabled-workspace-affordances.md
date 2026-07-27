@@ -37,5 +37,5 @@ No placeholder feature is implemented by this item.
 ---
 
 Shipped at HEAD `a7c93e3` via
-[PR #299](https://github.com/delaudio/salieri-tracker/pull/299), with GitHub
+[PR #299](https://github.com/delaudio/trk/pull/299), with GitHub
 Actions CI run #326 green and issue #264 closed.

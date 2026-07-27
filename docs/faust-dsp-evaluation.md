@@ -3,15 +3,15 @@
 ## Decision
 
 Support Faust first as an optional source format for generating reviewed native
-Salieri modules, with the C++ backend as the preferred first target. Do not add
+trk modules, with the C++ backend as the preferred first target. Do not add
 a runtime Faust compiler to the tracker and do not store Faust-internal state in
-`.salieri` files.
+`.trk` files.
 
 The recommended path is:
 
 1. Compile selected `.dsp` sources outside the realtime callback into C++.
 2. Wrap the generated DSP through the #115 C/C++ boundary.
-3. Map Faust UI metadata into Salieri `NativeModuleDescriptor` and
+3. Map Faust UI metadata into trk `NativeModuleDescriptor` and
    `NativeModuleState` plain data.
 4. Use the #117 WebAssembly ABI only for browser/Web Audio export after native
    behavior is proven.
@@ -33,8 +33,8 @@ The Faust deployment docs also cover Web/WASM workflows:
 
 ## Metadata mapping
 
-`salieri-interop::faust` contains a host-side mapper from normalized Faust UI
-metadata into Salieri native module descriptors. It validates:
+`trk-interop::faust` contains a host-side mapper from normalized Faust UI
+metadata into trk native module descriptors. It validates:
 
 - non-empty module IDs and names;
 - non-empty parameter lists;
@@ -52,7 +52,7 @@ plain native module API as hand-written effects.
 
 The current proof of concept is intentionally compiler-free for CI:
 
-- metadata for a representative Faust-style filter maps to Salieri descriptors
+- metadata for a representative Faust-style filter maps to trk descriptors
   and default state;
 - the #115 C gain fixture proves deterministic native wrapper rendering and
   realtime-safe prepare/process/reset shape;

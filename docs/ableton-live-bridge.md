@@ -1,6 +1,6 @@
 # Ableton Live bridge
 
-The Ableton bridge is an optional terminal workflow for mapping Salieri clip
+The Ableton bridge is an optional terminal workflow for mapping trk clip
 launcher state to Ableton Live Session View operations. The current
 implementation is intentionally dry-run only: it produces push, pull, and clear
 plans without requiring Live, a control script, or a network/session transport.
@@ -23,7 +23,7 @@ explicitly configured.
 
 ## Session mapping
 
-| Salieri source | Ableton Session View target |
+| trk source | Ableton Session View target |
 | --- | --- |
 | Clip scene index | Scene row |
 | Track order | Track column |
@@ -32,7 +32,7 @@ explicitly configured.
 | Empty clip slot | No-op for push |
 | Muted track | Planned with a mute diagnostic so Live can preserve muted intent |
 
-`push` plans outbound session clips from existing Salieri clip slots. It refuses
+`push` plans outbound session clips from existing trk clip slots. It refuses
 to run when no clip scenes exist because there is no unambiguous scene grid to
 export.
 
@@ -41,7 +41,7 @@ In dry-run mode it never creates patterns and never edits clip scenes; the plan
 only describes the target cells.
 
 `clear` plans deletion of selected Ableton session clips. In dry-run mode it
-never clears Ableton clips or Salieri clip slots.
+never clears Ableton clips or trk clip slots.
 
 Bridge reports are written to the in-app assistant thread so the full plan can
 be reviewed after the short notification disappears.

@@ -1,14 +1,14 @@
 [workspace]
 members = [
-    "crates/salieri-ai",
-    "crates/salieri-audio",
-    "crates/salieri-app",
-    "crates/salieri-core",
-    "crates/salieri-interop",
-    "crates/salieri-midi",
-    "crates/salieri-sampler",
-    "crates/salieri-tui",
-    "crates/salieri-transform",
+    "crates/trk-ai",
+    "crates/trk-audio",
+    "crates/trk-app",
+    "crates/trk-core",
+    "crates/trk-interop",
+    "crates/trk-midi",
+    "crates/trk-sampler",
+    "crates/trk-tui",
+    "crates/trk-transform",
 ]
 resolver = "2"
 

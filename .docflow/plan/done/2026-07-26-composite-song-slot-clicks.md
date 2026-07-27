@@ -34,5 +34,5 @@ transport controls, sequence editing, or the Renoise-style large workspace.
 ---
 
 Shipped at HEAD `d64d400` via
-[PR #277](https://github.com/delaudio/salieri-tracker/pull/277), with GitHub
+[PR #277](https://github.com/delaudio/trk/pull/277), with GitHub
 Actions CI run #274 green and issue #253 closed.

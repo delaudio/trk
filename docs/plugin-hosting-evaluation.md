@@ -1,6 +1,8 @@
 # Plugin Hosting Evaluation
 
-Plugin hosting is post-MVP and remains deferred by [ADR 0001](adr/0001-plugin-hosting.md). The July 2026 review keeps Salieri DAW/MIDI-first for third-party instruments and effects while native audio, sampler, mixer, DSP, routing, and export boundaries mature.
+Plugin hosting is post-MVP and remains deferred. The July 2026 review keeps
+`trk` DAW/MIDI-first for third-party instruments and effects while native
+audio, sampler, mixer, DSP, routing, and export boundaries mature.
 
 ## Format Comparison
 
@@ -12,9 +14,9 @@ Plugin hosting is post-MVP and remains deferred by [ADR 0001](adr/0001-plugin-ho
 
 ## Constraints
 
-- Salieri's initial target is macOS and Linux.
+- trk's initial target is macOS and Linux.
 - Plugin hosting requires an internal audio engine first.
-- Plugin state must be serializable without making `.salieri` files opaque by default.
+- Plugin state must be serializable without making `.trk` files opaque by default.
 - A crashing plugin must not corrupt the project or leave the terminal/audio backend in a broken state.
 - Realtime processing must not allocate, log, block on filesystem, or call TUI code.
 
@@ -22,7 +24,8 @@ Plugin hosting is post-MVP and remains deferred by [ADR 0001](adr/0001-plugin-ho
 
 Do not implement plugin hosting yet. Continue to use DAWs and software instruments through MIDI output.
 
-The first implementation proposal must be a separate ADR after the audio architecture has:
+The first implementation proposal must receive a separate architecture review
+after the audio architecture has:
 
 - user-facing audio device selection;
 - a plugin-neutral device/instrument model that can represent native devices before SDK-backed devices;
@@ -33,11 +36,11 @@ The first implementation proposal must be a separate ADR after the audio archite
 
 ## Likely Architecture
 
-Future plugin hosting should live in a dedicated crate such as `salieri-plugin-host`.
+Future plugin hosting should live in a dedicated crate such as `trk-plugin-host`.
 
 Expected boundaries:
 
-- `salieri-core` stores only stable, serializable plugin references and parameter automation, never SDK types.
-- `salieri-audio` owns realtime processing integration.
-- `salieri-app` owns scanning commands, user-facing errors, and persistence migration.
+- `trk-core` stores only stable, serializable plugin references and parameter automation, never SDK types.
+- `trk-audio` owns realtime processing integration.
+- `trk-app` owns scanning commands, user-facing errors, and persistence migration.
 - The TUI displays plugin state but never loads plugin binaries directly.

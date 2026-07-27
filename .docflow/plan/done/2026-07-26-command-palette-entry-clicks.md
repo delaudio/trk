@@ -34,5 +34,5 @@ gestures are unchanged.
 ---
 
 Shipped at HEAD `41860c6` via
-[PR #283](https://github.com/delaudio/salieri-tracker/pull/283), with GitHub
+[PR #283](https://github.com/delaudio/trk/pull/283), with GitHub
 Actions CI run #290 green and issue #256 closed.

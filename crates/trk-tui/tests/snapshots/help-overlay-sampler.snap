@@ -1,0 +1,36 @@
+┌ trk ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ [▷] [■] [●×] BPM:120 LPB:4 STOPPED PAT:01 ROW:0000/0000  Sync: Internal                                              │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌─────┌ Help: Sampler 1/5 ───────────────────────────────────────────────────────────────────────────────────────┐─────┐
+│-18dB│ Basics  |  Editing  |  Sampler  |  MIDI  |  Commands                                            [ Close ]│     │
+│-36dB│ Tab/Right next page   Shift+Tab/Left previous page   Up/Down scroll                                      │7 8  │
+└─────│Sampler And Instruments                                                                                  ▲│─────┘
+┌ UTIL│  Ctrl+J opens Sampler view   Esc returns to Pattern view                                                █│─────┐
+│UTIL │  In Sampler view: +/- zoom waveform   Left/Right pan   Home/End bounds                                  █│     │
+│     │  Tab/Shift+Tab selects A/D/S/R   [/]/{/} adjusts selected envelope field                                █│     │
+│BPM  │  :sample view PATH loads a WAV and shows metadata plus waveform                                         █│     │
+│LPB  │  :sample browse [DIR] opens the in-app sample browser                                                   █│     │
+│OCT  │  In Sample Browser: A assigns the selected sample; right-click assigns with mouse                       █│     │
+│--   │  :sample choose [DIR] opens the configured external chooser                                             █│     │
+│     │                                                                                                         █│     │
+│Follo│Track Assignment                                                                                         █│     │
+│  Pat│  :sample assign [TRACK] assigns the loaded sample to a track                                            █│     │
+│Scrol│  :sample replace [TRACK] swaps the track sample and prunes the old reference                            █│     │
+│  Pag│  :sample unassign [TRACK] clears the track sample and instrument assignment                             ║│     │
+│     │  TRACK is 1-based; omitted TRACK means the current track                                                ║│     │
+│Edit │  :sample assignments lists track=sample mappings                                                        ║│     │
+│     │                                                                                                         ║│     │
+│     │Instrument Column                                                                                        ║│     │
+│     │  Assigning a sample creates a sample-backed instrument for that track                                   ║│     │
+│     │  Cells can override the track default with INST, e.g. :cell instrument 01                               ║│     │
+│     │  An empty INST field uses the track instrument or sample assignment                                     ║│     │
+│     │  :preset instrument save|show|load PATH for portable instrument files                                   ║│     │
+└─────│                                                                                                         ║│─────┘
+┌ Effe│Playback Window                                                                                          ║│─────┐
+│#  Ef│  :sample start FRAME|clear   :sample end FRAME|clear                                                    ║│     │
+│01 --│  :sample loop [backward|pingpong] START END   :sample loop off                                          ║│     │
+│02 --│  :sample mode one-shot|forward-loop|backward-loop|pingpong-loop|reverse                                 ▼│     │
+│03 --└──────────────────────────────────────────────────────────────────────────────────────────────────────────┘     │
+│04 --                      ││Width    ██████────── +1.00    ││-48      -3.4 dB  -3.1││05 --                           │
+└───────────────────────────┘└───────────────────────────────┘└──────────────────────┘└────────────────────────────────┘
+ HELP | Step 1 | Ctrl+P Palette | H Help | Space Play/Stop | Enter Row | Shift+Enter Seq | L Loop | N/P/X Pattern·······

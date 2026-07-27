@@ -20,7 +20,7 @@ Commands:
 ```
 
 `:preset inventory` appends a summary to the AI thread. `:preset save PATH`
-writes a local JSON profile using the `salieri.preset-profile.v1` schema.
+writes a local JSON profile using the `trk.preset-profile.v1` schema.
 `:preset list DIR` lists valid profile JSON files in a directory. `:preset show
 PATH` reads and summarizes one profile. `:preset load PATH` loads the profile as
 AI guidance so subsequent `:ai propose PROMPT` calls can use the recorded
@@ -29,7 +29,7 @@ reviewable proposal flow.
 
 `:preset instrument save PATH` exports the current track's assigned
 sample-backed instrument to a portable JSON file using the
-`salieri.instrument-preset.v1` schema. The file stores the instrument name,
+`trk.instrument-preset.v1` schema. The file stores the instrument name,
 sample path, root note, gain, pan, playback settings, envelope, and key/velocity
 zone metadata. `:preset instrument show PATH` summarizes the file, and
 `:preset instrument load PATH` imports it as a new independent instrument slot

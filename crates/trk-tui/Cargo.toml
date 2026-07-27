@@ -1,0 +1,10 @@
+[package]
+name = "trk-tui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+ratatui.workspace = true
+trk-core = { path = "../trk-core" }
+trk-sampler = { path = "../trk-sampler" }

@@ -14,7 +14,7 @@ tags: [tui, ux, input, architecture]
 
 ## Context
 
-Salieri renders responsive terminal layouts at several width and height
+trk renders responsive terminal layouts at several width and height
 breakpoints. Mouse input is currently interpreted by application handlers that
 duplicate parts of that geometry as fixed terminal coordinates. The duplicated
 values can drift from the rectangles that Ratatui actually renders, causing
@@ -60,7 +60,7 @@ overlays, items, and controls can safely refine a larger panel.
 ## Out of scope
 
 - Migrating every existing mouse handler in the same change.
-- Defining application commands or mutations inside `salieri-tui`.
+- Defining application commands or mutations inside `trk-tui`.
 - Hover styling, drag gestures, double-click timing, or contextual menus.
 - Implementing currently decorative controls.
 
@@ -71,9 +71,9 @@ overlays, items, and controls can safely refine a larger panel.
 ## References
 
 - GitHub issue #249.
-- `../../crates/salieri-tui/src/render.rs`
-- `../../crates/salieri-tui/src/layout.rs`
-- `../../crates/salieri-app/src/app/key_handling.rs`
+- `../../crates/trk-tui/src/render.rs`
+- `../../crates/trk-tui/src/layout.rs`
+- `../../crates/trk-app/src/app/key_handling.rs`
 
 ## Revision History
 
