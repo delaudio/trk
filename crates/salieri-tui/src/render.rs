@@ -7,6 +7,7 @@ mod help_overlay;
 mod modal_overlays;
 mod renoise_layout;
 mod renoise_workspace;
+mod sampler_view;
 mod theme;
 
 use ratatui::{
@@ -54,7 +55,7 @@ use salieri_sampler::{WaveformBucket, WaveformOverview};
 
 use crate::{
     interaction_region, resolve_tracker_layout, InteractionMap, PatternFieldLayout,
-    TrackerLayoutPreset, TrackerLayoutState, ViewportAxis,
+    SamplerEnvelopeField, TrackerLayoutPreset, TrackerLayoutState, ViewportAxis,
 };
 use browser_views::{render_project_browser, render_sample_browser};
 use dsp_rack::render_dsp_rack_view;
@@ -63,6 +64,7 @@ use modal_overlays::{
     render_command_palette_overlay, render_delete_confirmation, render_midi_settings_overlay,
     render_quit_confirmation,
 };
+use sampler_view::render_sampler_view;
 
 const ROW_GUTTER_WIDTH: usize = 5;
 const PATTERN_CELL_WIDTH: usize = 28;
@@ -299,14 +301,6 @@ pub struct SamplerViewState<'a> {
     pub loop_end_frame: Option<usize>,
     pub envelope: (f32, f32, f32, f32),
     pub selected_envelope: SamplerEnvelopeField,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SamplerEnvelopeField {
-    Attack,
-    Decay,
-    Sustain,
-    Release,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -685,10 +679,15 @@ fn render_body(
     }
     if state.active_view == TuiView::Sampler {
         if layout_kind(area.width) == LayoutKind::Large {
-            renoise_workspace::render_sampler_workspace(frame, area, state.sampler_view);
+            renoise_workspace::render_sampler_workspace(
+                frame,
+                area,
+                state.sampler_view,
+                interactions,
+            );
             return;
         }
-        render_sampler_view(frame, area, state.sampler_view);
+        render_sampler_view(frame, area, state.sampler_view, Some(interactions));
         return;
     }
     if state.active_view == TuiView::DspRack {
@@ -1469,123 +1468,6 @@ fn render_pattern_manager(
             .borders(Borders::ALL),
     );
     frame.render_widget(patterns, area);
-}
-
-fn render_sampler_view(frame: &mut Frame<'_>, area: Rect, sampler: Option<SamplerViewState<'_>>) {
-    let Some(sampler) = sampler else {
-        let empty = Paragraph::new("No sample loaded").block(theme::block(" Sampler "));
-        frame.render_widget(empty, area);
-        return;
-    };
-
-    let sections = Layout::default()
-        .direction(LayoutDirection::Vertical)
-        .constraints([Constraint::Length(14), Constraint::Min(5)])
-        .split(area);
-
-    let overview = sampler.overview;
-    let assignment = match (sampler.assigned_track, sampler.assigned_track_count) {
-        (Some(track), 1) => format!("Assigned: {track}"),
-        (Some(track), count) => format!("Assigned: {track} (+{})", count.saturating_sub(1)),
-        (None, _) => "Assigned: none".to_string(),
-    };
-    let mut lines = vec![
-        Line::from(format!("Name: {}", truncate(sampler.name, 48))),
-        Line::from(format!("Path: {}", truncate(sampler.source_path, 72))),
-        Line::from(format!(
-            "Instrument: {}",
-            sampler.instrument.unwrap_or("none")
-        )),
-        Line::from(assignment),
-        Line::from(format!("Sample rate: {} Hz", overview.sample_rate)),
-        Line::from(format!("Channels: {}", overview.channels)),
-        Line::from(format!("Frames: {}", overview.frames)),
-        Line::from(format!("Duration: {:.3} s", overview.duration_seconds)),
-        parameter_control_from_f32(sample_gain_descriptor(), sampler.gain),
-        Line::from(format!(
-            "Window: {}..{}",
-            format_optional_frame(sampler.start_frame),
-            format_optional_frame(sampler.end_frame)
-        )),
-        Line::from(format!(
-            "Loop: {} {}",
-            sampler.playback_mode,
-            format_loop_window(sampler.loop_start_frame, sampler.loop_end_frame)
-        )),
-    ];
-    lines.push(render_sampler_envelope_controls(sampler));
-    let metadata = Paragraph::new(lines)
-        .block(theme::block(" Sample Metadata "))
-        .wrap(Wrap { trim: true });
-    frame.render_widget(metadata, sections[0]);
-    render_waveform_overview_with_window(
-        frame,
-        sections[1],
-        overview,
-        WaveformWindow {
-            start_bucket: sampler.waveform_start_bucket,
-            end_bucket: sampler.waveform_end_bucket,
-            zoom: sampler.waveform_zoom,
-        },
-        WaveformGlyphs::Unicode,
-    );
-}
-
-fn render_sampler_envelope_controls(sampler: SamplerViewState<'_>) -> Line<'static> {
-    Line::from(vec![
-        Span::raw("Envelope: "),
-        sampler_envelope_span(
-            SamplerEnvelopeField::Attack,
-            sampler.selected_envelope,
-            format!(
-                "A {}",
-                sample_envelope_attack_descriptor()
-                    .format_value(&ParameterValue::Seconds(sampler.envelope.0))
-            ),
-        ),
-        Span::raw("  "),
-        sampler_envelope_span(
-            SamplerEnvelopeField::Decay,
-            sampler.selected_envelope,
-            format!(
-                "D {}",
-                sample_envelope_decay_descriptor()
-                    .format_value(&ParameterValue::Seconds(sampler.envelope.1))
-            ),
-        ),
-        Span::raw("  "),
-        sampler_envelope_span(
-            SamplerEnvelopeField::Sustain,
-            sampler.selected_envelope,
-            format!(
-                "S {}",
-                sample_envelope_sustain_descriptor()
-                    .format_value(&ParameterValue::Percentage(sampler.envelope.2))
-            ),
-        ),
-        Span::raw("  "),
-        sampler_envelope_span(
-            SamplerEnvelopeField::Release,
-            sampler.selected_envelope,
-            format!(
-                "R {}",
-                sample_envelope_release_descriptor()
-                    .format_value(&ParameterValue::Seconds(sampler.envelope.3))
-            ),
-        ),
-    ])
-}
-
-fn sampler_envelope_span(
-    field: SamplerEnvelopeField,
-    selected: SamplerEnvelopeField,
-    text: String,
-) -> Span<'static> {
-    if field == selected {
-        Span::styled(format!("[{text}]"), theme::active())
-    } else {
-        Span::styled(format!(" {text} "), theme::base())
-    }
 }
 
 fn render_track_properties(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
@@ -3298,6 +3180,9 @@ mod render_pattern_manager_tests;
 #[cfg(test)]
 #[path = "render_tests/pattern.rs"]
 mod render_pattern_tests;
+#[cfg(test)]
+#[path = "render_tests/sampler.rs"]
+mod render_sampler_tests;
 #[cfg(test)]
 #[path = "render_tests/sequence.rs"]
 mod render_sequence_tests;

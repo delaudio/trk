@@ -8,19 +8,19 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** agent/262-docflow-closeout
-- **Active item:** close out
-  `plan/done/2026-07-27-dsp-parameter-palette-row-clicks.md` for GitHub issue
-  #262.
+- **Branch:** agent/263-sampler-direct-controls
+- **Active item:** `plan/todo/0015-sampler-direct-pointer-controls.md` for
+  GitHub issue #263.
 - **Blockers:** none.
-- **Pending integration:** PR #295 merged at `eb5fcc8`, CI #318 is green, and
-  issue #262 is closed. This documentation closeout still needs its local gate,
-  mandatory Codex review, PR, CI, and merge.
+- **Pending integration:** typed controls, application routing, responsive
+  renderer coverage, pointer no-op coverage, and intentional snapshots are
+  complete. The full local gate passes; commit, mandatory Codex review, PR, CI,
+  and merge remain.
 
 ## Last shipped
 
-Issue #262 implementation via PR #295.
+Issue #262 closeout via PR #296.
 
 ## Next item
 
-Audit and implement the next queued UX issue, #263.
+Implement typed direct sampler controls for issue #263.

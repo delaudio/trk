@@ -26,6 +26,7 @@ mod report_actions;
 mod sample_browser;
 mod sample_recorder_actions;
 mod sampler_actions;
+mod sampler_mouse;
 mod state;
 mod text_notes;
 mod tracker_actions;

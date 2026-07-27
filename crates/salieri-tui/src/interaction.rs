@@ -48,6 +48,26 @@ pub enum TransportAction {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SamplerEnvelopeField {
+    Attack,
+    Decay,
+    Sustain,
+    Release,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SamplerAction {
+    SelectEnvelope(SamplerEnvelopeField),
+    DecrementEnvelope,
+    IncrementEnvelope,
+    ZoomOut,
+    ZoomIn,
+    PanLeft,
+    PanRight,
+    Browse,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DspRackChain {
     Track,
     Master,
@@ -96,6 +116,9 @@ pub enum InteractionPayload {
     },
     TransportAction {
         action: TransportAction,
+    },
+    SamplerAction {
+        action: SamplerAction,
     },
     DspRackTarget {
         target: DspRackChain,
@@ -266,6 +289,7 @@ pub mod region {
         InteractionRegionId::new("dsp-rack.parameter-row");
     pub const DSP_PALETTE_ENTRY: InteractionRegionId =
         InteractionRegionId::new("dsp-rack.palette-entry");
+    pub const SAMPLER_ACTION: InteractionRegionId = InteractionRegionId::new("sampler.action");
 
     pub const OVERLAY_HELP: InteractionRegionId = InteractionRegionId::new("overlay.help");
     pub const OVERLAY_MIDI_SETTINGS: InteractionRegionId =

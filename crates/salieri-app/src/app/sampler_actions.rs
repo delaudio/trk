@@ -426,29 +426,28 @@ impl App {
     }
 
     pub(crate) fn next_sampler_envelope_field(&mut self) {
-        self.sampler_envelope_field = match self.sampler_envelope_field {
+        let field = match self.sampler_envelope_field {
             SamplerEnvelopeField::Attack => SamplerEnvelopeField::Decay,
             SamplerEnvelopeField::Decay => SamplerEnvelopeField::Sustain,
             SamplerEnvelopeField::Sustain => SamplerEnvelopeField::Release,
             SamplerEnvelopeField::Release => SamplerEnvelopeField::Attack,
         };
-        self.notify_info(format!(
-            "Envelope {}",
-            sampler_envelope_field_label(self.sampler_envelope_field)
-        ));
+        self.select_sampler_envelope_field(field);
     }
 
     pub(crate) fn previous_sampler_envelope_field(&mut self) {
-        self.sampler_envelope_field = match self.sampler_envelope_field {
+        let field = match self.sampler_envelope_field {
             SamplerEnvelopeField::Attack => SamplerEnvelopeField::Release,
             SamplerEnvelopeField::Decay => SamplerEnvelopeField::Attack,
             SamplerEnvelopeField::Sustain => SamplerEnvelopeField::Decay,
             SamplerEnvelopeField::Release => SamplerEnvelopeField::Sustain,
         };
-        self.notify_info(format!(
-            "Envelope {}",
-            sampler_envelope_field_label(self.sampler_envelope_field)
-        ));
+        self.select_sampler_envelope_field(field);
+    }
+
+    pub(crate) fn select_sampler_envelope_field(&mut self, field: SamplerEnvelopeField) {
+        self.sampler_envelope_field = field;
+        self.notify_info(format!("Envelope {}", sampler_envelope_field_label(field)));
     }
 
     pub(crate) fn adjust_selected_sampler_envelope(&mut self, direction: f32, coarse: bool) {
