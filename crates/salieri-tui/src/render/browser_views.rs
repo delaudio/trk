@@ -357,11 +357,96 @@ fn browser_entry_text(marker: &str, icon: &str, name: &str, row_width: usize) ->
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::SampleBrowserEntryView;
+    use ratatui::{backend::TestBackend, Terminal};
 
     #[test]
     fn browser_entry_text_never_exceeds_rendered_row_width() {
         let text = browser_entry_text(">", "[W]", "a-very-long-browser-entry-name.wav", 12);
 
         assert!(Line::from(text).width() <= 12);
+    }
+
+    #[test]
+    fn sample_browser_scrolls_only_from_rendered_entry_rows() {
+        let entries = [SampleBrowserEntryView {
+            name: "kick.wav",
+            kind: SampleBrowserEntryKind::SupportedSample,
+        }];
+        let backend = TestBackend::new(80, 12);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+        let mut interactions = InteractionMap::new();
+
+        terminal
+            .draw(|frame| {
+                render_sample_browser(
+                    frame,
+                    Rect::new(0, 0, 80, 12),
+                    Some(SampleBrowserViewState {
+                        current_dir: "/samples",
+                        entries: &entries,
+                        selected: 0,
+                        preview: None,
+                        message: None,
+                    }),
+                    &mut interactions,
+                );
+            })
+            .expect("draw");
+
+        let row = interactions
+            .region(interaction_region::SAMPLE_BROWSER_ENTRY)
+            .expect("sample entry");
+        assert_eq!(
+            interactions.scroll_target_at(row.area.x, row.area.y),
+            Some(crate::ScrollTarget::SampleBrowser)
+        );
+        assert_eq!(interactions.scroll_target_at(row.area.x, 1), None);
+        assert_eq!(
+            interactions.scroll_target_at(row.area.x, row.area.y.saturating_add(1)),
+            None
+        );
+    }
+
+    #[test]
+    fn project_browser_scrolls_only_from_rendered_entry_rows() {
+        let entries = [ProjectBrowserEntryView {
+            name: "song.salieri",
+            path: "/projects/song.salieri",
+            kind: ProjectBrowserEntryKind::Project,
+            detail: "project",
+        }];
+        let backend = TestBackend::new(80, 12);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+        let mut interactions = InteractionMap::new();
+
+        terminal
+            .draw(|frame| {
+                render_project_browser(
+                    frame,
+                    Rect::new(0, 0, 80, 12),
+                    Some(ProjectBrowserViewState {
+                        current_dir: "/projects",
+                        entries: &entries,
+                        selected: 0,
+                        message: None,
+                    }),
+                    &mut interactions,
+                );
+            })
+            .expect("draw");
+
+        let row = interactions
+            .region(interaction_region::PROJECT_BROWSER_ENTRY)
+            .expect("project entry");
+        assert_eq!(
+            interactions.scroll_target_at(row.area.x, row.area.y),
+            Some(crate::ScrollTarget::ProjectBrowser)
+        );
+        assert_eq!(interactions.scroll_target_at(row.area.x, 1), None);
+        assert_eq!(
+            interactions.scroll_target_at(row.area.x, row.area.y.saturating_add(1)),
+            None
+        );
     }
 }

@@ -6,7 +6,7 @@ pub mod viewport;
 pub use interaction::{
     region as interaction_region, ConfirmationAction, DspRackChain, InteractionMap,
     InteractionPayload, InteractionRegion, InteractionRegionId, MidiSettingsAction, SamplerAction,
-    SamplerEnvelopeField, TransportAction,
+    SamplerEnvelopeField, ScrollTarget, TransportAction,
 };
 pub use layout::{
     resolve_managed_layout, resolve_tracker_layout, LayoutDiagnostic, ManagedLayoutDirection,

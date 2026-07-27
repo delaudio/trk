@@ -30,42 +30,17 @@ impl App {
         }
     }
 
-    pub(crate) fn handle_mouse_wheel(&mut self, kind: MouseEventKind) {
-        let delta = match kind {
-            MouseEventKind::ScrollUp => -3,
-            MouseEventKind::ScrollDown => 3,
-            _ => return,
-        };
-
-        match self.mode {
-            AppMode::SampleBrowser => self.move_sample_browser_cursor(delta),
-            AppMode::ProjectBrowser => self.move_project_browser_cursor(delta),
-            AppMode::Sampler => self.pan_sample_waveform(delta.signum()),
-            AppMode::DspRack => self.move_dsp_rack_cursor(delta),
-            AppMode::Normal | AppMode::Edit => {
-                self.cursor.row = self
-                    .cursor
-                    .row
-                    .saturating_add_signed(delta)
-                    .min(self.current_row_count().saturating_sub(1));
-            }
-            _ => {}
-        }
-    }
-
     pub(crate) fn handle_mouse(&mut self, mouse: MouseEvent, viewport: MouseViewport) {
         match mouse.kind {
             MouseEventKind::ScrollUp | MouseEventKind::ScrollDown => {
-                if self.mode == AppMode::CommandPalette {
-                    self.handle_command_palette_mouse_wheel(mouse.column, mouse.row, mouse.kind);
-                } else if self.mode == AppMode::Help {
-                    self.handle_help_mouse_wheel(mouse.column, mouse.row, mouse.kind);
-                } else {
-                    self.handle_mouse_wheel(mouse.kind);
-                }
+                self.handle_mouse_vertical_scroll(mouse.column, mouse.row, mouse.kind);
             }
-            MouseEventKind::ScrollLeft => self.handle_mouse_horizontal_scroll(-1),
-            MouseEventKind::ScrollRight => self.handle_mouse_horizontal_scroll(1),
+            MouseEventKind::ScrollLeft => {
+                self.handle_mouse_horizontal_scroll(mouse.column, mouse.row, -1);
+            }
+            MouseEventKind::ScrollRight => {
+                self.handle_mouse_horizontal_scroll(mouse.column, mouse.row, 1);
+            }
             MouseEventKind::Down(MouseButton::Left) => {
                 self.handle_mouse_click(mouse.column, mouse.row, viewport, false, true)
             }
@@ -75,20 +50,6 @@ impl App {
             MouseEventKind::Down(MouseButton::Right) => {
                 self.handle_mouse_click(mouse.column, mouse.row, viewport, true, false)
             }
-            _ => {}
-        }
-    }
-
-    fn handle_mouse_horizontal_scroll(&mut self, delta: isize) {
-        match self.mode {
-            AppMode::Normal | AppMode::Edit => {
-                self.cursor.track = self
-                    .cursor
-                    .track
-                    .saturating_add_signed(delta)
-                    .min(self.song.tracks.len().saturating_sub(1));
-            }
-            AppMode::Sampler => self.pan_sample_waveform(delta),
             _ => {}
         }
     }
@@ -873,7 +834,7 @@ impl App {
         }
     }
 
-    fn handle_help_mouse_wheel(&mut self, column: u16, row: u16, kind: MouseEventKind) {
+    pub(super) fn handle_help_mouse_wheel(&mut self, column: u16, row: u16, kind: MouseEventKind) {
         if self
             .interaction_map
             .hit_test(column, row)

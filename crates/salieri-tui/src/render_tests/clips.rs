@@ -16,6 +16,7 @@ fn clip_launcher_renders_scene_grid_statuses() {
 
     let backend = TestBackend::new(80, 10);
     let mut terminal = Terminal::new(backend).expect("test terminal");
+    let mut interactions = InteractionMap::new();
 
     terminal
         .draw(|frame| {
@@ -34,6 +35,7 @@ fn clip_launcher_renders_scene_grid_statuses() {
                     sequence_position: None,
                     ..render_test_state()
                 },
+                &mut interactions,
             );
         })
         .expect("draw");
@@ -46,4 +48,20 @@ fn clip_launcher_renders_scene_grid_statuses() {
     assert!(rendered.contains(" M "));
     assert!(rendered.contains(" · "));
     assert!(rendered.contains("States: ■ stopped  A active  Q queued"));
+    let grid = interactions
+        .region(interaction_region::CLIP_GRID)
+        .expect("clip grid");
+    assert_eq!(
+        interactions.scroll_target_at(grid.area.x, grid.area.y),
+        Some(crate::ScrollTarget::Clips)
+    );
+    assert_eq!(
+        interactions.scroll_target_at(grid.area.x, grid.area.y.saturating_sub(1)),
+        None
+    );
+    assert!(grid.area.x.saturating_add(grid.area.width) < 79);
+    assert_eq!(
+        interactions.scroll_target_at(grid.area.x.saturating_add(grid.area.width), grid.area.y),
+        None
+    );
 }

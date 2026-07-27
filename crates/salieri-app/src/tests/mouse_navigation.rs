@@ -10,15 +10,35 @@ fn large_mouse_viewport() -> MouseViewport {
 #[test]
 fn mouse_wheel_moves_tracker_cursor_through_shared_viewport() {
     let mut app = App::default();
+    app.interaction_map.register(
+        interaction_region::PATTERN_GRID,
+        ratatui::layout::Rect::new(20, 3, 100, 30),
+    );
 
-    app.handle_mouse_wheel(MouseEventKind::ScrollDown);
+    app.handle_mouse(
+        MouseEvent {
+            kind: MouseEventKind::ScrollDown,
+            column: 40,
+            row: 10,
+            modifiers: KeyModifiers::NONE,
+        },
+        large_mouse_viewport(),
+    );
     app.keep_cursor_visible(2);
     app.keep_track_visible(app.cursor.track, 4);
 
     assert_eq!(app.cursor.row, 3);
     assert_eq!(app.row_offset, 2);
 
-    app.handle_mouse_wheel(MouseEventKind::ScrollUp);
+    app.handle_mouse(
+        MouseEvent {
+            kind: MouseEventKind::ScrollUp,
+            column: 40,
+            row: 10,
+            modifiers: KeyModifiers::NONE,
+        },
+        large_mouse_viewport(),
+    );
     app.keep_cursor_visible(2);
     app.keep_track_visible(app.cursor.track, 4);
 

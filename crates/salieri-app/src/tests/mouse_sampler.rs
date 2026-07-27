@@ -91,6 +91,32 @@ fn sampler_mouse_zoom_and_pan_use_existing_waveform_actions() {
 }
 
 #[test]
+fn sampler_wheel_pans_only_over_the_loaded_waveform_region() {
+    let mut app = App::default();
+    let path = load_test_sample(&mut app, "wheel-waveform");
+    app.zoom_sample_waveform_in();
+    app.interaction_map.register(
+        interaction_region::VIEW_SAMPLER,
+        ratatui::layout::Rect::new(0, 3, 100, 28),
+    );
+
+    click(&mut app, MouseEventKind::ScrollDown);
+    assert_eq!(app.sample_waveform_offset, 0);
+
+    app.interaction_map.register(
+        interaction_region::SAMPLER_WAVEFORM,
+        ratatui::layout::Rect::new(10, 8, 70, 12),
+    );
+    click(&mut app, MouseEventKind::ScrollDown);
+    assert!(app.sample_waveform_offset > 0);
+
+    click(&mut app, MouseEventKind::ScrollLeft);
+    assert_eq!(app.sample_waveform_offset, 0);
+
+    let _ = std::fs::remove_file(path);
+}
+
+#[test]
 fn sampler_browse_control_opens_browser_without_a_loaded_sample() {
     let mut app = App::default();
     app.open_sampler_view();

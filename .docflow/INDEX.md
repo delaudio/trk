@@ -25,3 +25,4 @@ metadata.
 | 0018 | Distinguish unavailable workspace affordances | Implemented | 2026-07-27 | default-agent | tui, ux, affordance, sampler, workspace |
 | 0019 | Compose the transport header by width | Implemented | 2026-07-27 | default-agent | tui, ux, responsive, transport |
 | 0020 | Compose contextual status hints by width | Implemented | 2026-07-27 | default-agent | tui, ux, responsive, status, shortcuts |
+| 0021 | Route wheel input by rendered region | Accepted | 2026-07-27 | default-agent | tui, ux, input, mouse, scrolling |

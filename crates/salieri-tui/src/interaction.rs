@@ -68,6 +68,32 @@ pub enum SamplerAction {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScrollTarget {
+    PatternRows,
+    Tracks,
+    Sequence,
+    Clips,
+    Patterns,
+    SampleBrowser,
+    ProjectBrowser,
+    SamplerWaveform,
+    DspDevices { target: DspRackChain },
+    DspParameters,
+    DspPalette,
+    CommandPalette,
+    HelpContent,
+    MidiPorts,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct PatternGridGeometry {
+    pub header_height: u16,
+    pub row_gutter_width: u16,
+    pub trailing_gutter_width: u16,
+    pub cell_width: u16,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DspRackChain {
     Track,
     Master,
@@ -167,16 +193,32 @@ impl InteractionMap {
     pub(crate) fn register_pattern_cells(
         &mut self,
         content_area: Rect,
-        header_height: u16,
-        row_gutter_width: u16,
-        cell_width: u16,
+        geometry: PatternGridGeometry,
         visible_rows: Range<usize>,
         visible_tracks: Range<usize>,
     ) {
+        let rendered_width = usize::from(geometry.row_gutter_width)
+            .saturating_add(
+                visible_tracks
+                    .len()
+                    .saturating_mul(usize::from(geometry.cell_width)),
+            )
+            .saturating_add(usize::from(geometry.trailing_gutter_width));
+        self.register(
+            region::PATTERN_GRID,
+            Rect::new(
+                content_area.x,
+                content_area.y.saturating_add(geometry.header_height),
+                u16::try_from(rendered_width)
+                    .unwrap_or(u16::MAX)
+                    .min(content_area.width),
+                u16::try_from(visible_rows.len()).unwrap_or(u16::MAX),
+            ),
+        );
         let content_right = content_area.x.saturating_add(content_area.width);
         let content_bottom = content_area.y.saturating_add(content_area.height);
-        let first_cell_x = content_area.x.saturating_add(row_gutter_width);
-        let first_cell_y = content_area.y.saturating_add(header_height);
+        let first_cell_x = content_area.x.saturating_add(geometry.row_gutter_width);
+        let first_cell_y = content_area.y.saturating_add(geometry.header_height);
 
         for (visible_row, row) in visible_rows.enumerate() {
             let y = first_cell_y.saturating_add(visible_row as u16);
@@ -184,12 +226,12 @@ impl InteractionMap {
                 break;
             }
             for (visible_track, track) in visible_tracks.clone().enumerate() {
-                let x =
-                    first_cell_x.saturating_add((visible_track as u16).saturating_mul(cell_width));
+                let x = first_cell_x
+                    .saturating_add((visible_track as u16).saturating_mul(geometry.cell_width));
                 if x >= content_right {
                     break;
                 }
-                let width = cell_width.min(content_right.saturating_sub(x));
+                let width = geometry.cell_width.min(content_right.saturating_sub(x));
                 self.register_with_payload(
                     region::PATTERN_CELL,
                     Rect::new(x, y, width, 1),
@@ -215,6 +257,34 @@ impl InteractionMap {
             .iter()
             .rev()
             .find(|region| contains(region.area, column, row))
+    }
+
+    #[must_use]
+    pub fn scroll_target_at(&self, column: u16, row: u16) -> Option<ScrollTarget> {
+        let hit = self.hit_test(column, row)?;
+        match (hit.id, hit.payload) {
+            (region::PATTERN_CELL | region::PATTERN_GRID, _) => Some(ScrollTarget::PatternRows),
+            (region::COMPOSITE_TRACK_ROW, _) => Some(ScrollTarget::Tracks),
+            (region::COMPOSITE_SEQUENCE_ROW | region::SEQUENCE_EDITOR_ROW, _) => {
+                Some(ScrollTarget::Sequence)
+            }
+            (region::CLIP_GRID, _) => Some(ScrollTarget::Clips),
+            (region::PATTERN_MANAGER_ROW, _) => Some(ScrollTarget::Patterns),
+            (region::SAMPLE_BROWSER_ENTRY, _) => Some(ScrollTarget::SampleBrowser),
+            (region::PROJECT_BROWSER_ENTRY, _) => Some(ScrollTarget::ProjectBrowser),
+            (region::SAMPLER_WAVEFORM, _) => Some(ScrollTarget::SamplerWaveform),
+            (region::DSP_DEVICE_ROW, InteractionPayload::DspDeviceRow { target, .. }) => {
+                Some(ScrollTarget::DspDevices { target })
+            }
+            (region::DSP_PARAMETER_ROW, _) => Some(ScrollTarget::DspParameters),
+            (region::DSP_PALETTE_ENTRY, _) => Some(ScrollTarget::DspPalette),
+            (region::COMMAND_PALETTE_RESULTS | region::COMMAND_PALETTE_ENTRY, _) => {
+                Some(ScrollTarget::CommandPalette)
+            }
+            (region::HELP_CONTENT, _) => Some(ScrollTarget::HelpContent),
+            (region::MIDI_SETTINGS_PORT, _) => Some(ScrollTarget::MidiPorts),
+            _ => None,
+        }
     }
 }
 
@@ -257,6 +327,8 @@ pub mod region {
     pub const PANEL_DEVICE_CHAIN: InteractionRegionId =
         InteractionRegionId::new("panel.device-chain");
     pub const PATTERN_CELL: InteractionRegionId = InteractionRegionId::new("pattern.cell");
+    pub const PATTERN_GRID: InteractionRegionId = InteractionRegionId::new("pattern.grid");
+    pub const CLIP_GRID: InteractionRegionId = InteractionRegionId::new("clips.grid");
     pub const SAMPLE_BROWSER_ENTRY: InteractionRegionId =
         InteractionRegionId::new("sample-browser.entry");
     pub const PROJECT_BROWSER_ENTRY: InteractionRegionId =
@@ -290,6 +362,7 @@ pub mod region {
     pub const DSP_PALETTE_ENTRY: InteractionRegionId =
         InteractionRegionId::new("dsp-rack.palette-entry");
     pub const SAMPLER_ACTION: InteractionRegionId = InteractionRegionId::new("sampler.action");
+    pub const SAMPLER_WAVEFORM: InteractionRegionId = InteractionRegionId::new("sampler.waveform");
 
     pub const OVERLAY_HELP: InteractionRegionId = InteractionRegionId::new("overlay.help");
     pub const OVERLAY_MIDI_SETTINGS: InteractionRegionId =
@@ -334,7 +407,17 @@ mod tests {
     #[test]
     fn pattern_cells_carry_absolute_row_and_track_payloads() {
         let mut map = InteractionMap::new();
-        map.register_pattern_cells(Rect::new(1, 1, 17, 5), 1, 5, 6, 4..6, 2..4);
+        map.register_pattern_cells(
+            Rect::new(1, 1, 17, 5),
+            PatternGridGeometry {
+                header_height: 1,
+                row_gutter_width: 5,
+                trailing_gutter_width: 0,
+                cell_width: 6,
+            },
+            4..6,
+            2..4,
+        );
 
         assert_eq!(
             map.hit_test(6, 2).map(|region| region.payload),
@@ -344,6 +427,62 @@ mod tests {
             map.hit_test(12, 3).map(|region| region.payload),
             Some(InteractionPayload::PatternCell { row: 5, track: 3 })
         );
-        assert!(map.hit_test(5, 2).is_none());
+        assert_eq!(map.scroll_target_at(6, 2), Some(ScrollTarget::PatternRows));
+        assert_eq!(
+            map.hit_test(5, 2).map(|region| region.id),
+            Some(region::PATTERN_GRID)
+        );
+        assert_eq!(map.scroll_target_at(5, 2), Some(ScrollTarget::PatternRows));
+    }
+
+    #[test]
+    fn scroll_target_uses_the_topmost_semantic_region() {
+        let mut map = InteractionMap::new();
+        map.register(region::PATTERN_GRID, Rect::new(0, 0, 80, 20));
+        map.register(region::COMPOSITE_TRACK_ROW, Rect::new(0, 0, 20, 20));
+        map.register(region::OVERLAY_HELP, Rect::new(10, 4, 60, 12));
+        map.register(region::HELP_CONTENT, Rect::new(12, 6, 56, 8));
+
+        assert_eq!(map.scroll_target_at(5, 5), Some(ScrollTarget::Tracks));
+        assert_eq!(map.scroll_target_at(11, 5), None);
+        assert_eq!(map.scroll_target_at(12, 6), Some(ScrollTarget::HelpContent));
+    }
+
+    #[test]
+    fn non_scrollable_chrome_has_no_scroll_target() {
+        let mut map = InteractionMap::new();
+        map.register(region::APP_HEADER, Rect::new(0, 0, 80, 3));
+        map.register(region::PANEL_INSPECTOR, Rect::new(60, 3, 20, 20));
+
+        assert_eq!(map.scroll_target_at(5, 1), None);
+        assert_eq!(map.scroll_target_at(65, 8), None);
+    }
+
+    #[test]
+    fn broad_view_and_panel_regions_are_not_scroll_targets() {
+        let ids = [
+            region::VIEW_PATTERN,
+            region::VIEW_TRACKS,
+            region::VIEW_SEQUENCE,
+            region::VIEW_CLIPS,
+            region::VIEW_PATTERNS,
+            region::VIEW_SAMPLE_BROWSER,
+            region::VIEW_PROJECT_BROWSER,
+            region::PANEL_PATTERN,
+            region::PANEL_TRACKS,
+            region::PANEL_SEQUENCE,
+            region::DSP_CHAIN,
+        ];
+
+        for id in ids {
+            let mut map = InteractionMap::new();
+            map.register(id, Rect::new(0, 0, 80, 24));
+            assert_eq!(
+                map.scroll_target_at(20, 10),
+                None,
+                "{} should not scroll from its chrome or padding",
+                id.as_str()
+            );
+        }
     }
 }

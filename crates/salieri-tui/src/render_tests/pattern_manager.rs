@@ -41,6 +41,13 @@ fn narrow_pattern_manager_keeps_rendered_rows_aligned_with_targets() {
         .filter(|region| region.id == interaction_region::PATTERN_MANAGER_ROW)
         .collect::<Vec<_>>();
     assert_eq!(rows.len(), 3);
+    assert_eq!(
+        interactions.scroll_target_at(rows[0].area.x, rows[0].area.y),
+        Some(crate::ScrollTarget::Patterns)
+    );
+    assert_eq!(interactions.scroll_target_at(1, 0), None);
+    assert_eq!(interactions.scroll_target_at(1, 1), None);
+    assert_eq!(interactions.scroll_target_at(1, 6), None);
     for (expected_index, region) in rows.into_iter().enumerate() {
         let rendered_row = (0..20)
             .map(|x| {

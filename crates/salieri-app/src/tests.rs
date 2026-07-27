@@ -23,6 +23,7 @@ mod mouse_navigation;
 mod mouse_sampler;
 mod mouse_sequence_view;
 mod mouse_transport_header;
+mod mouse_wheel_routing;
 mod navigation_editing;
 mod pattern_commands;
 mod pattern_operations;

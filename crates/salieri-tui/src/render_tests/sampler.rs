@@ -1,6 +1,6 @@
 use super::render_test_support::{render_test_state, test_waveform};
 use super::*;
-use crate::{InteractionPayload, SamplerAction};
+use crate::{InteractionPayload, SamplerAction, ScrollTarget};
 use ratatui::{backend::TestBackend, Terminal};
 use salieri_core::Song;
 use salieri_sampler::WaveformBucket;
@@ -119,6 +119,31 @@ fn empty_sampler_exposes_only_browse_in_both_layouts() {
             vec![SamplerAction::Browse],
             "{width}x{height}"
         );
+    }
+}
+
+#[test]
+fn only_loaded_waveforms_expose_a_sampler_scroll_target() {
+    let overview = test_waveform(vec![
+        WaveformBucket {
+            min: -0.5,
+            max: 0.5,
+        };
+        32
+    ]);
+
+    for (width, height) in [(80, 24), (140, 36)] {
+        let loaded = sampler_interactions(width, height, Some(loaded_sampler(&overview)));
+        let waveform = loaded
+            .region(interaction_region::SAMPLER_WAVEFORM)
+            .expect("loaded waveform region");
+        assert_eq!(
+            loaded.scroll_target_at(waveform.area.x, waveform.area.y),
+            Some(ScrollTarget::SamplerWaveform)
+        );
+
+        let empty = sampler_interactions(width, height, None);
+        assert!(empty.region(interaction_region::SAMPLER_WAVEFORM).is_none());
     }
 }
 

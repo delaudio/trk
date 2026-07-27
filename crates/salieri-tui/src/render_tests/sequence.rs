@@ -29,6 +29,12 @@ fn sequence_panel_scrolls_to_active_position() {
     assert!(rendered.contains("> 30 P31"));
     assert!(rendered.contains("Pattern 31"));
     assert!(!rendered.contains(" 00 Pattern 01"));
+    assert_eq!(
+        interactions.scroll_target_at(1, 1),
+        Some(crate::ScrollTarget::Sequence)
+    );
+    assert_eq!(interactions.scroll_target_at(1, 0), None);
+    assert_eq!(interactions.scroll_target_at(1, 7), None);
 }
 
 #[test]
@@ -116,6 +122,12 @@ fn sequence_editor_rows_expose_scrolled_absolute_positions_only_for_content_rows
     assert!(interactions.hit_test(1, 0).is_none());
     assert!(interactions.hit_test(1, 1).is_none());
     assert!(interactions.hit_test(1, 5).is_none());
+    assert_eq!(
+        interactions.scroll_target_at(rows[0].area.x, rows[0].area.y),
+        Some(crate::ScrollTarget::Sequence)
+    );
+    assert_eq!(interactions.scroll_target_at(1, 1), None);
+    assert_eq!(interactions.scroll_target_at(1, 5), None);
 }
 
 #[test]

@@ -55,8 +55,9 @@ use salieri_core::{
 use salieri_sampler::{WaveformBucket, WaveformOverview};
 
 use crate::{
-    interaction_region, resolve_tracker_layout, InteractionMap, PatternFieldLayout,
-    SamplerEnvelopeField, TrackerLayoutPreset, TrackerLayoutState, ViewportAxis,
+    interaction::PatternGridGeometry, interaction_region, resolve_tracker_layout, InteractionMap,
+    PatternFieldLayout, SamplerEnvelopeField, TrackerLayoutPreset, TrackerLayoutState,
+    ViewportAxis,
 };
 use browser_views::{render_project_browser, render_sample_browser};
 use dsp_rack::render_dsp_rack_view;
@@ -70,6 +71,7 @@ use status_bar::render_status;
 
 const ROW_GUTTER_WIDTH: usize = 5;
 const PATTERN_CELL_WIDTH: usize = 28;
+const CLIP_SCENE_WIDTH: usize = 14;
 const TRACK_LIST_NAME_WIDTH: usize = 11;
 const SEQUENCE_SLOT_PATTERN_WIDTH: usize = 18;
 const MEDIUM_MIN_WIDTH: u16 = 80;
@@ -847,7 +849,7 @@ fn render_body(
         return;
     }
     if state.active_view == TuiView::Clips {
-        render_clip_launcher(frame, area, song, state);
+        render_clip_launcher(frame, area, song, state, interactions);
         return;
     }
     if state.active_view == TuiView::Tracks {
@@ -1267,7 +1269,13 @@ fn render_track_editor(frame: &mut Frame<'_>, area: Rect, song: &Song, active_tr
     render_instrument_matrix(frame, sections[1], song, active_track);
 }
 
-fn render_clip_launcher(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
+fn render_clip_launcher(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    song: &Song,
+    state: TuiState<'_>,
+    interactions: &mut InteractionMap,
+) {
     let visible_tracks = song
         .tracks
         .len()
@@ -1287,6 +1295,19 @@ fn render_clip_launcher(frame: &mut Frame<'_>, area: Rect, song: &Song, state: T
     let end = start
         .saturating_add(visible_items)
         .min(song.clip_scenes.len());
+    let inner = bordered_content_area(area);
+    let rendered_width = CLIP_SCENE_WIDTH.saturating_add(visible_tracks.saturating_mul(4));
+    interactions.register(
+        interaction_region::CLIP_GRID,
+        Rect::new(
+            inner.x,
+            inner.y.saturating_add(1),
+            u16::try_from(rendered_width)
+                .unwrap_or(u16::MAX)
+                .min(inner.width),
+            u16::try_from(end.saturating_sub(start)).unwrap_or(u16::MAX),
+        ),
+    );
 
     let mut lines = Vec::new();
     let mut header = String::from("SCENE        ");
@@ -2466,11 +2487,15 @@ fn render_pattern_with_interactions(
     };
 
     let viewport = pattern_viewport(area, pattern.row_count(), song.tracks.len(), state);
+    let content_area = bordered_content_area(area);
     interactions.register_pattern_cells(
-        bordered_content_area(area),
-        1,
-        ROW_GUTTER_WIDTH as u16,
-        pattern_cell_width(state.tracker_layout.pattern_fields) as u16,
+        content_area,
+        PatternGridGeometry {
+            header_height: 1,
+            row_gutter_width: ROW_GUTTER_WIDTH as u16,
+            trailing_gutter_width: 0,
+            cell_width: pattern_cell_width(state.tracker_layout.pattern_fields) as u16,
+        },
         viewport.visible_rows.clone(),
         viewport.visible_tracks.clone(),
     );
@@ -3287,6 +3312,9 @@ mod render_test_support;
 #[cfg(test)]
 #[path = "render_tests/waveform.rs"]
 mod render_waveform_tests;
+#[cfg(test)]
+#[path = "render_tests/wheel_regions.rs"]
+mod render_wheel_region_tests;
 #[cfg(test)]
 #[path = "render_tests/workspace_affordances.rs"]
 mod render_workspace_affordance_tests;
