@@ -1,7 +1,7 @@
 ---
 adr: 0020
 title: Compose contextual status hints by width
-status: Accepted
+status: Implemented
 date: 2026-07-27
 owner: default-agent
 supersedes:
@@ -63,7 +63,7 @@ continue to replace shortcut hints.
 ## References
 
 - `0019-compose-the-transport-header-by-width.md`
-- `../plan/todo/0018-responsive-contextual-status-bar.md`
+- `../plan/done/2026-07-27-responsive-contextual-status-bar.md`
 - GitHub issue #266.
 
 ## Revision History
@@ -71,6 +71,7 @@ continue to replace shortcut hints.
 | Date | Revision | Author | Change |
 |------|----------|--------|--------|
 | 2026-07-27 | r1 | default-agent | Accepted priority-ordered atomic status segments for every main view. |
+| 2026-07-27 | r2 | default-agent | Marked Implemented after PR #303 merged with GitHub Actions CI green. |
 
 ## Approvals
 

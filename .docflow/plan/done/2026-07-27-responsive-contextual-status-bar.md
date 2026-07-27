@@ -27,3 +27,9 @@ main view.
 - `../../adr/0019-compose-the-transport-header-by-width.md`
 - `../done/2026-07-27-responsive-transport-header.md`
 - GitHub issue #265 (closed).
+
+---
+
+Shipped at HEAD `4e84d78` via
+[PR #303](https://github.com/delaudio/salieri-tracker/pull/303), with GitHub
+Actions CI run #334 green and issue #266 closed.
