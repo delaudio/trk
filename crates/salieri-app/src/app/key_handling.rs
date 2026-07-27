@@ -170,7 +170,7 @@ impl App {
             }
             AppMode::Sampler => self.handle_sampler_mouse_click(column, row),
             AppMode::DspRack if self.dsp_device_palette_open => {
-                self.handle_dsp_palette_mouse_click(row);
+                self.handle_dsp_palette_mouse_click(column, row, primary_click);
             }
             AppMode::DspRack => {
                 self.handle_dsp_rack_mouse_click(column, row, activate, primary_click);

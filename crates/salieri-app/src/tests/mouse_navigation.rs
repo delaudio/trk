@@ -700,6 +700,11 @@ fn mouse_click_assigns_dsp_device_from_palette_to_master() {
     app.open_dsp_rack_view();
     app.handle_key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
     app.handle_key(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE));
+    app.interaction_map.register_with_payload(
+        interaction_region::DSP_PALETTE_ENTRY,
+        ratatui::layout::Rect::new(3, 15, 30, 1),
+        InteractionPayload::DspPaletteEntry { index: 7 },
+    );
 
     app.handle_mouse(
         MouseEvent {
