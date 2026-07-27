@@ -8,19 +8,18 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** agent/259-docflow-closeout
-- **Active item:** `plan/done/2026-07-27-confirmation-dialog-pointer-actions.md`
-  for closed GitHub issue #259.
+- **Branch:** agent/260-transport-click-targets
+- **Active item:** `plan/todo/0012-distinct-transport-click-targets.md` for
+  GitHub issue #260.
 - **Blockers:** none.
-- **Uncommitted work:** Docflow closeout records implementation squash
-  `9c9f256`, PR #289, green CI #306, closed issue #259, and final implementation
-  Codex review `run-1785139755229932000`; closeout validation and review are
-  pending before integration.
+- **Uncommitted work:** ADR 0014 and plan 0012 claim distinct render-owned Play
+  and Stop targets, existing start/stop intent routing, and inert Record/header
+  chrome before implementation and validation.
 
 ## Last shipped
 
-Issue #259 implementation via PR #289.
+Issue #259 implementation and Docflow closeout via PRs #289 and #290.
 
 ## Next item
 
-Audit and implement GitHub issue #260 after the #259 closeout merges.
+Implement and ship `plan/todo/0012-distinct-transport-click-targets.md`.
