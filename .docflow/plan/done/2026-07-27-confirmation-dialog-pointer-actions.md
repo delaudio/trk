@@ -29,3 +29,9 @@ Dialog semantics, keyboard behavior, hover, and other overlays are unchanged.
 - `../../adr/0003-render-owned-interaction-regions.md`
 - `../done/2026-07-26-render-owned-interaction-regions.md`
 - GitHub issue #249 (closed by PR #269).
+
+---
+
+Shipped at HEAD `9c9f256` via
+[PR #289](https://github.com/delaudio/salieri-tracker/pull/289), with GitHub
+Actions CI run #306 green and issue #259 closed.

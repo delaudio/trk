@@ -8,20 +8,19 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** agent/259-confirmation-dialog-mouse
-- **Active item:** `plan/todo/0011-confirmation-dialog-pointer-actions.md` for
-  GitHub issue #259.
+- **Branch:** agent/259-docflow-closeout
+- **Active item:** `plan/done/2026-07-27-confirmation-dialog-pointer-actions.md`
+  for closed GitHub issue #259.
 - **Blockers:** none.
-- **Uncommitted work:** implementation commit `78ed758` passed the full local
-  gate and Codex review `run-1785139095273381000`. CI run #305 then exposed
-  `key_handling.rs` at 1003 lines, three above the application hard limit; the
-  confirmation click handler has been moved beside the existing dialog key
-  handler and the full local gate is green before remediation review and push.
+- **Uncommitted work:** Docflow closeout records implementation squash
+  `9c9f256`, PR #289, green CI #306, closed issue #259, and final implementation
+  Codex review `run-1785139755229932000`; closeout validation and review are
+  pending before integration.
 
 ## Last shipped
 
-Issue #258 implementation and Docflow closeout via PRs #287 and #288.
+Issue #259 implementation via PR #289.
 
 ## Next item
 
-Implement and ship `plan/todo/0011-confirmation-dialog-pointer-actions.md`.
+Audit and implement GitHub issue #260 after the #259 closeout merges.
