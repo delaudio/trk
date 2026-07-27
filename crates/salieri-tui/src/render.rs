@@ -463,7 +463,7 @@ pub fn render_with_interactions(
     interactions.register(interaction_region::APP_BODY, vertical[1]);
     interactions.register(interaction_region::APP_STATUS, vertical[2]);
 
-    render_header(frame, vertical[0], song, state);
+    render_header(frame, vertical[0], song, state, &mut interactions);
     render_body(frame, vertical[1], song, state, &mut interactions);
     render_status(frame, vertical[2], state);
 
@@ -560,7 +560,13 @@ impl WaveformWindow {
     }
 }
 
-fn render_header(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState<'_>) {
+fn render_header(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    song: &Song,
+    state: TuiState<'_>,
+    interactions: &mut InteractionMap,
+) {
     let pattern_name = active_pattern(song, state.pattern_index)
         .map_or("No Pattern", |pattern| pattern.name.as_str());
     let dirty = if state.dirty { "*" } else { "" };
@@ -629,10 +635,28 @@ fn render_header(frame: &mut Frame<'_>, area: Rect, song: &Song, state: TuiState
         theme::muted_span(dirty),
         theme::muted_span(format!("  {}", truncate(pattern_name, 18))),
     ]);
-    let header = Paragraph::new(line)
-        .block(theme::block(" Salieri Tracker "))
-        .style(theme::base());
+    let block = theme::block(" Salieri Tracker ");
+    let inner = block.inner(area);
+    register_transport_action(interactions, inner, 2, crate::TransportAction::Play);
+    register_transport_action(interactions, inner, 6, crate::TransportAction::Stop);
+    let header = Paragraph::new(line).block(block).style(theme::base());
     frame.render_widget(header, area);
+}
+
+fn register_transport_action(
+    interactions: &mut InteractionMap,
+    inner: Rect,
+    column_offset: u16,
+    action: crate::TransportAction,
+) {
+    if column_offset >= inner.width || inner.height == 0 {
+        return;
+    }
+    interactions.register_with_payload(
+        interaction_region::TRANSPORT_ACTION,
+        Rect::new(inner.x.saturating_add(column_offset), inner.y, 1, 1),
+        crate::InteractionPayload::TransportAction { action },
+    );
 }
 
 fn render_body(

@@ -41,6 +41,12 @@ pub enum ConfirmationAction {
     Cancel,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransportAction {
+    Play,
+    Stop,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum InteractionPayload {
     #[default]
@@ -81,6 +87,9 @@ pub enum InteractionPayload {
     },
     ConfirmationAction {
         action: ConfirmationAction,
+    },
+    TransportAction {
+        action: TransportAction,
     },
 }
 
@@ -176,6 +185,7 @@ pub mod region {
     use super::InteractionRegionId;
 
     pub const APP_HEADER: InteractionRegionId = InteractionRegionId::new("app.header");
+    pub const TRANSPORT_ACTION: InteractionRegionId = InteractionRegionId::new("transport.action");
     pub const APP_BODY: InteractionRegionId = InteractionRegionId::new("app.body");
     pub const APP_STATUS: InteractionRegionId = InteractionRegionId::new("app.status");
 
