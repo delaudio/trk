@@ -127,6 +127,12 @@ impl App {
             }
             return;
         }
+        if self.mode == AppMode::Dialog {
+            if primary_click {
+                self.handle_confirmation_mouse_click(column, row);
+            }
+            return;
+        }
         if row < 3 {
             if column < 12 {
                 self.toggle_playback();

@@ -6,7 +6,7 @@ use ratatui::{
 use salieri_core::MidiRoutingSettings;
 
 use super::{interaction_region, CommandPaletteViewState, InteractionMap, MidiSettingsState};
-use crate::{InteractionPayload, MidiSettingsAction};
+use crate::{ConfirmationAction, InteractionPayload, MidiSettingsAction};
 
 pub(super) fn render_midi_settings_overlay(
     frame: &mut Frame<'_>,
@@ -304,34 +304,105 @@ pub(super) fn render_command_palette_overlay(
     overlay
 }
 
-pub(super) fn render_quit_confirmation(frame: &mut Frame<'_>, area: Rect) -> Rect {
+pub(super) fn render_quit_confirmation(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    interactions: &mut InteractionMap,
+) -> Rect {
     let overlay = centered_rect(48, 7, area);
-    let lines = vec![
-        Line::from("Unsaved changes. Save before quitting?"),
-        Line::from(""),
-        Line::from("[Y]es   [N]o   [C]ancel"),
-    ];
-    let paragraph = Paragraph::new(lines)
-        .block(Block::default().title(" Quit ").borders(Borders::ALL))
-        .style(Style::default().fg(Color::White));
+    interactions.register(interaction_region::OVERLAY_QUIT_CONFIRMATION, overlay);
+    let inner = confirmation_inner(overlay);
     frame.render_widget(Clear, overlay);
-    frame.render_widget(paragraph, overlay);
+    frame.render_widget(
+        Block::default().title(" Quit ").borders(Borders::ALL),
+        overlay,
+    );
+    frame.render_widget(
+        Paragraph::new("Unsaved changes. Save before quitting?")
+            .style(Style::default().fg(Color::White)),
+        Rect::new(inner.x, inner.y, inner.width, 1),
+    );
+    render_confirmation_actions(
+        frame,
+        Rect::new(inner.x, inner.y.saturating_add(2), inner.width, 1),
+        &[
+            ("[Y] Save", ConfirmationAction::Save),
+            ("[N] Don't Save", ConfirmationAction::DontSave),
+            ("[C/Esc] Cancel", ConfirmationAction::Cancel),
+        ],
+        interactions,
+    );
     overlay
 }
 
-pub(super) fn render_delete_confirmation(frame: &mut Frame<'_>, area: Rect, message: &str) -> Rect {
+pub(super) fn render_delete_confirmation(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    message: &str,
+    interactions: &mut InteractionMap,
+) -> Rect {
     let overlay = centered_rect(52, 7, area);
-    let lines = vec![
-        Line::from(message.to_string()),
-        Line::from(""),
-        Line::from("[Y]es   [N]o   [Esc] Cancel"),
-    ];
-    let paragraph = Paragraph::new(lines)
-        .block(Block::default().title(" Confirm ").borders(Borders::ALL))
-        .style(Style::default().fg(Color::White));
+    interactions.register(interaction_region::OVERLAY_DELETE_CONFIRMATION, overlay);
+    let inner = confirmation_inner(overlay);
     frame.render_widget(Clear, overlay);
-    frame.render_widget(paragraph, overlay);
+    frame.render_widget(
+        Block::default().title(" Confirm ").borders(Borders::ALL),
+        overlay,
+    );
+    frame.render_widget(
+        Paragraph::new(message.to_string()).style(Style::default().fg(Color::White)),
+        Rect::new(inner.x, inner.y, inner.width, 1),
+    );
+    render_confirmation_actions(
+        frame,
+        Rect::new(inner.x, inner.y.saturating_add(2), inner.width, 1),
+        &[
+            ("[Y] Confirm", ConfirmationAction::Confirm),
+            ("[N/C/Esc] Cancel", ConfirmationAction::Cancel),
+        ],
+        interactions,
+    );
     overlay
+}
+
+fn confirmation_inner(overlay: Rect) -> Rect {
+    Rect::new(
+        overlay.x.saturating_add(1),
+        overlay.y.saturating_add(1),
+        overlay.width.saturating_sub(2),
+        overlay.height.saturating_sub(2),
+    )
+}
+
+fn render_confirmation_actions(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    actions: &[(&str, ConfirmationAction)],
+    interactions: &mut InteractionMap,
+) {
+    let mut spans = Vec::new();
+    let mut cursor_x = area.x;
+    let right = area.x.saturating_add(area.width);
+    for (index, (label, action)) in actions.iter().copied().enumerate() {
+        if index > 0 {
+            spans.push(Span::raw("   "));
+            cursor_x = cursor_x.saturating_add(3);
+        }
+        let width = (label.len() as u16).min(right.saturating_sub(cursor_x));
+        interactions.register_with_payload(
+            interaction_region::CONFIRMATION_ACTION,
+            Rect::new(cursor_x, area.y, width, area.height),
+            InteractionPayload::ConfirmationAction { action },
+        );
+        spans.push(Span::styled(
+            label,
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ));
+        cursor_x = cursor_x.saturating_add(width);
+    }
+    frame.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
 fn centered_rect(width: u16, height: u16, area: Rect) -> Rect {

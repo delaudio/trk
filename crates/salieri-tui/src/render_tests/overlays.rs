@@ -442,7 +442,9 @@ fn renders_quit_confirmation_overlay() {
         .collect::<String>();
 
     assert!(rendered.contains("Unsaved changes"));
-    assert!(rendered.contains("[Y]es"));
+    assert!(rendered.contains("[Y] Save"));
+    assert!(rendered.contains("[N] Don't Save"));
+    assert!(rendered.contains("[C/Esc] Cancel"));
 }
 
 #[test]
@@ -507,6 +509,8 @@ fn renders_delete_confirmation_overlay() {
 
     assert!(rendered.contains("Confirm"));
     assert!(rendered.contains("Delete track 02 Bass?"));
+    assert!(rendered.contains("[Y] Confirm"));
+    assert!(rendered.contains("[N/C/Esc] Cancel"));
 }
 
 #[test]

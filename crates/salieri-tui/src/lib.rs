@@ -4,8 +4,8 @@ pub mod render;
 pub mod viewport;
 
 pub use interaction::{
-    region as interaction_region, InteractionMap, InteractionPayload, InteractionRegion,
-    InteractionRegionId, MidiSettingsAction,
+    region as interaction_region, ConfirmationAction, InteractionMap, InteractionPayload,
+    InteractionRegion, InteractionRegionId, MidiSettingsAction,
 };
 pub use layout::{
     resolve_managed_layout, resolve_tracker_layout, LayoutDiagnostic, ManagedLayoutDirection,
