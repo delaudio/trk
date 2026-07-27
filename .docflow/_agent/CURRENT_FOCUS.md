@@ -8,20 +8,18 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** agent/266-docflow-closeout
-- **Active item:** close out
-  `plan/done/2026-07-27-responsive-contextual-status-bar.md` for GitHub issue
-  #266.
+- **Branch:** agent/267-hovered-wheel-routing
+- **Active item:** implement `plan/todo/0019-hovered-wheel-routing.md` for
+  GitHub issue #267.
 - **Blockers:** none.
-- **Pending integration:** PR #303 merged at `4e84d78`, CI #334 is green,
-  issue #266 is closed, and final implementation Codex review
-  `run-1785158693422236000` is clean. This documentation closeout still needs
-  its local gate, mandatory Codex review, PR, CI, and merge.
+- **Pending integration:** classify scroll targets from render-owned regions,
+  route both wheel axes by pointer coordinates, preserve modal capture, and
+  add focused routing tests.
 
 ## Last shipped
 
-Issue #266 implementation via PR #303.
+Issue #266 closeout via PR #304.
 
 ## Next item
 
-Merge this closeout, then audit and implement issue #267.
+Implement, verify, review, push, merge, and close issue #267.
