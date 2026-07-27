@@ -1,7 +1,7 @@
 ---
 adr: 0019
 title: Compose the transport header by width
-status: Accepted
+status: Implemented
 date: 2026-07-27
 owner: default-agent
 supersedes:
@@ -71,6 +71,7 @@ set at large widths.
 | Date | Revision | Author | Change |
 |------|----------|--------|--------|
 | 2026-07-27 | r1 | default-agent | Accepted width-aware atomic transport-header compositions. |
+| 2026-07-27 | r2 | default-agent | Marked Implemented after PR #301 merged with GitHub Actions CI green. |
 
 ## Approvals
 
