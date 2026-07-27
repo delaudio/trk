@@ -20,4 +20,4 @@ metadata.
 | 0013 | Activate confirmation dialog actions with the pointer | Implemented | 2026-07-26 | default-agent | tui, ux, input, dialog, overlay |
 | 0014 | Control Play and Stop with distinct pointer targets | Implemented | 2026-07-27 | default-agent | tui, ux, input, transport, playback |
 | 0015 | Select DSP targets and device rows with the pointer | Implemented | 2026-07-27 | default-agent | tui, ux, input, dsp, audio |
-| 0016 | Select DSP parameters and palette entries from rendered rows | Accepted | 2026-07-27 | default-agent | tui, ux, input, dsp, audio, palette |
+| 0016 | Select DSP parameters and palette entries from rendered rows | Implemented | 2026-07-27 | default-agent | tui, ux, input, dsp, audio, palette |
