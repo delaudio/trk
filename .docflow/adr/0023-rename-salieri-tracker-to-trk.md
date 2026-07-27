@@ -1,7 +1,7 @@
 ---
 adr: 0023
 title: Rename Salieri Tracker to trk
-status: Proposed
+status: Accepted
 date: 2026-07-27
 owner: default-agent
 supersedes:
@@ -79,14 +79,18 @@ for the legacy name.
 ## References
 
 - `0001-record-architecture-decisions.md`
+- `../plan/todo/0021-rename-product-and-repository-to-trk.md`
+- GitHub issue #309.
 
 ## Revision History
 
 | Date | Revision | Author | Change |
 |------|----------|--------|--------|
 | 2026-07-27 | r1 | default-agent | Proposed the hard cutover to the `trk` identity. |
+| 2026-07-27 | r2 | default-agent | Accepted the guided hard-cutover assessment and queued implementation. |
 
 ## Approvals
 
 | Role | Name | Date | Signature |
 |------|------|------|-----------|
+| Maintainer | fdg | 2026-07-27 | Approved the guided hard cutover and instructed autonomous execution in chat. |
