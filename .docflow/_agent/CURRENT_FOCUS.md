@@ -12,9 +12,9 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Active item:** implement
   `plan/todo/0018-responsive-contextual-status-bar.md` for GitHub issue #266.
 - **Blockers:** none.
-- **Pending integration:** compose each main view's contextual shortcuts from
-  atomic priority-ordered segments, preserve command/notification priority,
-  and add narrow/medium snapshot coverage.
+- **Pending integration:** atomic priority-ordered status composition,
+  command/notification priority, and 72/100-column all-view snapshots are
+  implemented; full gate, Codex review, PR, CI, merge, and closeout remain.
 
 ## Last shipped
 

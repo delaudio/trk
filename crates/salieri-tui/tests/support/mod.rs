@@ -66,9 +66,11 @@ pub fn render_waveform_snapshot(overview: WaveformOverview) -> String {
 fn buffer_text(buffer: &ratatui::buffer::Buffer) -> String {
     let mut output = String::new();
     for y in 0..buffer.area.height {
+        let mut row = String::new();
         for x in 0..buffer.area.width {
-            output.push_str(buffer[(x, y)].symbol());
+            row.push_str(buffer[(x, y)].symbol());
         }
+        output.push_str(row.trim_end());
         output.push('\n');
     }
     output
