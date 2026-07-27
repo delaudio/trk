@@ -103,7 +103,7 @@ fn transport_header_uses_complete_width_appropriate_segments() {
         ),
         (
             140,
-            " [▷] [■] [●×] BPM:120 LPB:4 Oct:4 V:100 Sw:0% Syn:Int CPU:0% STOPPED PAT:01 ROW:0000/0000 MIDI Disconnected ORD:00 LOOP:ON TRK:01 FLD:NOTE",
+            " [▷] [■] [●×] BPM:120 LPB:4 Oct:4 V:100 Sw:0% Syn:Int CPU0% STOPPED PAT:01 ROW:0000/0000 MIDI Disconnected ORD:00 LOOP:ON TRK:01 FLD:NOTE",
         ),
     ];
 
@@ -118,6 +118,19 @@ fn transport_header_uses_complete_width_appropriate_segments() {
             "terminal width {terminal_width}: {actual}"
         );
     }
+
+    let loop_off = compose_transport_header(
+        &song,
+        TuiState {
+            loop_pattern: false,
+            ..state
+        },
+        138,
+    );
+    let loop_off_text = super::render_test_support::line_text(&loop_off.line);
+    assert_eq!(loop_off.line.width(), 138);
+    assert!(loop_off_text.contains("MIDI Disconnected"));
+    assert!(loop_off_text.contains("LOOP:OFF"));
 }
 
 #[test]
@@ -134,15 +147,15 @@ fn optional_header_markers_are_omitted_atomically_when_they_do_not_fit() {
         ..render_test_state()
     };
 
-    let constrained = compose_transport_header(&song, state, 138);
+    let constrained = compose_transport_header(&song, state, 137);
     let constrained_text = super::render_test_support::line_text(&constrained.line);
-    assert_eq!(constrained.line.width(), 138);
+    assert_eq!(constrained.line.width(), 137);
     assert!(!constrained_text.contains(" SEL"));
     assert!(!constrained_text.ends_with(" *"));
 
-    let wide = compose_transport_header(&song, state, 144);
+    let wide = compose_transport_header(&song, state, 143);
     let wide_text = super::render_test_support::line_text(&wide.line);
-    assert_eq!(wide.line.width(), 144);
+    assert_eq!(wide.line.width(), 143);
     assert!(wide_text.ends_with(" SEL *"));
 }
 

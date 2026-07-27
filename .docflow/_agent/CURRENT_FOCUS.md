@@ -14,9 +14,9 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Blockers:** none.
 - **Pending integration:** atomic 72/80/100/140-column header compositions,
   exact Play/Stop targets, focused tests, and intentional snapshots are
-  implemented. Address Codex review finding `928e85114b0b7310` with a measured
-  full-static candidate that omits only an oversized MIDI segment, then rerun
-  the full gate and review before opening the PR.
+  implemented. Address Codex review finding `8868637f9af60cfe` by budgeting the
+  full profile for `LOOP:OFF`, then rerun the full gate and review before
+  opening the PR.
 
 ## Last shipped
 

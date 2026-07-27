@@ -786,7 +786,7 @@ fn compose_full_transport_header(
     header.push(theme::value_span("0%"));
     header.push(theme::label_span(" Syn:"));
     header.push(theme::value_span("Int"));
-    header.push(theme::label_span(" CPU:"));
+    header.push(theme::label_span(" CPU"));
     header.push(theme::value_span("0%"));
     header.push(theme::muted_span(" "));
     header.push(Span::styled(
