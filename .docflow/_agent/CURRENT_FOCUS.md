@@ -8,21 +8,21 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** agent/268-cross-size-mouse-regressions
-- **Active item:** implement
-  `plan/todo/0020-cross-size-mouse-regressions.md` for GitHub issue #268.
+- **Branch:** agent/268-docflow-closeout
+- **Active item:** close out
+  `plan/done/2026-07-27-cross-size-mouse-regressions.md` after GitHub issue
+  #268 shipped.
 - **Blockers:** none.
-- **Pending integration:** the render-to-dispatch harness and four-size matrix
-  now cover pattern cells, scrolled composite lists, scrolled browsers, Help,
-  scrolled DSP lists/palette, sampler controls, and adjacent no-ops. The new
-  tests exposed and fixed missing DSP device/parameter virtualization. Full
-  gate, Codex review, PR, CI, and merge remain.
+- **Pending integration:** implementation squash `76fe0f1` is on `main`, PR
+  #307 and CI #342 are green, issue #268 is closed, and final implementation
+  Codex review `run-1785167467297022000` was clean. The atomic Docflow
+  move/status/index/worklog closeout still needs gate, Codex review, PR, CI,
+  and merge.
 
 ## Last shipped
 
-Issue #267 Docflow closeout via PR #306.
+Issue #268 implementation via PR #307.
 
 ## Next item
 
-Implement the cross-size matrix for issue #268, then close out its Docflow
-records after merge.
+No queued UX issue remains after this closeout.
