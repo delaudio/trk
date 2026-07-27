@@ -29,3 +29,9 @@ Preserve modal capture and existing bounded navigation behavior.
 - `../../adr/0003-render-owned-interaction-regions.md`
 - `../done/2026-07-26-render-owned-interaction-regions.md`
 - GitHub issue #249 (closed).
+
+---
+
+Shipped at HEAD `3b20b85` via
+[PR #305](https://github.com/delaudio/salieri-tracker/pull/305), with GitHub
+Actions CI run #338 green and issue #267 closed.

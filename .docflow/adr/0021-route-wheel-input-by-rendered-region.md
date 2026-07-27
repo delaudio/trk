@@ -1,7 +1,7 @@
 ---
 adr: 0021
 title: Route wheel input by rendered region
-status: Accepted
+status: Implemented
 date: 2026-07-27
 owner: default-agent
 supersedes:
@@ -76,6 +76,7 @@ fall-through to covered workspace regions.
 |------|----------|--------|--------|
 | 2026-07-27 | r1 | default-agent | Accepted render-owned semantic scroll targets and coordinate-based wheel routing. |
 | 2026-07-27 | r2 | default-agent | Restricted wheel targets to rendered content rows and explicitly excluded chrome and empty padding. |
+| 2026-07-27 | r3 | default-agent | Marked implemented after PR #305 merged with CI green and issue #267 closed. |
 
 ## Approvals
 
