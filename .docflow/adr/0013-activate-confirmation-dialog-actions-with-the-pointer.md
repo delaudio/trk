@@ -1,7 +1,7 @@
 ---
 adr: 0013
 title: Activate confirmation dialog actions with the pointer
-status: Accepted
+status: Implemented
 date: 2026-07-26
 owner: default-agent
 supersedes:
@@ -58,7 +58,7 @@ no-ops.
 ## References
 
 - `0003-render-owned-interaction-regions.md`
-- `../plan/todo/0011-confirmation-dialog-pointer-actions.md`
+- `../plan/done/2026-07-27-confirmation-dialog-pointer-actions.md`
 - GitHub issue #259.
 
 ## Revision History
@@ -66,6 +66,7 @@ no-ops.
 | Date | Revision | Author | Change |
 |------|----------|--------|--------|
 | 2026-07-26 | r1 | default-agent | Accepted typed render-owned confirmation targets routed through existing dialog key choices. |
+| 2026-07-27 | r2 | default-agent | Marked Implemented after PR #289 merged with GitHub Actions CI green. |
 
 ## Approvals
 
