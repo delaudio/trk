@@ -8,29 +8,22 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** agent/267-hovered-wheel-routing
-- **Active item:** implement `plan/todo/0019-hovered-wheel-routing.md` for
-  GitHub issue #267.
+- **Branch:** agent/267-docflow-closeout
+- **Active item:** close out
+  `plan/done/2026-07-27-hovered-wheel-routing.md` after GitHub issue #267
+  shipped.
 - **Blockers:** none.
-- **Pending integration:** semantic scroll-target classification,
-  coordinate-based vertical/horizontal routing, loaded-waveform targeting,
-  modal capture, and exact rendered-content tests are implemented. Codex
-  finding `164be98a98636f7b` was remediated by excluding panel chrome and empty
-  padding. Findings `cead2b3f0dbae5a5` and `0866b57f655cb756` from the
-  first rerun were remediated by excluding trailing horizontal padding.
-  Residual finding `bf629098969816b7` is being remediated by registering the
-  same bounded row-content target from the shared pattern-cell helper for both
-  standalone and large Renoise layouts. Low-severity pre-push finding
-  `c2425e60acbd6266` is being remediated by including Renoise's rendered
-  trailing row gutter without widening the standalone target. Pre-push finding
-  `e83f058069907bce` is being remediated by restoring command-prompt wheel
-  capture on both axes; affected tests, final pre-push Codex review, PR, CI,
-  merge, and closeout remain.
+- **Pending integration:** implementation squash `3b20b85` is on `main`, PR
+  #305 and CI #338 are green, issue #267 is closed, and final implementation
+  Codex review `run-1785165122597923000` was clean. The atomic Docflow
+  move/status/index/worklog closeout is committed; finding
+  `584abc8b44e9078a` is being remediated by updating the ADR's moved-plan
+  reference. Final gate, Codex rerun, PR, CI, and merge remain.
 
 ## Last shipped
 
-Issue #266 closeout via PR #304.
+Issue #267 implementation via PR #305.
 
 ## Next item
 
-Implement, verify, review, push, merge, and close issue #267.
+Audit and implement GitHub issue #268 after the #267 Docflow closeout merges.
