@@ -190,6 +190,7 @@ fn measured_header_candidates_never_exceed_dynamic_boundaries() {
 fn variable_midi_status_is_rendered_whole_or_omitted() {
     let song = Song::empty();
     for status in [
+        "MIDI Disconnected",
         "MIDI Disconnected | MIDI In Rec",
         "MIDI Connecting 2",
         "MIDI No Outputs",
@@ -199,7 +200,7 @@ fn variable_midi_status_is_rendered_whole_or_omitted() {
             midi_status: status,
             ..render_test_state()
         };
-        for available_width in [98, 138, 158] {
+        for available_width in [98, 118, 120, 138, 158] {
             let header = compose_transport_header(&song, state, available_width);
             let text = super::render_test_support::line_text(&header.line);
             assert!(header.line.width() <= usize::from(available_width));
@@ -211,6 +212,9 @@ fn variable_midi_status_is_rendered_whole_or_omitted() {
                     text.contains(status),
                     "partial or inferred MIDI status at width {available_width}: {text}"
                 );
+            }
+            if available_width < 138 {
+                assert!(!text.contains(status));
             }
             if available_width >= 138 {
                 for static_segment in [" ORD:", " LOOP:", " TRK:", " FLD:"] {

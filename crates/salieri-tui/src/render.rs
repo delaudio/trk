@@ -682,13 +682,8 @@ fn compose_transport_header(
         return full_without_midi.finish();
     }
 
-    let synchronized = compose_synchronized_transport_header(
-        song,
-        state,
-        playback,
-        playhead.as_str(),
-        available_width,
-    );
+    let synchronized =
+        compose_synchronized_transport_header(song, state, playback, playhead.as_str());
     if synchronized.line_width() <= available_width {
         return synchronized.finish();
     }
@@ -744,24 +739,10 @@ fn compose_synchronized_transport_header(
     state: TuiState<'_>,
     playback: &'static str,
     playhead: &str,
-    available_width: u16,
 ) -> TransportHeaderBuilder {
     let mut header = compose_core_transport_header(song, state, playback, playhead);
     header.push(theme::label_span("  Sync: "));
     header.push(theme::value_span("Internal"));
-    let midi_segment = vec![
-        theme::muted_span("  "),
-        theme::value_span(state.midi_status.to_string()),
-    ];
-    if header
-        .line_width()
-        .saturating_add(spans_width(&midi_segment))
-        <= available_width
-    {
-        for span in midi_segment {
-            header.push(span);
-        }
-    }
     header
 }
 
@@ -833,12 +814,6 @@ fn compose_full_transport_header(
         header.push_if_fits(theme::muted_span(" *"), available_width);
     }
     header
-}
-
-fn spans_width(spans: &[Span<'_>]) -> u16 {
-    spans.iter().fold(0, |width, span| {
-        width.saturating_add(u16::try_from(span.width()).unwrap_or(u16::MAX))
-    })
 }
 
 fn register_transport_action(
