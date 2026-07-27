@@ -12,10 +12,11 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Active item:** `plan/todo/0011-confirmation-dialog-pointer-actions.md` for
   GitHub issue #259.
 - **Blockers:** none.
-- **Uncommitted work:** implementation commit `bc15ca6` passed the full local
-  gate and subsequent safety remediation. Finding `db4b56e073382a1b` from
-  `run-1785138712153981000` is being remediated with open-project confirm and
-  cancel coverage before final re-review and push to draft PR #289.
+- **Uncommitted work:** implementation commit `78ed758` passed the full local
+  gate and Codex review `run-1785139095273381000`. CI run #305 then exposed
+  `key_handling.rs` at 1003 lines, three above the application hard limit; the
+  confirmation click handler has been moved beside the existing dialog key
+  handler and the full local gate is green before remediation review and push.
 
 ## Last shipped
 
