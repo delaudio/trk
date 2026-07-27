@@ -1,7 +1,7 @@
 ---
 adr: 0015
 title: Select DSP targets and device rows with the pointer
-status: Accepted
+status: Implemented
 date: 2026-07-27
 owner: default-agent
 supersedes:
@@ -63,7 +63,7 @@ parameter cursor so the parameter panel immediately reflects that device.
 ## References
 
 - `0003-render-owned-interaction-regions.md`
-- `../plan/todo/0013-dsp-target-device-row-clicks.md`
+- `../plan/done/2026-07-27-dsp-target-device-row-clicks.md`
 - GitHub issue #261.
 
 ## Revision History
@@ -71,6 +71,7 @@ parameter cursor so the parameter panel immediately reflects that device.
 | Date | Revision | Author | Change |
 |------|----------|--------|--------|
 | 2026-07-27 | r1 | default-agent | Accepted render-owned DSP target and device-row selection. |
+| 2026-07-27 | r2 | default-agent | Marked Implemented after PR #293 merged with GitHub Actions CI green. |
 
 ## Approvals
 
