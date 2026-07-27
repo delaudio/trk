@@ -661,50 +661,95 @@ fn compose_transport_header(
         .playhead_row
         .map_or_else(|| "0000".to_string(), |row| format!("{row:04}"));
 
-    if available_width < 60 {
-        return TransportHeaderBuilder::new(state, false).finish();
+    let full =
+        compose_full_transport_header(song, state, playback, playhead.as_str(), available_width);
+    if full.line_width() <= available_width {
+        return full.finish();
     }
 
-    if available_width < 132 {
-        let mut header = TransportHeaderBuilder::new(state, false);
-        header.push(theme::label_span("  BPM: "));
-        header.push(theme::value_span(song.transport.bpm.to_string()));
-        header.push(theme::label_span("  LPB: "));
-        header.push(theme::value_span(song.transport.lines_per_beat.to_string()));
-        header.push(theme::muted_span("  "));
-        header.push(Span::styled(
-            playback,
-            if state.is_playing {
-                theme::playing()
-            } else {
-                theme::muted()
-            },
-        ));
-        header.push(theme::label_span("  PAT: "));
-        header.push(theme::value_span(format!("{:02}", state.pattern_index + 1)));
-        header.push(theme::label_span("  ROW: "));
-        header.push(theme::value_span(format!(
-            "{playhead}/{:04}",
-            state.cursor.row
-        )));
-        if available_width >= 76 {
-            header.push(theme::label_span("  Sync: "));
-            header.push(theme::value_span("Internal"));
-        }
-        let midi_status = theme::value_span(state.midi_status.to_string());
-        let midi_segment_width = 2_usize.saturating_add(midi_status.width());
-        if header
-            .line_width()
-            .saturating_add(u16::try_from(midi_segment_width).unwrap_or(u16::MAX))
-            <= available_width
-        {
-            header.push(theme::muted_span("  "));
-            header.push(midi_status);
-        }
-        return header.finish();
+    let synchronized = compose_synchronized_transport_header(
+        song,
+        state,
+        playback,
+        playhead.as_str(),
+        available_width,
+    );
+    if synchronized.line_width() <= available_width {
+        return synchronized.finish();
     }
 
-    let mut header = TransportHeaderBuilder::new(state, true);
+    let core = compose_core_transport_header(song, state, playback, playhead.as_str());
+    if core.line_width() <= available_width {
+        return core.finish();
+    }
+
+    TransportHeaderBuilder::new(state, false).finish()
+}
+
+fn compose_core_transport_header(
+    song: &Song,
+    state: TuiState<'_>,
+    playback: &'static str,
+    playhead: &str,
+) -> TransportHeaderBuilder {
+    let mut header = TransportHeaderBuilder::new(state, false);
+    header.push(theme::label_span("  BPM: "));
+    header.push(theme::value_span(song.transport.bpm.to_string()));
+    header.push(theme::label_span("  LPB: "));
+    header.push(theme::value_span(song.transport.lines_per_beat.to_string()));
+    header.push(theme::muted_span("  "));
+    header.push(Span::styled(
+        playback,
+        if state.is_playing {
+            theme::playing()
+        } else {
+            theme::muted()
+        },
+    ));
+    header.push(theme::label_span("  PAT: "));
+    header.push(theme::value_span(format!("{:02}", state.pattern_index + 1)));
+    header.push(theme::label_span("  ROW: "));
+    header.push(theme::value_span(format!(
+        "{playhead}/{:04}",
+        state.cursor.row
+    )));
+    header
+}
+
+fn compose_synchronized_transport_header(
+    song: &Song,
+    state: TuiState<'_>,
+    playback: &'static str,
+    playhead: &str,
+    available_width: u16,
+) -> TransportHeaderBuilder {
+    let mut header = compose_core_transport_header(song, state, playback, playhead);
+    header.push(theme::label_span("  Sync: "));
+    header.push(theme::value_span("Internal"));
+    let midi_segment = vec![
+        theme::muted_span("  "),
+        theme::value_span(state.midi_status.to_string()),
+    ];
+    if header
+        .line_width()
+        .saturating_add(spans_width(&midi_segment))
+        <= available_width
+    {
+        for span in midi_segment {
+            header.push(span);
+        }
+    }
+    header
+}
+
+fn compose_full_transport_header(
+    song: &Song,
+    state: TuiState<'_>,
+    playback: &'static str,
+    playhead: &str,
+    available_width: u16,
+) -> TransportHeaderBuilder {
+    let mut header = TransportHeaderBuilder::new(state, false);
     header.push(theme::label_span(" BPM:"));
     header.push(theme::value_span(song.transport.bpm.to_string()));
     header.push(theme::label_span(" LPB:"));
@@ -735,7 +780,6 @@ fn compose_transport_header(
         "{playhead}/{:04}",
         state.cursor.row
     )));
-    header.push(theme::label_span(" MIDI:"));
     let trailing = vec![
         theme::label_span(" ORD:"),
         theme::value_span(format!("{:02}", state.sequence_position.unwrap_or(0))),
@@ -746,15 +790,12 @@ fn compose_transport_header(
         theme::label_span(" FLD:"),
         theme::value_span(state.cursor.field.to_string()),
     ];
-    let expanded_midi = theme::value_span(state.midi_status.to_string());
-    let required_width = header
-        .line_width()
-        .saturating_add(u16::try_from(expanded_midi.width()).unwrap_or(u16::MAX))
-        .saturating_add(spans_width(&trailing));
-    if required_width <= available_width {
-        header.push(expanded_midi);
-    } else {
-        header.push(theme::value_span(compact_midi_status(state.midi_status)));
+    let midi_segment = vec![
+        theme::muted_span(" "),
+        theme::value_span(state.midi_status.to_string()),
+    ];
+    for span in midi_segment {
+        header.push(span);
     }
     for span in trailing {
         header.push(span);
@@ -765,23 +806,13 @@ fn compose_transport_header(
     if state.dirty {
         header.push_if_fits(theme::muted_span(" *"), available_width);
     }
-    header.finish()
+    header
 }
 
 fn spans_width(spans: &[Span<'_>]) -> u16 {
     spans.iter().fold(0, |width, span| {
         width.saturating_add(u16::try_from(span.width()).unwrap_or(u16::MAX))
     })
-}
-
-fn compact_midi_status(status: &str) -> &'static str {
-    if status.contains("Disconnected") {
-        "Off"
-    } else if status.contains("Connected") {
-        "On"
-    } else {
-        "—"
-    }
 }
 
 fn register_transport_action(
