@@ -86,20 +86,16 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-unknown-linux-musl
-      - name: Install static Linux linker and ALSA dev dependencies
-        run: sudo apt-get update && sudo apt-get install -y musl-tools libasound2-dev pkg-config
+      - name: Install ALSA dev dependencies
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev pkg-config
       - name: Build immutable Linux release archive
-        env:
-          PKG_CONFIG_ALLOW_CROSS: "1"
         run: |
           bash scripts/release-guard.sh
           version="${GITHUB_REF_NAME#v}"
           archive="trk-${version}-linux-x86_64.tar.gz"
           mkdir -p dist/stage-linux-x86_64 dist/release
-          cargo build --locked --release --target x86_64-unknown-linux-musl -p trk-app
-          cp target/x86_64-unknown-linux-musl/release/trk dist/stage-linux-x86_64/trk
+          cargo build --locked --release -p trk-app
+          cp target/release/trk dist/stage-linux-x86_64/trk
           tar -czf "dist/release/$archive" -C dist/stage-linux-x86_64 trk
           checksum="$(sha256sum "dist/release/$archive" | awk '{print $1}')"
           printf '%s  %s\n' "$checksum" "$archive" > "dist/release/$archive.sha256"
@@ -107,7 +103,7 @@ jobs:
           {
             "version": "$version",
             "architecture": "x86_64",
-            "target": "x86_64-unknown-linux-musl",
+            "target": "x86_64-unknown-linux-gnu",
             "commit": "$GITHUB_SHA",
             "workflow_run": "$GITHUB_RUN_ID"
           }
@@ -209,7 +205,7 @@ jobs:
         with:
           name: trk-linux-x86_64
           path: dist/release
-      - name: Run the static binary on Debian Bookworm
+      - name: Run the binary on Debian Bookworm
         run: |
           set -euo pipefail
           mkdir -p dist/smoke
@@ -217,11 +213,7 @@ jobs:
           docker run --rm \
             --volume "$PWD/dist/smoke:/smoke:ro" \
             debian:bookworm-slim \
-            /smoke/trk --version
-          docker run --rm \
-            --volume "$PWD/dist/smoke:/smoke:ro" \
-            debian:bookworm-slim \
-            /smoke/trk --help >/dev/null
+            sh -c "apt-get update >/dev/null && apt-get install -y libasound2 >/dev/null && /smoke/trk --version && /smoke/trk --help >/dev/null"
 
   update-homebrew-tap:
     needs: [smoke-homebrew, smoke-linux]
