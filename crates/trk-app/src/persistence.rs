@@ -207,15 +207,15 @@ mod tests {
     }
 
     #[test]
-    fn loads_default_fixture() {
-        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/default.trk");
+    fn loads_foundations_fixture() {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../fixtures/projects/foundations.trk");
         let song = load_project(&path).expect("load fixture");
 
-        assert_eq!(song.metadata.title, "256COLOR_rep");
-        assert_eq!(song.tracks.len(), 15);
-        assert_eq!(song.patterns.len(), 40);
-        assert_eq!(song.sequence.len(), 40);
-        assert_eq!(song.samples.len(), 20);
+        assert_eq!(song.metadata.title, "Foundations Fixture");
+        assert_eq!(song.tracks.len(), 2);
+        assert_eq!(song.patterns.len(), 1);
+        assert_eq!(song.sequence.len(), 1);
     }
 
     #[test]

@@ -24,7 +24,6 @@ Point `[project_browser].start_dir` (or `workspace.project_library`) at `fixture
 
 ## Current Fixtures
 
-- `fixtures/default.trk`: `256COLOR_rep`, converted from XRNS into a valid format-version-1 demo project with 15 tracks, 40 patterns, sequence data, instruments, and WAV sample assets under `fixtures/samples/256color/`.
 - `fixtures/projects/foundations.trk`: small format-version-1 golden project covering notes, sample playback settings, instruments, mixer state, DSP devices, and automation.
 - `fixtures/midi/simple-format0.hex`: minimal Standard MIDI File format-0 input stored as reviewable hexadecimal text.
 - `fixtures/xrns/minimal-song.xml`: synthetic Renoise `Song.xml` input packaged into an in-memory XRNS archive by interop tests.
