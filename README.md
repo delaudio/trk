@@ -30,15 +30,21 @@ External instruments remain a first-class realtime path through MIDI. Assigned W
 - Deterministic generative transform CLI, currently Euclidean rhythm generation.
 - AI-assisted composition boundary with reviewable proposals and explicit apply semantics; no provider contacts external services implicitly.
 
-## Requirements
+## Installation
 
-- Rust stable
-- macOS or Linux
-- A terminal with alternate-screen support
-- A MIDI destination when using external instrument playback
-- A default audio output device when using internal assigned-sample playback
+Install via Homebrew:
 
-On macOS, use IAC Driver for a virtual MIDI cable. On Linux, use your preferred ALSA/JACK/PipeWire MIDI routing setup.
+```bash
+brew install delaudio/tap/trk
+```
+
+See [`docs/HOMEBREW.md`](docs/HOMEBREW.md) for tap bootstrap and release documentation.
+
+Or build and install from source using Cargo:
+
+```bash
+cargo install --path crates/trk-app
+```
 
 ## Quick Start
 
@@ -598,3 +604,7 @@ The app tracks dirty state. Quitting with unsaved changes prompts for save, disc
 ## Roadmap Gaps
 
 trk is not yet a full Renoise-class workstation. The largest missing product areas are sampler keyzones and velocity layers, voice allocation/choking, loop crossfades, streaming for large samples, audio-device selection, plugin hosting, tracker effect columns and semantics beyond the current FX1/FX2 subset, graphical mixer/send/automation and realtime meter views, richer MIDI input mapping and quantization, and implemented external-provider AI adapters.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).

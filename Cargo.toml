@@ -16,6 +16,9 @@ resolver = "2"
 edition = "2021"
 license = "MIT"
 version = "0.1.0"
+description = "Terminal tracker and music composition environment"
+homepage = "https://github.com/delaudio/trk"
+repository = "https://github.com/delaudio/trk"
 
 [workspace.dependencies]
 anyhow = "1"
