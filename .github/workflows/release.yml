@@ -159,7 +159,7 @@ jobs:
         with:
           generate_release_notes: true
           fail_on_unmatched_files: true
-          overwrite_files: false
+          overwrite: true
           files: |
             dist/release/*.tar.gz
             dist/release/*.sha256
