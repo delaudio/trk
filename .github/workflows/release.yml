@@ -205,15 +205,15 @@ jobs:
         with:
           name: trk-linux-x86_64
           path: dist/release
-      - name: Run the binary on Debian Bookworm
+      - name: Run the binary on Ubuntu 24.04
         run: |
           set -euo pipefail
           mkdir -p dist/smoke
           tar -xzf "dist/release/trk-${GITHUB_REF_NAME#v}-linux-x86_64.tar.gz" -C dist/smoke trk
           docker run --rm \
             --volume "$PWD/dist/smoke:/smoke:ro" \
-            debian:bookworm-slim \
-            sh -c "apt-get update >/dev/null && apt-get install -y libasound2 >/dev/null && /smoke/trk --version && /smoke/trk --help >/dev/null"
+            ubuntu:24.04 \
+            sh -c "apt-get update >/dev/null && apt-get install -y libasound2t64 >/dev/null || apt-get install -y libasound2 >/dev/null && /smoke/trk --version && /smoke/trk --help >/dev/null"
 
   update-homebrew-tap:
     needs: [smoke-homebrew, smoke-linux]
