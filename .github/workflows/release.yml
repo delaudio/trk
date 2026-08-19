@@ -15,9 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install system dependencies
-        run: |
-          sudo apt-get update -o Acquire::http::Timeout="10" -o Acquire::Retries="3" || true
-          sudo apt-get install -y --no-install-recommends libasound2-dev pkg-config
+        run: sudo apt-get install -y --no-install-recommends libasound2-dev pkg-config
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -86,9 +84,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install ALSA dev dependencies
-        run: |
-          sudo apt-get update -o Acquire::http::Timeout="10" -o Acquire::Retries="3" || true
-          sudo apt-get install -y --no-install-recommends libasound2-dev pkg-config
+        run: sudo apt-get install -y --no-install-recommends libasound2-dev pkg-config
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Build immutable Linux release archive
@@ -216,7 +212,7 @@ jobs:
           docker run --rm \
             --volume "$PWD/dist/smoke:/smoke:ro" \
             ubuntu:24.04 \
-            sh -c "apt-get update >/dev/null && apt-get install -y libasound2t64 >/dev/null || apt-get install -y libasound2 >/dev/null && /smoke/trk --version && /smoke/trk --help >/dev/null"
+            sh -c "apt-get install -y --no-install-recommends libasound2t64 >/dev/null || apt-get install -y --no-install-recommends libasound2 >/dev/null || (apt-get update >/dev/null && apt-get install -y --no-install-recommends libasound2t64 >/dev/null) && /smoke/trk --version && /smoke/trk --help >/dev/null"
 
   update-homebrew-tap:
     needs: [smoke-homebrew, smoke-linux]
