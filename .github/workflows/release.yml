@@ -16,8 +16,8 @@ jobs:
       - uses: actions/checkout@v5
       - name: Install system dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libasound2-dev pkg-config
+          sudo apt-get update -o Acquire::http::Timeout="10" -o Acquire::Retries="3" || true
+          sudo apt-get install -y --no-install-recommends libasound2-dev pkg-config
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -87,8 +87,8 @@ jobs:
       - uses: actions/checkout@v5
       - name: Install ALSA dev dependencies
         run: |
-          sudo DEBIAN_FRONTEND=noninteractive apt-get update -y
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libasound2-dev pkg-config
+          sudo apt-get update -o Acquire::http::Timeout="10" -o Acquire::Retries="3" || true
+          sudo apt-get install -y --no-install-recommends libasound2-dev pkg-config
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Build immutable Linux release archive

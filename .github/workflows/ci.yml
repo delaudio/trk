@@ -19,8 +19,8 @@ jobs:
 
       - name: Install system dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libasound2-dev pkg-config
+          sudo apt-get update -o Acquire::http::Timeout="10" -o Acquire::Retries="3" || true
+          sudo apt-get install -y --no-install-recommends libasound2-dev pkg-config
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
