@@ -194,8 +194,8 @@ use trk_tui::{
     PatternVariationEntryView, PatternVariationHistoryViewState, ProjectBrowserEntryKind,
     ProjectBrowserEntryView, ProjectBrowserViewState, SampleBrowserEntryKind,
     SampleBrowserEntryView, SampleBrowserViewState, SamplerAction, SamplerEnvelopeField,
-    SamplerViewState, ScrollTarget, SelectionRect, TrackerLayoutPreset, TrackerLayoutState,
-    TransportAction, TuiState, TuiView, ViewportAxis,
+    SamplerViewState, ScrollTarget, SelectionRect, TerminalColorMode, TrackerLayoutPreset,
+    TrackerLayoutState, TransportAction, TuiState, TuiView, ViewportAxis,
 };
 
 const UI_TICK_RATE: Duration = Duration::from_millis(33);
@@ -254,6 +254,7 @@ struct App {
     pattern_highlight_interval: usize,
     show_pattern_top_info: bool,
     tracker_layout: TrackerLayoutState,
+    terminal_color_mode: TerminalColorMode,
     interaction_map: InteractionMap,
     help_scroll: usize,
     help_tab: HelpTab,

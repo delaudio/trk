@@ -452,6 +452,7 @@ fn snapshots_sampler_view() {
                 active_view: TuiView::Sampler,
                 mode_label: "SAMPLER",
                 sampler_view: Some(SamplerViewState {
+                    color_mode: trk_tui::TerminalColorMode::TrueColor,
                     name: "break.wav",
                     source_path: "/samples/drums/break.wav",
                     overview: &overview,
@@ -630,6 +631,7 @@ fn snapshots_large_sampler_workspace() {
                 active_view: TuiView::Sampler,
                 mode_label: "SAMPLER",
                 sampler_view: Some(SamplerViewState {
+                    color_mode: trk_tui::TerminalColorMode::TrueColor,
                     name: "choired_B",
                     source_path: "~/Music/DemoSong/Samples/choired_B.flac",
                     overview: &overview,

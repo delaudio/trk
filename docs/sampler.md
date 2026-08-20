@@ -21,6 +21,15 @@ trk sample inspect path/to/sample.wav --format json --width 32
 
 Inside the tracker, `:sample view PATH` loads a WAV reference into the sampler view and renders its metadata and waveform preview. `Ctrl+J` opens the sampler view even when no sample is loaded. `:sample browse [DIR]` opens the in-app sample browser; `:sample choose [DIR]` uses a configured external chooser.
 
+The waveform uses terminal-aware intensity shading: low-energy samples start in
+violet, stronger samples pass through cyan and gold, and sharp attacks approach
+bold white. Underlined baseline cells identify zero crossings. Sample-window
+and loop boundaries use distinct marker glyphs without replacing visible peaks.
+The color depth is detected once at startup and falls back automatically from
+TrueColor to the 256-color or 16-color palette. Set the standard `NO_COLOR`
+environment variable before launching `trk` for a modifier-and-glyph-only
+render with no foreground or background colors.
+
 After loading a WAV, assign it to the current track:
 
 ```text

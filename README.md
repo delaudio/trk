@@ -133,7 +133,7 @@ Inside the TUI:
 ### 🎹 MIDI & Audio
 - **MIDI Output Routing**: Port listing, TUI connection, panic/all-notes-off, channel assignment, logging, and test-note CLI tool.
 - **MIDI Input & Sync**: Port listing, note-on recording into active patterns, and MIDI clock start/continue/stop follow.
-- **Sample Engine**: 16-bit PCM & 32-bit float WAV sample loading, waveform rendering, sample browser, multi-mode looping (one-shot, forward, backward, ping-pong, reverse), and ADSR amplitude envelopes.
+- **Sample Engine**: 16-bit PCM & 32-bit float WAV sample loading, terminal-aware waveform heatmaps, sample browser, multi-mode looping (one-shot, forward, backward, ping-pong, reverse), and ADSR amplitude envelopes.
 - **DSP Chain**: Native per-track and master DSP rack (gain, pan, filter, delay, reverb, drive, bitcrusher, chorus, flanger, phaser, compressor, gate, limiter) shared by realtime playback and offline export.
 - **Parameter Locks**: Row-scoped parameter overrides for sampler, mixer, and DSP parameters.
 

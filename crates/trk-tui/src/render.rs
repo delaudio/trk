@@ -56,9 +56,10 @@ use trk_core::{
 use trk_sampler::{WaveformBucket, WaveformOverview};
 
 use crate::{
-    interaction::PatternGridGeometry, interaction_region, resolve_tracker_layout, InteractionMap,
-    PatternFieldLayout, SamplerEnvelopeField, TrackerLayoutPreset, TrackerLayoutState,
-    ViewportAxis,
+    color::{rgb_gradient, terminal_color, RgbColor},
+    interaction::PatternGridGeometry,
+    interaction_region, resolve_tracker_layout, InteractionMap, PatternFieldLayout,
+    SamplerEnvelopeField, TerminalColorMode, TrackerLayoutPreset, TrackerLayoutState, ViewportAxis,
 };
 use browser_views::{render_project_browser, render_sample_browser};
 pub use calibration_overlay::render_calibration_overlay;
@@ -146,6 +147,7 @@ pub struct PatternVariationEntryView<'a> {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CalibrationViewState<'a> {
+    pub color_mode: crate::TerminalColorMode,
     pub selected: usize,
     pub track_name: Option<&'a str>,
     pub master_gain: f32,
@@ -344,6 +346,7 @@ impl HelpTab {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SamplerViewState<'a> {
+    pub color_mode: crate::TerminalColorMode,
     pub name: &'a str,
     pub source_path: &'a str,
     pub overview: &'a WaveformOverview,
@@ -551,12 +554,14 @@ pub fn render_with_interactions(
 }
 
 pub fn render_waveform_overview(frame: &mut Frame<'_>, area: Rect, overview: &WaveformOverview) {
-    render_waveform_overview_with_window(
+    render_waveform_overview_with_context(
         frame,
         area,
         overview,
         WaveformWindow::full(overview),
         WaveformGlyphs::Unicode,
+        WaveformMarkers::default(),
+        TerminalColorMode::TrueColor,
     );
 }
 
@@ -566,23 +571,27 @@ pub fn render_waveform_overview_with_glyphs(
     overview: &WaveformOverview,
     glyphs: WaveformGlyphs,
 ) {
-    render_waveform_overview_with_window(
+    render_waveform_overview_with_context(
         frame,
         area,
         overview,
         WaveformWindow::full(overview),
         glyphs,
+        WaveformMarkers::default(),
+        TerminalColorMode::TrueColor,
     );
 }
 
-fn render_waveform_overview_with_window(
+fn render_waveform_overview_with_context(
     frame: &mut Frame<'_>,
     area: Rect,
     overview: &WaveformOverview,
     window: WaveformWindow,
     glyphs: WaveformGlyphs,
+    markers: WaveformMarkers,
+    color_mode: TerminalColorMode,
 ) {
-    let block = theme::block(" Waveform ");
+    let block = theme::block_for_color_mode(" Waveform ", color_mode);
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
@@ -590,12 +599,14 @@ fn render_waveform_overview_with_window(
         return;
     }
 
-    let lines = waveform_lines(
+    let lines = waveform_lines_with_style(
         overview,
         window,
         inner.width as usize,
         inner.height as usize,
         glyphs,
+        markers,
+        color_mode,
     );
     frame.render_widget(Paragraph::new(lines), inner);
 }
@@ -605,6 +616,14 @@ struct WaveformWindow {
     start_bucket: usize,
     end_bucket: usize,
     zoom: usize,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct WaveformMarkers {
+    sample_start_frame: Option<usize>,
+    sample_end_frame: Option<usize>,
+    loop_start_frame: Option<usize>,
+    loop_end_frame: Option<usize>,
 }
 
 impl WaveformWindow {
@@ -3018,12 +3037,33 @@ fn ai_chat_role_color(role: AiChatMessageRole) -> Color {
     }
 }
 
+#[cfg(test)]
 fn waveform_lines(
     overview: &WaveformOverview,
     window: WaveformWindow,
     width: usize,
     height: usize,
     glyphs: WaveformGlyphs,
+) -> Vec<Line<'static>> {
+    waveform_lines_with_style(
+        overview,
+        window,
+        width,
+        height,
+        glyphs,
+        WaveformMarkers::default(),
+        TerminalColorMode::TrueColor,
+    )
+}
+
+fn waveform_lines_with_style(
+    overview: &WaveformOverview,
+    window: WaveformWindow,
+    width: usize,
+    height: usize,
+    glyphs: WaveformGlyphs,
+    markers: WaveformMarkers,
+    color_mode: TerminalColorMode,
 ) -> Vec<Line<'static>> {
     if width == 0 || height == 0 {
         return Vec::new();
@@ -3058,39 +3098,112 @@ fn waveform_lines(
 
     let subrow_height = waveform_height.saturating_mul(2);
     let mut grid = vec![vec![WaveformCell::default(); width]; waveform_height];
-    for (x, bucket) in (0..width).map(|x| (x, waveform_column_bucket(visible_buckets, x, width))) {
+    let columns = (0..width)
+        .map(|x| waveform_column_bucket(visible_buckets, x, width))
+        .collect::<Vec<_>>();
+    let amplitudes = columns
+        .iter()
+        .map(|bucket| waveform_bucket_intensity(*bucket))
+        .collect::<Vec<_>>();
+    let preceding_amplitude = window
+        .start_bucket
+        .checked_sub(1)
+        .and_then(|index| overview.buckets.get(index))
+        .copied()
+        .map(waveform_bucket_intensity)
+        .unwrap_or_default();
+    let marker_columns = project_waveform_markers(overview, window, width, markers);
+    for (x, bucket) in columns.into_iter().enumerate() {
         let min = sanitize_waveform_value(bucket.min);
         let max = sanitize_waveform_value(bucket.max);
+        let intensity = amplitudes[x];
+        let transient = is_attack_transient(&amplitudes, x, preceding_amplitude);
+        let zero_crossing = min < 0.0 && max > 0.0;
         if min == 0.0 && max == 0.0 {
-            grid[waveform_row(0.0, waveform_height)][x].baseline = true;
-            continue;
-        }
-
-        let top = waveform_subrow(max, subrow_height);
-        let bottom = waveform_subrow(min, subrow_height);
-        let (top, bottom) = if top <= bottom {
-            (top, bottom)
+            let cell = &mut grid[waveform_row(0.0, waveform_height)][x];
+            cell.baseline = true;
         } else {
-            (bottom, top)
-        };
-        for subrow in top..=bottom {
-            let row = (subrow / 2).min(waveform_height - 1);
-            if subrow % 2 == 0 {
-                grid[row][x].upper = true;
+            let top = waveform_subrow(max, subrow_height);
+            let bottom = waveform_subrow(min, subrow_height);
+            let (top, bottom) = if top <= bottom {
+                (top, bottom)
             } else {
-                grid[row][x].lower = true;
+                (bottom, top)
+            };
+            for subrow in top..=bottom {
+                let row = (subrow / 2).min(waveform_height - 1);
+                if subrow % 2 == 0 {
+                    grid[row][x].upper = true;
+                } else {
+                    grid[row][x].lower = true;
+                }
             }
+        }
+        if zero_crossing {
+            grid[waveform_row(0.0, waveform_height)][x].zero_crossing = true;
+        }
+        for row in &mut grid {
+            row[x].intensity = intensity;
+            row[x].transient = transient;
+            row[x].marker = marker_columns[x];
         }
     }
 
     lines.extend(grid.into_iter().map(|row| {
         Line::from(
             row.into_iter()
-                .map(|cell| cell.to_char(glyphs))
-                .collect::<String>(),
+                .map(|cell| waveform_cell_span(cell, glyphs, color_mode))
+                .collect::<Vec<_>>(),
         )
     }));
     lines
+}
+
+const WAVEFORM_GRADIENT: [(f32, RgbColor); 4] = [
+    (0.0, RgbColor::new(74, 38, 122)),
+    (0.42, RgbColor::new(40, 210, 218)),
+    (0.78, RgbColor::new(255, 190, 64)),
+    (1.0, RgbColor::new(255, 250, 238)),
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WaveformMarkerKind {
+    SampleStart,
+    SampleEnd,
+    LoopStart,
+    LoopEnd,
+}
+
+impl WaveformMarkerKind {
+    const fn empty_glyph(self, glyphs: WaveformGlyphs) -> char {
+        match glyphs {
+            WaveformGlyphs::Ascii => '|',
+            WaveformGlyphs::Unicode => match self {
+                Self::SampleStart => '┆',
+                Self::SampleEnd => '┊',
+                Self::LoopStart => '╎',
+                Self::LoopEnd => '╏',
+            },
+        }
+    }
+
+    const fn rgb(self) -> RgbColor {
+        match self {
+            Self::SampleStart => RgbColor::new(92, 156, 255),
+            Self::SampleEnd => RgbColor::new(194, 128, 255),
+            Self::LoopStart => RgbColor::new(74, 238, 142),
+            Self::LoopEnd => RgbColor::new(255, 126, 74),
+        }
+    }
+
+    const fn modifier(self) -> Modifier {
+        match self {
+            Self::SampleStart => Modifier::BOLD,
+            Self::SampleEnd => Modifier::UNDERLINED,
+            Self::LoopStart => Modifier::BOLD.union(Modifier::UNDERLINED),
+            Self::LoopEnd => Modifier::REVERSED,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -3098,6 +3211,10 @@ struct WaveformCell {
     upper: bool,
     lower: bool,
     baseline: bool,
+    zero_crossing: bool,
+    transient: bool,
+    intensity: f32,
+    marker: Option<WaveformMarkerKind>,
 }
 
 impl WaveformCell {
@@ -3107,9 +3224,129 @@ impl WaveformCell {
             (true, false, _) => glyphs.upper(),
             (false, true, _) => glyphs.lower(),
             (false, false, true) => glyphs.baseline(),
-            (false, false, false) => ' ',
+            (false, false, false) => match self.marker {
+                Some(marker) => marker.empty_glyph(glyphs),
+                None => ' ',
+            },
         }
     }
+}
+
+fn waveform_cell_span(
+    cell: WaveformCell,
+    glyphs: WaveformGlyphs,
+    color_mode: TerminalColorMode,
+) -> Span<'static> {
+    let character = cell.to_char(glyphs);
+    if character == ' ' {
+        return Span::raw(" ");
+    }
+    let mut style = Style::default();
+    let mut rgb = rgb_gradient(&WAVEFORM_GRADIENT, cell.intensity);
+    if cell.zero_crossing {
+        rgb = RgbColor::new(64, 232, 255);
+        style = style.add_modifier(Modifier::UNDERLINED);
+    }
+    if cell.transient {
+        rgb = RgbColor::new(255, 246, 220);
+        style = style.add_modifier(Modifier::BOLD);
+    }
+    if let Some(marker) = cell.marker {
+        rgb = marker.rgb();
+        style = style.add_modifier(marker.modifier());
+    }
+    if let Some(color) = terminal_color(rgb, color_mode) {
+        style = style.fg(color);
+    }
+    Span::styled(character.to_string(), style)
+}
+
+fn waveform_bucket_intensity(bucket: WaveformBucket) -> f32 {
+    sanitize_waveform_value(bucket.min)
+        .abs()
+        .max(sanitize_waveform_value(bucket.max).abs())
+}
+
+fn is_attack_transient(amplitudes: &[f32], index: usize, preceding_amplitude: f32) -> bool {
+    let current = amplitudes.get(index).copied().unwrap_or_default();
+    let previous = index
+        .checked_sub(1)
+        .and_then(|previous| amplitudes.get(previous))
+        .copied()
+        .unwrap_or(preceding_amplitude);
+    current >= 0.55 && current - previous >= 0.18
+}
+
+fn project_waveform_markers(
+    overview: &WaveformOverview,
+    window: WaveformWindow,
+    width: usize,
+    markers: WaveformMarkers,
+) -> Vec<Option<WaveformMarkerKind>> {
+    let mut projected = vec![None; width];
+    let sample_pair_valid = match (markers.sample_start_frame, markers.sample_end_frame) {
+        (Some(start), Some(end)) => start < end,
+        _ => true,
+    };
+    if sample_pair_valid {
+        project_marker(
+            &mut projected,
+            overview,
+            window,
+            markers.sample_start_frame,
+            WaveformMarkerKind::SampleStart,
+        );
+        project_marker(
+            &mut projected,
+            overview,
+            window,
+            markers.sample_end_frame,
+            WaveformMarkerKind::SampleEnd,
+        );
+    }
+    if let (Some(start), Some(end)) = (markers.loop_start_frame, markers.loop_end_frame) {
+        if start < end {
+            project_marker(
+                &mut projected,
+                overview,
+                window,
+                Some(start),
+                WaveformMarkerKind::LoopStart,
+            );
+            project_marker(
+                &mut projected,
+                overview,
+                window,
+                Some(end),
+                WaveformMarkerKind::LoopEnd,
+            );
+        }
+    }
+    projected
+}
+
+fn project_marker(
+    projected: &mut [Option<WaveformMarkerKind>],
+    overview: &WaveformOverview,
+    window: WaveformWindow,
+    frame: Option<usize>,
+    kind: WaveformMarkerKind,
+) {
+    let Some(frame) = frame else {
+        return;
+    };
+    if projected.is_empty() || overview.frames == 0 || frame > overview.frames {
+        return;
+    }
+    let bucket = frame as f64 * overview.buckets.len() as f64 / overview.frames as f64;
+    let start = window.start_bucket as f64;
+    let end = window.end_bucket as f64;
+    if bucket < start || bucket > end || end <= start {
+        return;
+    }
+    let position = ((bucket - start) / (end - start)).clamp(0.0, 1.0);
+    let column = (position * projected.len().saturating_sub(1) as f64).round() as usize;
+    projected[column] = Some(kind);
 }
 
 fn clamp_waveform_window(overview: &WaveformOverview, window: WaveformWindow) -> WaveformWindow {

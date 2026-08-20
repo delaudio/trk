@@ -136,6 +136,7 @@ fn run(args: CliArgs) -> Result<()> {
         tracing::warn!(?error, "failed to load configured AI session");
     }
     let mut terminal = TerminalGuard::enter()?;
+    app.terminal_color_mode = terminal.color_mode();
     let mut web_companion = None;
     let mut browser_openers = Vec::new();
     if std::env::var_os("TRK_DEBUG_PANIC_AFTER_TERMINAL_ENTER").is_some() {

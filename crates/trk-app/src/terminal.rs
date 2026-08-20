@@ -1,4 +1,6 @@
 use std::{
+    env,
+    ffi::OsString,
     io::{self, Stdout},
     panic,
     sync::{
@@ -15,6 +17,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
+use trk_tui::TerminalColorMode;
 
 const TRACK_PANEL_WIDTH: u16 = 27;
 const TRACK_CELL_WIDTH: u16 = 21;
@@ -26,12 +29,14 @@ const LARGE_INSPECTOR_WIDTH: u16 = 42;
 pub struct TerminalGuard {
     terminal: Terminal<CrosstermBackend<Stdout>>,
     interrupted: Arc<AtomicBool>,
+    color_mode: TerminalColorMode,
 }
 
 impl TerminalGuard {
     pub fn enter() -> Result<Self> {
         install_panic_restore_hook();
         let interrupted = install_sigint_restore_handler()?;
+        let color_mode = detect_terminal_color_mode(|name| env::var_os(name));
 
         enable_raw_mode()?;
         let mut stdout = io::stdout();
@@ -42,6 +47,7 @@ impl TerminalGuard {
         Ok(Self {
             terminal,
             interrupted,
+            color_mode,
         })
     }
 
@@ -86,6 +92,10 @@ impl TerminalGuard {
         self.interrupted.load(Ordering::SeqCst)
     }
 
+    pub const fn color_mode(&self) -> TerminalColorMode {
+        self.color_mode
+    }
+
     pub fn suspend<T>(&mut self, action: impl FnOnce() -> T) -> Result<T> {
         restore_terminal()?;
         let output = action();
@@ -93,6 +103,32 @@ impl TerminalGuard {
         execute!(io::stdout(), EnterAlternateScreen, EnableMouseCapture, Hide)?;
         self.terminal.clear()?;
         Ok(output)
+    }
+}
+
+fn detect_terminal_color_mode(
+    mut environment: impl FnMut(&str) -> Option<OsString>,
+) -> TerminalColorMode {
+    if environment("NO_COLOR").is_some() {
+        return TerminalColorMode::Monochrome;
+    }
+    let colorterm = environment("COLORTERM")
+        .map(|value| value.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+    if colorterm.contains("truecolor") || colorterm.contains("24bit") {
+        return TerminalColorMode::TrueColor;
+    }
+    let term = environment("TERM")
+        .map(|value| value.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+    if term == "dumb" {
+        TerminalColorMode::Monochrome
+    } else if term.contains("truecolor") || term.contains("24bit") || term.ends_with("-direct") {
+        TerminalColorMode::TrueColor
+    } else if term.contains("256color") {
+        TerminalColorMode::Indexed256
+    } else {
+        TerminalColorMode::Ansi16
     }
 }
 
@@ -141,4 +177,46 @@ fn restore_terminal() -> io::Result<()> {
         LeaveAlternateScreen,
         DisableMouseCapture
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use super::*;
+
+    fn detect(values: &[(&str, &str)]) -> TerminalColorMode {
+        let values = values
+            .iter()
+            .map(|(name, value)| ((*name).to_string(), OsString::from(value)))
+            .collect::<HashMap<_, _>>();
+        detect_terminal_color_mode(|name| values.get(name).cloned())
+    }
+
+    #[test]
+    fn no_color_overrides_richer_terminal_evidence() {
+        assert_eq!(
+            detect(&[("NO_COLOR", ""), ("COLORTERM", "truecolor")]),
+            TerminalColorMode::Monochrome
+        );
+    }
+
+    #[test]
+    fn color_mode_detection_is_bounded_and_conservative() {
+        assert_eq!(
+            detect(&[("COLORTERM", "24bit")]),
+            TerminalColorMode::TrueColor
+        );
+        assert_eq!(
+            detect(&[("TERM", "xterm-direct")]),
+            TerminalColorMode::TrueColor
+        );
+        assert_eq!(
+            detect(&[("TERM", "screen-256color")]),
+            TerminalColorMode::Indexed256
+        );
+        assert_eq!(detect(&[("TERM", "xterm")]), TerminalColorMode::Ansi16);
+        assert_eq!(detect(&[("TERM", "dumb")]), TerminalColorMode::Monochrome);
+        assert_eq!(detect(&[]), TerminalColorMode::Ansi16);
+    }
 }

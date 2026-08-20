@@ -131,6 +131,7 @@ impl App {
             });
             let (waveform_start_bucket, waveform_end_bucket) = self.sample_waveform_window();
             SamplerViewState {
+                color_mode: self.terminal_color_mode,
                 name: sample.sample.name.as_str(),
                 source_path: sample.source_path.to_str().unwrap_or("<non-utf8 path>"),
                 overview: &sample.overview,
@@ -194,6 +195,7 @@ impl App {
                 entries,
                 selected: browser.cursor,
                 preview: browser.preview.as_ref().map(|sample| SamplerViewState {
+                    color_mode: self.terminal_color_mode,
                     name: sample.sample.name.as_str(),
                     source_path: sample.source_path.to_str().unwrap_or("<non-utf8 path>"),
                     overview: &sample.overview,
