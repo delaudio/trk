@@ -36,15 +36,6 @@ impl BrowserOpenMonitor {
     }
 }
 
-impl Drop for BrowserOpenMonitor {
-    fn drop(&mut self) {
-        if self.child.try_wait().ok().flatten().is_none() {
-            let _ = self.child.kill();
-            let _ = self.child.wait();
-        }
-    }
-}
-
 pub(crate) fn open_browser(url: &str) -> Result<BrowserOpenMonitor, String> {
     let platform = current_platform();
     if !graphical_session_available(platform, |name| env::var_os(name).is_some()) {

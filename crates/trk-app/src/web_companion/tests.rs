@@ -149,10 +149,10 @@ fn loopback_smoke_serves_document_state_and_queues_action() {
 }
 
 #[test]
-fn actions_require_same_origin_marker_strict_json_and_valid_targets() {
+fn actions_reject_cross_origin_requests_and_require_strict_json_and_valid_targets() {
     let app = App::default();
     let state = Arc::new(RwLock::new(app.web_bridge_state()));
-    let (action_tx, _action_rx) = mpsc::sync_channel(4);
+    let (action_tx, action_rx) = mpsc::sync_channel(4);
     let server = start_test_server(state, action_tx, 0, 1).expect("server");
     let authority = server_address(server.url()).to_string();
 
@@ -160,7 +160,18 @@ fn actions_require_same_origin_marker_strict_json_and_valid_targets() {
         server.url(),
         &action_request(&authority, r#"{"type":"stop"}"#, None),
     );
-    assert!(missing_origin.starts_with("HTTP/1.1 403 Forbidden"));
+    assert!(missing_origin.starts_with("HTTP/1.1 202 Accepted"));
+    assert_eq!(action_rx.try_recv(), Ok(WebAction::Stop));
+
+    let cross_origin = send_request(
+        server.url(),
+        &action_request(
+            &authority,
+            r#"{"type":"stop"}"#,
+            Some("https://example.test"),
+        ),
+    );
+    assert!(cross_origin.starts_with("HTTP/1.1 403 Forbidden"));
 
     let unknown_field = send_request(
         server.url(),
