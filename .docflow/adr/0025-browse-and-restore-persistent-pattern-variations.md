@@ -55,8 +55,9 @@ normal undoable mutation boundary.
 1. The project model represents a variation with a monotonic version id, Unix
    timestamp, non-empty description, source kind, pattern index, optional track
    index, and a complete snapshot of the affected pattern. History stores the
-   next id, an optional active id, and at most the configured positive limit,
-   dropping the oldest entries without reusing ids.
+   next id, an optional active id, and at most 64 retained entries, dropping the
+   oldest entries without reusing ids. The fixed cap avoids a new configuration
+   surface while bounding project-file growth.
 2. Variation history is an optional, backward-compatible field of the `.trk`
    project envelope. Loading validates every snapshot and active reference;
    saving preserves song and history through the existing atomic replacement
@@ -73,9 +74,11 @@ normal undoable mutation boundary.
    explicit empty state. `Ctrl+v` continues to paste.
 5. Restore replaces only the recorded pattern through the existing undo
    transaction, selects that pattern and track when possible, marks the project
-   dirty, closes the modal, and sets the active version. A later ordinary edit
-   clears the active marker because the live song no longer exactly matches the
-   selected take; undoing a restore reinstates the prior song state.
+   dirty, closes the modal, and sets the requested active version even when two
+   entries contain identical snapshots. After ordinary edits, undo, or redo,
+   the active id is reconciled to the newest retained entry whose snapshot
+   exactly equals its live affected pattern, or cleared when none matches;
+   undoing a restore reinstates the prior song and reconciles the marker.
 6. Automated tests cover bounded recording and ids, legacy and history-bearing
    project round trips, invalid persisted history, AI and Euclidean recording,
    no-op/failure exclusion, modal navigation and dismissal, restore plus undo,
@@ -99,14 +102,15 @@ normal undoable mutation boundary.
 - `0024-select-ai-proposal-engines-at-runtime.md`
 - `../plan/todo/0023-pattern-variation-history.md`
 - GitHub issue #314.
-- [grain history manager](https://github.com/delaudio/grain/blob/main/src/history/manager.rs)
-- [grain history record](https://github.com/delaudio/grain/blob/main/src/history/record.rs)
+- [grain history manager](https://github.com/delaudio/grain/blob/c609fcd5a05d8862d88819690a051f5df13238be/src/history/manager.rs)
+- [grain history record](https://github.com/delaudio/grain/blob/c609fcd5a05d8862d88819690a051f5df13238be/src/history/record.rs)
 
 ## Revision History
 
 | Date | Revision | Author | Change |
 |------|----------|--------|--------|
 | 2026-08-20 | r1 | default-agent | Recorded and accepted persistent, bounded pattern variation snapshots and undoable TUI restore. |
+| 2026-08-20 | r2 | default-agent | Fixed retention at 64 entries, defined active-marker reconciliation across undo/redo, and pinned prior-art references after Norn review. |
 
 ## Approvals
 

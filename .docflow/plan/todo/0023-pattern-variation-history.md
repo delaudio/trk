@@ -14,8 +14,8 @@ paste, and do not introduce sidecar storage or a branching history graph.
 
 ## Exit criteria
 
-1. The bounded variation model, monotonic ids, metadata, snapshot validation,
-   and active marker satisfy ADR AC1.
+1. The 64-entry bounded variation model, monotonic ids, metadata, snapshot
+   validation, and active marker satisfy ADR AC1.
 2. Legacy projects and history-bearing projects load and save atomically with
    invalid history rejected (ADR AC2).
 3. Successful AI application and Euclidean CLI output record versions while
@@ -23,7 +23,7 @@ paste, and do not introduce sidecar storage or a branching history graph.
 4. The `v` modal, keyboard navigation, entry metadata, active badge, empty
    state, dismissal, and `Ctrl+v` compatibility satisfy ADR AC4.
 5. Restore is pattern-scoped, undoable, dirty-tracked, cursor-aware, and active
-   state is invalidated by later edits (ADR AC5).
+   state is reconciled after later edits, undo, and redo (ADR AC5).
 6. Focused model, persistence, app, key-routing, and render snapshot tests plus
    the complete repository gate pass (ADR AC6).
 7. Norn review with the Codex provider has no unresolved in-scope findings
