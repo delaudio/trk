@@ -1,7 +1,7 @@
 ---
 adr: 0026
 title: Calibrate realtime output with live metering
-status: Accepted
+status: Implemented
 date: 2026-08-20
 owner: default-agent
 supersedes:
@@ -108,7 +108,7 @@ without blocking the audio callback or mutating persisted project DSP.
 ## References
 
 - `0001-record-architecture-decisions.md`
-- `../plan/todo/0024-dsp-calibration-modal.md`
+- `../plan/done/2026-08-20-dsp-calibration-modal.md`
 - GitHub issue #315.
 - [grain DSP settings and feature processing](https://github.com/delaudio/grain/blob/c609fcd5a05d8862d88819690a051f5df13238be/src/audio/dsp.rs)
 - [grain tuning modal](https://github.com/delaudio/grain/blob/c609fcd5a05d8862d88819690a051f5df13238be/src/ui/mod.rs#L632-L766)
@@ -119,6 +119,7 @@ without blocking the audio callback or mutating persisted project DSP.
 |------|----------|--------|--------|
 | 2026-08-20 | r1 | default-agent | Recorded and accepted session-local audible calibration, lock-free realtime meters, and the keyboard tuning modal. |
 | 2026-08-20 | r2 | default-agent | Defined stable selected-track targeting and inert fallback behavior after Norn review. |
+| 2026-08-20 | r3 | default-agent | Marked implemented after PR #338 merged with CI green and issue #315 closed. |
 
 ## Approvals
 

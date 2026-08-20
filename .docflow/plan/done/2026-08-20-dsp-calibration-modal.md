@@ -31,3 +31,9 @@ rendering.
 
 - `../../adr/0001-record-architecture-decisions.md`
 - Maintainer approval to execute issue #315 autonomously.
+
+---
+
+Shipped in implementation squash `a4d2c68` via
+[PR #338](https://github.com/delaudio/trk/pull/338), with GitHub Actions CI
+run `32354371421` green and issue #315 closed.
