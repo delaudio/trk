@@ -85,10 +85,7 @@ fn waveform_lines_preserve_peaks_when_downsampling() {
 #[test]
 fn waveform_styles_zero_crossings_and_attack_transients() {
     let overview = test_waveform(vec![
-        trk_sampler::WaveformBucket {
-            min: -0.3,
-            max: 0.3,
-        },
+        trk_sampler::WaveformBucket { min: 0.0, max: 0.3 },
         trk_sampler::WaveformBucket {
             min: -0.1,
             max: 0.9,

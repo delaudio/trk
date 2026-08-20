@@ -3108,9 +3108,7 @@ fn waveform_lines_with_style(
     let preceding_amplitude = window
         .start_bucket
         .checked_sub(1)
-        .and_then(|index| overview.buckets.get(index))
-        .copied()
-        .map(waveform_bucket_intensity)
+        .map(|index| waveform_bucket_intensity(overview.buckets[index]))
         .unwrap_or_default();
     let marker_columns = project_waveform_markers(overview, window, width, markers);
     for (x, bucket) in columns.into_iter().enumerate() {
@@ -3118,7 +3116,7 @@ fn waveform_lines_with_style(
         let max = sanitize_waveform_value(bucket.max);
         let intensity = amplitudes[x];
         let transient = is_attack_transient(&amplitudes, x, preceding_amplitude);
-        let zero_crossing = min < 0.0 && max > 0.0;
+        let zero_crossing = min <= 0.0 && max >= 0.0 && (min != 0.0 || max != 0.0);
         if min == 0.0 && max == 0.0 {
             let cell = &mut grid[waveform_row(0.0, waveform_height)][x];
             cell.baseline = true;
