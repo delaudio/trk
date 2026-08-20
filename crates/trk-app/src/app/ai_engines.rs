@@ -20,7 +20,7 @@ fn resolve_initial_ai_engines_with(
         }
     }
     if let Some(configured_id) = configured_engine_id(configured.provider) {
-        engines.set_configured_active(configured_id);
+        engines.set_configured_active(configured_id, &configured.model);
     }
     (engines, config)
 }
@@ -99,6 +99,7 @@ fn apply_engine_config(config: &mut AiConfig, engine: &EngineDescriptor) {
         .map(|path| path.to_string_lossy().into_owned());
     config.command_args = engine.arguments.clone();
     config.required_env = engine.required_env.clone();
+    config.environment_file = engine.environment_file.clone();
 }
 
 #[cfg(test)]
@@ -125,6 +126,7 @@ mod tests {
             ai_engines: discover_engines_with(&EngineDiscoveryInput {
                 path: Some(OsString::from(directory.as_os_str())),
                 environment: HashMap::new(),
+                environment_file: None,
             }),
             ..App::default()
         };
@@ -157,6 +159,7 @@ mod tests {
         let discovered = discover_engines_with(&EngineDiscoveryInput {
             path: None,
             environment: HashMap::new(),
+            environment_file: None,
         });
 
         let (engines, resolved) = resolve_initial_ai_engines_with(&configured, discovered);
@@ -165,5 +168,6 @@ mod tests {
         assert!(!engines.active().is_available());
         assert_eq!(resolved.provider, AiProviderKind::Codex);
         assert_eq!(resolved.model, "configured-model");
+        assert_eq!(engines.active().model, "configured-model");
     }
 }

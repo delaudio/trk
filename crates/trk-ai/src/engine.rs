@@ -85,6 +85,9 @@ pub struct EngineDescriptor {
     pub arguments: Vec<String>,
     pub required_env: Vec<String>,
     pub response_format: ExternalResponseFormat,
+    /// Dotenv source resolved during discovery. This carries only the path,
+    /// never secret values, so execution can use the same source safely.
+    pub environment_file: Option<PathBuf>,
     pub(crate) unavailable_reason: Option<String>,
 }
 
@@ -106,8 +109,14 @@ impl EngineDescriptor {
             arguments,
             required_env,
             response_format,
+            environment_file: Some(PathBuf::from(".env")),
             unavailable_reason: None,
         }
+    }
+
+    pub fn with_environment_file(mut self, environment_file: Option<PathBuf>) -> Self {
+        self.environment_file = environment_file;
+        self
     }
 
     pub fn is_available(&self) -> bool {
@@ -123,6 +132,7 @@ impl EngineDescriptor {
 pub struct EngineDiscoveryInput {
     pub path: Option<OsString>,
     pub environment: HashMap<String, OsString>,
+    pub environment_file: Option<PathBuf>,
 }
 
 impl EngineDiscoveryInput {
@@ -143,6 +153,7 @@ impl EngineDiscoveryInput {
         Self {
             path: env::var_os("PATH"),
             environment,
+            environment_file: Some(directory.join(".env")),
         }
     }
 
@@ -215,10 +226,11 @@ impl EngineSelectionState {
         self.activate_selected().map(|_| ())
     }
 
-    pub fn set_configured_active(&mut self, id: EngineId) -> bool {
+    pub fn set_configured_active(&mut self, id: EngineId, model: &str) -> bool {
         if !self.select(id) {
             return false;
         }
+        self.engines[self.selected].model = model.to_string();
         self.active = id;
         true
     }
@@ -248,7 +260,12 @@ pub fn discover_engines() -> EngineSelectionState {
 }
 
 pub fn environment_value(key: &str) -> Option<OsString> {
-    env::var_os(key).or_else(|| read_dotenv(PathBuf::from(".env")).remove(key))
+    environment_value_from(key, Some(Path::new(".env")))
+}
+
+pub fn environment_value_from(key: &str, environment_file: Option<&Path>) -> Option<OsString> {
+    env::var_os(key)
+        .or_else(|| environment_file.and_then(|path| read_dotenv(path.to_path_buf()).remove(key)))
 }
 
 pub fn discover_engines_with(input: &EngineDiscoveryInput) -> EngineSelectionState {
@@ -363,6 +380,7 @@ fn discover_engine(id: EngineId, input: &EngineDiscoveryInput) -> EngineDescript
         arguments,
         required_env,
         response_format,
+        environment_file: input.environment_file.clone(),
         unavailable_reason: (!missing.is_empty()).then(|| missing.join("; ")),
     }
 }
@@ -510,6 +528,7 @@ mod tests {
         let input = EngineDiscoveryInput {
             path: Some(directory.as_os_str().to_owned()),
             environment: HashMap::from([("OPENAI_API_KEY".to_string(), OsString::from(secret))]),
+            environment_file: None,
         };
 
         let state = discover_engines_with(&input);
@@ -549,6 +568,7 @@ mod tests {
                 ("TRK_AI_PROVIDER".to_string(), OsString::from("ollama")),
                 ("TRK_AI_MODEL".to_string(), OsString::from("qwen2.5")),
             ]),
+            environment_file: None,
         };
 
         let state = discover_engines_with(&input);
@@ -566,6 +586,7 @@ mod tests {
         let mut state = discover_engines_with(&EngineDiscoveryInput {
             path: None,
             environment: HashMap::new(),
+            environment_file: None,
         });
 
         state.select_previous();
@@ -596,6 +617,7 @@ mod tests {
                 .or(Some(OsStr::new("codex")))
         );
         assert!(input.value("IGNORED").is_none());
+        assert_eq!(input.environment_file, Some(directory.join(".env")));
 
         let _ = fs::remove_dir_all(directory);
     }
@@ -636,6 +658,7 @@ mod tests {
         let state = discover_engines_with(&EngineDiscoveryInput {
             path: Some(directory.as_os_str().to_owned()),
             environment: HashMap::new(),
+            environment_file: None,
         });
 
         assert_eq!(

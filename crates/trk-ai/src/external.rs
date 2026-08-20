@@ -11,8 +11,8 @@ use serde_json::json;
 use trk_core::Song;
 
 use crate::{
-    environment_value, AiEdit, AiError, AiPatternRequest, AiProposal, AiSource, EngineDescriptor,
-    ExternalResponseFormat,
+    environment_value_from, AiEdit, AiError, AiPatternRequest, AiProposal, AiSource,
+    EngineDescriptor, ExternalResponseFormat,
 };
 
 const POLL_INTERVAL: Duration = Duration::from_millis(10);
@@ -51,12 +51,15 @@ impl ExternalEngineProvider {
         let (stdin, child_environment) = match self.engine.response_format {
             ExternalResponseFormat::DirectProposal => (prompt.into_bytes(), Vec::new()),
             ExternalResponseFormat::OpenAiChatCompletions => {
-                let api_key = environment_value("OPENAI_API_KEY")
-                    .and_then(|value| value.into_string().ok())
-                    .filter(|value| !value.is_empty())
-                    .ok_or_else(|| {
-                        AiError::ProviderUnavailable("missing OPENAI_API_KEY".to_string())
-                    })?;
+                let api_key = environment_value_from(
+                    "OPENAI_API_KEY",
+                    self.engine.environment_file.as_deref(),
+                )
+                .and_then(|value| value.into_string().ok())
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| {
+                    AiError::ProviderUnavailable("missing OPENAI_API_KEY".to_string())
+                })?;
                 (
                     openai_request_body(&self.engine.model, &prompt)?.into_bytes(),
                     vec![("OPENAI_API_KEY".to_string(), api_key)],
@@ -104,6 +107,9 @@ enum ExternalEdit {
     },
 }
 
+// The service-owned envelope is intentionally forward-compatible because the
+// API includes metadata fields. The model-authored proposal inside `content`
+// remains strict through `ExternalProposalResponse` and `ExternalEdit`.
 #[derive(Debug, Deserialize)]
 struct OpenAiResponse {
     choices: Vec<OpenAiChoice>,
@@ -367,7 +373,15 @@ mod tests {
         )
         .expect("direct proposal");
         let wrapped = serde_json::to_vec(&json!({
-            "choices": [{"message": {"content": std::str::from_utf8(proposal).expect("utf8")}}]
+            "id": "response-metadata-is-forward-compatible",
+            "choices": [{
+                "finish_reason": "stop",
+                "message": {
+                    "role": "assistant",
+                    "content": std::str::from_utf8(proposal).expect("utf8")
+                }
+            }],
+            "usage": {"total_tokens": 42}
         }))
         .expect("OpenAI fixture");
         let openai = parse_external_proposal(
@@ -491,6 +505,7 @@ mod tests {
                 arguments: vec!["-c".to_string(), "sleep 5".to_string()],
                 required_env: Vec::new(),
                 response_format: ExternalResponseFormat::DirectProposal,
+                environment_file: None,
                 unavailable_reason: None,
             },
             timeout,

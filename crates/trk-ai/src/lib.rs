@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 use trk_core::{NoteEvent, Song};
 
 pub use engine::{
-    discover_engines, discover_engines_with, environment_value, EngineDescriptor,
-    EngineDiscoveryInput, EngineId, EngineSelectionError, EngineSelectionState,
+    discover_engines, discover_engines_with, environment_value, environment_value_from,
+    EngineDescriptor, EngineDiscoveryInput, EngineId, EngineSelectionError, EngineSelectionState,
     ExternalResponseFormat,
 };
 pub use external::{parse_external_proposal, ExternalEngineProvider};

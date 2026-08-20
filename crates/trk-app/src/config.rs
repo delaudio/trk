@@ -44,9 +44,13 @@ pub struct AiConfig {
     pub provider: AiProviderKind,
     pub model: String,
     pub command_path: Option<String>,
+    #[serde(default)]
     pub command_args: Vec<String>,
     pub required_env: Vec<String>,
+    #[serde(default = "default_ai_timeout_ms")]
     pub timeout_ms: u64,
+    #[serde(skip, default = "default_ai_environment_file")]
+    pub environment_file: Option<PathBuf>,
     pub session_file: Option<PathBuf>,
     pub retention_messages: usize,
     pub guidance_dirs: Vec<PathBuf>,
@@ -60,12 +64,21 @@ impl Default for AiConfig {
             command_path: None,
             command_args: Vec::new(),
             required_env: Vec::new(),
-            timeout_ms: 120_000,
+            timeout_ms: default_ai_timeout_ms(),
+            environment_file: default_ai_environment_file(),
             session_file: None,
             retention_messages: 200,
             guidance_dirs: Vec::new(),
         }
     }
+}
+
+const fn default_ai_timeout_ms() -> u64 {
+    120_000
+}
+
+fn default_ai_environment_file() -> Option<PathBuf> {
+    Some(PathBuf::from(".env"))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
@@ -528,6 +541,27 @@ mod tests {
 
         assert_eq!(loaded.config(), &AppConfig::default());
         assert_eq!(loaded.metadata().source, ConfigSource::Defaults);
+    }
+
+    #[test]
+    fn legacy_ai_sections_receive_defaults_for_new_runtime_fields() {
+        let file = TestFile::new(
+            "legacy-ai",
+            r#"
+[ai]
+provider = "local_deterministic"
+model = "local-deterministic"
+"#,
+        );
+
+        let loaded = load_config(Some(&file.0), ConfigOverrides::default()).expect("legacy config");
+
+        assert!(loaded.config().ai.command_args.is_empty());
+        assert_eq!(loaded.config().ai.timeout_ms, default_ai_timeout_ms());
+        assert_eq!(
+            loaded.config().ai.environment_file,
+            default_ai_environment_file()
+        );
     }
 
     #[test]

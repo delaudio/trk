@@ -304,7 +304,8 @@ fn propose_with_configured_provider(
                 config.command_args.clone(),
                 config.required_env.clone(),
                 response_format,
-            );
+            )
+            .with_environment_file(config.environment_file.clone());
             ExternalEngineProvider::new(engine, Duration::from_millis(config.timeout_ms))
                 .propose_with_cancel(song, request, is_cancelled)
         }
@@ -314,7 +315,7 @@ fn propose_with_configured_provider(
 fn ai_provider_diagnostics(config: &AiConfig) -> Vec<String> {
     let mut diagnostics = Vec::new();
     for required_env in &config.required_env {
-        if trk_ai::environment_value(required_env)
+        if trk_ai::environment_value_from(required_env, config.environment_file.as_deref())
             .filter(|value| !value.is_empty())
             .is_none()
         {
