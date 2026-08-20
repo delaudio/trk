@@ -407,7 +407,7 @@ impl Song {
         }
 
         for (pattern_index, pattern) in self.patterns.iter().enumerate() {
-            validate_pattern_automation(pattern_index, pattern, &sample_ids)?;
+            validate_pattern_automation(pattern_index, pattern, &sample_ids, &track_ids)?;
         }
 
         let mut assigned_tracks = HashSet::new();
@@ -1538,6 +1538,16 @@ pub enum ValidationError {
         pattern_index: usize,
         sample_id: SampleId,
     },
+    #[error("pattern {pattern_index} automation references missing track {track_id:?}")]
+    AutomationTrackNotFound {
+        pattern_index: usize,
+        track_id: TrackId,
+    },
+    #[error("pattern {pattern_index} automation has invalid MIDI CC {controller}")]
+    InvalidAutomationController {
+        pattern_index: usize,
+        controller: u8,
+    },
     #[error("pattern {pattern_index} automation row {row} is out of bounds")]
     AutomationRowOutOfBounds { pattern_index: usize, row: usize },
     #[error("pattern {pattern_index} automation row {row} has duplicate points")]
@@ -1827,6 +1837,8 @@ mod tests {
         assert_eq!(cursor.field, CellField::Pan);
         cursor.move_in(Direction::Right, 64, 4);
         assert_eq!(cursor.field, CellField::Delay);
+        cursor.move_in(Direction::Right, 64, 4);
+        assert_eq!(cursor.field, CellField::Gate);
         cursor.move_in(Direction::Right, 64, 4);
         assert_eq!(cursor.field, CellField::Effect);
         cursor.move_in(Direction::Right, 64, 4);
@@ -2593,6 +2605,38 @@ mod tests {
             ValidationError::AutomationSampleNotFound {
                 pattern_index: 0,
                 sample_id: SampleId(99)
+            }
+        );
+    }
+
+    #[test]
+    fn validation_rejects_invalid_midi_cc_automation_targets() {
+        let mut song = Song::empty();
+        song.patterns[0].automation.push(AutomationLane {
+            target: AutomationTarget::MidiCc {
+                track: TrackId(99),
+                controller: 74,
+            },
+            interpolation: AutomationInterpolation::Step,
+            points: vec![AutomationPoint { row: 0, value: 0.5 }],
+        });
+        assert_eq!(
+            song.validate().expect_err("missing MIDI CC track"),
+            ValidationError::AutomationTrackNotFound {
+                pattern_index: 0,
+                track_id: TrackId(99),
+            }
+        );
+
+        song.patterns[0].automation[0].target = AutomationTarget::MidiCc {
+            track: song.tracks[0].id,
+            controller: 200,
+        };
+        assert_eq!(
+            song.validate().expect_err("invalid MIDI CC controller"),
+            ValidationError::InvalidAutomationController {
+                pattern_index: 0,
+                controller: 200,
             }
         );
     }

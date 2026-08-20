@@ -5,7 +5,9 @@ use std::{
 };
 
 use trk_audio::{AudioConfig, RealtimeAudioCommand};
-use trk_core::{row_duration_micros, InstrumentSampleZone, NoteEvent, PlaybackPosition, Song};
+use trk_core::{
+    row_duration_micros, AutomationTarget, InstrumentSampleZone, NoteEvent, PlaybackPosition, Song,
+};
 use trk_midi::MidiMessage;
 
 use super::*;

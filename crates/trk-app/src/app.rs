@@ -23,6 +23,7 @@ mod mouse_wheel;
 mod navigation;
 mod pattern_operations;
 mod performance_actions;
+mod piano_roll;
 mod plock_dsp_commands;
 mod preset_actions;
 mod project_browser;

@@ -1,0 +1,109 @@
+use super::*;
+
+fn key(code: KeyCode, modifiers: KeyModifiers) -> KeyEvent {
+    KeyEvent::new(code, modifiers)
+}
+
+#[test]
+fn view_command_and_escape_toggle_the_piano_roll() {
+    let mut app = App::default();
+
+    enter_command(&mut app, "view roll");
+    assert_eq!(app.mode, AppMode::PianoRoll);
+    assert!(matches!(app.tui_active_view(), TuiView::PianoRoll { .. }));
+
+    app.handle_key(key(KeyCode::Esc, KeyModifiers::NONE));
+    assert_eq!(app.mode, AppMode::Normal);
+    assert_eq!(app.tui_active_view(), TuiView::Pattern);
+}
+
+#[test]
+fn piano_roll_edits_round_trip_through_tracker_cells_and_undo() {
+    let mut app = App::default();
+    app.open_piano_roll_view();
+    app.piano_roll_pitch = 64;
+    app.cursor.row = 4;
+
+    app.handle_key(key(KeyCode::Char(' '), KeyModifiers::NONE));
+    app.handle_key(key(KeyCode::Right, KeyModifiers::SHIFT));
+    app.handle_key(key(KeyCode::Char('9'), KeyModifiers::NONE));
+
+    let cell = app.song.patterns[0]
+        .cell(4, 0)
+        .expect("edited cell")
+        .clone();
+    assert_eq!(cell.note, Some(NoteEvent::Note { pitch: 64 }));
+    assert_eq!(cell.gate, Some(2));
+    assert_eq!(cell.velocity, Some(127));
+
+    app.open_tracker_view();
+    assert_eq!(app.song.patterns[0].cell(4, 0), Some(&cell));
+    app.undo();
+    assert_eq!(
+        app.song.patterns[0].cell(4, 0).expect("cell").velocity,
+        Some(0x7f)
+    );
+}
+
+#[test]
+fn piano_roll_ghost_zoom_and_collision_safe_move_are_bounded() {
+    let mut app = App::default();
+    app.open_piano_roll_view();
+    app.cursor.row = 1;
+    app.piano_roll_pitch = 60;
+    app.handle_key(key(KeyCode::Char(' '), KeyModifiers::NONE));
+    app.song.patterns[0]
+        .set_note(2, 0, NoteEvent::Note { pitch: 62 }, 100)
+        .expect("destination note");
+
+    app.handle_key(key(KeyCode::Right, KeyModifiers::ALT));
+    assert_eq!(app.cursor.row, 1);
+    assert_eq!(
+        app.song.patterns[0].cell(1, 0).expect("source").note,
+        Some(NoteEvent::Note { pitch: 60 })
+    );
+
+    app.handle_key(key(KeyCode::Char('g'), KeyModifiers::NONE));
+    app.handle_key(key(KeyCode::Char(']'), KeyModifiers::NONE));
+    assert!(!app.piano_roll_ghosts);
+    assert_eq!(app.piano_roll_rows, 32);
+}
+
+#[test]
+fn piano_roll_edits_do_not_mutate_a_different_pitch_in_the_same_cell() {
+    let mut app = App::default();
+    app.open_piano_roll_view();
+    app.cursor.row = 4;
+    app.song.patterns[0]
+        .set_note(4, 0, NoteEvent::Note { pitch: 60 }, 88)
+        .expect("existing note");
+    let original = app.song.patterns[0].cell(4, 0).expect("cell").clone();
+    app.piano_roll_pitch = 61;
+
+    app.handle_key(key(KeyCode::Char(' '), KeyModifiers::NONE));
+    app.handle_key(key(KeyCode::Right, KeyModifiers::SHIFT));
+    app.handle_key(key(KeyCode::Up, KeyModifiers::ALT));
+    app.handle_key(key(KeyCode::Char('9'), KeyModifiers::NONE));
+
+    assert_eq!(app.song.patterns[0].cell(4, 0), Some(&original));
+    assert_eq!(app.cursor.row, 4);
+    assert_eq!(app.piano_roll_pitch, 61);
+}
+
+#[test]
+fn piano_roll_move_clamps_gate_at_pattern_end() {
+    let mut app = App::default();
+    app.open_piano_roll_view();
+    app.cursor.row = 62;
+    app.piano_roll_pitch = 60;
+    app.song.patterns[0]
+        .set_note(62, 0, NoteEvent::Note { pitch: 60 }, 88)
+        .expect("note");
+    app.song.patterns[0].set_gate(62, 0, Some(2)).expect("gate");
+
+    app.handle_key(key(KeyCode::Right, KeyModifiers::ALT));
+
+    let moved = app.song.patterns[0].cell(63, 0).expect("moved note");
+    assert_eq!(moved.note, Some(NoteEvent::Note { pitch: 60 }));
+    assert_eq!(moved.gate, Some(1));
+}

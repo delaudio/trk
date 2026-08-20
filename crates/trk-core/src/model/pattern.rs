@@ -96,6 +96,48 @@ impl Pattern {
         Ok(())
     }
 
+    pub fn set_gate(
+        &mut self,
+        row: usize,
+        track: usize,
+        gate: Option<u8>,
+    ) -> Result<(), EditError> {
+        let remaining = self.row_count().saturating_sub(row).clamp(1, 0x7f) as u8;
+        let cell = self
+            .cell_mut(row, track)
+            .ok_or(EditError::CellOutOfBounds { row, track })?;
+        cell.gate = gate.map(|value| value.clamp(1, remaining));
+        Ok(())
+    }
+
+    #[must_use]
+    pub fn note_gate_rows(&self, row: usize, track: usize) -> Option<usize> {
+        let cell = self.cell(row, track)?;
+        if !matches!(cell.note, Some(NoteEvent::Note { .. })) {
+            return None;
+        }
+        let remaining = self.row_count().saturating_sub(row).max(1);
+        let next_event = self
+            .rows
+            .iter()
+            .enumerate()
+            .skip(row.saturating_add(1))
+            .find(|(_, candidate)| {
+                candidate
+                    .cells
+                    .get(track)
+                    .is_some_and(|candidate| candidate.note.is_some())
+            })
+            .map_or(self.row_count(), |(next_row, _)| next_row);
+        let until_next = next_event.saturating_sub(row).max(1);
+        Some(
+            cell.gate
+                .map_or(until_next, |gate| usize::from(gate.max(1)))
+                .min(remaining)
+                .min(until_next),
+        )
+    }
+
     pub fn clear_cell(&mut self, row: usize, track: usize) -> Result<(), EditError> {
         let cell = self
             .cell_mut(row, track)
@@ -169,7 +211,13 @@ impl Pattern {
         if row >= self.rows.len() {
             return Err(EditError::RowOutOfBounds { row });
         }
-        if !sample_gain_descriptor().validate_f32(value) {
+        let valid = match target {
+            AutomationTarget::SampleGain { .. } => sample_gain_descriptor().validate_f32(value),
+            AutomationTarget::MidiCc { controller, .. } => {
+                controller <= 0x7f && value.is_finite() && (0.0..=1.0).contains(&value)
+            }
+        };
+        if !valid {
             return Err(EditError::InvalidAutomationValue);
         }
 
@@ -420,7 +468,8 @@ impl Cursor {
             CellField::Volume => self.field = CellField::Instrument,
             CellField::Pan => self.field = CellField::Volume,
             CellField::Delay => self.field = CellField::Pan,
-            CellField::Effect => self.field = CellField::Delay,
+            CellField::Gate => self.field = CellField::Delay,
+            CellField::Effect => self.field = CellField::Gate,
             CellField::Effect2 => self.field = CellField::Effect,
             CellField::Note if self.track > 0 => {
                 self.track -= 1;
@@ -437,7 +486,8 @@ impl Cursor {
             CellField::Instrument => self.field = CellField::Volume,
             CellField::Volume => self.field = CellField::Pan,
             CellField::Pan => self.field = CellField::Delay,
-            CellField::Delay => self.field = CellField::Effect,
+            CellField::Delay => self.field = CellField::Gate,
+            CellField::Gate => self.field = CellField::Effect,
             CellField::Effect => self.field = CellField::Effect2,
             CellField::Effect2 if self.track + 1 < track_count => {
                 self.track += 1;
@@ -462,6 +512,7 @@ pub enum CellField {
     Volume,
     Pan,
     Delay,
+    Gate,
     Effect,
     Effect2,
 }
@@ -475,6 +526,7 @@ impl fmt::Display for CellField {
             CellField::Volume => f.write_str("VOL"),
             CellField::Pan => f.write_str("PAN"),
             CellField::Delay => f.write_str("DLY"),
+            CellField::Gate => f.write_str("GATE"),
             CellField::Effect => f.write_str("FX1"),
             CellField::Effect2 => f.write_str("FX2"),
         }
@@ -506,5 +558,28 @@ mod tests {
         cell.command2 = Some(TrackerCommand::retrigger(4));
         let serialized = serde_json::to_string(&cell).expect("serialize command2");
         assert!(serialized.contains("command2"));
+    }
+
+    #[test]
+    fn resolved_note_gates_preserve_legacy_sustain_and_stop_at_replacements() {
+        let mut pattern = Pattern::empty(PatternId(1), "Pattern", 16, 1);
+        pattern
+            .set_note(2, 0, NoteEvent::Note { pitch: 60 }, 100)
+            .expect("first note");
+        pattern
+            .set_note(8, 0, NoteEvent::Note { pitch: 64 }, 100)
+            .expect("replacement");
+        assert_eq!(pattern.note_gate_rows(2, 0), Some(6));
+
+        pattern.set_gate(2, 0, Some(12)).expect("long gate");
+        assert_eq!(pattern.note_gate_rows(2, 0), Some(6));
+        pattern.set_gate(2, 0, Some(3)).expect("short gate");
+        assert_eq!(pattern.note_gate_rows(2, 0), Some(3));
+
+        pattern
+            .set_note(14, 0, NoteEvent::Note { pitch: 67 }, 100)
+            .expect("ending note");
+        pattern.set_gate(14, 0, Some(12)).expect("ending gate");
+        assert_eq!(pattern.cell(14, 0).expect("cell").gate, Some(2));
     }
 }

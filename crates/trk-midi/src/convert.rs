@@ -9,6 +9,9 @@ pub fn playback_event_to_midi(event: PlaybackEvent) -> MidiMessage {
             MidiMessage::note_on(event.midi_channel, pitch, velocity)
         }
         PlaybackEventKind::NoteOff { pitch } => MidiMessage::note_off(event.midi_channel, pitch, 0),
+        PlaybackEventKind::ControlChange { controller, value } => {
+            MidiMessage::control_change(event.midi_channel, controller, value)
+        }
     }
 }
 
@@ -53,6 +56,27 @@ mod tests {
         assert_eq!(
             playback_event_to_midi(event),
             MidiMessage::note_off(1, 48, 0)
+        );
+    }
+
+    #[test]
+    fn converts_control_change_playback_event_to_midi_message() {
+        let event = PlaybackEvent {
+            position: PlaybackPosition {
+                row: 8,
+                offset_micros: 1_000_000,
+            },
+            track: TrackId(1),
+            midi_channel: 3,
+            kind: PlaybackEventKind::ControlChange {
+                controller: 74,
+                value: 96,
+            },
+        };
+
+        assert_eq!(
+            playback_event_to_midi(event),
+            MidiMessage::control_change(3, 74, 96)
         );
     }
 }

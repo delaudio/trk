@@ -127,7 +127,7 @@ Inside the TUI:
 
 ### 🎛️ Terminal Workspace & Editing
 - **Multi-View Workspace**: Pattern, Sequence, Clips, Tracks, Patterns, Sampler, DSP Rack, Sample Browser, Project Browser, MIDI Settings, AI Chat, command palette, and help views.
-- **Pattern Editing**: Full keyboard note entry, note-off/note-cut, velocity, instrument, volume, pan, delay, effect columns, row insert/delete, copy/cut/paste, undo/redo transaction history, persistent generated-variation snapshots, and playhead follow.
+- **Pattern Editing**: Synchronized tracker and horizontal Piano Roll views with note gates, ghost notes, velocity, instrument, volume, pan, delay, effect columns, row insert/delete, copy/cut/paste, undo/redo transaction history, persistent generated-variation snapshots, and playhead follow.
 - **Annotations**: Project, pattern-row, lyric, and cue text annotations that persist without affecting playback.
 
 ### 🎹 MIDI & Audio
@@ -170,6 +170,7 @@ Inside the TUI:
 | `Ctrl+J` | Sampler view |
 | `Ctrl+P` | Command palette |
 | `:` | Enter command mode |
+| `:view roll` | Open the synchronized Piano Roll editor (`Esc` returns) |
 
 ### Navigation & Editing
 

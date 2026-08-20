@@ -58,6 +58,7 @@ pub(crate) fn validate_pattern_automation(
     pattern_index: usize,
     pattern: &Pattern,
     sample_ids: &HashSet<SampleId>,
+    track_ids: &HashSet<TrackId>,
 ) -> Result<(), ValidationError> {
     let mut targets = HashSet::new();
     for lane in &pattern.automation {
@@ -75,6 +76,19 @@ pub(crate) fn validate_pattern_automation(
                 });
             }
             AutomationTarget::SampleGain { .. } => {}
+            AutomationTarget::MidiCc { track, .. } if !track_ids.contains(&track) => {
+                return Err(ValidationError::AutomationTrackNotFound {
+                    pattern_index,
+                    track_id: track,
+                });
+            }
+            AutomationTarget::MidiCc { controller, .. } if controller > 0x7f => {
+                return Err(ValidationError::InvalidAutomationController {
+                    pattern_index,
+                    controller,
+                });
+            }
+            AutomationTarget::MidiCc { .. } => {}
         }
 
         let mut rows = HashSet::new();
@@ -91,7 +105,15 @@ pub(crate) fn validate_pattern_automation(
                     row: point.row,
                 });
             }
-            if !sample_gain_descriptor().validate_f32(point.value) {
+            let valid = match lane.target {
+                AutomationTarget::SampleGain { .. } => {
+                    sample_gain_descriptor().validate_f32(point.value)
+                }
+                AutomationTarget::MidiCc { .. } => {
+                    point.value.is_finite() && (0.0..=1.0).contains(&point.value)
+                }
+            };
+            if !valid {
                 return Err(ValidationError::InvalidAutomationValue {
                     pattern_index,
                     row: point.row,

@@ -6,10 +6,12 @@ mod dsp_parameters;
 mod dsp_rack;
 mod help_overlay;
 mod modal_overlays;
+mod piano_roll;
 mod renoise_layout;
 mod renoise_workspace;
 mod sampler_view;
 mod status_bar;
+mod text;
 mod theme;
 
 use ratatui::{
@@ -70,11 +72,13 @@ use modal_overlays::{
     render_midi_settings_overlay, render_pattern_variation_history_overlay,
     render_quit_confirmation,
 };
+use piano_roll::render_piano_roll;
 use sampler_view::render_sampler_view;
 use status_bar::render_status;
+use text::{fixed_decimal, format_row_number};
 
 const ROW_GUTTER_WIDTH: usize = 5;
-const PATTERN_CELL_WIDTH: usize = 28;
+const PATTERN_CELL_WIDTH: usize = 31;
 const CLIP_SCENE_WIDTH: usize = 14;
 const TRACK_LIST_NAME_WIDTH: usize = 11;
 const SEQUENCE_SLOT_PATTERN_WIDTH: usize = 18;
@@ -168,6 +172,7 @@ pub struct CalibrationViewState<'a> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TuiView {
     Pattern,
+    PianoRoll { pitch: u8, rows: u8, ghosts: bool },
     Sequence,
     Clips,
     Tracks,
@@ -887,17 +892,6 @@ fn compose_full_transport_header(
     header
 }
 
-fn fixed_decimal(value: usize, width: usize) -> String {
-    let value = value.to_string();
-    if value.len() <= width {
-        return format!("{value:0>width$}");
-    }
-    if width <= 1 {
-        return ">".repeat(width);
-    }
-    format!(">{}", &value[value.len() - (width - 1)..])
-}
-
 fn register_transport_action(
     interactions: &mut InteractionMap,
     inner: Rect,
@@ -922,6 +916,10 @@ fn render_body(
     interactions: &mut InteractionMap,
 ) {
     interactions.register(active_view_region(state.active_view), area);
+    if matches!(state.active_view, TuiView::PianoRoll { .. }) {
+        render_piano_roll(frame, area, song, state);
+        return;
+    }
     if state.active_view == TuiView::Sequence {
         render_sequence_editor(frame, area, song, state.sequence_position, interactions);
         return;
@@ -1015,6 +1013,7 @@ fn render_body(
 fn active_view_region(view: TuiView) -> crate::InteractionRegionId {
     match view {
         TuiView::Pattern => interaction_region::VIEW_PATTERN,
+        TuiView::PianoRoll { .. } => interaction_region::VIEW_PIANO_ROLL,
         TuiView::Sequence => interaction_region::VIEW_SEQUENCE,
         TuiView::Clips => interaction_region::VIEW_CLIPS,
         TuiView::Tracks => interaction_region::VIEW_TRACKS,
@@ -2797,15 +2796,6 @@ fn pattern_row_gutter_style(row_index: usize, state: &PatternRowRenderState) -> 
     }
 }
 
-fn format_row_number(row: usize, hexadecimal: bool, offset: usize) -> String {
-    let display_row = row.saturating_add(offset);
-    if hexadecimal {
-        format!("{:02X}", display_row.min(0xff))
-    } else {
-        format!("{display_row:02}")
-    }
-}
-
 fn cell_spans(
     cell: &PatternCell,
     focused_field: CellField,
@@ -2836,6 +2826,9 @@ fn cell_spans(
         .map_or_else(|| "--".to_string(), |value| format!("{value:02X}"));
     let delay = cell
         .delay
+        .map_or_else(|| "--".to_string(), |value| format!("{value:02X}"));
+    let gate = cell
+        .gate
         .map_or_else(|| "--".to_string(), |value| format!("{value:02X}"));
     let command = cell.command.map_or_else(
         || "---".to_string(),
@@ -2890,6 +2883,7 @@ fn cell_spans(
             push_field(volume, CellField::Volume);
             push_field(pan, CellField::Pan);
             push_field(delay, CellField::Delay);
+            push_field(gate, CellField::Gate);
             push_field(command, CellField::Effect);
             push_field(command2, CellField::Effect2);
         }

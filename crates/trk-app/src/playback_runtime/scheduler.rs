@@ -82,7 +82,7 @@ pub(super) fn run_pattern(
                 if !mark_event_for_started_playback(&mut active_sent_notes, event) {
                     continue;
                 }
-                if !midi_event_allowed(song, event.midi_channel) {
+                if !midi_event_allowed(song, event) {
                     continue;
                 }
                 if let Err(error) =
@@ -219,10 +219,15 @@ pub(super) fn run_sequence(
     None
 }
 
-fn midi_event_allowed(song: &Song, midi_channel: u8) -> bool {
-    song.midi.notes_out
+fn midi_event_allowed(song: &Song, event: &trk_core::PlaybackEvent) -> bool {
+    let kind_allowed = match event.kind {
+        trk_core::PlaybackEventKind::NoteOn { .. }
+        | trk_core::PlaybackEventKind::NoteOff { .. } => song.midi.notes_out,
+        trk_core::PlaybackEventKind::ControlChange { .. } => song.midi.cc_out,
+    };
+    kind_allowed
         && (song.midi.output_channels.is_empty()
-            || song.midi.output_channels.contains(&midi_channel))
+            || song.midi.output_channels.contains(&event.midi_channel))
 }
 
 fn mark_event_for_started_playback(
@@ -246,6 +251,7 @@ fn mark_event_for_started_playback(
             }
             was_active
         }
+        trk_core::PlaybackEventKind::ControlChange { .. } => true,
     }
 }
 

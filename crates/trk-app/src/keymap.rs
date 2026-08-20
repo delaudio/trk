@@ -13,6 +13,7 @@ pub struct KeymapConfig {
     pub bindings: BTreeMap<String, String>,
     pub normal: BTreeMap<String, String>,
     pub edit: BTreeMap<String, String>,
+    pub piano_roll: BTreeMap<String, String>,
     pub command: BTreeMap<String, String>,
     pub help: BTreeMap<String, String>,
     pub dialog: BTreeMap<String, String>,
@@ -35,6 +36,7 @@ impl Default for KeymapConfig {
             bindings: BTreeMap::new(),
             normal: BTreeMap::new(),
             edit: BTreeMap::new(),
+            piano_roll: BTreeMap::new(),
             command: BTreeMap::new(),
             help: BTreeMap::new(),
             dialog: BTreeMap::new(),
@@ -53,11 +55,12 @@ impl Default for KeymapConfig {
 }
 
 impl KeymapConfig {
-    pub fn layers(&self) -> [(&'static str, &'static str, &BTreeMap<String, String>); 16] {
+    pub fn layers(&self) -> [(&'static str, &'static str, &BTreeMap<String, String>); 17] {
         [
             ("normal", "keymap.bindings", &self.bindings),
             ("normal", "keymap.normal", &self.normal),
             ("edit", "keymap.edit", &self.edit),
+            ("piano_roll", "keymap.piano_roll", &self.piano_roll),
             ("command", "keymap.command", &self.command),
             ("help", "keymap.help", &self.help),
             ("dialog", "keymap.dialog", &self.dialog),
@@ -87,6 +90,7 @@ impl KeymapConfig {
 pub enum KeymapMode {
     Normal,
     Edit,
+    PianoRoll,
     Command,
     CommandPalette,
     Help,
@@ -108,6 +112,7 @@ impl KeymapMode {
         match value {
             "normal" => Some(Self::Normal),
             "edit" => Some(Self::Edit),
+            "piano_roll" | "pianoroll" => Some(Self::PianoRoll),
             "command" => Some(Self::Command),
             "help" => Some(Self::Help),
             "dialog" => Some(Self::Dialog),

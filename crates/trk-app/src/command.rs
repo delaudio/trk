@@ -35,6 +35,7 @@ pub enum TrkCommand {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ViewCommand {
     Tracker,
+    PianoRoll,
     Patterns,
     Sequence,
     Clips,
@@ -192,7 +193,9 @@ impl TrkCommand {
             "h" | "help" => Self::Help,
             "config" => Self::Config,
             "web" | "web-companion" | "companion" => Self::WebCompanion,
+            "view" => parse_view(&arguments)?,
             "t" | "tracker" | "normal" => Self::View(ViewCommand::Tracker),
+            "roll" | "piano-roll" | "pianoroll" => Self::View(ViewCommand::PianoRoll),
             "layout" => parse_layout(&arguments)?,
             "p" | "patterns" => Self::View(ViewCommand::Patterns),
             "se" | "sequence-view" => Self::View(ViewCommand::Sequence),
@@ -285,6 +288,24 @@ impl TrkCommand {
             _ => Ok(()),
         }
     }
+}
+
+fn parse_view(arguments: &[String]) -> Result<TrkCommand, CommandParseError> {
+    let view = match arguments.first().map(String::as_str) {
+        Some("t" | "tracker" | "normal") => ViewCommand::Tracker,
+        Some("roll" | "piano-roll" | "pianoroll") => ViewCommand::PianoRoll,
+        Some("p" | "patterns") => ViewCommand::Patterns,
+        Some("se" | "sequence") => ViewCommand::Sequence,
+        Some("cl" | "clips") => ViewCommand::Clips,
+        Some("tr" | "tracks") => ViewCommand::Tracks,
+        Some("sa" | "sampler" | "samples") => ViewCommand::Sampler,
+        _ => {
+            return Err(CommandParseError::InvalidArguments {
+                usage: "Usage: :view [tracker|roll|patterns|sequence|clips|tracks|sampler]",
+            });
+        }
+    };
+    Ok(TrkCommand::View(view))
 }
 
 fn domain(domain: CommandDomain, arguments: Vec<String>) -> TrkCommand {

@@ -33,6 +33,7 @@ pub struct PlaybackEvent {
 pub enum PlaybackEventKind {
     NoteOn { pitch: u8, velocity: u8 },
     NoteOff { pitch: u8 },
+    ControlChange { controller: u8, value: u8 },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -62,12 +63,40 @@ pub fn pattern_events(song: &Song, pattern: &Pattern) -> Vec<PlaybackEvent> {
     let solo_active = song.tracks.iter().any(|track| track.solo);
     let mut active_notes = vec![None; song.tracks.len()];
     let mut events = Vec::new();
+    let end_offset = row_duration.saturating_mul(pattern.row_count() as u64);
 
     for (row_index, row) in pattern.rows.iter().enumerate() {
         let position = PlaybackPosition {
             row: row_index,
             offset_micros: row_duration.saturating_mul(row_index as u64),
         };
+
+        for lane in &pattern.automation {
+            let AutomationTarget::MidiCc { track, controller } = lane.target else {
+                continue;
+            };
+            let Some(point) = lane.points.iter().find(|point| point.row == row_index) else {
+                continue;
+            };
+            let Some((track_index, target_track)) = song
+                .tracks
+                .iter()
+                .enumerate()
+                .find(|(_, candidate)| candidate.id == track)
+            else {
+                continue;
+            };
+            if !track_is_audible(target_track.muted, target_track.solo, solo_active) {
+                continue;
+            }
+            let value = (point.value.clamp(0.0, 1.0) * 127.0).round() as u8;
+            events.push(PlaybackEvent {
+                position,
+                track: song.tracks[track_index].id,
+                midi_channel: target_track.midi_channel,
+                kind: PlaybackEventKind::ControlChange { controller, value },
+            });
+        }
 
         for (track_index, track) in song.tracks.iter().enumerate() {
             if !track_is_audible(track.muted, track.solo, solo_active) {
@@ -80,9 +109,21 @@ pub fn pattern_events(song: &Song, pattern: &Pattern) -> Vec<PlaybackEvent> {
 
             let position = apply_cell_delay(position, row_duration, cell);
 
+            if let Some((pitch, Some(release_offset))) = active_notes[track_index] {
+                if release_offset <= position.offset_micros {
+                    events.push(note_off(
+                        playback_position_for_offset(release_offset, row_duration, pattern),
+                        track.id,
+                        track.midi_channel,
+                        pitch,
+                    ));
+                    active_notes[track_index] = None;
+                }
+            }
+
             match cell.note {
                 Some(NoteEvent::Note { pitch }) => {
-                    if let Some(active_pitch) = active_notes[track_index] {
+                    if let Some((active_pitch, _)) = active_notes[track_index] {
                         events.push(note_off(
                             position,
                             track.id,
@@ -98,7 +139,13 @@ pub fn pattern_events(song: &Song, pattern: &Pattern) -> Vec<PlaybackEvent> {
                         kind: PlaybackEventKind::NoteOn { pitch, velocity },
                     };
                     events.push(note_on);
-                    active_notes[track_index] = Some(pitch);
+                    let release_offset = cell.gate.map(|gate| {
+                        position
+                            .offset_micros
+                            .saturating_add(row_duration.saturating_mul(u64::from(gate.max(1))))
+                            .min(end_offset)
+                    });
+                    active_notes[track_index] = Some((pitch, release_offset));
                     emit_retrigger_events(
                         &mut events,
                         note_on,
@@ -107,7 +154,7 @@ pub fn pattern_events(song: &Song, pattern: &Pattern) -> Vec<PlaybackEvent> {
                     );
                 }
                 Some(NoteEvent::NoteOff | NoteEvent::NoteCut) => {
-                    if let Some(active_pitch) = active_notes[track_index].take() {
+                    if let Some((active_pitch, _)) = active_notes[track_index].take() {
                         events.push(note_off(
                             position,
                             track.id,
@@ -125,10 +172,17 @@ pub fn pattern_events(song: &Song, pattern: &Pattern) -> Vec<PlaybackEvent> {
         row: pattern.row_count(),
         offset_micros: row_duration.saturating_mul(pattern.row_count() as u64),
     };
-    for (track_index, active_pitch) in active_notes.into_iter().enumerate() {
-        if let Some(pitch) = active_pitch {
+    for (track_index, active_note) in active_notes.into_iter().enumerate() {
+        if let Some((pitch, release_offset)) = active_note {
             let track = &song.tracks[track_index];
-            events.push(note_off(end_position, track.id, track.midi_channel, pitch));
+            events.push(note_off(
+                release_offset.map_or(end_position, |offset| {
+                    playback_position_for_offset(offset, row_duration, pattern)
+                }),
+                track.id,
+                track.midi_channel,
+                pitch,
+            ));
         }
     }
 
@@ -379,173 +433,28 @@ fn note_off(
     }
 }
 
+fn playback_position_for_offset(
+    offset_micros: u64,
+    row_duration: u64,
+    pattern: &Pattern,
+) -> PlaybackPosition {
+    PlaybackPosition {
+        row: usize::try_from(offset_micros / row_duration.max(1))
+            .unwrap_or(pattern.row_count())
+            .min(pattern.row_count()),
+        offset_micros,
+    }
+}
+
+#[cfg(test)]
+#[path = "playback/gate_tests.rs"]
+mod gate_tests;
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{ParameterId, ParameterLockAction, ParameterValue};
     use crate::{PatternId, TrackId};
-
-    #[test]
-    fn row_duration_uses_bpm_and_lines_per_beat() {
-        let song = Song::empty();
-
-        assert_eq!(row_duration_micros(&song.transport), 125_000);
-    }
-
-    #[test]
-    fn row_duration_updates_when_bpm_or_lpb_changes() {
-        let mut transport = Song::empty().transport;
-
-        transport.bpm = 60;
-        transport.lines_per_beat = 4;
-        assert_eq!(row_duration_micros(&transport), 250_000);
-
-        transport.bpm = 120;
-        transport.lines_per_beat = 8;
-        assert_eq!(row_duration_micros(&transport), 62_500);
-
-        transport.bpm = 150;
-        transport.lines_per_beat = 6;
-        assert_eq!(row_duration_micros(&transport), 66_666);
-    }
-
-    #[test]
-    fn pattern_event_offsets_follow_current_transport_settings() {
-        let mut song = Song::empty();
-        song.current_pattern_mut()
-            .expect("pattern")
-            .set_note(8, 0, NoteEvent::Note { pitch: 60 }, 0x7f)
-            .expect("set note");
-
-        let initial_events = pattern_events(&song, song.current_pattern().expect("pattern"));
-        assert_eq!(initial_events[0].position.offset_micros, 1_000_000);
-
-        song.transport.bpm = 240;
-        song.transport.lines_per_beat = 8;
-        let faster_events = pattern_events(&song, song.current_pattern().expect("pattern"));
-
-        assert_eq!(faster_events[0].position.offset_micros, 250_000);
-    }
-
-    #[test]
-    fn pattern_events_emit_note_on_and_end_note_off() {
-        let mut song = Song::empty();
-        let pattern = song.current_pattern_mut().expect("pattern");
-        pattern
-            .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x64)
-            .expect("set note");
-
-        let events = pattern_events(&song, song.current_pattern().expect("pattern"));
-
-        assert_eq!(
-            events,
-            vec![
-                PlaybackEvent {
-                    position: PlaybackPosition {
-                        row: 0,
-                        offset_micros: 0
-                    },
-                    track: TrackId(1),
-                    midi_channel: 10,
-                    kind: PlaybackEventKind::NoteOn {
-                        pitch: 60,
-                        velocity: 0x64
-                    }
-                },
-                PlaybackEvent {
-                    position: PlaybackPosition {
-                        row: 64,
-                        offset_micros: 8_000_000
-                    },
-                    track: TrackId(1),
-                    midi_channel: 10,
-                    kind: PlaybackEventKind::NoteOff { pitch: 60 }
-                }
-            ]
-        );
-    }
-
-    #[test]
-    fn note_off_cell_stops_active_note_at_that_row() {
-        let mut song = Song::empty();
-        let pattern = song.current_pattern_mut().expect("pattern");
-        pattern
-            .set_note(0, 1, NoteEvent::Note { pitch: 48 }, 0x7f)
-            .expect("set note");
-        pattern
-            .set_note(4, 1, NoteEvent::NoteOff, 0)
-            .expect("set note off");
-
-        let events = pattern_events(&song, song.current_pattern().expect("pattern"));
-
-        assert_eq!(events.len(), 2);
-        assert_eq!(
-            events[1],
-            PlaybackEvent {
-                position: PlaybackPosition {
-                    row: 4,
-                    offset_micros: 500_000
-                },
-                track: TrackId(2),
-                midi_channel: 1,
-                kind: PlaybackEventKind::NoteOff { pitch: 48 }
-            }
-        );
-    }
-
-    #[test]
-    fn retriggering_same_track_emits_previous_note_off_first() {
-        let mut song = Song::empty();
-        let pattern = song.current_pattern_mut().expect("pattern");
-        pattern
-            .set_note(0, 2, NoteEvent::Note { pitch: 64 }, 0x7f)
-            .expect("set first note");
-        pattern
-            .set_note(2, 2, NoteEvent::Note { pitch: 67 }, 0x70)
-            .expect("set second note");
-
-        let events = pattern_events(&song, song.current_pattern().expect("pattern"));
-
-        assert_eq!(events[1].position.row, 2);
-        assert_eq!(events[1].kind, PlaybackEventKind::NoteOff { pitch: 64 });
-        assert_eq!(events[2].position.row, 2);
-        assert_eq!(
-            events[2].kind,
-            PlaybackEventKind::NoteOn {
-                pitch: 67,
-                velocity: 0x70
-            }
-        );
-    }
-
-    #[test]
-    fn delay_command_offsets_note_within_row() {
-        let mut song = Song::empty();
-        let pattern = song.current_pattern_mut().expect("pattern");
-        pattern
-            .set_note(2, 0, NoteEvent::Note { pitch: 60 }, 0x7f)
-            .expect("set note");
-        pattern.cell_mut(2, 0).expect("cell").command = Some(TrackerCommand::delay(128));
-
-        let events = pattern_events(&song, song.current_pattern().expect("pattern"));
-
-        assert_eq!(events[0].position.row, 2);
-        assert_eq!(events[0].position.offset_micros, 312_500);
-    }
-
-    #[test]
-    fn muted_tracks_are_not_scheduled() {
-        let mut song = Song::empty();
-        song.toggle_mute(0).expect("mute");
-        song.current_pattern_mut()
-            .expect("pattern")
-            .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x7f)
-            .expect("set note");
-
-        let events = pattern_events(&song, song.current_pattern().expect("pattern"));
-
-        assert!(events.is_empty());
-    }
 
     #[test]
     fn solo_tracks_exclude_non_solo_tracks() {
