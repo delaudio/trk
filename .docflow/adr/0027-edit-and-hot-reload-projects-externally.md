@@ -1,7 +1,7 @@
 ---
 adr: 0027
 title: Edit and hot-reload projects externally
-status: Accepted
+status: Implemented
 date: 2026-08-20
 owner: default-agent
 supersedes:
@@ -136,7 +136,7 @@ currently running transport.
 ## References
 
 - `0001-record-architecture-decisions.md`
-- `../plan/todo/0025-external-editor-hot-reload.md`
+- `../plan/done/2026-08-20-external-editor-hot-reload.md`
 - GitHub issue #316.
 - [grain editor handoff](https://github.com/delaudio/grain/blob/c609fcd5a05d8862d88819690a051f5df13238be/src/main.rs#L124-L177)
 - [grain file watcher](https://github.com/delaudio/grain/blob/c609fcd5a05d8862d88819690a051f5df13238be/src/app.rs#L446-L466)
@@ -159,6 +159,7 @@ currently running transport.
 | 2026-08-20 | r12 | default-agent | Extended request-time live-state conflict protection to clean named editor handoffs. |
 | 2026-08-20 | r13 | default-agent | Rejected non-regular and symlinked project paths and verified scratch ownership before deletion. |
 | 2026-08-20 | r14 | default-agent | Revalidated external reads, preserved no-op live UI state, and retained literal doubled backslashes. |
+| 2026-08-20 | r15 | default-agent | Marked the capability Implemented after PR #340 merged with CI green and issue #316 closed. |
 
 ## Approvals
 

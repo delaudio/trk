@@ -8,19 +8,19 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** `agent/316-external-editor`.
-- **Active item:** `.docflow/plan/todo/0025-external-editor-hot-reload.md` for
-  GitHub issue #316.
+- **Branch:** `agent/316-docflow-closeout`.
+- **Active item:** closeout of
+  `.docflow/plan/done/2026-08-20-external-editor-hot-reload.md`.
 - **Blockers:** none.
-- **Pending integration:** claim the accepted editor/hot-reload contract, then
-  implement, verify, review, and merge it through CI.
+- **Pending integration:** merge the documentation closeout through CI, then
+  clear operational context before selecting the next open issue.
 
 ## Last shipped
 
-Issue #315 implementation via PR #338 and Docflow closeout via PR #339, both
-with CI green; ADR 0026 is Implemented.
+Issue #316 implementation via PR #340 with CI green; ADR 0027 implementation
+squash is `ffa18b0` and the GitHub issue is closed.
 
 ## Next item
 
-Implement ADR 0027 acceptance criteria and integrate issue #316 before
-selecting issue #317.
+After the closeout merges, begin a fresh-context session, reread the repository
+handoff and live GitHub issue queue, and select the highest-priority open issue.
