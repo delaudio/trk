@@ -1,6 +1,7 @@
 use super::*;
 
 mod ai_actions;
+mod ai_engines;
 mod ai_guidance;
 mod ai_session;
 mod arrangement_actions;

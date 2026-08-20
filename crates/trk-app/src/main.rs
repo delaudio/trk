@@ -91,7 +91,9 @@ use playback_runtime::{
 use serde::{Deserialize, Serialize};
 use task_runtime::TaskRuntime;
 use terminal::TerminalGuard;
-use trk_ai::{apply_proposal, AiProposal, CellAddress};
+use trk_ai::{
+    apply_proposal, AiProposal, CellAddress, EngineDescriptor, EngineId, EngineSelectionState,
+};
 use trk_audio::{
     encode_audio, prepare_realtime_sample, render_sampler_events_with_dsp, AudioConfig,
     AudioExportFormat, AudioInputSource, CpalAudioInputSource, DspDeviceKind as AudioDspDeviceKind,
@@ -181,15 +183,15 @@ use trk_sampler::{Sample, WaveformBucket, WaveformOverview};
 use trk_transform::{apply_euclidean, EuclideanRhythm};
 use trk_tui::{
     interaction_region, render_with_interactions, AiChatMessageRole, AiChatMessageView,
-    AiChatProposalPreviewView, AiChatViewState, CommandPaletteEntryView, CommandPaletteViewState,
-    ConfirmationAction, DspDevicePaletteEntryView, DspDevicePaletteViewState,
-    DspParameterLockStatusView, DspRackChain, DspRackTargetView, DspRackViewState, HelpTab,
-    InteractionMap, InteractionPayload, ManagedPanelId, MidiPortView, MidiSettingsAction,
-    MidiSettingsState, NotificationKind, NotificationView, ProjectBrowserEntryKind,
-    ProjectBrowserEntryView, ProjectBrowserViewState, SampleBrowserEntryKind,
-    SampleBrowserEntryView, SampleBrowserViewState, SamplerAction, SamplerEnvelopeField,
-    SamplerViewState, ScrollTarget, SelectionRect, TrackerLayoutPreset, TrackerLayoutState,
-    TransportAction, TuiState, TuiView, ViewportAxis,
+    AiChatProposalPreviewView, AiChatViewState, AiEngineEntryView, AiEngineSelectorViewState,
+    CommandPaletteEntryView, CommandPaletteViewState, ConfirmationAction,
+    DspDevicePaletteEntryView, DspDevicePaletteViewState, DspParameterLockStatusView, DspRackChain,
+    DspRackTargetView, DspRackViewState, HelpTab, InteractionMap, InteractionPayload,
+    ManagedPanelId, MidiPortView, MidiSettingsAction, MidiSettingsState, NotificationKind,
+    NotificationView, ProjectBrowserEntryKind, ProjectBrowserEntryView, ProjectBrowserViewState,
+    SampleBrowserEntryKind, SampleBrowserEntryView, SampleBrowserViewState, SamplerAction,
+    SamplerEnvelopeField, SamplerViewState, ScrollTarget, SelectionRect, TrackerLayoutPreset,
+    TrackerLayoutState, TransportAction, TuiState, TuiView, ViewportAxis,
 };
 
 const UI_TICK_RATE: Duration = Duration::from_millis(33);
@@ -289,6 +291,8 @@ struct App {
     recent_project_limit: usize,
     config_metadata: config::ConfigMetadata,
     ai_config: config::AiConfig,
+    ai_engines: EngineSelectionState,
+    ai_engine_selector_open: bool,
     ai_session_file: Option<PathBuf>,
     ai_retention_messages: usize,
     ai_thread: AiThread,

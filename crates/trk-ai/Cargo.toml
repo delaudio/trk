@@ -6,4 +6,6 @@ version.workspace = true
 
 [dependencies]
 trk-core = { path = "../trk-core" }
+serde.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true

@@ -464,9 +464,22 @@ impl App {
     }
 
     pub(crate) fn handle_ai_key(&mut self, key: KeyEvent) {
+        if self.ai_engine_selector_open {
+            match key.code {
+                KeyCode::Esc | KeyCode::Char('m' | 'M') => self.close_ai_engine_selector(),
+                KeyCode::Up | KeyCode::Char('k') => self.select_previous_ai_engine(),
+                KeyCode::Down | KeyCode::Char('j') => self.select_next_ai_engine(),
+                KeyCode::Enter => self.activate_selected_ai_engine(),
+                _ => {}
+            }
+            return;
+        }
         match key.code {
             KeyCode::Esc => self.open_tracker_view(),
             KeyCode::Char('q') if self.ai_thread.composer.is_empty() => self.request_quit(false),
+            KeyCode::Char('m' | 'M') if self.ai_thread.composer.is_empty() => {
+                self.open_ai_engine_selector();
+            }
             KeyCode::Char('a' | 'A')
                 if self.ai_thread.composer.is_empty() && self.pending_ai_proposal.is_some() =>
             {

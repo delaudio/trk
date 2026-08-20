@@ -1,10 +1,14 @@
-use std::{env, path::Path};
 #[cfg(test)]
-use std::{thread, time::Duration};
+use std::thread;
+use std::{
+    env,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
 use trk_ai::{
-    preview_proposal, AiPatternRequest, AiProposalProvider, LocalDeterministicProvider,
-    MockProvider,
+    preview_proposal, AiPatternRequest, AiProposalProvider, EngineDescriptor, EngineId,
+    ExternalEngineProvider, ExternalResponseFormat, LocalDeterministicProvider, MockProvider,
 };
 
 use crate::AiMessageRole;
@@ -79,8 +83,10 @@ impl App {
                         .with_phase("generate")
                         .with_tool(job_provider_label),
                 );
-                let proposal = propose_with_configured_provider(&provider, &song, &request)
-                    .map_err(|error| TaskFailure::error(format!("AI proposal failed: {error}")))?;
+                let proposal = propose_with_configured_provider(&provider, &song, &request, || {
+                    context.is_cancelled()
+                })
+                .map_err(|error| TaskFailure::error(format!("AI proposal failed: {error}")))?;
                 context.check_cancelled()?;
                 context.report_progress(
                     TaskProgress::new(1, Some(3), "validating preview")
@@ -260,20 +266,55 @@ fn propose_with_configured_provider(
     config: &AiConfig,
     song: &trk_core::Song,
     request: &AiPatternRequest,
+    is_cancelled: impl Fn() -> bool,
 ) -> Result<trk_ai::AiProposal, trk_ai::AiError> {
     match config.provider {
         AiProviderKind::LocalDeterministic => LocalDeterministicProvider.propose(song, request),
         AiProviderKind::Mock => MockProvider::new(config.model.clone()).propose(song, request),
-        AiProviderKind::Command => Err(trk_ai::AiError::ProviderUnavailable(
-            "command provider adapters are not implemented yet".to_string(),
-        )),
+        AiProviderKind::Command
+        | AiProviderKind::Claude
+        | AiProviderKind::Codex
+        | AiProviderKind::OpenAi
+        | AiProviderKind::Ollama => {
+            let command = config.command_path.as_deref().ok_or_else(|| {
+                trk_ai::AiError::ProviderUnavailable("ai.command_path is required".to_string())
+            })?;
+            let (id, response_format) = match config.provider {
+                AiProviderKind::Claude => {
+                    (EngineId::Claude, ExternalResponseFormat::DirectProposal)
+                }
+                AiProviderKind::Codex => (EngineId::Codex, ExternalResponseFormat::DirectProposal),
+                AiProviderKind::OpenAi => (
+                    EngineId::OpenAi,
+                    ExternalResponseFormat::OpenAiChatCompletions,
+                ),
+                AiProviderKind::Ollama => {
+                    (EngineId::Ollama, ExternalResponseFormat::DirectProposal)
+                }
+                AiProviderKind::Command => {
+                    (EngineId::Codex, ExternalResponseFormat::DirectProposal)
+                }
+                AiProviderKind::LocalDeterministic | AiProviderKind::Mock => unreachable!(),
+            };
+            let engine = EngineDescriptor::external(
+                id,
+                config.provider.to_string(),
+                config.model.clone(),
+                PathBuf::from(command),
+                config.command_args.clone(),
+                config.required_env.clone(),
+                response_format,
+            );
+            ExternalEngineProvider::new(engine, Duration::from_millis(config.timeout_ms))
+                .propose_with_cancel(song, request, is_cancelled)
+        }
     }
 }
 
 fn ai_provider_diagnostics(config: &AiConfig) -> Vec<String> {
     let mut diagnostics = Vec::new();
     for required_env in &config.required_env {
-        if env::var_os(required_env)
+        if trk_ai::environment_value(required_env)
             .filter(|value| !value.is_empty())
             .is_none()
         {
@@ -282,7 +323,14 @@ fn ai_provider_diagnostics(config: &AiConfig) -> Vec<String> {
             ));
         }
     }
-    if config.provider == AiProviderKind::Command {
+    if matches!(
+        config.provider,
+        AiProviderKind::Command
+            | AiProviderKind::Claude
+            | AiProviderKind::Codex
+            | AiProviderKind::OpenAi
+            | AiProviderKind::Ollama
+    ) {
         match config.command_path.as_deref().map(str::trim) {
             Some(command) if command_is_available(command) => {}
             Some(command) if !command.is_empty() => {
@@ -290,8 +338,6 @@ fn ai_provider_diagnostics(config: &AiConfig) -> Vec<String> {
             }
             _ => diagnostics.push("ai.command_path is required".to_string()),
         }
-        diagnostics
-            .push("command provider adapters are reserved for future integrations".to_string());
     }
     diagnostics
 }
@@ -299,10 +345,32 @@ fn ai_provider_diagnostics(config: &AiConfig) -> Vec<String> {
 fn command_is_available(command: &str) -> bool {
     let path = Path::new(command);
     if path.components().count() > 1 || path.is_absolute() {
-        return path.is_file();
+        return is_executable_file(path);
     }
-    env::var_os("PATH")
-        .is_some_and(|paths| env::split_paths(&paths).any(|entry| entry.join(command).is_file()))
+    env::var_os("PATH").is_some_and(|paths| {
+        env::split_paths(&paths).any(|entry| {
+            is_executable_file(&entry.join(command))
+                || (cfg!(windows) && is_executable_file(&entry.join(format!("{command}.exe"))))
+        })
+    })
+}
+
+fn is_executable_file(path: &Path) -> bool {
+    let Ok(metadata) = path.metadata() else {
+        return false;
+    };
+    if !metadata.is_file() {
+        return false;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        metadata.permissions().mode() & 0o111 != 0
+    }
+    #[cfg(not(unix))]
+    {
+        true
+    }
 }
 
 fn format_task_snapshot(task: &TaskSnapshot) -> String {

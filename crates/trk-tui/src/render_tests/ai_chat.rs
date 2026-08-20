@@ -82,6 +82,7 @@ fn renders_ai_chat_view_with_all_message_roles() {
                         proposal_preview: Some(AiChatProposalPreviewView {
                             lines: &proposal_preview,
                         }),
+                        engine_selector: None,
                     }),
                     tracker_layout: crate::TrackerLayoutState::default(),
                 },
@@ -100,6 +101,61 @@ fn renders_ai_chat_view_with_all_message_roles() {
     assert!(rendered.contains("p01/r00/t01"));
     assert!(rendered.contains("a apply"));
     assert!(rendered.contains("draft prompt"));
+}
+
+#[test]
+fn renders_double_bordered_engine_selector_with_availability_and_active_badge() {
+    let entries = [
+        AiEngineEntryView {
+            label: "Built-in",
+            model: "local-deterministic",
+            available: true,
+            active: true,
+            unavailable_reason: None,
+        },
+        AiEngineEntryView {
+            label: "Claude CLI",
+            model: "default",
+            available: false,
+            active: false,
+            unavailable_reason: Some("missing claude executable in PATH"),
+        },
+    ];
+    let mut terminal = Terminal::new(TestBackend::new(100, 24)).expect("terminal");
+
+    terminal
+        .draw(|frame| {
+            render(
+                frame,
+                &Song::empty(),
+                TuiState {
+                    active_view: TuiView::AiChat,
+                    mode_label: "AI",
+                    ai_chat: Some(AiChatViewState {
+                        provider: "Built-in model=local-deterministic",
+                        status: "available",
+                        composer: "",
+                        messages: &[],
+                        selected_context: "Context: pattern 01, track 01, row 00",
+                        proposal_preview: None,
+                        engine_selector: Some(AiEngineSelectorViewState {
+                            entries: &entries,
+                            selected: 1,
+                        }),
+                    }),
+                    ..super::render_test_support::render_test_state()
+                },
+            );
+        })
+        .expect("draw");
+
+    let rendered = buffer_text(terminal.backend().buffer());
+    assert!(rendered.contains("AI Engines"));
+    assert!(rendered.contains("* Built-in"));
+    assert!(rendered.contains("[OK] Available"));
+    assert!(rendered.contains("missing claude executable in PATH"));
+    assert!(rendered.contains('╔'));
+    assert!(rendered.contains('╝'));
 }
 
 fn buffer_text(buffer: &ratatui::buffer::Buffer) -> String {

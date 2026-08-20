@@ -12,7 +12,8 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Active item:** `.docflow/plan/todo/0022-runtime-ai-engine-selection.md`
   for GitHub issue #313.
 - **Blockers:** none.
-- **Pending integration:** ADR/plan claim, then implementation and PR.
+- **Pending integration:** implementation is complete with the full local gate
+  green; Norn Codex review and PR #334 integration remain.
 
 ## Last shipped
 
