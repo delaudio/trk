@@ -8,20 +8,17 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** `agent/315-dsp-calibration`.
-- **Active item:** `.docflow/plan/todo/0024-dsp-calibration-modal.md` for
-  GitHub issue #315.
+- **Branch:** `agent/315-docflow-closeout`.
+- **Active item:** close out `.docflow/plan/done/2026-08-20-dsp-calibration-modal.md`
+  after GitHub issue #315 shipped.
 - **Blockers:** none.
-- **Pending integration:** implement callback-safe audible calibration and live
-  metering plus the `t` modal, pass the full gate and Norn Codex review, then
-  merge through CI.
+- **Pending integration:** merge the documentation-only closeout through CI.
 
 ## Last shipped
 
-Issue #314 implementation via PR #336 and Docflow closeout via PR #337, both
-with CI green; ADR 0025 is Implemented.
+Issue #315 implementation via PR #338 with CI green; ADR 0026 is implemented
+and its Docflow closeout is pending integration.
 
 ## Next item
 
-Implement ADR 0026 acceptance criteria and integrate issue #315 before
-selecting issue #316.
+Inspect and claim GitHub issue #316 after the #315 closeout merges.
