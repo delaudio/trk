@@ -159,6 +159,7 @@ impl App {
                 self.clean_song = self.song.clone();
                 self.clean_variation_history = self.variation_history.clone();
                 self.project_path = Some(path.clone());
+                self.refresh_project_watch(&path);
                 self.pattern_index = 0;
                 self.cursor = Cursor::new();
                 self.row_offset = 0;

@@ -15,6 +15,7 @@ path = "src/main.rs"
 anyhow.workspace = true
 crossterm.workspace = true
 ctrlc.workspace = true
+libc.workspace = true
 ratatui.workspace = true
 trk-audio = { path = "../trk-audio" }
 trk-ai = { path = "../trk-ai" }

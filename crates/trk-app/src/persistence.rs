@@ -1,6 +1,6 @@
 use std::{
     fs::{self, File},
-    io::Write,
+    io::{Read, Write},
     path::{Path, PathBuf},
 };
 
@@ -44,9 +44,13 @@ pub fn load_project(path: &Path) -> Result<Song> {
 }
 
 pub fn load_project_file(path: &Path) -> Result<ProjectFile> {
-    let contents = fs::read_to_string(path)
-        .with_context(|| format!("failed to read project {}", path.display()))?;
-    let project: ProjectFile = serde_json::from_str(&contents)
+    let file =
+        File::open(path).with_context(|| format!("failed to read project {}", path.display()))?;
+    load_project_reader(file, path)
+}
+
+pub(crate) fn load_project_reader(reader: impl Read, path: &Path) -> Result<ProjectFile> {
+    let project: ProjectFile = serde_json::from_reader(reader)
         .with_context(|| format!("failed to parse project {}", path.display()))?;
     migrate_project(project, path)
 }

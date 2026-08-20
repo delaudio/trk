@@ -233,6 +233,8 @@ struct App {
     calibration_open: bool,
     calibration_cursor: usize,
     project_path: Option<PathBuf>,
+    external_editor_requested: bool,
+    project_watch: Option<ProjectWatchState>,
     focus: FocusManager,
     pattern_index: usize,
     cursor: Cursor,
@@ -314,6 +316,30 @@ struct App {
     dialog: Option<Dialog>,
     notification: Option<Notification>,
     last_tick: Instant,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ProjectWatchState {
+    path: PathBuf,
+    observed: ProjectFileObservation,
+    blocked_change: Option<ProjectFileObservation>,
+    last_reported_invalid: Option<ProjectFileObservation>,
+    last_poll: Instant,
+    last_content_check: Instant,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ProjectFileSignature {
+    modified: Option<SystemTime>,
+    length: u64,
+    content_fingerprint: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ProjectFileObservation {
+    Present(ProjectFileSignature),
+    Missing,
+    Unreadable(std::io::ErrorKind),
 }
 
 struct AppMidiInput {

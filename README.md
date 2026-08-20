@@ -189,6 +189,7 @@ Inside the TUI:
 | `v` (normal mode) | Browse and restore generated pattern variations |
 | `V` (normal mode) | Start visual selection |
 | `t` (normal mode) | Open live DSP calibration; arrows adjust, `r` resets, `t`/`Esc` closes |
+| `e` (normal mode) | Edit the current project in `$EDITOR` and reload it on exit |
 
 ### Tracks, Patterns & Sequence
 

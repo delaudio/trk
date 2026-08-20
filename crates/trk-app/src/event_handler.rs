@@ -90,16 +90,26 @@ impl App {
         match update {
             PlaybackUpdate::Position(position) => {
                 self.is_playing = true;
-                self.pattern_index = position.pattern_index;
-                self.sequence_position = position.sequence_index;
-                if let Some(sequence_position) = position
-                    .sequence_index
-                    .or_else(|| self.sequence_position_for_pattern_index(position.pattern_index))
+                self.pattern_index = position
+                    .pattern_index
+                    .min(self.song.patterns.len().saturating_sub(1));
+                self.sequence_position = position.sequence_index.and_then(|sequence_index| {
+                    (!self.song.sequence.is_empty())
+                        .then_some(sequence_index.min(self.song.sequence.len().saturating_sub(1)))
+                });
+                if let Some(sequence_position) = self
+                    .sequence_position
+                    .or_else(|| self.sequence_position_for_pattern_index(self.pattern_index))
                 {
                     self.sequence_cursor =
                         sequence_position.min(self.song.sequence.len().saturating_sub(1));
                 }
-                self.playhead_row = Some(position.position.row);
+                self.playhead_row = Some(
+                    position
+                        .position
+                        .row
+                        .min(self.current_row_count().saturating_sub(1)),
+                );
             }
             PlaybackUpdate::Stopped => {
                 self.is_playing = false;

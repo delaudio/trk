@@ -8,17 +8,19 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** `agent/315-docflow-closeout`.
-- **Active item:** close out `.docflow/plan/done/2026-08-20-dsp-calibration-modal.md`
-  after GitHub issue #315 shipped.
+- **Branch:** `agent/316-external-editor`.
+- **Active item:** `.docflow/plan/todo/0025-external-editor-hot-reload.md` for
+  GitHub issue #316.
 - **Blockers:** none.
-- **Pending integration:** merge the documentation-only closeout through CI.
+- **Pending integration:** claim the accepted editor/hot-reload contract, then
+  implement, verify, review, and merge it through CI.
 
 ## Last shipped
 
-Issue #315 implementation via PR #338 with CI green; ADR 0026 is implemented
-and its Docflow closeout is pending integration.
+Issue #315 implementation via PR #338 and Docflow closeout via PR #339, both
+with CI green; ADR 0026 is Implemented.
 
 ## Next item
 
-Inspect and claim GitHub issue #316 after the #315 closeout merges.
+Implement ADR 0027 acceptance criteria and integrate issue #316 before
+selecting issue #317.
