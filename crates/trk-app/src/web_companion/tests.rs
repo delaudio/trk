@@ -114,6 +114,8 @@ fn served_page_is_self_contained_and_has_canvas_controls() {
     assert!(!COMPANION_HTML.contains("<link rel=\"stylesheet\""));
     assert!(!COMPANION_HTML.contains("https://"));
     assert!(COMPANION_HTML.contains("async function poll(){if(inflight)return;"));
+    assert!(COMPANION_HTML.contains("signature!==patternSignature"));
+    assert!(COMPANION_HTML.contains("signature!==trackSignature"));
 }
 
 #[test]
