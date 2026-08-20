@@ -1,8 +1,14 @@
 # AI-Assisted Edits
 
-AI-assisted composition is post-MVP and optional. The initial boundary is the `trk-ai` crate, which models requests, reviewable proposals, and explicit application of edits to a `trk-core::Song`.
+AI-assisted composition is optional. The `trk-ai` crate models requests,
+reviewable proposals, engine discovery, external adapters, and explicit
+application of edits to a `trk-core::Song`.
 
-The crate does not contact network services. External providers can be added later behind an explicit provider implementation, but project data must not leave the machine unless the user invokes that provider intentionally. The built-in default is `local_deterministic`; `mock` is available for tests and dry runs. Future command-backed providers must pass configured binary and environment checks before trk queues work.
+The built-in default is `local_deterministic` and never contacts a network
+service; `mock` is available for tests and dry runs. External CLI or OpenAI
+engines receive the current song and selection context only after the user
+activates that engine and submits a prompt. They must pass binary and credential
+checks before trk queues work.
 
 Current foundation:
 
@@ -37,6 +43,15 @@ Typing a prompt and pressing `Enter` submits it through the same reviewable
 proposal path as `:ai propose`; `Esc` returns to the tracker and `Ctrl+C`
 requests cancellation of the active task.
 
+With an empty composer, press `m` to open the engine selector. It discovers the
+built-in engine, `claude`, `codex`, and `ollama` on `PATH`, plus the OpenAI API
+when `OPENAI_API_KEY` and `curl` are available. `.env` can provide
+`OPENAI_API_KEY`, `TRK_AI_PROVIDER`, and `TRK_AI_MODEL`; process environment
+values take precedence. The selector shows missing requirements without showing
+credential values. Use Up/Down to move, Enter to activate, and Esc to close.
+The provider badge changes immediately, and the next prompt uses the selected
+engine without restarting trk.
+
 When a proposal is ready, the chat view treats the pending proposal as the
 selected review target. Its preview panel lists the full touched cell set, the
 touched pattern/track/row areas, the explicit absence of instrument, automation,
@@ -56,15 +71,19 @@ messages. Cancellation marks the job cancelled and leaves the song and pending
 proposal slot unchanged.
 
 `:ai provider` reports the configured provider, model, and availability before a
-prompt is submitted. `:ai propose` submits the configured local or mock provider
-to the application [task runtime](tasks.md) with the current pattern and track as
-context. Missing credentials or missing CLI binaries are reported before any task
-is queued. The TUI remains responsive while generation and preview validation
-run. A successful task stores a pending proposal, appends an assistant message,
-and reports the touched cells without mutating the song. `:ai show` repeats the
-summary. `:ai accept` applies the proposal through the normal undo transaction
-mechanism, so `Ctrl+Z` can revert the generated edit. `:ai reject` clears the
-pending proposal without changing the song.
+prompt is submitted. `:ai propose` submits the active provider to the application
+[task runtime](tasks.md) with the current song, pattern, and track as context.
+CLI engines are launched directly without a shell, receive the structured
+request on stdin, and must return one JSON object containing a non-empty
+`summary` and `set_note`/`clear_cell` edits. Missing credentials, missing
+binaries, invalid JSON, unsuccessful exits, timeouts, and cancellation are
+reported without applying partial output. The TUI remains responsive while
+generation and preview validation run. A successful task stores a pending
+proposal, appends an assistant message, and reports the touched cells without
+mutating the song. `:ai show` repeats the summary. `:ai accept` applies the
+proposal through the normal undo transaction mechanism, so `Ctrl+Z` can revert
+the generated edit. `:ai reject` clears the pending proposal without changing
+the song.
 
 Local guidance files can be used to steer proposals without adding any remote
 dependency. Configure `[ai].guidance_dirs` with directories containing `.md`,

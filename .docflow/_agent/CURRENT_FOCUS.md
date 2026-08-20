@@ -8,11 +8,12 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** `main` is authoritative once this state-sync change lands; the
-  source branch exists only to satisfy PR-based integration.
-- **Active item:** none; the plan queue is empty.
+- **Branch:** `agent/313-ai-engine-selector`.
+- **Active item:** `.docflow/plan/todo/0022-runtime-ai-engine-selection.md`
+  for GitHub issue #313.
 - **Blockers:** none.
-- **Pending integration:** none after this state-sync change lands.
+- **Pending integration:** implementation is complete with the full local gate
+  green; Norn Codex review and PR #334 integration remain.
 
 ## Last shipped
 
@@ -21,4 +22,5 @@ with CI green; ADR 0023 is Implemented.
 
 ## Next item
 
-Audit the open GitHub issue queue and select the next smallest actionable item.
+Implement ADR 0024 acceptance criteria, run the full gate and Norn Codex review,
+then integrate issue #313 before selecting issue #314.

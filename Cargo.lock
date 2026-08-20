@@ -1398,6 +1398,9 @@ dependencies = [
 name = "trk-ai"
 version = "0.1.0"
 dependencies = [
+ "libc",
+ "serde",
+ "serde_json",
  "thiserror 2.0.18",
  "trk-core",
 ]

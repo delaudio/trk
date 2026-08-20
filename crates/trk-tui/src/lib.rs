@@ -16,11 +16,12 @@ pub use layout::{
 pub use render::{
     render, render_waveform_overview, render_waveform_overview_with_glyphs,
     render_with_interactions, AiChatMessageRole, AiChatMessageView, AiChatProposalPreviewView,
-    AiChatViewState, CommandPaletteEntryView, CommandPaletteViewState, DspDevicePaletteEntryView,
-    DspDevicePaletteViewState, DspParameterLockStatusView, DspRackTargetView, DspRackViewState,
-    HelpTab, MidiPortView, MidiSettingsState, NotificationKind, NotificationView,
-    ProjectBrowserEntryKind, ProjectBrowserEntryView, ProjectBrowserViewState,
-    SampleBrowserEntryKind, SampleBrowserEntryView, SampleBrowserViewState, SamplerViewState,
-    SelectionRect, TuiState, TuiView, WaveformGlyphs,
+    AiChatViewState, AiEngineEntryView, AiEngineSelectorViewState, CommandPaletteEntryView,
+    CommandPaletteViewState, DspDevicePaletteEntryView, DspDevicePaletteViewState,
+    DspParameterLockStatusView, DspRackTargetView, DspRackViewState, HelpTab, MidiPortView,
+    MidiSettingsState, NotificationKind, NotificationView, ProjectBrowserEntryKind,
+    ProjectBrowserEntryView, ProjectBrowserViewState, SampleBrowserEntryKind,
+    SampleBrowserEntryView, SampleBrowserViewState, SamplerViewState, SelectionRect, TuiState,
+    TuiView, WaveformGlyphs,
 };
 pub use viewport::{OverscrollPolicy, Viewport2D, ViewportAxis};

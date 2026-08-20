@@ -248,6 +248,7 @@ fn status_segments(state: TuiState<'_>) -> (String, &'static [&'static str]) {
         TuiView::AiChat => (
             state.mode_label.to_string(),
             &[
+                "m Engines",
                 "Enter Submit",
                 "a Apply",
                 "r Reject",

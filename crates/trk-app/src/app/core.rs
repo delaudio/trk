@@ -34,6 +34,7 @@ impl App {
         } else {
             format!("MIDI Disconnected ({default_midi_output})")
         };
+        let (ai_engines, ai_config) = super::ai_engines::resolve_initial_ai_engines(&config.ai);
         let mut app = Self {
             dispatcher: AppDispatcher::default(),
             next_request_id: 1,
@@ -112,7 +113,9 @@ impl App {
             recent_projects,
             recent_project_limit: config.workspace.recent_project_limit,
             config_metadata: config.metadata.clone(),
-            ai_config: config.ai.clone(),
+            ai_config,
+            ai_engines,
+            ai_engine_selector_open: false,
             ai_session_file: config.ai.session_file.clone(),
             ai_retention_messages: config.ai.retention_messages,
             ai_thread: AiThread::default(),

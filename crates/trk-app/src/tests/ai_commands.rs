@@ -134,6 +134,99 @@ fn ai_chat_command_opens_native_view() {
 }
 
 #[test]
+fn ai_engine_selector_keyboard_cancels_and_rejects_unavailable_engines() {
+    let mut app = App {
+        ai_engines: trk_ai::discover_engines_with(&trk_ai::EngineDiscoveryInput {
+            path: None,
+            environment: std::collections::HashMap::new(),
+            environment_file: None,
+            curl_supports_header_expansion: None,
+        }),
+        ..App::default()
+    };
+    enter_command(&mut app, "ai chat");
+
+    app.handle_key(KeyEvent::new(KeyCode::Char('m'), KeyModifiers::NONE));
+    assert!(app.ai_engine_selector_open);
+    app.ai_engines.select(trk_ai::EngineId::Codex);
+    app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+
+    assert!(app.ai_engine_selector_open);
+    assert_eq!(
+        app.ai_config.provider,
+        config::AiProviderKind::LocalDeterministic
+    );
+    assert!(app
+        .notification
+        .as_ref()
+        .expect("unavailable notification")
+        .message
+        .contains("missing codex executable"));
+
+    app.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+    assert!(!app.ai_engine_selector_open);
+    assert_eq!(app.mode, AppMode::Ai);
+}
+
+#[cfg(unix)]
+#[test]
+fn ai_engine_selector_keyboard_activates_available_engine_immediately() {
+    let directory =
+        std::env::temp_dir().join(format!("trk-ai-selector-keyboard-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).expect("create test PATH");
+    let command = directory.join("codex");
+    std::fs::write(
+        &command,
+        r#"#!/bin/sh
+cat >/dev/null
+printf '%s' '{"summary":"Selected engine response","edits":[{"op":"set_note","pattern":0,"row":0,"track":0,"pitch":60,"velocity":100}]}'
+"#,
+    )
+    .expect("write codex fixture");
+    let mut permissions = std::fs::metadata(&command)
+        .expect("codex fixture metadata")
+        .permissions();
+    std::os::unix::fs::PermissionsExt::set_mode(&mut permissions, 0o755);
+    std::fs::set_permissions(&command, permissions).expect("make codex fixture executable");
+    let mut app = App {
+        ai_engines: trk_ai::discover_engines_with(&trk_ai::EngineDiscoveryInput {
+            path: Some(directory.as_os_str().to_owned()),
+            environment: std::collections::HashMap::new(),
+            environment_file: None,
+            curl_supports_header_expansion: None,
+        }),
+        ..App::default()
+    };
+    enter_command(&mut app, "ai chat");
+
+    app.handle_key(KeyEvent::new(KeyCode::Char('m'), KeyModifiers::NONE));
+    app.ai_engines.select(trk_ai::EngineId::Codex);
+    app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+
+    assert!(!app.ai_engine_selector_open);
+    assert_eq!(app.ai_config.provider, config::AiProviderKind::Codex);
+    assert_eq!(app.ai_engines.active_id(), trk_ai::EngineId::Codex);
+    assert!(app.active_ai_engine_label().contains("Codex CLI"));
+
+    for ch in "selected engine prompt".chars() {
+        app.handle_key(KeyEvent::new(KeyCode::Char(ch), KeyModifiers::NONE));
+    }
+    app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+    app.wait_for_tasks();
+
+    let proposal = &app.pending_ai_proposal.as_ref().expect("proposal").proposal;
+    assert_eq!(proposal.summary, "Selected engine response");
+    assert_eq!(
+        proposal.source,
+        trk_ai::AiSource::External {
+            provider: "codex".to_string()
+        }
+    );
+
+    let _ = std::fs::remove_dir_all(directory);
+}
+
+#[test]
 fn ai_chat_composer_submits_prompt_without_mutating_until_accept() {
     let mut app = App::default();
     let before = app.song.clone();

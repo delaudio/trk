@@ -37,10 +37,12 @@ profile = "tracker"
 b = "sample-browser"
 
 [ai]
-provider = "local_deterministic" # local_deterministic, mock, or command
+provider = "local_deterministic" # local_deterministic, mock, command, claude, codex, openai, or ollama
 model = "local-deterministic"
 required_env = []                # credentials or flags required before use
-# command_path = "/usr/local/bin/codex" # required only for future command providers
+# command_path = "/usr/local/bin/my-ai-adapter"
+command_args = []                # direct argv entries; no shell expansion
+timeout_ms = 120000              # external provider deadline (100..600000)
 guidance_dirs = []               # local .md, .txt, or .json guidance directories
 
 [ui]
@@ -108,9 +110,13 @@ cell-value entry; `0` keeps the cursor on the edited row.
 
 `[ai]` defaults to the local deterministic provider, which never contacts a
 network service. `mock` is available for tests and scripted dry runs. `command`
-is reserved for future CLI adapters; when selected, trk checks
-`command_path` and every `required_env` entry before queuing an AI task and
-reports missing binaries or credentials as normal diagnostics.
+accepts a custom JSON CLI adapter; `claude`, `codex`, `ollama`, and `openai`
+are populated automatically when selected from the AI workspace. trk checks
+`command_path` and every `required_env` entry before queuing an AI task, launches
+commands directly without a shell, and stops them at `timeout_ms`. Missing
+binaries or credentials are reported as normal diagnostics. The OpenAI adapter
+requires curl 8.3 or newer so it can inject `OPENAI_API_KEY` without putting the
+secret in the process argument list; older versions are shown as unavailable.
 `session_file` enables local JSON chat history autosave/load, and
 `retention_messages` bounds the saved local thread length. `guidance_dirs`
 lists local directories containing `.md`, `.txt`, or `.json` prompt templates,

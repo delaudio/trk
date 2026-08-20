@@ -44,7 +44,13 @@ pub struct AiConfig {
     pub provider: AiProviderKind,
     pub model: String,
     pub command_path: Option<String>,
+    #[serde(default)]
+    pub command_args: Vec<String>,
     pub required_env: Vec<String>,
+    #[serde(default = "default_ai_timeout_ms")]
+    pub timeout_ms: u64,
+    #[serde(skip, default = "default_ai_environment_file")]
+    pub environment_file: Option<PathBuf>,
     pub session_file: Option<PathBuf>,
     pub retention_messages: usize,
     pub guidance_dirs: Vec<PathBuf>,
@@ -56,12 +62,23 @@ impl Default for AiConfig {
             provider: AiProviderKind::LocalDeterministic,
             model: "local-deterministic".to_string(),
             command_path: None,
+            command_args: Vec::new(),
             required_env: Vec::new(),
+            timeout_ms: default_ai_timeout_ms(),
+            environment_file: default_ai_environment_file(),
             session_file: None,
             retention_messages: 200,
             guidance_dirs: Vec::new(),
         }
     }
+}
+
+const fn default_ai_timeout_ms() -> u64 {
+    120_000
+}
+
+fn default_ai_environment_file() -> Option<PathBuf> {
+    Some(PathBuf::from(".env"))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
@@ -71,6 +88,11 @@ pub enum AiProviderKind {
     LocalDeterministic,
     Mock,
     Command,
+    Claude,
+    Codex,
+    #[serde(rename = "openai")]
+    OpenAi,
+    Ollama,
 }
 
 impl fmt::Display for AiProviderKind {
@@ -79,6 +101,10 @@ impl fmt::Display for AiProviderKind {
             Self::LocalDeterministic => formatter.write_str("local_deterministic"),
             Self::Mock => formatter.write_str("mock"),
             Self::Command => formatter.write_str("command"),
+            Self::Claude => formatter.write_str("claude"),
+            Self::Codex => formatter.write_str("codex"),
+            Self::OpenAi => formatter.write_str("openai"),
+            Self::Ollama => formatter.write_str("ollama"),
         }
     }
 }
@@ -320,6 +346,20 @@ fn validate(config: &AppConfig) -> Result<(), ConfigValidationErrors> {
             required_env,
         );
     }
+    for (index, command_arg) in config.ai.command_args.iter().enumerate() {
+        check_non_empty(
+            &mut diagnostics,
+            &format!("ai.command_args.{index}"),
+            command_arg,
+        );
+    }
+    check_range(
+        &mut diagnostics,
+        "ai.timeout_ms",
+        usize::try_from(config.ai.timeout_ms).unwrap_or(usize::MAX),
+        100,
+        600_000,
+    );
     check_range(
         &mut diagnostics,
         "ai.retention_messages",
@@ -501,6 +541,27 @@ mod tests {
 
         assert_eq!(loaded.config(), &AppConfig::default());
         assert_eq!(loaded.metadata().source, ConfigSource::Defaults);
+    }
+
+    #[test]
+    fn legacy_ai_sections_receive_defaults_for_new_runtime_fields() {
+        let file = TestFile::new(
+            "legacy-ai",
+            r#"
+[ai]
+provider = "local_deterministic"
+model = "local-deterministic"
+"#,
+        );
+
+        let loaded = load_config(Some(&file.0), ConfigOverrides::default()).expect("legacy config");
+
+        assert!(loaded.config().ai.command_args.is_empty());
+        assert_eq!(loaded.config().ai.timeout_ms, default_ai_timeout_ms());
+        assert_eq!(
+            loaded.config().ai.environment_file,
+            default_ai_environment_file()
+        );
     }
 
     #[test]

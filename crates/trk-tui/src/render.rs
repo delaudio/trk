@@ -63,8 +63,8 @@ use browser_views::{render_project_browser, render_sample_browser};
 use dsp_rack::render_dsp_rack_view;
 use help_overlay::render_help_overlay;
 use modal_overlays::{
-    render_command_palette_overlay, render_delete_confirmation, render_midi_settings_overlay,
-    render_quit_confirmation,
+    render_ai_engine_selector_overlay, render_command_palette_overlay, render_delete_confirmation,
+    render_midi_settings_overlay, render_quit_confirmation,
 };
 use sampler_view::render_sampler_view;
 use status_bar::render_status;
@@ -145,6 +145,22 @@ pub struct AiChatViewState<'a> {
     pub messages: &'a [AiChatMessageView<'a>],
     pub selected_context: &'a str,
     pub proposal_preview: Option<AiChatProposalPreviewView<'a>>,
+    pub engine_selector: Option<AiEngineSelectorViewState<'a>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AiEngineSelectorViewState<'a> {
+    pub entries: &'a [AiEngineEntryView<'a>],
+    pub selected: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AiEngineEntryView<'a> {
+    pub label: &'a str,
+    pub model: &'a str,
+    pub available: bool,
+    pub active: bool,
+    pub unavailable_reason: Option<&'a str>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -2934,6 +2950,9 @@ fn render_ai_chat_view(frame: &mut Frame<'_>, area: Rect, chat: Option<AiChatVie
         .wrap(Wrap { trim: false })
         .block(Block::default().title(" Composer ").borders(Borders::ALL));
     frame.render_widget(composer, chunks[3]);
+    if let Some(selector) = chat.engine_selector {
+        render_ai_engine_selector_overlay(frame, area, selector);
+    }
 }
 
 fn ai_chat_role_label(role: AiChatMessageRole) -> &'static str {

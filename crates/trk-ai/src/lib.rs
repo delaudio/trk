@@ -1,6 +1,17 @@
+mod engine;
+mod external;
+
+use serde::{Deserialize, Serialize};
 use trk_core::{NoteEvent, Song};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+pub use engine::{
+    discover_engines, discover_engines_with, environment_value, environment_value_from,
+    EngineDescriptor, EngineDiscoveryInput, EngineId, EngineSelectionError, EngineSelectionState,
+    ExternalResponseFormat,
+};
+pub use external::{parse_external_proposal, ExternalEngineProvider};
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct AiPatternRequest {
     pub prompt: String,
     pub pattern: usize,
@@ -25,7 +36,7 @@ pub enum AiSource {
     External { provider: String },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AiEdit {
     SetNote {
         pattern: usize,
@@ -81,12 +92,28 @@ pub enum AiError {
     MissingRow { pattern: usize, row: usize },
     #[error("track {0} does not exist")]
     MissingTrack(usize),
+    #[error("note pitch {0} exceeds MIDI range")]
+    InvalidPitch(u8),
+    #[error("velocity {0} exceeds MIDI range")]
+    InvalidVelocity(u8),
     #[error("prompt cannot be empty")]
     EmptyPrompt,
     #[error("proposal contains no edits")]
     EmptyProposal,
     #[error("AI provider unavailable: {0}")]
     ProviderUnavailable(String),
+    #[error("AI provider launch failed: {0}")]
+    ProviderLaunch(String),
+    #[error("AI provider I/O failed: {0}")]
+    ProviderIo(String),
+    #[error("AI provider timed out after {0} ms")]
+    ProviderTimeout(u64),
+    #[error("AI provider task cancelled")]
+    ProviderCancelled,
+    #[error("AI provider exited unsuccessfully: {0}")]
+    ProviderExit(String),
+    #[error("AI provider returned an invalid response: {0}")]
+    ProviderResponse(String),
 }
 
 impl AiProposalProvider for LocalDeterministicProvider {
@@ -246,6 +273,17 @@ fn validate_proposal(song: &Song, proposal: &AiProposal) -> Result<(), AiError> 
     }
 
     for edit in &proposal.edits {
+        if let AiEdit::SetNote {
+            pitch, velocity, ..
+        } = *edit
+        {
+            if pitch > 127 {
+                return Err(AiError::InvalidPitch(pitch));
+            }
+            if velocity > 127 {
+                return Err(AiError::InvalidVelocity(velocity));
+            }
+        }
         let address = edit.address();
         let pattern = song
             .pattern(address.pattern)

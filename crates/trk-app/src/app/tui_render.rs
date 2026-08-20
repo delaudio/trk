@@ -15,7 +15,9 @@ impl App {
         let midi_status = self.tui_midi_status();
         let ai_chat_messages = self.tui_ai_chat_messages();
         let ai_proposal_preview_lines = self.tui_ai_proposal_preview_lines();
-        let ai_provider = format!("{} model={}", self.ai_config.provider, self.ai_config.model);
+        let ai_engine_entries = self.tui_ai_engine_entries();
+        let ai_engine_selector = self.tui_ai_engine_selector(&ai_engine_entries);
+        let ai_provider = self.active_ai_engine_label();
         let ai_provider_status =
             crate::task_integration::format_ai_provider_status(&self.ai_config);
         let ai_status = self.tui_ai_status(&ai_provider_status);
@@ -31,6 +33,7 @@ impl App {
             ai_provider.as_str(),
             ai_status.as_str(),
             ai_context.as_str(),
+            ai_engine_selector,
         );
         let active_view = self.tui_active_view();
         let mut tui_cursor = self.cursor;

@@ -292,6 +292,31 @@ impl App {
         ]
     }
 
+    pub(crate) fn tui_ai_engine_entries(&self) -> Vec<AiEngineEntryView<'_>> {
+        self.ai_engines
+            .engines()
+            .iter()
+            .map(|engine| AiEngineEntryView {
+                label: engine.label.as_str(),
+                model: engine.model.as_str(),
+                available: engine.is_available(),
+                active: engine.id == self.ai_engines.active_id(),
+                unavailable_reason: engine.unavailable_reason(),
+            })
+            .collect()
+    }
+
+    pub(crate) fn tui_ai_engine_selector<'a>(
+        &self,
+        entries: &'a [AiEngineEntryView<'a>],
+    ) -> Option<AiEngineSelectorViewState<'a>> {
+        self.ai_engine_selector_open
+            .then_some(AiEngineSelectorViewState {
+                entries,
+                selected: self.ai_engines.selected_index(),
+            })
+    }
+
     pub(crate) fn tui_ai_chat_view<'a>(
         &'a self,
         messages: &'a [AiChatMessageView<'a>],
@@ -299,6 +324,7 @@ impl App {
         provider: &'a str,
         status: &'a str,
         context: &'a str,
+        engine_selector: Option<AiEngineSelectorViewState<'a>>,
     ) -> Option<AiChatViewState<'a>> {
         (self.mode == AppMode::Ai).then_some(AiChatViewState {
             provider,
@@ -311,6 +337,7 @@ impl App {
                     lines: proposal_preview_lines,
                 },
             ),
+            engine_selector,
         })
     }
 }

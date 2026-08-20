@@ -1,12 +1,74 @@
 use ratatui::{
     layout::Rect,
     prelude::{Color, Frame, Line, Modifier, Span, Style},
-    widgets::{Block, Borders, Clear, Paragraph, Wrap},
+    widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap},
 };
 use trk_core::MidiRoutingSettings;
 
-use super::{interaction_region, CommandPaletteViewState, InteractionMap, MidiSettingsState};
+use super::{
+    interaction_region, AiEngineSelectorViewState, CommandPaletteViewState, InteractionMap,
+    MidiSettingsState,
+};
 use crate::{ConfirmationAction, InteractionPayload, MidiSettingsAction};
+
+pub(super) fn render_ai_engine_selector_overlay(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    selector: AiEngineSelectorViewState<'_>,
+) {
+    let height = u16::try_from(selector.entries.len())
+        .unwrap_or(u16::MAX)
+        .saturating_add(5)
+        .clamp(8, 14);
+    let overlay = centered_rect(90, height, area);
+    let mut lines = Vec::new();
+    for (index, engine) in selector.entries.iter().enumerate() {
+        let selected = index == selector.selected;
+        let marker = if selected { ">" } else { " " };
+        let active = if engine.active { "*" } else { " " };
+        let status = if engine.available {
+            "[OK] Available".to_string()
+        } else {
+            format!("[!] {}", engine.unavailable_reason.unwrap_or("Unavailable"))
+        };
+        let style = if selected {
+            Style::default()
+                .fg(Color::Black)
+                .bg(if engine.available {
+                    Color::Cyan
+                } else {
+                    Color::DarkGray
+                })
+                .add_modifier(Modifier::BOLD)
+        } else if engine.available {
+            Style::default().fg(Color::White)
+        } else {
+            Style::default().fg(Color::DarkGray)
+        };
+        lines.push(Line::styled(
+            format!(
+                "{marker}{active} {:<14} {:<18} {status}",
+                engine.label, engine.model
+            ),
+            style,
+        ));
+    }
+    lines.push(Line::from(""));
+    lines.push(Line::styled(
+        "  ↑/↓ select   Enter activate   Esc close   * active",
+        Style::default().fg(Color::Gray),
+    ));
+    frame.render_widget(Clear, overlay);
+    frame.render_widget(
+        Paragraph::new(lines).block(
+            Block::default()
+                .title(" AI Engines ")
+                .borders(Borders::ALL)
+                .border_type(BorderType::Double),
+        ),
+        overlay,
+    );
+}
 
 pub(super) fn render_midi_settings_overlay(
     frame: &mut Frame<'_>,
