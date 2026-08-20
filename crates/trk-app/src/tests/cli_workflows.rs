@@ -435,7 +435,7 @@ fn audio_export_writes_sampler_events_to_wav() {
         .expect("pattern")
         .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 127)
         .expect("set note");
-    save_project(&project_path, &song).expect("save project");
+    save_song_project(&project_path, &song).expect("save project");
 
     run_export_audio(&AudioExportArgs {
         input_path: Some(project_path.clone()),
@@ -752,8 +752,9 @@ fn euclidean_transform_command_round_trips_project_files() {
     let base = std::env::temp_dir().join(format!("trk-transform-cli-{}", std::process::id()));
     let input_path = base.with_extension("input.trk");
     let output_path = base.with_extension("output.trk");
+    let second_output_path = base.with_extension("output-2.trk");
     let song = Song::empty();
-    save_project(&input_path, &song).expect("save input");
+    save_song_project(&input_path, &song).expect("save input");
 
     run_transform_euclidean(&TransformEuclideanArgs {
         input_path: Some(input_path.clone()),
@@ -768,14 +769,41 @@ fn euclidean_transform_command_round_trips_project_files() {
     })
     .expect("transform");
 
-    let transformed = load_project(&output_path).expect("load output");
-    let pattern = transformed.current_pattern().expect("pattern");
+    let transformed = load_project_file(&output_path).expect("load output");
+    let pattern = transformed.song.current_pattern().expect("pattern");
     let active_rows = (0..8)
         .filter(|row| pattern.cell(*row, 0).expect("cell").note.is_some())
         .collect::<Vec<_>>();
 
+    assert_eq!(active_rows, vec![1, 3, 5, 7]);
+    assert_eq!(transformed.variation_history.entries().len(), 1);
+    assert_eq!(
+        transformed.variation_history.entries()[0].source,
+        PatternVariationSource::EuclideanTransform
+    );
+
+    run_transform_euclidean(&TransformEuclideanArgs {
+        input_path: Some(output_path.clone()),
+        output_path: Some(second_output_path.clone()),
+        pattern: 1,
+        track: 1,
+        steps: 4,
+        pulses: 2,
+        rotation: 0,
+        pitch: 36,
+        velocity: 100,
+    })
+    .expect("repeat no-op transform");
+    assert_eq!(
+        load_project_file(&second_output_path)
+            .expect("load repeated output")
+            .variation_history
+            .entries()
+            .len(),
+        1
+    );
+
     let _ = std::fs::remove_file(&input_path);
     let _ = std::fs::remove_file(&output_path);
-
-    assert_eq!(active_rows, vec![1, 3, 5, 7]);
+    let _ = std::fs::remove_file(&second_output_path);
 }

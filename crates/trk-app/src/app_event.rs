@@ -5,6 +5,7 @@ use trk_ai::{AiProposal, CellAddress};
 use trk_core::{Direction, NoteEvent, Song};
 use trk_midi::MidiInputPacket;
 
+use crate::persistence::ProjectFile;
 use crate::{command::TrkCommand, playback_runtime::PlaybackUpdate, task_runtime::TaskUpdate};
 
 #[derive(Debug)]
@@ -22,7 +23,7 @@ pub enum RuntimeEvent {
     ProjectLoaded {
         request_id: RequestId,
         path: PathBuf,
-        result: Box<Result<Song, String>>,
+        result: Box<Result<ProjectFile, String>>,
     },
     MidiImported {
         path: PathBuf,
@@ -30,7 +31,7 @@ pub enum RuntimeEvent {
     },
     ProjectSaved {
         path: PathBuf,
-        song: Box<Song>,
+        project: Box<ProjectFile>,
         quit_after: bool,
         result: Result<(), String>,
     },
@@ -57,7 +58,7 @@ pub enum RuntimeAction {
     ApplyProjectLoad {
         request_id: RequestId,
         path: PathBuf,
-        result: Box<Result<Song, String>>,
+        result: Box<Result<ProjectFile, String>>,
     },
     ApplyMidiImport {
         path: PathBuf,
@@ -65,7 +66,7 @@ pub enum RuntimeAction {
     },
     ApplyProjectSave {
         path: PathBuf,
-        song: Box<Song>,
+        project: Box<ProjectFile>,
         quit_after: bool,
         result: Result<(), String>,
     },
@@ -236,12 +237,12 @@ fn route_event(event: AppEvent) -> AppAction {
             }
             RuntimeEvent::ProjectSaved {
                 path,
-                song,
+                project,
                 quit_after,
                 result,
             } => RuntimeAction::ApplyProjectSave {
                 path,
-                song,
+                project,
                 quit_after,
                 result,
             },
@@ -342,7 +343,7 @@ mod tests {
             !dispatcher.enqueue(AppEvent::Runtime(RuntimeEvent::ProjectLoaded {
                 request_id: RequestId::new(7),
                 path: PathBuf::from("song.trk"),
-                result: Box::new(Ok(Song::empty())),
+                result: Box::new(Ok(ProjectFile::new(Song::empty()))),
             }))
         );
 

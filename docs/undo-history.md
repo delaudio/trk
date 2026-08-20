@@ -23,3 +23,15 @@ It defaults to 100 and accepts values from 1 through 10000. Loading another
 project clears both history directions. Dirty state is derived by comparing the
 current song with the last successfully saved or loaded song, so undoing back to
 that content clears the dirty indicator and redo restores it.
+
+Generated pattern variations have a separate, persistent snapshot history. A
+successful AI proposal application or Euclidean transform records the resulting
+pattern, its source, description, target pattern and optional track. No-op and
+failed operations do not create entries. The history retains the newest 64
+entries in each project.
+
+In normal mode, `v` opens the variation browser, Up/Down (or `k`/`j`) moves the
+selection, and Enter restores the selected pattern through the ordinary undo
+transaction stack. `V` starts visual selection and `Ctrl+v` continues to paste.
+Undo, redo, or ordinary edits reconcile the active badge against the current
+pattern contents.

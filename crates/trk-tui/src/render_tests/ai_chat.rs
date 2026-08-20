@@ -84,6 +84,7 @@ fn renders_ai_chat_view_with_all_message_roles() {
                         }),
                         engine_selector: None,
                     }),
+                    variation_history: None,
                     tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );

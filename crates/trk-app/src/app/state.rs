@@ -36,6 +36,7 @@ impl App {
         edit(&mut transaction, self.cursor)?;
         let changed = self.history.commit(&mut self.song, transaction, spec);
         if changed {
+            self.variation_history.reconcile(&self.song);
             self.refresh_dirty();
             self.clamp_sequence_cursor();
             self.clamp_clip_cursor();
@@ -45,6 +46,7 @@ impl App {
 
     pub(crate) fn undo(&mut self) {
         if let Some(label) = self.history.undo(&mut self.song) {
+            self.variation_history.reconcile(&self.song);
             self.refresh_dirty();
             self.clamp_cursor();
             self.clamp_sequence_cursor();
@@ -57,6 +59,7 @@ impl App {
 
     pub(crate) fn redo(&mut self) {
         if let Some(label) = self.history.redo(&mut self.song) {
+            self.variation_history.reconcile(&self.song);
             self.refresh_dirty();
             self.clamp_cursor();
             self.clamp_sequence_cursor();
@@ -94,7 +97,8 @@ impl App {
     }
 
     pub(crate) fn refresh_dirty(&mut self) {
-        self.dirty = self.song != self.clean_song;
+        self.dirty =
+            self.song != self.clean_song || self.variation_history != self.clean_variation_history;
     }
 
     pub(crate) fn save(&mut self) {
@@ -148,14 +152,15 @@ impl App {
     pub(crate) fn apply_project_save(
         &mut self,
         path: PathBuf,
-        saved_song: Song,
+        saved_project: crate::persistence::ProjectFile,
         quit_after: bool,
         result: std::result::Result<(), String>,
     ) {
         match result {
             Ok(()) => {
                 self.project_path = Some(path.clone());
-                self.clean_song = saved_song;
+                self.clean_song = saved_project.song;
+                self.clean_variation_history = saved_project.variation_history;
                 self.refresh_dirty();
                 self.record_recent_project(path);
                 self.notify_success("Project saved");

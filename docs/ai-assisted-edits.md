@@ -59,7 +59,10 @@ or mixer changes for current cell-only proposals, and the available actions.
 With an empty composer, press `a` to apply the selected proposal, `r` to reject
 it, or `p` to append the preview summary to the thread. Applied proposals still
 go through the normal undo transaction stack, so `Ctrl+Z` restores the
-pre-accept song state.
+pre-accept song state. Each successful, non-empty application also records the
+resulting pattern in the project's persistent variation history; rejected,
+failed, and no-op proposals do not. Press `v` in normal mode to browse the
+recorded variants and Enter to restore one through the same undo stack.
 
 AI jobs are queued on the application task runtime and then reported back into
 the chat thread. The TUI surfaces queued, running, cancelling, completed,

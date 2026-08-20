@@ -2,6 +2,10 @@ use super::*;
 
 impl App {
     pub(crate) fn handle_key_action(&mut self, key: KeyEvent) {
+        if self.variation_history_open {
+            self.handle_variation_history_key(key);
+            return;
+        }
         if let Some(command) = self.keymap.command_for(self.mode.keymap_mode(), &key) {
             self.dispatch_intent(AppIntent::Command(command));
             return;
@@ -31,6 +35,9 @@ impl App {
     }
 
     pub(crate) fn handle_mouse(&mut self, mouse: MouseEvent, viewport: MouseViewport) {
+        if self.variation_history_open {
+            return;
+        }
         match mouse.kind {
             MouseEventKind::ScrollUp | MouseEventKind::ScrollDown => {
                 self.handle_mouse_vertical_scroll(mouse.column, mouse.row, mouse.kind);
@@ -657,7 +664,11 @@ impl App {
                 self.open_help();
                 return;
             }
-            KeyCode::Char('v') | KeyCode::Char('V') => {
+            KeyCode::Char('v') => {
+                self.open_variation_history();
+                return;
+            }
+            KeyCode::Char('V') => {
                 self.start_selection();
                 return;
             }

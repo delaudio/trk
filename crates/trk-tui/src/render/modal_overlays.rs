@@ -7,7 +7,7 @@ use trk_core::MidiRoutingSettings;
 
 use super::{
     interaction_region, AiEngineSelectorViewState, CommandPaletteViewState, InteractionMap,
-    MidiSettingsState,
+    MidiSettingsState, PatternVariationHistoryViewState,
 };
 use crate::{ConfirmationAction, InteractionPayload, MidiSettingsAction};
 
@@ -68,6 +68,87 @@ pub(super) fn render_ai_engine_selector_overlay(
         ),
         overlay,
     );
+}
+
+pub(super) fn render_pattern_variation_history_overlay(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    history: PatternVariationHistoryViewState<'_>,
+) {
+    let height = area.height.saturating_sub(4).clamp(10, 18);
+    let overlay = centered_rect(92, height, area);
+    let visible_rows = usize::from(height.saturating_sub(5));
+    let selected = history
+        .selected
+        .min(history.entries.len().saturating_sub(1));
+    let start = selected.saturating_sub(visible_rows.saturating_sub(1));
+    let mut lines = Vec::new();
+    if history.entries.is_empty() {
+        lines.push(Line::from("  No generated pattern variations yet."));
+        lines.push(Line::from(
+            "  Apply an AI proposal or Euclidean transform first.",
+        ));
+    } else {
+        for (index, entry) in history
+            .entries
+            .iter()
+            .enumerate()
+            .skip(start)
+            .take(visible_rows)
+        {
+            let marker = if index == selected { ">" } else { " " };
+            let active = if entry.active { " [ACTIVE]" } else { "" };
+            let context = entry.track_index.map_or_else(
+                || format!("P{:02}", entry.pattern_index + 1),
+                |track| format!("P{:02}/T{:02}", entry.pattern_index + 1, track + 1),
+            );
+            let description = truncate_history_description(entry.description, 34);
+            let style = if index == selected {
+                Style::default()
+                    .fg(Color::Black)
+                    .bg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD)
+            } else if entry.active {
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::White)
+            };
+            lines.push(Line::styled(
+                format!(
+                    "{marker} v{:03} {context:<8} @{} {:<9} {description}{active}",
+                    entry.id, entry.timestamp, entry.source
+                ),
+                style,
+            ));
+        }
+    }
+    lines.push(Line::from(""));
+    lines.push(Line::styled(
+        "  ↑/↓ select   Enter restore   Esc/v close",
+        Style::default().fg(Color::Gray),
+    ));
+    frame.render_widget(Clear, overlay);
+    frame.render_widget(
+        Paragraph::new(lines).wrap(Wrap { trim: false }).block(
+            Block::default()
+                .title(" Pattern Variation History ")
+                .borders(Borders::ALL)
+                .border_type(BorderType::Double),
+        ),
+        overlay,
+    );
+}
+
+fn truncate_history_description(description: &str, limit: usize) -> String {
+    let mut chars = description.chars();
+    let head = chars.by_ref().take(limit).collect::<String>();
+    if chars.next().is_some() {
+        format!("{head}…")
+    } else {
+        head
+    }
 }
 
 pub(super) fn render_midi_settings_overlay(

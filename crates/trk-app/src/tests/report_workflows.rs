@@ -36,7 +36,7 @@ fn cli_report_workflows_write_project_and_critique_artifacts() {
         .expect("pattern")
         .set_note(0, 0, NoteEvent::Note { pitch: 64 }, 100)
         .expect("set note");
-    save_project(&project_path, &song).expect("save project");
+    save_song_project(&project_path, &song).expect("save project");
 
     assert_eq!(
         parse_report_command([

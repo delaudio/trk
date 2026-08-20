@@ -38,6 +38,7 @@ mod strudel_export;
 mod style_analysis;
 mod text_notes;
 mod tracks_panels;
+mod variation_history;
 mod workspace_libraries;
 mod workspace_manifest;
 

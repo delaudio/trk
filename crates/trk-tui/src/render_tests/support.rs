@@ -86,6 +86,7 @@ pub(super) fn render_test_state<'a>() -> TuiState<'a> {
         sample_browser: None,
         project_browser: None,
         ai_chat: None,
+        variation_history: None,
         tracker_layout: crate::TrackerLayoutState::default(),
     }
 }

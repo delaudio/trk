@@ -22,10 +22,19 @@ fn command_mode_ai_proposal_preview_apply_and_undo() {
     assert_ne!(app.song, before);
     assert!(app.pending_ai_proposal.is_none());
     assert!(app.dirty);
+    assert_eq!(app.variation_history.entries().len(), 1);
+    assert_eq!(
+        app.variation_history.entries()[0].source,
+        PatternVariationSource::AiProposal
+    );
+    assert!(app.variation_history.entries()[0]
+        .description
+        .contains("sparse bass sketch"));
 
     app.undo();
 
     assert_eq!(app.song, before);
+    assert_eq!(app.variation_history.active_id(), None);
 }
 
 #[test]
@@ -115,6 +124,7 @@ fn command_mode_ai_proposal_can_be_rejected_without_mutating_song() {
 
     assert_eq!(app.song, before);
     assert!(app.pending_ai_proposal.is_none());
+    assert!(app.variation_history.is_empty());
 }
 
 #[test]

@@ -64,7 +64,8 @@ use dsp_rack::render_dsp_rack_view;
 use help_overlay::render_help_overlay;
 use modal_overlays::{
     render_ai_engine_selector_overlay, render_command_palette_overlay, render_delete_confirmation,
-    render_midi_settings_overlay, render_quit_confirmation,
+    render_midi_settings_overlay, render_pattern_variation_history_overlay,
+    render_quit_confirmation,
 };
 use sampler_view::render_sampler_view;
 use status_bar::render_status;
@@ -120,7 +121,25 @@ pub struct TuiState<'a> {
     pub sample_browser: Option<SampleBrowserViewState<'a>>,
     pub project_browser: Option<ProjectBrowserViewState<'a>>,
     pub ai_chat: Option<AiChatViewState<'a>>,
+    pub variation_history: Option<PatternVariationHistoryViewState<'a>>,
     pub tracker_layout: TrackerLayoutState,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PatternVariationHistoryViewState<'a> {
+    pub entries: &'a [PatternVariationEntryView<'a>],
+    pub selected: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PatternVariationEntryView<'a> {
+    pub id: u64,
+    pub timestamp: u64,
+    pub description: &'a str,
+    pub source: &'a str,
+    pub pattern_index: usize,
+    pub track_index: Option<usize>,
+    pub active: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -497,6 +516,9 @@ pub fn render_with_interactions(
     }
     if let Some(command_palette) = state.command_palette {
         render_command_palette_overlay(frame, area, command_palette, &mut interactions);
+    }
+    if let Some(history) = state.variation_history {
+        render_pattern_variation_history_overlay(frame, area, history);
     }
     if state.quit_confirmation {
         render_quit_confirmation(frame, area, &mut interactions);
@@ -3328,6 +3350,9 @@ mod render_sequence_tests;
 #[cfg(test)]
 #[path = "render_tests/support.rs"]
 mod render_test_support;
+#[cfg(test)]
+#[path = "render_tests/variation_history.rs"]
+mod render_variation_history_tests;
 #[cfg(test)]
 #[path = "render_tests/waveform.rs"]
 mod render_waveform_tests;

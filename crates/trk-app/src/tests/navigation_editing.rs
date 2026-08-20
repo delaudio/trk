@@ -652,7 +652,7 @@ fn selection_region_can_be_copied_cut_pasted_and_deleted() {
             .expect("set note");
     }
 
-    app.handle_key(KeyEvent::new(KeyCode::Char('v'), KeyModifiers::NONE));
+    app.handle_key(KeyEvent::new(KeyCode::Char('V'), KeyModifiers::SHIFT));
     app.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
     app.handle_key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
     assert_eq!(
@@ -681,7 +681,7 @@ fn selection_region_can_be_copied_cut_pasted_and_deleted() {
 
     app.cursor.row = 0;
     app.cursor.track = 0;
-    app.handle_key(KeyEvent::new(KeyCode::Char('v'), KeyModifiers::NONE));
+    app.handle_key(KeyEvent::new(KeyCode::Char('V'), KeyModifiers::SHIFT));
     app.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
     app.handle_key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
     app.handle_key(KeyEvent::new(KeyCode::Char('x'), KeyModifiers::CONTROL));
@@ -708,7 +708,7 @@ fn selection_region_can_be_copied_cut_pasted_and_deleted() {
         Some(NoteEvent::Note { pitch: 65 })
     );
 
-    app.handle_key(KeyEvent::new(KeyCode::Char('v'), KeyModifiers::NONE));
+    app.handle_key(KeyEvent::new(KeyCode::Char('V'), KeyModifiers::SHIFT));
     app.handle_key(KeyEvent::new(KeyCode::Delete, KeyModifiers::NONE));
     assert_eq!(
         app.song

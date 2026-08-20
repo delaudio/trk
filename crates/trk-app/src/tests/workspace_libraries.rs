@@ -35,7 +35,7 @@ fn project_browser_uses_workspace_project_library_by_default() {
     let dir = std::env::temp_dir().join(format!("trk-workspace-projects-{}", std::process::id()));
     let project_path = dir.join("library.trk");
     std::fs::create_dir_all(&dir).expect("create project dir");
-    save_project(&project_path, &Song::empty()).expect("save project");
+    save_song_project(&project_path, &Song::empty()).expect("save project");
     let mut app = App::new(AppConfig {
         workspace: config::WorkspaceConfig {
             project_library: Some(dir.clone()),
@@ -70,8 +70,8 @@ fn project_browser_prefers_workspace_library_over_current_project_parent() {
     std::fs::create_dir_all(&current_dir).expect("create current dir");
     let library_project = library_dir.join("library.trk");
     let current_project = current_dir.join("current.trk");
-    save_project(&library_project, &Song::empty()).expect("save library project");
-    save_project(&current_project, &Song::empty()).expect("save current project");
+    save_song_project(&library_project, &Song::empty()).expect("save library project");
+    save_song_project(&current_project, &Song::empty()).expect("save current project");
     let mut app = App {
         project_path: Some(current_project),
         ..App::new(AppConfig {

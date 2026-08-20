@@ -34,5 +34,6 @@ mod text_notes;
 mod tracker_actions;
 mod tui_render;
 mod tui_state;
+mod variation_history;
 mod view_key_handling;
 mod workspace_actions;

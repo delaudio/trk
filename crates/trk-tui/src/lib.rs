@@ -19,9 +19,9 @@ pub use render::{
     AiChatViewState, AiEngineEntryView, AiEngineSelectorViewState, CommandPaletteEntryView,
     CommandPaletteViewState, DspDevicePaletteEntryView, DspDevicePaletteViewState,
     DspParameterLockStatusView, DspRackTargetView, DspRackViewState, HelpTab, MidiPortView,
-    MidiSettingsState, NotificationKind, NotificationView, ProjectBrowserEntryKind,
-    ProjectBrowserEntryView, ProjectBrowserViewState, SampleBrowserEntryKind,
-    SampleBrowserEntryView, SampleBrowserViewState, SamplerViewState, SelectionRect, TuiState,
-    TuiView, WaveformGlyphs,
+    MidiSettingsState, NotificationKind, NotificationView, PatternVariationEntryView,
+    PatternVariationHistoryViewState, ProjectBrowserEntryKind, ProjectBrowserEntryView,
+    ProjectBrowserViewState, SampleBrowserEntryKind, SampleBrowserEntryView,
+    SampleBrowserViewState, SamplerViewState, SelectionRect, TuiState, TuiView, WaveformGlyphs,
 };
 pub use viewport::{OverscrollPolicy, Viewport2D, ViewportAxis};

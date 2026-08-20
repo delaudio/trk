@@ -53,13 +53,28 @@ fn graph_cli_validates_and_compiles_project_files() {
     let output_path = base.with_extension("output.trk");
     let mut song = Song::empty();
     song.create_pattern(64);
+    let mut variation_history = PatternVariationHistory::default();
+    variation_history
+        .record_at(
+            123,
+            "generated intro",
+            PatternVariationSource::AiProposal,
+            0,
+            Some(0),
+            song.patterns[0].clone(),
+        )
+        .expect("record variation");
     let graph = fixture_graph();
     std::fs::write(
         &graph_path,
         serde_json::to_string_pretty(&graph).expect("graph json"),
     )
     .expect("write graph");
-    save_project(&input_path, &song).expect("save project");
+    save_project_file(
+        &input_path,
+        &crate::persistence::ProjectFile::with_history(song.clone(), variation_history.clone()),
+    )
+    .expect("save project");
 
     assert_eq!(
         parse_graph_command([
@@ -81,12 +96,13 @@ fn graph_cli_validates_and_compiles_project_files() {
     })
     .expect("compile");
 
-    let compiled = load_project(&output_path).expect("compiled");
+    let compiled = load_project_file(&output_path).expect("compiled");
     let _ = std::fs::remove_file(graph_path);
     let _ = std::fs::remove_file(input_path);
     let _ = std::fs::remove_file(output_path);
 
-    assert_eq!(compiled.sequence.len(), 3);
+    assert_eq!(compiled.song.sequence.len(), 3);
+    assert_eq!(compiled.variation_history, variation_history);
 }
 
 #[test]

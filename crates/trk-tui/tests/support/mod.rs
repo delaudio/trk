@@ -41,6 +41,7 @@ pub fn test_state<'a>() -> TuiState<'a> {
         sample_browser: None,
         project_browser: None,
         ai_chat: None,
+        variation_history: None,
         tracker_layout: trk_tui::TrackerLayoutState::default(),
     }
 }

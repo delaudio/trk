@@ -49,6 +49,7 @@ fn renders_help_overlay_when_requested() {
                     sample_browser: None,
                     project_browser: None,
                     ai_chat: None,
+                    variation_history: None,
                     tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );
@@ -159,6 +160,7 @@ fn renders_command_palette_overlay() {
                     sample_browser: None,
                     project_browser: None,
                     ai_chat: None,
+                    variation_history: None,
                     tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );
@@ -231,6 +233,7 @@ fn renders_playhead_when_playing() {
                     sample_browser: None,
                     project_browser: None,
                     ai_chat: None,
+                    variation_history: None,
                     tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );
@@ -297,6 +300,7 @@ fn renders_hex_line_numbers_when_enabled() {
                     sample_browser: None,
                     project_browser: None,
                     ai_chat: None,
+                    variation_history: None,
                     tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );
@@ -363,6 +367,7 @@ fn renders_status_notification() {
                     sample_browser: None,
                     project_browser: None,
                     ai_chat: None,
+                    variation_history: None,
                     tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );
@@ -427,6 +432,7 @@ fn renders_quit_confirmation_overlay() {
                     sample_browser: None,
                     project_browser: None,
                     ai_chat: None,
+                    variation_history: None,
                     tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );
@@ -493,6 +499,7 @@ fn renders_delete_confirmation_overlay() {
                     sample_browser: None,
                     project_browser: None,
                     ai_chat: None,
+                    variation_history: None,
                     tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );
@@ -575,6 +582,7 @@ fn renders_midi_settings_overlay() {
                     sample_browser: None,
                     project_browser: None,
                     ai_chat: None,
+                    variation_history: None,
                     tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );
