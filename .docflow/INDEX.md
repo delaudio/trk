@@ -28,4 +28,4 @@ metadata.
 | 0021 | Route wheel input by rendered region | Implemented | 2026-07-27 | default-agent | tui, ux, input, mouse, scrolling |
 | 0022 | Verify pointer dispatch against rendered geometry | Implemented | 2026-07-27 | default-agent | tui, ux, input, mouse, testing, responsive |
 | 0023 | Adopt trk as the sole product identity | Implemented | 2026-07-27 | default-agent | identity, naming, repository, migration |
-| 0024 | Select AI proposal engines at runtime | Accepted | 2026-08-20 | default-agent | ai, tui, providers, configuration, subprocess |
+| 0024 | Select AI proposal engines at runtime | Implemented | 2026-08-20 | default-agent | ai, tui, providers, configuration, subprocess |

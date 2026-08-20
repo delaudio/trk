@@ -35,3 +35,9 @@ existing proposal review flow.
 
 - `../../adr/0001-record-architecture-decisions.md`
 - Maintainer approval to execute issue #313 autonomously.
+
+---
+
+Shipped at HEAD `cd3f3a2` via
+[PR #334](https://github.com/delaudio/trk/pull/334), with GitHub Actions CI
+run `32348306130` green and issue #313 closed.
