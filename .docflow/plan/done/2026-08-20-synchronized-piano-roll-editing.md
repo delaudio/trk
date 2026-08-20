@@ -39,3 +39,9 @@ tracker bindings, loopback security/lifecycle, and stepped automation.
 - `../../adr/0003-render-owned-interaction-regions.md`
 - `../../adr/0028-expose-a-local-web-companion.md`
 - Maintainer approval to execute issue #319 autonomously.
+
+---
+
+Shipped at HEAD `7c3a0cb0b72d1a272bcec46b52e318806d152996` via
+[PR #346](https://github.com/delaudio/trk/pull/346), with GitHub Actions CI
+run `32383583128` green and issue #319 closed.

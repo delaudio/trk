@@ -1,7 +1,7 @@
 ---
 adr: 0030
 title: Edit patterns through synchronized piano rolls
-status: Accepted
+status: Implemented
 date: 2026-08-20
 owner: default-agent
 supersedes:
@@ -134,7 +134,7 @@ multi-track ghost overlays, and bounded MIDI CC curve editing and playback.
 - `0001-record-architecture-decisions.md`
 - `0003-render-owned-interaction-regions.md`
 - `0028-expose-a-local-web-companion.md`
-- `../plan/todo/0028-synchronized-piano-roll-editing.md`
+- `../plan/done/2026-08-20-synchronized-piano-roll-editing.md`
 - GitHub issue #319.
 
 ## Revision History
@@ -142,6 +142,7 @@ multi-track ghost overlays, and bounded MIDI CC curve editing and playback.
 | Date | Revision | Author | Change |
 |------|----------|--------|--------|
 | 2026-08-20 | r1 | default-agent | Recorded and accepted synchronized pattern-cell piano rolls, explicit gate scheduling, ghost overlays, safe Web edits, and MIDI CC curves. |
+| 2026-08-20 | r2 | default-agent | Marked the capability Implemented after PR #346 merged with CI green and issue #319 closed. |
 
 ## Approvals
 
