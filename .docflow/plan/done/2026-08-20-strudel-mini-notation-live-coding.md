@@ -33,3 +33,9 @@ do not execute JavaScript or add sub-row event storage.
 - `../../adr/0001-record-architecture-decisions.md`
 - `../../adr/0025-browse-and-restore-persistent-pattern-variations.md`
 - Maintainer approval to execute issue #320 autonomously.
+
+---
+
+Shipped at HEAD `7cca3b1696f611432c3978b5d38ad12eb341c131` via
+[PR #348](https://github.com/delaudio/trk/pull/348), with GitHub Actions CI
+run `32391345257` green and issue #320 closed.

@@ -35,4 +35,4 @@ metadata.
 | 0028 | Expose a local web companion | Implemented | 2026-08-20 | default-agent | web, visualization, transport, audio, tui |
 | 0029 | Render audio intensity with terminal-aware color | Implemented | 2026-08-20 | default-agent | tui, color, waveform, metering, sampler, accessibility |
 | 0030 | Edit patterns through synchronized piano rolls | Implemented | 2026-08-20 | default-agent | piano-roll, patterns, tui, web, editing, midi, automation |
-| 0031 | Live-code patterns with mini-notation | Accepted | 2026-08-20 | default-agent | strudel, live-coding, patterns, parser, transforms, tui, playback |
+| 0031 | Live-code patterns with mini-notation | Implemented | 2026-08-20 | default-agent | strudel, live-coding, patterns, parser, transforms, tui, playback |

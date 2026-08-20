@@ -1,7 +1,7 @@
 ---
 adr: 0031
 title: Live-code patterns with mini-notation
-status: Accepted
+status: Implemented
 date: 2026-08-20
 owner: default-agent
 supersedes:
@@ -107,7 +107,7 @@ pattern and playback schedule without interrupting the transport.
 
 - `0001-record-architecture-decisions.md`
 - `0025-browse-and-restore-persistent-pattern-variations.md`
-- `../plan/todo/0029-strudel-mini-notation-live-coding.md`
+- `../plan/done/2026-08-20-strudel-mini-notation-live-coding.md`
 - [Strudel mini-notation](https://strudel.cc/learn/mini-notation/)
 - GitHub issue #320.
 
@@ -119,6 +119,7 @@ pattern and playback schedule without interrupting the transport.
 | 2026-08-20 | r2 | default-agent | Defined row-quantized operator behavior and transactional live preview rollback for canonical cells and playback. |
 | 2026-08-20 | r3 | default-agent | Required a currently valid live buffer before accepting its canonical preview. |
 | 2026-08-20 | r4 | default-agent | Clarified tracker-bounded slow-operator semantics and explicit rest-only Euclidean masks. |
+| 2026-08-20 | r5 | default-agent | Marked the capability Implemented after PR #348 merged with the complete gate green. |
 
 ## Approvals
 
