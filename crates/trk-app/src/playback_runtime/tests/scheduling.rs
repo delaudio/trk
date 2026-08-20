@@ -45,7 +45,7 @@ fn pattern_playback_advances_to_next_pattern_before_stopping() {
         .set_note(0, 0, NoteEvent::Note { pitch: 72 }, 0x50)
         .expect("set second pattern note");
 
-    let (next_command, sent, updates) = run_pattern_chain_with_recording(&song, 0, false);
+    let (next_command, sent, updates) = run_pattern_chain_with_recording(&song, 0, false, None);
 
     assert!(next_command.is_none());
     assert!(sent.contains(&MidiMessage::note_on(10, 60, 0x64)));
@@ -178,7 +178,7 @@ fn runtime_disconnects_and_stops_when_midi_send_fails() {
         audio_sample_rate,
     };
 
-    let result = run_pattern(&song, 0, 0, None, true, &mut context);
+    let result = run_pattern(&mut song, 0, 0, None, true, &mut context);
 
     assert!(matches!(result, PatternRunResult::Stopped));
     assert!(matches!(output, PlaybackOutput::Fake(_)));
@@ -284,6 +284,77 @@ fn fake_midi_stop_command_sends_all_notes_off() {
     assert!(updates
         .iter()
         .any(|update| matches!(update, PlaybackUpdate::Stopped)));
+}
+
+#[test]
+fn live_pattern_replacement_is_applied_without_stopping_transport() {
+    let mut song = Song::empty();
+    speed_up_transport(&mut song);
+    song.current_pattern_mut()
+        .expect("pattern")
+        .set_note(1, 0, NoteEvent::Note { pitch: 60 }, 0x60)
+        .expect("set original note");
+    let mut replacement = song.current_pattern().expect("pattern").clone();
+    replacement
+        .set_note(1, 0, NoteEvent::Note { pitch: 64 }, 0x60)
+        .expect("set replacement note");
+    let (command_tx, command_rx) = mpsc::channel();
+    command_tx
+        .send(PlaybackCommand::ReplacePattern {
+            pattern_index: 0,
+            pattern: replacement,
+        })
+        .expect("queue live replacement");
+
+    let (result, sent, updates) = run_pattern_with_recording(&song, 0, 0, false, &command_rx);
+
+    assert!(matches!(result, PatternRunResult::Finished));
+    assert!(!sent.contains(&MidiMessage::note_on(10, 60, 0x60)));
+    assert!(sent.contains(&MidiMessage::note_on(10, 64, 0x60)));
+    assert!(!updates
+        .iter()
+        .any(|update| matches!(update, PlaybackUpdate::Stopped)));
+}
+
+#[test]
+fn live_replacement_for_a_later_pattern_is_stored_without_stopping_current_playback() {
+    let mut song = Song::empty();
+    speed_up_transport(&mut song);
+    let second_id = song.create_pattern(64);
+    let second_index = song
+        .patterns
+        .iter()
+        .position(|pattern| pattern.id == second_id)
+        .expect("second pattern");
+    song.pattern_mut(second_index)
+        .expect("second pattern")
+        .set_note(0, 0, NoteEvent::Note { pitch: 62 }, 0x60)
+        .expect("set original second note");
+    let mut replacement = song.pattern(second_index).expect("second pattern").clone();
+    replacement
+        .set_note(0, 0, NoteEvent::Note { pitch: 67 }, 0x60)
+        .expect("set replacement second note");
+
+    let (next_command, sent, updates) = run_pattern_chain_with_recording(
+        &song,
+        0,
+        false,
+        Some(PlaybackCommand::ReplacePattern {
+            pattern_index: second_index,
+            pattern: replacement,
+        }),
+    );
+
+    assert!(next_command.is_none());
+    assert!(!sent.contains(&MidiMessage::note_on(10, 62, 0x60)));
+    assert!(sent.contains(&MidiMessage::note_on(10, 67, 0x60)));
+    assert_eq!(
+        updates
+            .iter()
+            .filter(|update| matches!(update, PlaybackUpdate::Stopped))
+            .count(),
+        1
+    );
 }
 
 #[test]

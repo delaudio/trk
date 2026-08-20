@@ -30,7 +30,8 @@ pattern rows at a scheduling boundary without rebuilding the audio runtime.
 The supported timing semantics are row-quantized and explicit: a top-level
 space-separated sequence divides a cycle evenly; `[a b]` divides its parent's
 span between `a` and `b`; `[a,b]` evaluates both branches concurrently;
-`a*N` repeats `a` N times inside its span; `a/N` stretches `a` across N cycles;
+`a*N` repeats `a` N times inside its span; `a/N` extends `a`'s gate across N
+source spans, clipped when canonical cells reach the pattern boundary;
 `<a b>` selects `a` on cycle zero, `b` on cycle one, then wraps; and
 `a(p,s,r)` gates `a` with the same deterministic `s`-step Euclidean mask as
 the existing transform, rotated right by `r` steps. For example, over eight
@@ -74,8 +75,9 @@ pattern and playback schedule without interrupting the transport.
 5. `:strudel live [EXPR]` opens a dedicated bottom editing bar. Each valid
    edit replaces canonical preview cells derived from the entry snapshot and
    updates the active playback schedule. Invalid intermediate text leaves the
-   last valid preview audible and displays an error. Enter commits the latest
-   valid preview as one undoable mutation; Escape restores both canonical
+   last valid preview audible and displays an error. Enter commits the current
+   valid preview as one undoable mutation and refuses an invalid visible
+   expression; Escape restores both canonical
    cells and the active playback schedule to the entry snapshot without adding
    undo history.
 6. While pattern playback is active, a valid live edit replaces future
@@ -115,6 +117,8 @@ pattern and playback schedule without interrupting the transport.
 |------|----------|--------|--------|
 | 2026-08-20 | r1 | default-agent | Recorded and accepted bounded mini-notation parsing, canonical evaluation, atomic commands, and uninterrupted live updates. |
 | 2026-08-20 | r2 | default-agent | Defined row-quantized operator behavior and transactional live preview rollback for canonical cells and playback. |
+| 2026-08-20 | r3 | default-agent | Required a currently valid live buffer before accepting its canonical preview. |
+| 2026-08-20 | r4 | default-agent | Clarified tracker-bounded slow-operator semantics and explicit rest-only Euclidean masks. |
 
 ## Approvals
 

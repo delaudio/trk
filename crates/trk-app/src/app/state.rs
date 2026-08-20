@@ -331,10 +331,13 @@ impl App {
     }
 
     pub(crate) fn command_line(&self) -> Option<&str> {
-        if self.mode == AppMode::Command {
-            Some(self.command_buffer.as_str())
-        } else {
-            None
+        match self.mode {
+            AppMode::Command => Some(self.command_buffer.as_str()),
+            AppMode::Strudel => self
+                .strudel_live
+                .as_ref()
+                .map(|session| session.line.as_str()),
+            _ => None,
         }
     }
 

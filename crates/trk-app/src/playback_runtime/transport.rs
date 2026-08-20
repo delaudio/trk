@@ -14,7 +14,7 @@ use std::{
 use trk_audio::{
     AudioConfig, CalibrationControl, CalibrationError, CalibrationMeters, CalibrationSettings,
 };
-use trk_core::{PlaybackPosition, Song};
+use trk_core::{Pattern, PlaybackPosition, Song};
 use trk_midi::MidirMidiOutput;
 
 use super::{
@@ -48,6 +48,10 @@ pub(super) enum PlaybackCommand {
         song: Song,
         sample_base_dir: Option<PathBuf>,
         start_sequence_index: usize,
+    },
+    ReplacePattern {
+        pattern_index: usize,
+        pattern: Pattern,
     },
     ConnectMidi {
         port_index: usize,
@@ -115,6 +119,13 @@ impl PlaybackRuntime {
 
     pub fn stop(&self) {
         let _ = self.command_tx.send(PlaybackCommand::Stop);
+    }
+
+    pub fn replace_pattern(&self, pattern_index: usize, pattern: Pattern) {
+        let _ = self.command_tx.send(PlaybackCommand::ReplacePattern {
+            pattern_index,
+            pattern,
+        });
     }
 
     pub fn connect_midi(&self, port_index: usize) {
@@ -210,7 +221,7 @@ fn playback_thread(
                     audio_sample_rate,
                 };
                 next_command =
-                    run_pattern_chain(&song, pattern_index, start_row, loop_pattern, &mut context);
+                    run_pattern_chain(song, pattern_index, start_row, loop_pattern, &mut context);
                 if matches!(next_command, Some(PlaybackCommand::Shutdown)) {
                     break;
                 }
@@ -240,6 +251,15 @@ fn playback_thread(
                 if matches!(next_command, Some(PlaybackCommand::Shutdown)) {
                     break;
                 }
+            }
+            PlaybackCommand::ReplacePattern { pattern_index, .. } => {
+                // No schedule survives an idle boundary. A later Start command
+                // carries a fresh Song snapshot, so retaining this replacement
+                // would apply it to the wrong playback session.
+                tracing::debug!(
+                    pattern_index,
+                    "ignored live replacement because playback is idle"
+                );
             }
             PlaybackCommand::ConnectMidi { port_index } => {
                 midi_logger.log_line(format!("CONNECT_REQUEST port={port_index}"));

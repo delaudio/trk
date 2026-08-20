@@ -7,6 +7,7 @@ members = [
     "crates/trk-interop",
     "crates/trk-midi",
     "crates/trk-sampler",
+    "crates/trk-strudel",
     "crates/trk-tui",
     "crates/trk-transform",
 ]

@@ -497,6 +497,16 @@ fn registered_actions() -> Vec<CommandPaletteAction> {
             Always,
         ),
         action(
+            "pattern.strudel-live",
+            "Live Code Pattern...",
+            "Patterns",
+            Prompt("strudel live "),
+            None,
+            &["strudel", "tidal"],
+            &["mini notation", "generative", "euclidean"],
+            Always,
+        ),
+        action(
             "pattern.rename",
             "Rename Current Pattern...",
             "Patterns",

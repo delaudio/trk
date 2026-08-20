@@ -1426,6 +1426,7 @@ dependencies = [
  "trk-interop",
  "trk-midi",
  "trk-sampler",
+ "trk-strudel",
  "trk-transform",
  "trk-tui",
 ]
@@ -1469,6 +1470,14 @@ dependencies = [
 
 [[package]]
 name = "trk-sampler"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.18",
+ "trk-core",
+]
+
+[[package]]
+name = "trk-strudel"
 version = "0.1.0"
 dependencies = [
  "thiserror 2.0.18",

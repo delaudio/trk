@@ -23,6 +23,7 @@ trk-core = { path = "../trk-core" }
 trk-interop = { path = "../trk-interop" }
 trk-midi = { path = "../trk-midi" }
 trk-sampler = { path = "../trk-sampler" }
+trk-strudel = { path = "../trk-strudel" }
 trk-transform = { path = "../trk-transform" }
 trk-tui = { path = "../trk-tui" }
 serde.workspace = true

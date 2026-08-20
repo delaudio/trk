@@ -253,6 +253,8 @@ Inside the TUI:
 :track channel CH PORT              Set track MIDI channel
 :pattern new / :pattern duplicate   Manage patterns
 :pattern length LEN                 Set pattern length (e.g. :pattern length 64)
+:strudel EXPR                       Generate active pattern tracks from mini-notation
+:strudel live [EXPR]                Open the live-coding editor (Enter accept, Esc cancel)
 
 # Sampler & Audio
 :web                                Open local browser companion

@@ -76,7 +76,8 @@ impl App {
                     | CommandDomain::Performance
                     | CommandDomain::Workspace
                     | CommandDomain::MidiInput
-                    | CommandDomain::Note),
+                    | CommandDomain::Note
+                    | CommandDomain::Strudel),
                 arguments,
             } => self.handle_typed_domain(domain, &arguments),
             TrkCommand::Loop(command) => match command {
@@ -464,6 +465,7 @@ impl App {
             CommandDomain::Workspace => self.handle_workspace_command(&values),
             CommandDomain::MidiInput => self.handle_midi_input_command(&values),
             CommandDomain::Note => self.handle_note_command(&values),
+            CommandDomain::Strudel => self.handle_strudel_command(arguments),
             _ => unreachable!("domain handled by dedicated executor"),
         }
     }
