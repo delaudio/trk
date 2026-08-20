@@ -18,9 +18,14 @@ struct BrowserCommand {
 
 pub(crate) struct BrowserOpenMonitor {
     child: Child,
+    url: String,
 }
 
 impl BrowserOpenMonitor {
+    pub(crate) fn url(&self) -> &str {
+        &self.url
+    }
+
     pub(crate) fn try_result(&mut self) -> Option<Result<(), String>> {
         match self.child.try_wait() {
             Ok(Some(status)) if status.success() => Some(Ok(())),
@@ -50,7 +55,10 @@ pub(crate) fn open_browser(url: &str) -> Result<BrowserOpenMonitor, String> {
         .args(&command.arguments)
         .spawn()
         .map_err(|error| format!("failed to start browser opener: {error}"))?;
-    Ok(BrowserOpenMonitor { child })
+    Ok(BrowserOpenMonitor {
+        child,
+        url: url.to_string(),
+    })
 }
 
 fn current_platform() -> BrowserPlatform {

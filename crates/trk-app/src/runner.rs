@@ -281,8 +281,11 @@ fn drain_browser_openers(app: &mut App, monitors: &mut Vec<BrowserOpenMonitor>) 
                 monitors.remove(index);
             }
             Some(Err(error)) => {
+                let url = monitors[index].url().to_string();
                 monitors.remove(index);
-                app.notify_warning(format!("Browser did not open: {error}"));
+                app.notify_warning(format!(
+                    "Web companion running at {url}; browser did not open: {error}"
+                ));
             }
         }
     }
