@@ -127,6 +127,7 @@ mod tests {
                 path: Some(OsString::from(directory.as_os_str())),
                 environment: HashMap::new(),
                 environment_file: None,
+                curl_supports_header_expansion: None,
             }),
             ..App::default()
         };
@@ -160,6 +161,7 @@ mod tests {
             path: None,
             environment: HashMap::new(),
             environment_file: None,
+            curl_supports_header_expansion: None,
         });
 
         let (engines, resolved) = resolve_initial_ai_engines_with(&configured, discovered);

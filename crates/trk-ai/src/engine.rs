@@ -3,7 +3,11 @@ use std::{
     env,
     ffi::{OsStr, OsString},
     fs,
+    io::Read,
     path::{Path, PathBuf},
+    process::{Command, Stdio},
+    thread,
+    time::{Duration, Instant},
 };
 
 const DISCOVERY_ENV_KEYS: [&str; 3] = ["OPENAI_API_KEY", "TRK_AI_PROVIDER", "TRK_AI_MODEL"];
@@ -133,6 +137,7 @@ pub struct EngineDiscoveryInput {
     pub path: Option<OsString>,
     pub environment: HashMap<String, OsString>,
     pub environment_file: Option<PathBuf>,
+    pub curl_supports_header_expansion: Option<bool>,
 }
 
 impl EngineDiscoveryInput {
@@ -142,6 +147,9 @@ impl EngineDiscoveryInput {
 
     pub fn from_process_in(directory: &Path) -> Self {
         let dotenv = read_dotenv(directory.join(".env"));
+        let path = env::var_os("PATH");
+        let curl_supports_header_expansion =
+            find_in_path("curl", path.as_deref()).map(|curl| curl_supports_header_expansion(&curl));
         let environment = DISCOVERY_ENV_KEYS
             .into_iter()
             .filter_map(|key| {
@@ -151,9 +159,10 @@ impl EngineDiscoveryInput {
             })
             .collect();
         Self {
-            path: env::var_os("PATH"),
+            path,
             environment,
             environment_file: Some(directory.join(".env")),
+            curl_supports_header_expansion,
         }
     }
 
@@ -367,6 +376,12 @@ fn discover_engine(id: EngineId, input: &EngineDiscoveryInput) -> EngineDescript
             missing.push(format!("missing {binary} executable in PATH"));
         }
     }
+    if id == EngineId::OpenAi
+        && command.is_some()
+        && input.curl_supports_header_expansion != Some(true)
+    {
+        missing.push("curl 8.3 or newer is required".to_string());
+    }
     for key in &required_env {
         if input.value(key).is_none_or(OsStr::is_empty) {
             missing.push(format!("missing {key}"));
@@ -424,6 +439,55 @@ fn binary_candidates(binary: &str) -> Vec<OsString> {
     {
         vec![OsString::from(binary)]
     }
+}
+
+fn curl_supports_header_expansion(command: &Path) -> bool {
+    let Ok(mut child) = Command::new(command)
+        .arg("--version")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+    else {
+        return false;
+    };
+    let started = Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) if status.success() => {
+                let mut output = String::new();
+                return child
+                    .stdout
+                    .take()
+                    .is_some_and(|mut stdout| stdout.read_to_string(&mut output).is_ok())
+                    && parse_curl_version(&output).is_some_and(|version| version >= (8, 3, 0));
+            }
+            Ok(Some(_)) | Err(_) => return false,
+            Ok(None) if started.elapsed() >= Duration::from_millis(500) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return false;
+            }
+            Ok(None) => thread::sleep(Duration::from_millis(10)),
+        }
+    }
+}
+
+fn parse_curl_version(output: &str) -> Option<(u32, u32, u32)> {
+    let version = output.split_whitespace().nth(1)?;
+    let mut components = version.split('.');
+    let parse_component = |component: &str| {
+        component
+            .chars()
+            .take_while(char::is_ascii_digit)
+            .collect::<String>()
+            .parse()
+            .ok()
+    };
+    Some((
+        parse_component(components.next()?)?,
+        parse_component(components.next()?)?,
+        parse_component(components.next()?)?,
+    ))
 }
 
 fn read_dotenv(path: PathBuf) -> HashMap<String, OsString> {
@@ -526,6 +590,7 @@ mod tests {
             path: Some(directory.as_os_str().to_owned()),
             environment: HashMap::from([("OPENAI_API_KEY".to_string(), OsString::from(secret))]),
             environment_file: None,
+            curl_supports_header_expansion: Some(true),
         };
 
         let state = discover_engines_with(&input);
@@ -566,6 +631,7 @@ mod tests {
                 ("TRK_AI_MODEL".to_string(), OsString::from("qwen2.5")),
             ]),
             environment_file: None,
+            curl_supports_header_expansion: None,
         };
 
         let state = discover_engines_with(&input);
@@ -584,6 +650,7 @@ mod tests {
             path: None,
             environment: HashMap::new(),
             environment_file: None,
+            curl_supports_header_expansion: None,
         });
 
         state.select_previous();
@@ -640,6 +707,35 @@ mod tests {
         assert_eq!(parse_dotenv_value("\"unterminated"), None);
     }
 
+    #[test]
+    fn openai_requires_curl_with_secret_safe_header_expansion() {
+        let directory = test_dir("curl-version");
+        fs::create_dir_all(&directory).expect("create test PATH");
+        let curl = directory.join("curl");
+        fs::write(&curl, "fixture").expect("write curl fixture");
+        make_executable(&curl);
+        let base = EngineDiscoveryInput {
+            path: Some(directory.as_os_str().to_owned()),
+            environment: HashMap::from([("OPENAI_API_KEY".to_string(), OsString::from("secret"))]),
+            environment_file: None,
+            curl_supports_header_expansion: Some(false),
+        };
+
+        let old = discover_engines_with(&base);
+        assert_eq!(
+            engine(&old, EngineId::OpenAi).unavailable_reason(),
+            Some("curl 8.3 or newer is required")
+        );
+        let current = discover_engines_with(&EngineDiscoveryInput {
+            curl_supports_header_expansion: Some(true),
+            ..base
+        });
+        assert!(engine(&current, EngineId::OpenAi).is_available());
+        assert_eq!(parse_curl_version("curl 8.12.1 (x86_64)"), Some((8, 12, 1)));
+
+        let _ = fs::remove_dir_all(directory);
+    }
+
     #[cfg(unix)]
     #[test]
     fn discovery_rejects_non_executable_path_entries() {
@@ -656,6 +752,7 @@ mod tests {
             path: Some(directory.as_os_str().to_owned()),
             environment: HashMap::new(),
             environment_file: None,
+            curl_supports_header_expansion: None,
         });
 
         assert_eq!(

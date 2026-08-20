@@ -140,6 +140,7 @@ fn ai_engine_selector_keyboard_cancels_and_rejects_unavailable_engines() {
             path: None,
             environment: std::collections::HashMap::new(),
             environment_file: None,
+            curl_supports_header_expansion: None,
         }),
         ..App::default()
     };
@@ -192,6 +193,7 @@ printf '%s' '{"summary":"Selected engine response","edits":[{"op":"set_note","pa
             path: Some(directory.as_os_str().to_owned()),
             environment: std::collections::HashMap::new(),
             environment_file: None,
+            curl_supports_header_expansion: None,
         }),
         ..App::default()
     };

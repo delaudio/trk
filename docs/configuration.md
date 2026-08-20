@@ -114,7 +114,9 @@ accepts a custom JSON CLI adapter; `claude`, `codex`, `ollama`, and `openai`
 are populated automatically when selected from the AI workspace. trk checks
 `command_path` and every `required_env` entry before queuing an AI task, launches
 commands directly without a shell, and stops them at `timeout_ms`. Missing
-binaries or credentials are reported as normal diagnostics.
+binaries or credentials are reported as normal diagnostics. The OpenAI adapter
+requires curl 8.3 or newer so it can inject `OPENAI_API_KEY` without putting the
+secret in the process argument list; older versions are shown as unavailable.
 `session_file` enables local JSON chat history autosave/load, and
 `retention_messages` bounds the saved local thread length. `guidance_dirs`
 lists local directories containing `.md`, `.txt`, or `.json` prompt templates,
