@@ -138,7 +138,9 @@ fn meter_line(label: &str, value: f32, color_mode: TerminalColorMode) -> Line<'s
 
 fn meter_spans(value: f32, width: usize, color_mode: TerminalColorMode) -> Vec<Span<'static>> {
     let value = finite_meter(value);
-    let filled = (value * width as f32).floor() as usize;
+    let filled = ((value * width as f32).floor() as usize)
+        .max(usize::from(value > 0.0))
+        .min(width);
     (0..width)
         .map(|index| {
             if index >= filled {
@@ -262,6 +264,13 @@ mod tests {
                 .filter(|span| span.content == "█")
                 .count(),
             31
+        );
+        assert_eq!(
+            meter_spans(0.001, 32, TerminalColorMode::TrueColor)
+                .iter()
+                .filter(|span| span.content == "█")
+                .count(),
+            1
         );
     }
 }
