@@ -66,6 +66,7 @@ impl HsbColor {
 }
 
 #[must_use]
+/// Interpolates RGB stops supplied in ascending intensity order.
 pub fn rgb_gradient(stops: &[(f32, RgbColor)], intensity: f32) -> RgbColor {
     gradient_segment(stops, intensity).map_or_else(RgbColor::default, |(left, right, amount)| {
         let left = left.1;
@@ -79,6 +80,7 @@ pub fn rgb_gradient(stops: &[(f32, RgbColor)], intensity: f32) -> RgbColor {
 }
 
 #[must_use]
+/// Interpolates HSB stops supplied in ascending intensity order.
 pub fn hsb_gradient(stops: &[(f32, HsbColor)], intensity: f32) -> RgbColor {
     gradient_segment(stops, intensity).map_or_else(RgbColor::default, |(left, right, amount)| {
         let left = left.1;

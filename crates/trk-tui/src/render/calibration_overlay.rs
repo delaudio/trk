@@ -14,6 +14,7 @@ const METER_GRADIENT: [(f32, RgbColor); 5] = [
     (0.99, RgbColor::new(255, 88, 42)),
     (1.0, RgbColor::new(255, 255, 244)),
 ];
+const METER_CLIP_THRESHOLD: f32 = 0.999;
 
 #[derive(Debug, Clone)]
 struct ControlRow<'a> {
@@ -138,9 +139,14 @@ fn meter_line(label: &str, value: f32, color_mode: TerminalColorMode) -> Line<'s
 
 fn meter_spans(value: f32, width: usize, color_mode: TerminalColorMode) -> Vec<Span<'static>> {
     let value = finite_meter(value);
-    let filled = ((value * width as f32).floor() as usize)
-        .max(usize::from(value > 0.0))
-        .min(width);
+    let clipped = value >= METER_CLIP_THRESHOLD;
+    let filled = if clipped {
+        width
+    } else {
+        ((value * width as f32).floor() as usize)
+            .max(usize::from(value > 0.0))
+            .min(width)
+    };
     (0..width)
         .map(|index| {
             if index >= filled {
@@ -151,7 +157,7 @@ fn meter_spans(value: f32, width: usize, color_mode: TerminalColorMode) -> Vec<S
             if let Some(color) = terminal_color(meter_rgb(cell_amplitude), color_mode) {
                 style = style.fg(color);
             }
-            if index + 1 == width && value >= 1.0 {
+            if index + 1 == width && clipped {
                 style = style.add_modifier(Modifier::BOLD);
             }
             Span::styled("█", style)
@@ -272,5 +278,9 @@ mod tests {
                 .count(),
             1
         );
+        let near_clip = meter_spans(METER_CLIP_THRESHOLD, 32, TerminalColorMode::TrueColor);
+        assert!(near_clip.last().is_some_and(
+            |span| span.content == "█" && span.style.add_modifier.contains(Modifier::BOLD)
+        ));
     }
 }
