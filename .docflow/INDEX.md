@@ -33,3 +33,4 @@ metadata.
 | 0026 | Calibrate realtime output with live metering | Implemented | 2026-08-20 | default-agent | audio, dsp, metering, performance, tui |
 | 0027 | Edit and hot-reload projects externally | Implemented | 2026-08-20 | default-agent | workflow, editor, persistence, hot-reload, tui |
 | 0028 | Expose a local web companion | Implemented | 2026-08-20 | default-agent | web, visualization, transport, audio, tui |
+| 0029 | Render audio intensity with terminal-aware color | Accepted | 2026-08-20 | default-agent | tui, color, waveform, metering, sampler, accessibility |
