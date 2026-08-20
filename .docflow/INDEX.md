@@ -31,4 +31,4 @@ metadata.
 | 0024 | Select AI proposal engines at runtime | Implemented | 2026-08-20 | default-agent | ai, tui, providers, configuration, subprocess |
 | 0025 | Browse and restore persistent pattern variations | Implemented | 2026-08-20 | default-agent | history, patterns, persistence, tui, transforms, ai |
 | 0026 | Calibrate realtime output with live metering | Implemented | 2026-08-20 | default-agent | audio, dsp, metering, performance, tui |
-| 0027 | Edit and hot-reload projects externally | Accepted | 2026-08-20 | default-agent | workflow, editor, persistence, hot-reload, tui |
+| 0027 | Edit and hot-reload projects externally | Implemented | 2026-08-20 | default-agent | workflow, editor, persistence, hot-reload, tui |

@@ -33,3 +33,9 @@ without repeated errors.
 
 - `../../adr/0001-record-architecture-decisions.md`
 - Maintainer approval to execute issue #316 autonomously.
+
+---
+
+Shipped in implementation squash `ffa18b0` via
+[PR #340](https://github.com/delaudio/trk/pull/340), with GitHub Actions CI
+run `32363298549` green and issue #316 closed.
