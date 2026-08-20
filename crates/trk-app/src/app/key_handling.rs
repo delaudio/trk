@@ -2,6 +2,10 @@ use super::*;
 
 impl App {
     pub(crate) fn handle_key_action(&mut self, key: KeyEvent) {
+        if self.calibration_open {
+            self.handle_calibration_key(key);
+            return;
+        }
         if self.variation_history_open {
             self.handle_variation_history_key(key);
             return;
@@ -35,6 +39,9 @@ impl App {
     }
 
     pub(crate) fn handle_mouse(&mut self, mouse: MouseEvent, viewport: MouseViewport) {
+        if self.calibration_open {
+            return;
+        }
         if self.variation_history_open {
             return;
         }
@@ -666,6 +673,10 @@ impl App {
             }
             KeyCode::Char('v') => {
                 self.open_variation_history();
+                return;
+            }
+            KeyCode::Char('t') if key.modifiers.is_empty() => {
+                self.open_calibration();
                 return;
             }
             KeyCode::Char('V') => {

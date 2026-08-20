@@ -56,7 +56,7 @@ impl App {
             self.is_playing
         };
 
-        render_with_interactions(
+        let interactions = render_with_interactions(
             frame,
             &self.song,
             TuiState {
@@ -97,6 +97,10 @@ impl App {
                 variation_history,
                 tracker_layout: self.tracker_layout,
             },
-        )
+        );
+        if let Some(calibration) = self.tui_calibration() {
+            render_calibration_overlay(frame, frame.area(), calibration);
+        }
+        interactions
     }
 }

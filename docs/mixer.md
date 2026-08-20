@@ -67,4 +67,10 @@ MIDI-only tracks are not captured in audio export and are not affected by audio
 mixer mute/solo or DSP chains.
 
 `trk-audio::measure_levels` provides peak/RMS level data for rendered audio.
-Realtime meter transport and graphical meter rendering are future work.
+During realtime playback, press `t` in the tracker’s normal mode to open the
+session-local DSP calibration panel. It exposes master and selected-track gain,
+low/mid/high band trim, a gate threshold, meter decay, and dynamic auto-gain.
+Changes reach the audio callback immediately without altering the song, undo
+history, saved project, or offline exports. The LOW/MID/HIGH, RMS, and PEAK
+meters use instant attack with the selected decay value; `r` restores balanced
+defaults while keeping the captured track target.

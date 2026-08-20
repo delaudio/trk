@@ -188,6 +188,7 @@ Inside the TUI:
 | `Ctrl+Z` / `Ctrl+Y` | Undo / Redo |
 | `v` (normal mode) | Browse and restore generated pattern variations |
 | `V` (normal mode) | Start visual selection |
+| `t` (normal mode) | Open live DSP calibration; arrows adjust, `r` resets, `t`/`Esc` closes |
 
 ### Tracks, Patterns & Sequence
 
@@ -428,7 +429,7 @@ See [`docs/timing.md`](docs/timing.md) for timing budget contracts and jitter te
 - Plugin hosting (VST3 / AU / CLAP).
 - Tracker effect column features beyond FX1/FX2.
 - Realtime audio device selection in UI.
-- Graphical automation & realtime metering views.
+- Graphical automation and broader mixer metering views.
 
 ---
 

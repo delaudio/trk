@@ -5,6 +5,7 @@ mod ai_engines;
 mod ai_guidance;
 mod ai_session;
 mod arrangement_actions;
+mod calibration;
 mod clip_actions;
 mod command_mode;
 mod command_palette;

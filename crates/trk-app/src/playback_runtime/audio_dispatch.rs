@@ -1,8 +1,8 @@
 use std::{path::Path, sync::mpsc::Sender};
 
 use trk_audio::{
-    AudioBackend, AudioConfig, CpalAudioBackend, DspDeviceKind as AudioDspDeviceKind,
-    DspDeviceSpec, DspDriveMode as AudioDspDriveMode,
+    AudioBackend, AudioConfig, CalibrationControl, CpalAudioBackend,
+    DspDeviceKind as AudioDspDeviceKind, DspDeviceSpec, DspDriveMode as AudioDspDriveMode,
     DspDynamicsDetector as AudioDspDynamicsDetector, DspFilterMode as AudioDspFilterMode,
     DspGraphSpec, RealtimeAudioCommand, SendDspBusSpec, TrackDspChainSpec, TrackSendSpec,
 };
@@ -30,18 +30,19 @@ impl PlaybackAudioOutput {
         Self::Disabled { sample_rate }
     }
 
-    pub(super) fn for_song(
+    pub(super) fn for_song_with_calibration(
         song: &Song,
         config: AudioConfig,
         update_tx: &Sender<PlaybackUpdate>,
         sample_base_dir: Option<&Path>,
+        calibration: CalibrationControl,
     ) -> Self {
         let samples = load_realtime_samples(song, config, update_tx, sample_base_dir);
         if samples.is_empty() {
             return Self::disabled(config.sample_rate);
         }
 
-        let mut backend = CpalAudioBackend::new();
+        let mut backend = CpalAudioBackend::with_calibration(calibration);
         if let Err(error) = AudioBackend::start(&mut backend, config) {
             let _ = update_tx.send(PlaybackUpdate::AudioError(error.to_string()));
             return Self::disabled(config.sample_rate);

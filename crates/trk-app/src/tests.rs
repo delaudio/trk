@@ -3,6 +3,7 @@ use trk_midi::FakeMidiInput;
 
 mod ableton_bridge;
 mod ai_commands;
+mod calibration;
 mod cli_workflows;
 mod clip_launcher;
 mod command_palette;

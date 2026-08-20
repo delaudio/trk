@@ -47,6 +47,8 @@ impl App {
             clean_variation_history: PatternVariationHistory::default(),
             variation_history_open: false,
             variation_history_cursor: 0,
+            calibration_open: false,
+            calibration_cursor: 0,
             project_path: None,
             focus: FocusManager::default(),
             pattern_index: 0,
