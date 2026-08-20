@@ -8,26 +8,25 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** `agent/320-strudel-live-coding`.
-- **Active item:** `.docflow/plan/todo/0029-strudel-mini-notation-live-coding.md`.
+- **Branch:** `agent/320-docflow-closeout`.
+- **Active item:** `.docflow/plan/done/2026-08-20-strudel-mini-notation-live-coding.md`.
 - **Blockers:** none.
-- **Pending integration:** claim the work in a draft PR, implement and verify
-  the mini-notation and live-coding capability, then squash-merge with CI green.
+- **Pending integration:** commit the atomic Docflow closeout, open its draft
+  PR, and squash-merge it after CI is green.
 
 ## Last shipped
 
-Issue #319 and its Docflow closeout are merged; ADR 0030 is Implemented and
-the repository is synchronized on `main` at `7c87ccf`.
+Issue #320 implementation PR #348 is merged at `7cca3b1` with CI run
+`32391345257` green, and the issue is closed.
 
 ## Next item
 
-Implement issue #320 from accepted ADR 0031 and queued plan item 0029.
+After the Docflow closeout merges and context is cleared, resolve issue #321.
 
 ## Exit criteria
 
-1. Parser and evaluator cover the accepted mini-notation subset and scale
-   mapping with deterministic tests.
-2. Atomic and live TUI workflows mutate canonical cells safely and update
-   active playback without a transport stop.
-3. Full verification, Norn review, PR CI, squash merge, issue closure, and the
-   separate Docflow closeout are complete.
+1. Plan item 0029 is in `plan/done` with the implementation SHA, PR, CI run,
+   and issue closure recorded.
+2. ADR 0031 and the generated index are `Implemented`.
+3. WORKLOG records the delivery and the closeout PR is squash-merged with CI
+   green.
