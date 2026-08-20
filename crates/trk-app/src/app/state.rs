@@ -162,6 +162,7 @@ impl App {
                 self.clean_song = saved_project.song;
                 self.clean_variation_history = saved_project.variation_history;
                 self.refresh_dirty();
+                self.refresh_project_watch(&path);
                 self.record_recent_project(path);
                 self.notify_success("Project saved");
                 if quit_after {

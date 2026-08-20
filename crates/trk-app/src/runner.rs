@@ -1,4 +1,5 @@
 use super::*;
+use crate::app::external_editor::run_external_editor;
 
 pub(crate) fn run_cli() -> Result<()> {
     let args = CliArgs::parse(std::env::args().skip(1));
@@ -142,6 +143,7 @@ fn run(args: CliArgs) -> Result<()> {
         app.drain_task_updates();
         app.drain_playback_updates();
         app.drain_midi_input();
+        app.poll_project_hot_reload();
         app.expire_notification();
         app.dispatch_event(AppEvent::Runtime(RuntimeEvent::ViewportRefresh {
             visible_rows: terminal.visible_pattern_rows(),
@@ -169,6 +171,15 @@ fn run(args: CliArgs) -> Result<()> {
                         match result {
                             Ok(browser_result) => app.finish_sample_browser(browser_result),
                             Err(error) => app.finish_sample_browser(Err(error)),
+                        }
+                    }
+                    if let Some(request) = app.take_external_editor_request() {
+                        match terminal.suspend(|| run_external_editor(&request.path)) {
+                            Ok(result) => app.finish_external_editor(request, result),
+                            Err(error) => app.finish_external_editor_terminal_failure(
+                                &request,
+                                &format!("terminal suspend failed: {error}"),
+                            ),
                         }
                     }
                     app.dispatch_event(AppEvent::Runtime(RuntimeEvent::ViewportRefresh {

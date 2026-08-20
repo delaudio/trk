@@ -15,6 +15,7 @@ mod domain_commands;
 mod dsp_commands;
 mod dsp_mouse;
 mod dsp_rack;
+pub(crate) mod external_editor;
 mod key_handling;
 mod live_bridge_actions;
 mod midi_actions;

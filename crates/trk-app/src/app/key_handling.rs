@@ -675,6 +675,10 @@ impl App {
                 self.open_variation_history();
                 return;
             }
+            KeyCode::Char('e') if key.modifiers.is_empty() => {
+                self.external_editor_requested = true;
+                return;
+            }
             KeyCode::Char('t') if key.modifiers.is_empty() => {
                 self.open_calibration();
                 return;

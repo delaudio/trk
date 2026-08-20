@@ -180,6 +180,33 @@ is `gain` and `pan`; `bypassed` preserves a device in the chain without
 processing audio. The maintained native device catalog and planned stable device
 IDs live in [Native DSP Roadmap](native-dsp-roadmap.md).
 
+## External Editing And Hot Reload
+
+Press `e` in the tracker’s normal mode to edit the complete current project in
+`EDITOR`, `VISUAL`, or the platform fallback (`nano` on macOS/Linux and
+`notepad` on Windows). Editor values may include arguments; quote an executable
+path that contains spaces. Editor command values must be valid Unicode. trk
+passes the `.trk` path as a separate process argument and reloads only after the
+editor exits successfully and the project passes the normal migration and
+validation rules.
+
+Unnamed projects and named projects with unsaved changes use an exclusively
+created temporary scratch file. They remain unnamed or unsaved, respectively,
+after valid edits return to memory. Invalid scratch edits are preserved and
+their recovery path is shown in the status bar. A clean named project opens its
+active file; if that file is missing, trk reports the problem instead of
+recreating it implicitly. Active project paths must remain regular files;
+symlink and directory replacements are rejected. Named projects are watched for
+external file changes at a bounded interval using metadata plus a deterministic
+in-process content fingerprint. Valid changes
+hot-reload without stopping active playback; dirty local changes are never
+replaced and receive a conflict warning. After a conflict, that blocked version
+is not applied merely because local state becomes clean; a new external write
+is required. An already-running transport keeps its start-time song snapshot,
+while the next start uses the reloaded project. If the in-app project changes
+during any editor handoff, trk reports a conflict rather than overwriting the
+newer local state; scratch handoffs also preserve their recovery file.
+
 ## Loading Rules
 
 On load, trk:

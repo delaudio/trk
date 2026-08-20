@@ -50,6 +50,8 @@ impl App {
             calibration_open: false,
             calibration_cursor: 0,
             project_path: None,
+            external_editor_requested: false,
+            project_watch: None,
             focus: FocusManager::default(),
             pattern_index: 0,
             cursor: Cursor::new(),
@@ -149,6 +151,7 @@ impl App {
         app.song = project.song;
         app.variation_history = project.variation_history;
         app.project_path = Some(path.to_path_buf());
+        app.refresh_project_watch(path);
         Ok(app)
     }
 

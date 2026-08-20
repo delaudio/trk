@@ -16,7 +16,8 @@ without repeated errors.
 
 1. Key routing, terminal suspension, shell-free editor resolution/argv parsing,
    distinct path passing, and diagnostics satisfy ADR AC1–AC2.
-2. Named-project save/edit/reload and unnamed scratch adoption satisfy ADR AC3.
+2. Clean named-path editing, dirty/unnamed exclusive scratch adoption, and
+   missing-path refusal satisfy ADR AC3.
 3. Portable signatures, bounded polling, and internal-save suppression satisfy
    ADR AC4.
 4. Reload state replacement, clamping, undo cleanup, and transport preservation
