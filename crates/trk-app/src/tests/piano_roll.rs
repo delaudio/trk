@@ -68,3 +68,24 @@ fn piano_roll_ghost_zoom_and_collision_safe_move_are_bounded() {
     assert!(!app.piano_roll_ghosts);
     assert_eq!(app.piano_roll_rows, 32);
 }
+
+#[test]
+fn piano_roll_edits_do_not_mutate_a_different_pitch_in_the_same_cell() {
+    let mut app = App::default();
+    app.open_piano_roll_view();
+    app.cursor.row = 4;
+    app.song.patterns[0]
+        .set_note(4, 0, NoteEvent::Note { pitch: 60 }, 88)
+        .expect("existing note");
+    let original = app.song.patterns[0].cell(4, 0).expect("cell").clone();
+    app.piano_roll_pitch = 61;
+
+    app.handle_key(key(KeyCode::Char(' '), KeyModifiers::NONE));
+    app.handle_key(key(KeyCode::Right, KeyModifiers::SHIFT));
+    app.handle_key(key(KeyCode::Up, KeyModifiers::ALT));
+    app.handle_key(key(KeyCode::Char('9'), KeyModifiers::NONE));
+
+    assert_eq!(app.song.patterns[0].cell(4, 0), Some(&original));
+    assert_eq!(app.cursor.row, 4);
+    assert_eq!(app.piano_roll_pitch, 61);
+}

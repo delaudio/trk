@@ -102,10 +102,11 @@ impl Pattern {
         track: usize,
         gate: Option<u8>,
     ) -> Result<(), EditError> {
+        let remaining = self.row_count().saturating_sub(row).clamp(1, 0x7f) as u8;
         let cell = self
             .cell_mut(row, track)
             .ok_or(EditError::CellOutOfBounds { row, track })?;
-        cell.gate = gate.map(|value| value.clamp(1, 0x7f));
+        cell.gate = gate.map(|value| value.clamp(1, remaining));
         Ok(())
     }
 
@@ -574,5 +575,11 @@ mod tests {
         assert_eq!(pattern.note_gate_rows(2, 0), Some(6));
         pattern.set_gate(2, 0, Some(3)).expect("short gate");
         assert_eq!(pattern.note_gate_rows(2, 0), Some(3));
+
+        pattern
+            .set_note(14, 0, NoteEvent::Note { pitch: 67 }, 100)
+            .expect("ending note");
+        pattern.set_gate(14, 0, Some(12)).expect("ending gate");
+        assert_eq!(pattern.cell(14, 0).expect("cell").gate, Some(2));
     }
 }

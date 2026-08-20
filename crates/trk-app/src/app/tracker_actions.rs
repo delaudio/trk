@@ -92,7 +92,9 @@ impl App {
                 } else {
                     (current_value & 0xf0) | digit
                 };
-                if let Some(cell) = pattern.cell_mut(cursor.row, cursor.track) {
+                if field == CellField::Gate {
+                    let _ = pattern.set_gate(cursor.row, cursor.track, Some(next_value));
+                } else if let Some(cell) = pattern.cell_mut(cursor.row, cursor.track) {
                     set_current_cell_hex_value(cell, field, next_value);
                 }
             },

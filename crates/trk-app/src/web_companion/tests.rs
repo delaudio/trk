@@ -148,7 +148,7 @@ fn served_page_is_self_contained_and_has_canvas_controls() {
 #[test]
 fn move_note_payload_accepts_browser_camel_case_coordinates() {
     let request: WebActionRequest = serde_json::from_str(
-        r#"{"type":"moveNote","revision":7,"pattern":0,"row":4,"track":1,"toRow":8,"pitch":64}"#,
+        r#"{"type":"moveNote","revision":7,"pattern":0,"row":4,"track":1,"toRow":8,"sourcePitch":60,"pitch":64}"#,
     )
     .expect("browser move payload");
 
@@ -160,6 +160,7 @@ fn move_note_payload_accepts_browser_camel_case_coordinates() {
             row: 4,
             track: 1,
             to_row: 8,
+            source_pitch: 60,
             pitch: 64,
         }
     );
@@ -256,6 +257,16 @@ fn actions_require_same_origin_marker_strict_json_and_valid_targets() {
         ),
     );
     assert!(out_of_range.starts_with("HTTP/1.1 422 Unprocessable Content"));
+
+    let invalid_velocity = send_request(
+        server.url(),
+        &action_request(
+            &authority,
+            r#"{"type":"setNoteVelocity","revision":0,"pattern":0,"row":0,"track":0,"pitch":60,"velocity":255}"#,
+            Some(&format!("http://{authority}")),
+        ),
+    );
+    assert!(invalid_velocity.starts_with("HTTP/1.1 422 Unprocessable Content"));
 }
 
 #[test]
@@ -387,6 +398,7 @@ fn note_gate_velocity_and_cc_actions_update_the_shared_song_model() {
             pattern: 0,
             row: 4,
             track: 0,
+            pitch: 64,
             gate: 6,
         },
         0,
@@ -397,6 +409,7 @@ fn note_gate_velocity_and_cc_actions_update_the_shared_song_model() {
             pattern: 0,
             row: 4,
             track: 0,
+            pitch: 64,
             velocity: 96,
         },
         0,
@@ -409,6 +422,39 @@ fn note_gate_velocity_and_cc_actions_update_the_shared_song_model() {
             track: 0,
             controller: 74,
             value: 64,
+        },
+        0,
+    );
+
+    app.apply_web_action(
+        WebAction::CreateNote {
+            revision: 0,
+            pattern: 0,
+            row: 4,
+            track: 0,
+            pitch: 65,
+        },
+        0,
+    );
+    app.apply_web_action(
+        WebAction::ResizeNote {
+            revision: 0,
+            pattern: 0,
+            row: 4,
+            track: 0,
+            pitch: 65,
+            gate: 2,
+        },
+        0,
+    );
+    app.apply_web_action(
+        WebAction::SetNoteVelocity {
+            revision: 0,
+            pattern: 0,
+            row: 4,
+            track: 0,
+            pitch: 65,
+            velocity: 32,
         },
         0,
     );

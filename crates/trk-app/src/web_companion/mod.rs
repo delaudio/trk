@@ -57,6 +57,7 @@ pub(crate) enum WebAction {
         row: usize,
         track: usize,
         to_row: usize,
+        source_pitch: u8,
         pitch: u8,
     },
     ResizeNote {
@@ -64,6 +65,7 @@ pub(crate) enum WebAction {
         pattern: usize,
         row: usize,
         track: usize,
+        pitch: u8,
         gate: u8,
     },
     DeleteNote {
@@ -71,12 +73,14 @@ pub(crate) enum WebAction {
         pattern: usize,
         row: usize,
         track: usize,
+        pitch: u8,
     },
     SetNoteVelocity {
         revision: u64,
         pattern: usize,
         row: usize,
         track: usize,
+        pitch: u8,
         velocity: u8,
     },
     SetCcPoint {
@@ -139,6 +143,7 @@ enum WebActionRequest {
         row: usize,
         track: usize,
         to_row: usize,
+        source_pitch: u8,
         pitch: u8,
     },
     ResizeNote {
@@ -146,6 +151,7 @@ enum WebActionRequest {
         pattern: usize,
         row: usize,
         track: usize,
+        pitch: u8,
         gate: u8,
     },
     DeleteNote {
@@ -153,12 +159,14 @@ enum WebActionRequest {
         pattern: usize,
         row: usize,
         track: usize,
+        pitch: u8,
     },
     SetNoteVelocity {
         revision: u64,
         pattern: usize,
         row: usize,
         track: usize,
+        pitch: u8,
         velocity: u8,
     },
     SetCcPoint {
@@ -210,6 +218,7 @@ impl WebActionRequest {
                 row,
                 track,
                 to_row,
+                source_pitch,
                 pitch,
             } => WebAction::MoveNote {
                 revision,
@@ -217,6 +226,7 @@ impl WebActionRequest {
                 row,
                 track,
                 to_row,
+                source_pitch,
                 pitch,
             },
             Self::ResizeNote {
@@ -224,12 +234,14 @@ impl WebActionRequest {
                 pattern,
                 row,
                 track,
+                pitch,
                 gate,
             } => WebAction::ResizeNote {
                 revision,
                 pattern,
                 row,
                 track,
+                pitch,
                 gate,
             },
             Self::DeleteNote {
@@ -237,23 +249,27 @@ impl WebActionRequest {
                 pattern,
                 row,
                 track,
+                pitch,
             } => WebAction::DeleteNote {
                 revision,
                 pattern,
                 row,
                 track,
+                pitch,
             },
             Self::SetNoteVelocity {
                 revision,
                 pattern,
                 row,
                 track,
+                pitch,
                 velocity,
             } => WebAction::SetNoteVelocity {
                 revision,
                 pattern,
                 row,
                 track,
+                pitch,
                 velocity,
             },
             Self::SetCcPoint {
@@ -569,6 +585,9 @@ impl App {
                         };
                         if row >= pattern.row_count()
                             || track >= pattern.rows.first().map_or(0, |row| row.cells.len())
+                            || pattern
+                                .cell(row, track)
+                                .is_some_and(|cell| *cell != trk_core::PatternCell::default())
                         {
                             return;
                         }
@@ -587,6 +606,7 @@ impl App {
                 row,
                 track,
                 to_row,
+                source_pitch,
                 pitch,
                 ..
             } => {
@@ -605,7 +625,8 @@ impl App {
                         let Some(mut source) = pattern.cell(row, track).cloned() else {
                             return;
                         };
-                        if !matches!(source.note, Some(NoteEvent::Note { .. })) {
+                        if !matches!(source.note, Some(NoteEvent::Note { pitch }) if pitch == source_pitch)
+                        {
                             return;
                         }
                         if to_row != row
@@ -629,6 +650,7 @@ impl App {
                 pattern,
                 row,
                 track,
+                pitch,
                 gate,
                 ..
             } => {
@@ -640,7 +662,7 @@ impl App {
                         };
                         if pattern
                             .cell(row, track)
-                            .is_some_and(|cell| matches!(cell.note, Some(NoteEvent::Note { .. })))
+                            .is_some_and(|cell| matches!(cell.note, Some(NoteEvent::Note { pitch: value }) if value == pitch))
                         {
                             let _ = pattern.set_gate(row, track, Some(gate));
                         }
@@ -651,13 +673,19 @@ impl App {
                 pattern,
                 row,
                 track,
+                pitch,
                 ..
             } => {
                 self.mutate_song_with(
                     TransactionSpec::new("Delete Web Piano Roll note"),
                     move |song, _| {
                         if let Some(pattern) = song.pattern_mut(pattern) {
-                            let _ = pattern.clear_cell(row, track);
+                            let matches_pitch = pattern.cell(row, track).is_some_and(|cell| {
+                                matches!(cell.note, Some(NoteEvent::Note { pitch: value }) if value == pitch)
+                            });
+                            if matches_pitch {
+                                let _ = pattern.clear_cell(row, track);
+                            }
                         }
                     },
                 );
@@ -666,6 +694,7 @@ impl App {
                 pattern,
                 row,
                 track,
+                pitch,
                 velocity,
                 ..
             } => {
@@ -676,8 +705,9 @@ impl App {
                             .pattern_mut(pattern)
                             .and_then(|pattern| pattern.cell_mut(row, track))
                         {
-                            if matches!(cell.note, Some(NoteEvent::Note { .. })) {
-                                cell.velocity = Some(velocity.min(127));
+                            if matches!(cell.note, Some(NoteEvent::Note { pitch: value }) if value == pitch)
+                            {
+                                cell.velocity = Some(velocity);
                             }
                         }
                     },

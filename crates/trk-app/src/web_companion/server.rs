@@ -456,33 +456,49 @@ fn action_in_range(action: WebAction, state: &WebBridgeState) -> bool {
             row,
             track,
             to_row,
+            source_pitch,
             pitch,
             ..
         } => {
             pattern_row(pattern, row)
                 && pattern_row(pattern, to_row)
                 && track < state.tracks.len()
+                && source_pitch <= 127
                 && pitch <= 127
         }
         WebAction::ResizeNote {
             pattern,
             row,
             track,
+            pitch,
             gate,
             ..
-        } => pattern_row(pattern, row) && track < state.tracks.len() && (1..=127).contains(&gate),
+        } => {
+            pattern_row(pattern, row)
+                && track < state.tracks.len()
+                && pitch <= 127
+                && (1..=127).contains(&gate)
+        }
         WebAction::DeleteNote {
             pattern,
             row,
             track,
+            pitch,
             ..
-        }
-        | WebAction::SetNoteVelocity {
+        } => pattern_row(pattern, row) && track < state.tracks.len() && pitch <= 127,
+        WebAction::SetNoteVelocity {
             pattern,
             row,
             track,
+            pitch,
+            velocity,
             ..
-        } => pattern_row(pattern, row) && track < state.tracks.len(),
+        } => {
+            pattern_row(pattern, row)
+                && track < state.tracks.len()
+                && pitch <= 127
+                && velocity <= 127
+        }
         WebAction::SetCcPoint {
             pattern,
             row,
