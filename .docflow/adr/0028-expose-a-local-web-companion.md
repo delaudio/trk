@@ -1,7 +1,7 @@
 ---
 adr: 0028
 title: Expose a local web companion
-status: Accepted
+status: Implemented
 date: 2026-08-20
 owner: default-agent
 supersedes:
@@ -119,7 +119,7 @@ solo actions through the application's existing state-transition boundary.
 - `0001-record-architecture-decisions.md`
 - `0026-calibrate-realtime-output-with-live-metering.md`
 - `0027-edit-and-hot-reload-projects-externally.md`
-- `../plan/todo/0026-local-web-companion.md`
+- `../plan/done/2026-08-20-local-web-companion.md`
 - GitHub issue #317.
 - [grain web server](https://github.com/delaudio/grain/blob/c609fcd5a05d8862d88819690a051f5df13238be/src/web/server.rs)
 - [grain browser shortcut](https://github.com/delaudio/grain/blob/c609fcd5a05d8862d88819690a051f5df13238be/src/app.rs)
@@ -130,6 +130,7 @@ solo actions through the application's existing state-transition boundary.
 |------|----------|--------|--------|
 | 2026-08-20 | r1 | default-agent | Recorded and accepted the bounded loopback companion, projected state, Canvas view, safe action bridge, and browser fallback. |
 | 2026-08-20 | r2 | default-agent | Linked the established shell-free external-process boundary to browser opening after Norn review. |
+| 2026-08-20 | r3 | default-agent | Marked the capability Implemented after PR #342 merged with CI green and issue #317 closed. |
 
 ## Approvals
 

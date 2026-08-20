@@ -34,3 +34,9 @@ when graphical opening is unavailable.
 - `../../adr/0026-calibrate-realtime-output-with-live-metering.md`
 - `../../adr/0027-edit-and-hot-reload-projects-externally.md`
 - Maintainer approval to execute issue #317 autonomously.
+
+---
+
+Shipped in implementation squash `9e8ba14` via
+[PR #342](https://github.com/delaudio/trk/pull/342), with GitHub Actions CI
+run `32368367097` green and issue #317 closed.
