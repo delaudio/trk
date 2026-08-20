@@ -8,25 +8,26 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** `agent/319-docflow-closeout`.
-- **Active item:** `.docflow/plan/done/2026-08-20-synchronized-piano-roll-editing.md`.
+- **Branch:** `agent/320-strudel-live-coding`.
+- **Active item:** `.docflow/plan/todo/0029-strudel-mini-notation-live-coding.md`.
 - **Blockers:** none.
-- **Pending integration:** publish the atomic Docflow closeout, pass PR CI, and
-  squash-merge it to `main`.
+- **Pending integration:** claim the work in a draft PR, implement and verify
+  the mini-notation and live-coding capability, then squash-merge with CI green.
 
 ## Last shipped
 
-Issue #319 implementation merged through PR #346 at `7c3a0cb` with CI green;
-the GitHub issue is closed and ADR 0030 implementation is verified.
+Issue #319 and its Docflow closeout are merged; ADR 0030 is Implemented and
+the repository is synchronized on `main` at `7c87ccf`.
 
 ## Next item
 
-Merge this closeout, clear operational context, then inspect the next open
-issue in priority order.
+Implement issue #320 from accepted ADR 0031 and queued plan item 0029.
 
 ## Exit criteria
 
-1. Plan item is in `plan/done/` with the implementation SHA, PR, CI run, and
-   closed issue recorded.
-2. ADR 0030 and INDEX both report Implemented.
-3. Closeout PR passes CI and is squash-merged to `main`.
+1. Parser and evaluator cover the accepted mini-notation subset and scale
+   mapping with deterministic tests.
+2. Atomic and live TUI workflows mutate canonical cells safely and update
+   active playback without a transport stop.
+3. Full verification, Norn review, PR CI, squash merge, issue closure, and the
+   separate Docflow closeout are complete.
