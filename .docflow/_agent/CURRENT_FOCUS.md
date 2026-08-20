@@ -8,20 +8,18 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** `agent/314-variation-history`.
-- **Active item:** `.docflow/plan/todo/0023-pattern-variation-history.md` for
-  GitHub issue #314.
+- **Branch:** `agent/314-docflow-closeout`.
+- **Active item:** close out merged GitHub issue #314 and ADR 0025.
 - **Blockers:** none.
-- **Pending integration:** implementation and the full local gate are complete;
-  all actionable findings from Norn Codex runs `run-1787215929279596000` and
-  `run-1787216194634823000` are addressed. Commit, push, and merge through CI.
+- **Pending integration:** publish the plan move, Implemented status, INDEX,
+  and shipped audit trail through a closeout PR.
 
 ## Last shipped
 
-Issue #313 implementation via PR #334 and Docflow closeout via PR #335, both
-with CI green; ADR 0024 is Implemented.
+Issue #314 implementation via PR #336 with CI green; issue #314 is closed and
+implementation squash `ff4512f` is on `main`.
 
 ## Next item
 
-Implement ADR 0025 acceptance criteria and integrate issue #314 before
-selecting issue #315.
+After the #314 closeout PR merges, claim issue #315 and formalize its owning
+decision and plan item before implementation.

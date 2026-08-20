@@ -36,3 +36,9 @@ branching history graph.
 - `../../adr/0001-record-architecture-decisions.md`
 - `../../adr/0024-select-ai-proposal-engines-at-runtime.md`
 - Maintainer approval to execute issue #314 autonomously.
+
+---
+
+Shipped at HEAD `ff4512f` via
+[PR #336](https://github.com/delaudio/trk/pull/336), with GitHub Actions CI
+run `32351689030` green and issue #314 closed.
