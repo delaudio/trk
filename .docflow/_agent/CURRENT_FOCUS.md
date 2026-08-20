@@ -8,29 +8,25 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** `agent/319-piano-roll`.
-- **Active item:** `.docflow/plan/todo/0028-synchronized-piano-roll-editing.md`.
+- **Branch:** `agent/319-docflow-closeout`.
+- **Active item:** `.docflow/plan/done/2026-08-20-synchronized-piano-roll-editing.md`.
 - **Blockers:** none.
-- **Pending integration:** commit and publish the verified implementation,
-  pass PR CI, and squash-merge issue #319.
+- **Pending integration:** publish the atomic Docflow closeout, pass PR CI, and
+  squash-merge it to `main`.
 
 ## Last shipped
 
-Issue #318 implementation and Docflow closeout merged through PRs #344 and
-#345 with CI green; ADR 0029 is Implemented and the GitHub issue is closed.
+Issue #319 implementation merged through PR #346 at `7c3a0cb` with CI green;
+the GitHub issue is closed and ADR 0030 implementation is verified.
 
 ## Next item
 
-Implement ADR 0030 through the issue #319 PR, close its Docflow state after the
-implementation merge, then clear operational context before the next issue.
+Merge this closeout, clear operational context, then inspect the next open
+issue in priority order.
 
 ## Exit criteria
 
-1. Canonical gate rows and MIDI CC automation persist and schedule without
-   breaking legacy projects.
-2. TUI Piano Roll rendering and keyboard edits round-trip through pattern
-   cells with undo and collision safety.
-3. Web Canvas projection and revision-bound note/CC edits round-trip through
-   the bounded TUI-thread action bridge.
-4. Ghost overlays, responsive snapshots, loopback smoke coverage, repository
-   gate, Docflow audit, and Norn Codex review pass before publication.
+1. Plan item is in `plan/done/` with the implementation SHA, PR, CI run, and
+   closed issue recorded.
+2. ADR 0030 and INDEX both report Implemented.
+3. Closeout PR passes CI and is squash-merged to `main`.

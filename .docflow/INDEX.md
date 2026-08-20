@@ -34,4 +34,4 @@ metadata.
 | 0027 | Edit and hot-reload projects externally | Implemented | 2026-08-20 | default-agent | workflow, editor, persistence, hot-reload, tui |
 | 0028 | Expose a local web companion | Implemented | 2026-08-20 | default-agent | web, visualization, transport, audio, tui |
 | 0029 | Render audio intensity with terminal-aware color | Implemented | 2026-08-20 | default-agent | tui, color, waveform, metering, sampler, accessibility |
-| 0030 | Edit patterns through synchronized piano rolls | Accepted | 2026-08-20 | default-agent | piano-roll, patterns, tui, web, editing, midi, automation |
+| 0030 | Edit patterns through synchronized piano rolls | Implemented | 2026-08-20 | default-agent | piano-roll, patterns, tui, web, editing, midi, automation |
