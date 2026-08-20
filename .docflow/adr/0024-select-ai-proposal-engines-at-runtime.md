@@ -1,7 +1,7 @@
 ---
 adr: 0024
 title: Select AI proposal engines at runtime
-status: Accepted
+status: Implemented
 date: 2026-08-20
 owner: default-agent
 supersedes:
@@ -90,7 +90,7 @@ proposals without restarting the application.
 ## References
 
 - `0001-record-architecture-decisions.md`
-- `../plan/todo/0022-runtime-ai-engine-selection.md`
+- `../plan/done/2026-08-20-runtime-ai-engine-selection.md`
 - GitHub issue #313.
 
 ## Revision History
@@ -99,6 +99,7 @@ proposals without restarting the application.
 |------|----------|--------|--------|
 | 2026-08-20 | r1 | default-agent | Recorded and accepted runtime AI engine discovery, selection, and external proposal generation. |
 | 2026-08-20 | r2 | default-agent | Defined the external JSON protocol and bounded timeout/cancellation contract after Norn review. |
+| 2026-08-20 | r3 | default-agent | Marked implemented after PR #334 merged with CI green and issue #313 closed. |
 
 ## Approvals
 
