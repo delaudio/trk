@@ -235,7 +235,10 @@ fn service_web_companion(app: &mut App, companion: Option<&mut WebCompanion>) {
         return;
     };
     while let Some(action) = companion.try_recv_action() {
-        app.apply_web_action(action);
+        let current = app.web_bridge_state();
+        if companion.action_matches_current_state(action, &current) {
+            app.apply_web_action(action, companion.revision());
+        }
     }
     companion.publish_if_due(|| app.web_bridge_state());
 }

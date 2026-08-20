@@ -244,7 +244,15 @@ impl App {
     }
 
     pub(crate) fn tui_active_view(&self) -> TuiView {
-        self.focus.focused().tui_view()
+        if self.focus.focused() == FocusPanel::PianoRoll {
+            TuiView::PianoRoll {
+                pitch: self.piano_roll_pitch,
+                rows: self.piano_roll_rows,
+                ghosts: self.piano_roll_ghosts,
+            }
+        } else {
+            self.focus.focused().tui_view()
+        }
     }
 
     pub(crate) fn focus_panel(&mut self, panel: FocusPanel) {

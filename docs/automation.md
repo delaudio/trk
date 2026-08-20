@@ -1,7 +1,8 @@
 # Automation
 
-Automation is pattern-local and tracker-native. The first implemented lane type
-is stepped sample-gain automation for sampler-backed tracks.
+Automation is pattern-local and tracker-native. Stepped sample-gain lanes drive
+sampler-backed tracks, while MIDI CC lanes are created and edited in the Web
+Companion Piano Roll.
 
 Commands:
 
@@ -26,11 +27,13 @@ Semantics:
 
 Current limitations:
 
-- only sample gain has a full automation lane;
+- MIDI CC points use normalized values, emit deterministic `0..127` Control
+  Change messages, and respect the track's MIDI channel and `cc_out` routing;
 - generic row-level parameter locks can set or reset sampler gain, track mixer
   gain/pan, master gain, send gain, and native gain/pan device parameters on the
   current row through `:plock`;
-- there is no graphical automation editor yet;
+- the Web Companion provides the graphical MIDI CC editor; sample-gain lanes
+  remain command-driven;
 - linear interpolation is future work.
 
 The native effect catalog in [Native DSP Roadmap](native-dsp-roadmap.md) marks

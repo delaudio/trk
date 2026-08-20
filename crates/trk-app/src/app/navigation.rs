@@ -115,6 +115,22 @@ impl App {
         self.notify_info("Tracker editor");
     }
 
+    pub(crate) fn open_piano_roll_view(&mut self) {
+        if let Some(pitch) = self
+            .song
+            .pattern(self.pattern_index)
+            .and_then(|pattern| pattern.cell(self.cursor.row, self.cursor.track))
+            .and_then(|cell| match cell.note {
+                Some(NoteEvent::Note { pitch }) => Some(pitch),
+                _ => None,
+            })
+        {
+            self.piano_roll_pitch = pitch;
+        }
+        self.focus_panel(FocusPanel::PianoRoll);
+        self.notify_info("Piano Roll editor");
+    }
+
     pub(crate) fn open_sequence_view(&mut self) {
         self.clamp_sequence_cursor();
         self.focus_panel(FocusPanel::Sequence);

@@ -4,6 +4,7 @@ use trk_tui::TuiView;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FocusPanel {
     Tracker,
+    PianoRoll,
     Sequence,
     Clips,
     Tracks,
@@ -21,6 +22,7 @@ impl FocusPanel {
     pub const fn app_mode(self) -> AppMode {
         match self {
             Self::Tracker => AppMode::Normal,
+            Self::PianoRoll => AppMode::PianoRoll,
             Self::Sequence => AppMode::Sequence,
             Self::Clips => AppMode::Clips,
             Self::Tracks => AppMode::Tracks,
@@ -38,6 +40,11 @@ impl FocusPanel {
     pub const fn tui_view(self) -> TuiView {
         match self {
             Self::Tracker | Self::MidiSettings => TuiView::Pattern,
+            Self::PianoRoll => TuiView::PianoRoll {
+                pitch: 60,
+                rows: 16,
+                ghosts: true,
+            },
             Self::Sequence => TuiView::Sequence,
             Self::Clips => TuiView::Clips,
             Self::Tracks => TuiView::Tracks,

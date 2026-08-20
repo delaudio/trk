@@ -4,6 +4,7 @@ use crate::keymap::KeymapMode;
 pub enum AppMode {
     Normal,
     Edit,
+    PianoRoll,
     Command,
     CommandPalette,
     Help,
@@ -25,6 +26,7 @@ impl AppMode {
         match self {
             Self::Normal => "NORMAL",
             Self::Edit => "EDIT",
+            Self::PianoRoll => "ROLL",
             Self::Command => "COMMAND",
             Self::CommandPalette => "PALETTE",
             Self::Help => "HELP",
@@ -46,6 +48,7 @@ impl AppMode {
         match self {
             Self::Normal => KeymapMode::Normal,
             Self::Edit => KeymapMode::Edit,
+            Self::PianoRoll => KeymapMode::PianoRoll,
             Self::Command => KeymapMode::Command,
             Self::CommandPalette => KeymapMode::CommandPalette,
             Self::Help => KeymapMode::Help,

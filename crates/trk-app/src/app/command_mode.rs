@@ -18,6 +18,7 @@ impl App {
             TrkCommand::WebCompanion => self.request_web_companion(),
             TrkCommand::View(view) => match view {
                 ViewCommand::Tracker => self.open_tracker_view(),
+                ViewCommand::PianoRoll => self.open_piano_roll_view(),
                 ViewCommand::Patterns => self.open_patterns_view(),
                 ViewCommand::Sequence => self.open_sequence_view(),
                 ViewCommand::Clips => self.open_clip_launcher_view(),

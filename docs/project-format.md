@@ -66,8 +66,9 @@ and future sample-import workflows, but project files do not embed that
 machine-specific library root.
 
 Each pattern may also include optional stepped automation lanes. The first
-implemented target is `sampleGain`, which automates the effective gain used by
-sampler events from the lane point row onward:
+implemented targets are `sampleGain`, which automates the effective gain used by
+sampler events, and `midiCc`, which emits a routed MIDI Control Change at each
+point row:
 
 ```json
 {
@@ -90,6 +91,17 @@ sampler events from the lane point row onward:
 }
 ```
 
+A MIDI CC lane uses a stable track ID, a controller in `0..127`, and normalized
+point values in `0.0..1.0`:
+
+```json
+{
+  "target": { "type": "midiCc", "track": 1, "controller": 74 },
+  "interpolation": "step",
+  "points": [{ "row": 4, "value": 0.5 }]
+}
+```
+
 Pattern cells are backward-compatible. Older cells may contain only `note`,
 `velocity`, `gate`, and `command`; richer tracker cells can also include
 instrument, volume, pan, delay metadata, and generic parameter locks:
@@ -98,6 +110,7 @@ instrument, volume, pan, delay metadata, and generic parameter locks:
 {
   "note": { "type": "note", "pitch": 60 },
   "velocity": 100,
+  "gate": 4,
   "instrument": 1,
   "volume": 64,
   "pan": 127,
@@ -123,7 +136,10 @@ instrument, volume, pan, delay metadata, and generic parameter locks:
 
 `instrument` references a sample-backed instrument. `volume` and `pan` use
 MIDI-style `0..127` values for sampler gain and stereo position, while `delay`
-uses `0..255` row fractions. `command` remains the first tracker effect column
+uses `0..255` row fractions. `gate` is an optional explicit duration in rows,
+clamped to `1..127` and to the pattern end; an omitted gate preserves legacy
+sustain until the next note event or pattern end. Gate timing begins after the
+cell delay. `command` remains the first tracker effect column
 and preserves existing delay/retrigger command compatibility. `parameterLocks`
 are row-scoped, copy with cells, target stable sampler/mixer/send/native-device
 IDs, and store typed `ParameterValue` payloads. Unknown lock targets or

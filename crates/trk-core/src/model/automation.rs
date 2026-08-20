@@ -8,6 +8,7 @@ use super::{InstrumentId, SampleId, TrackId};
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum AutomationTarget {
     SampleGain { sample: SampleId },
+    MidiCc { track: TrackId, controller: u8 },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]

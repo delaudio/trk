@@ -32,6 +32,7 @@ mod pattern_operations;
 mod patterns_sequence;
 mod performance_punch_in;
 mod persistence;
+mod piano_roll;
 mod preset_inventory;
 mod report_workflows;
 mod sampler_browsers;

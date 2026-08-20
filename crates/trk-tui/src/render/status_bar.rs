@@ -120,6 +120,20 @@ fn status_segments(state: TuiState<'_>) -> (String, &'static [&'static str]) {
                 ],
             )
         }
+        TuiView::PianoRoll { .. } => (
+            state.mode_label.to_string(),
+            &[
+                "Esc Tracker",
+                "Arrows Cursor",
+                "Space Note",
+                "Shift+Left/Right Gate",
+                "Alt+Arrows Move",
+                "1-9 Velocity",
+                "[/] Zoom",
+                "g Ghosts",
+                ": Command",
+            ],
+        ),
         TuiView::Sequence => (
             state.mode_label.to_string(),
             &[

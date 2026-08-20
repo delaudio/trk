@@ -21,6 +21,10 @@ const PORT_ATTEMPTS: u16 = 51;
 const MAX_HEADER_BYTES: usize = 16 * 1024;
 const MAX_BODY_BYTES: usize = 4 * 1024;
 const SOCKET_TIMEOUT: Duration = Duration::from_millis(200);
+// The full app suite heavily oversubscribes test threads; keep production's
+// slow-client bound while allowing an in-process client to be scheduled.
+#[cfg(test)]
+const TEST_SOCKET_TIMEOUT: Duration = Duration::from_secs(10);
 const IDLE_SLEEP: Duration = Duration::from_millis(5);
 
 pub(super) struct WebServer {
@@ -43,6 +47,16 @@ impl WebServer {
         first_port: u16,
         attempts: u16,
     ) -> io::Result<Self> {
+        Self::start_range_with_timeout(state, action_tx, first_port, attempts, SOCKET_TIMEOUT)
+    }
+
+    fn start_range_with_timeout(
+        state: Arc<RwLock<WebBridgeState>>,
+        action_tx: SyncSender<WebAction>,
+        first_port: u16,
+        attempts: u16,
+        socket_timeout: Duration,
+    ) -> io::Result<Self> {
         let listener = bind_loopback(first_port, attempts)?;
         listener.set_nonblocking(true)?;
         let address = listener.local_addr()?;
@@ -53,7 +67,14 @@ impl WebServer {
         let handle = thread::Builder::new()
             .name("trk-web-companion".to_string())
             .spawn(move || {
-                serve_loop(listener, &authority, &state, &action_tx, &thread_shutdown);
+                serve_loop(
+                    listener,
+                    &authority,
+                    &state,
+                    &action_tx,
+                    &thread_shutdown,
+                    socket_timeout,
+                );
             })?;
         Ok(Self {
             url,
@@ -104,12 +125,13 @@ fn serve_loop(
     state: &Arc<RwLock<WebBridgeState>>,
     action_tx: &SyncSender<WebAction>,
     shutdown: &AtomicBool,
+    socket_timeout: Duration,
 ) {
     while !shutdown.load(Ordering::Acquire) {
         match listener.accept() {
             Ok((stream, peer)) => {
                 if peer.ip().is_loopback() {
-                    handle_stream(stream, authority, state, action_tx);
+                    handle_stream(stream, authority, state, action_tx, socket_timeout);
                 }
             }
             Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
@@ -125,9 +147,11 @@ fn handle_stream(
     authority: &str,
     state: &Arc<RwLock<WebBridgeState>>,
     action_tx: &SyncSender<WebAction>,
+    socket_timeout: Duration,
 ) {
-    let _ = stream.set_read_timeout(Some(SOCKET_TIMEOUT));
-    let _ = stream.set_write_timeout(Some(SOCKET_TIMEOUT));
+    let _ = stream.set_nonblocking(false);
+    let _ = stream.set_read_timeout(Some(socket_timeout));
+    let _ = stream.set_write_timeout(Some(socket_timeout));
     let response = match read_request(&mut stream) {
         Ok(request) => route(request, authority, state, action_tx),
         Err(response) => response,
@@ -373,17 +397,26 @@ fn action_response(
     if request.headers.get("origin") != Some(&expected_origin) {
         return HttpResponse::text("403 Forbidden", "invalid Origin header");
     }
-    let action = match serde_json::from_slice::<WebActionRequest>(&request.body)
-        .ok()
-        .and_then(WebActionRequest::into_action)
-    {
-        Some(action) => action,
-        None => return HttpResponse::text("400 Bad Request", "invalid action"),
+    let action = match serde_json::from_slice::<WebActionRequest>(&request.body) {
+        Ok(request) => request.into_action(),
+        Err(_) => return HttpResponse::text("400 Bad Request", "invalid action"),
     };
-    let valid = match state.read() {
-        Ok(state) => action_in_range(action, &state),
-        Err(error) => action_in_range(action, &error.into_inner()),
+    let (fresh, valid) = match state.read() {
+        Ok(state) => (
+            action.revision() == state.revision,
+            action_in_range(action, &state),
+        ),
+        Err(error) => {
+            let state = error.into_inner();
+            (
+                action.revision() == state.revision,
+                action_in_range(action, &state),
+            )
+        }
     };
+    if !fresh {
+        return HttpResponse::text("409 Conflict", "stale state revision");
+    }
     if !valid {
         return HttpResponse::text("422 Unprocessable Content", "action target is out of range");
     }
@@ -400,12 +433,77 @@ fn action_response(
 }
 
 fn action_in_range(action: WebAction, state: &WebBridgeState) -> bool {
+    let pattern_row = |pattern: usize, row: usize| {
+        state
+            .patterns
+            .get(pattern)
+            .is_some_and(|pattern| row < pattern.rows)
+    };
     match action {
-        WebAction::SelectPattern { index } => index < state.patterns.len(),
-        WebAction::ToggleTrackMute { index } | WebAction::ToggleTrackSolo { index } => {
-            index < state.tracks.len()
+        WebAction::SelectPattern { index, .. } => index < state.patterns.len(),
+        WebAction::SelectTrack { index, .. }
+        | WebAction::ToggleTrackMute { index, .. }
+        | WebAction::ToggleTrackSolo { index, .. } => index < state.tracks.len(),
+        WebAction::CreateNote {
+            pattern,
+            row,
+            track,
+            pitch,
+            ..
+        } => pattern_row(pattern, row) && track < state.tracks.len() && pitch <= 127,
+        WebAction::MoveNote {
+            pattern,
+            row,
+            track,
+            to_row,
+            pitch,
+            ..
+        } => {
+            pattern_row(pattern, row)
+                && pattern_row(pattern, to_row)
+                && track < state.tracks.len()
+                && pitch <= 127
         }
-        WebAction::TogglePlayback | WebAction::Stop => true,
+        WebAction::ResizeNote {
+            pattern,
+            row,
+            track,
+            gate,
+            ..
+        } => pattern_row(pattern, row) && track < state.tracks.len() && (1..=127).contains(&gate),
+        WebAction::DeleteNote {
+            pattern,
+            row,
+            track,
+            ..
+        }
+        | WebAction::SetNoteVelocity {
+            pattern,
+            row,
+            track,
+            ..
+        } => pattern_row(pattern, row) && track < state.tracks.len(),
+        WebAction::SetCcPoint {
+            pattern,
+            row,
+            track,
+            controller,
+            value,
+            ..
+        } => {
+            pattern_row(pattern, row)
+                && track < state.tracks.len()
+                && controller <= 127
+                && value <= 127
+        }
+        WebAction::ClearCcPoint {
+            pattern,
+            row,
+            track,
+            controller,
+            ..
+        } => pattern_row(pattern, row) && track < state.tracks.len() && controller <= 127,
+        WebAction::TogglePlayback { .. } | WebAction::Stop { .. } => true,
     }
 }
 
@@ -438,7 +536,7 @@ pub(super) fn start_test_server(
     first_port: u16,
     attempts: u16,
 ) -> io::Result<WebServer> {
-    WebServer::start_range(state, action_tx, first_port, attempts)
+    WebServer::start_range_with_timeout(state, action_tx, first_port, attempts, TEST_SOCKET_TIMEOUT)
 }
 
 #[cfg(test)]

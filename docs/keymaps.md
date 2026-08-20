@@ -11,6 +11,7 @@ The available TOML sections are:
 
 - `keymap.normal`
 - `keymap.edit`
+- `keymap.piano_roll`
 - `keymap.command`
 - `keymap.help`
 - `keymap.dialog`

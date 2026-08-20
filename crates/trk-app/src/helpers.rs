@@ -431,6 +431,7 @@ pub(crate) fn current_cell_hex_value(cell: &PatternCell, field: CellField) -> Op
         CellField::Volume => cell.volume,
         CellField::Pan => cell.pan,
         CellField::Delay => cell.delay,
+        CellField::Gate => cell.gate,
         CellField::Effect => cell.command.map(|command| command.value),
         CellField::Effect2 => cell.command2.map(|command| command.value),
     }
@@ -450,6 +451,7 @@ pub(crate) fn set_current_cell_hex_value(cell: &mut PatternCell, field: CellFiel
         CellField::Volume => cell.volume = Some(value.min(0x7f)),
         CellField::Pan => cell.pan = Some(value.min(0x7f)),
         CellField::Delay => cell.delay = Some(value),
+        CellField::Gate => cell.gate = Some(value.clamp(1, 0x7f)),
         CellField::Effect => {
             let code = cell
                 .command

@@ -21,6 +21,7 @@ impl App {
         match self.mode {
             AppMode::Normal => self.handle_normal_key(key),
             AppMode::Edit => self.handle_edit_key(key),
+            AppMode::PianoRoll => self.handle_piano_roll_key(key),
             AppMode::Command => self.handle_command_key(key),
             AppMode::CommandPalette => self.handle_command_palette_key(key),
             AppMode::Help => self.handle_help_key(key),
@@ -130,6 +131,7 @@ impl App {
                     self.handle_tracker_mouse_click(column, row);
                 }
             }
+            AppMode::PianoRoll => {}
             AppMode::Tracks => self.handle_track_list_mouse_click(row),
             AppMode::Patterns if primary_click || activate => {
                 self.handle_pattern_manager_mouse_click(column, row, activate);

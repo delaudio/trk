@@ -11,8 +11,8 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Branch:** `agent/319-piano-roll`.
 - **Active item:** `.docflow/plan/todo/0028-synchronized-piano-roll-editing.md`.
 - **Blockers:** none.
-- **Pending integration:** publish the accepted decision and plan in a draft
-  PR, then implement, review, verify, and squash-merge issue #319.
+- **Pending integration:** commit and publish the verified implementation,
+  pass PR CI, and squash-merge issue #319.
 
 ## Last shipped
 

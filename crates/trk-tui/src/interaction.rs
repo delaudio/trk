@@ -302,6 +302,7 @@ pub mod region {
     pub const APP_STATUS: InteractionRegionId = InteractionRegionId::new("app.status");
 
     pub const VIEW_PATTERN: InteractionRegionId = InteractionRegionId::new("view.pattern");
+    pub const VIEW_PIANO_ROLL: InteractionRegionId = InteractionRegionId::new("view.piano-roll");
     pub const VIEW_SEQUENCE: InteractionRegionId = InteractionRegionId::new("view.sequence");
     pub const VIEW_CLIPS: InteractionRegionId = InteractionRegionId::new("view.clips");
     pub const VIEW_TRACKS: InteractionRegionId = InteractionRegionId::new("view.tracks");

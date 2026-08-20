@@ -60,6 +60,9 @@ pub fn export_pattern_smf(
             PlaybackEventKind::NoteOff { pitch } => {
                 track.extend_from_slice(&[0x80 | channel, pitch.min(127), 0]);
             }
+            PlaybackEventKind::ControlChange { controller, value } => {
+                track.extend_from_slice(&[0xb0 | channel, controller.min(127), value.min(127)]);
+            }
         }
     }
 
