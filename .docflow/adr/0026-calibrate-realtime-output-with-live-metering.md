@@ -53,7 +53,8 @@ without blocking the audio callback or mutating persisted project DSP.
 ## Acceptance criteria
 
 1. `trk-audio` owns a validated realtime calibration settings model with master
-   and selected-track gain multipliers in `0.1..=4.0`, low/mid/high multipliers
+   and selected-track gain multipliers in `0.1..=4.0`, a stable optional
+   `TrackId` target, low/mid/high multipliers
    in `0.1..=4.0`, a normalized gate threshold in `0.0..=0.5`, a meter decay
    coefficient in `0.0..=0.95`, and an automatic-gain toggle. Balanced reset
    defaults are all gains `1.0`, gate `0.0`, decay `0.30`, and AGC disabled.
@@ -65,7 +66,9 @@ without blocking the audio callback or mutating persisted project DSP.
    applies three-band gain, gate, bounded master gain, and AGC after the existing
    master DSP. AGC targets a safe peak without exceeding `0.1..=4.0`, reduces
    gain immediately for transients, and releases smoothly. Invalid/non-finite
-   controls are rejected or clamped before the callback uses them.
+   controls are rejected or clamped before the callback uses them. When the
+   optional target is absent or does not match a rendered audio track, track
+   gain is a no-op; it never falls back to a positional or different track.
 4. Every rendered callback publishes post-calibration master peak/RMS and
    low/mid/high energy normalized to `0.0..=1.0`. Meter attack is immediate and
    decay follows the configured coefficient; silence and stopped playback
@@ -76,7 +79,10 @@ without blocking the audio callback or mutating persisted project DSP.
    Left/Right and `-`/`+` adjust, `r` resets balanced defaults, and Esc or `t`
    closes. Modal input and pointer events are captured. `Ctrl+t` and
    view-specific uppercase `T` behavior remain unchanged.
-6. Adjustments update the shared audio control immediately without restarting
+6. Opening the modal copies the current stable `TrackId` into the control
+   handle; that target remains fixed until the modal is reopened, including
+   while playback is stopped, and naturally becomes inert if the track is
+   deleted. Adjustments update the shared audio control immediately without restarting
    transport and without mutating `Song`, undo history, or dirty state. The
    modal identifies the selected track, shows ASCII sliders/toggle state, and
    renders animated LOW/MID/HIGH plus RMS/PEAK meters from the latest snapshot.
@@ -112,6 +118,7 @@ without blocking the audio callback or mutating persisted project DSP.
 | Date | Revision | Author | Change |
 |------|----------|--------|--------|
 | 2026-08-20 | r1 | default-agent | Recorded and accepted session-local audible calibration, lock-free realtime meters, and the keyboard tuning modal. |
+| 2026-08-20 | r2 | default-agent | Defined stable selected-track targeting and inert fallback behavior after Norn review. |
 
 ## Approvals
 
