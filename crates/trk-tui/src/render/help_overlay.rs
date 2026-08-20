@@ -358,6 +358,7 @@ fn help_command_lines(mode_label: &str) -> Vec<Line<'static>> {
         Line::from("  :play pattern   :play sequence [position]   :stop"),
         Line::from("  :tasks   :task cancel ID"),
         Line::from("  :pattern new   :pattern duplicate   :pattern delete   :pattern length 128"),
+        Line::from("  :strudel EXPR   :strudel live [EXPR]   live: Enter accept, Esc cancel"),
         Line::from("  :pattern fill|copy|paste|invert|expand|shrink|duplicate-selection"),
         Line::from("  :pattern rename Intro   :pattern 1   [ previous pattern   ] next pattern"),
         Line::from("  :sequence add   :sequence remove 0   :sequence duplicate 0"),

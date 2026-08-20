@@ -67,6 +67,7 @@ fn run_pattern_with_recording(
     loop_pattern: bool,
     command_rx: &Receiver<PlaybackCommand>,
 ) -> (PatternRunResult, Vec<MidiMessage>, Vec<PlaybackUpdate>) {
+    let mut song = song.clone();
     let messages = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
     let (update_tx, update_rx) = mpsc::channel();
     let mut output = PlaybackOutput::recording(messages.clone());
@@ -83,7 +84,7 @@ fn run_pattern_with_recording(
     };
 
     let result = run_pattern(
-        song,
+        &mut song,
         pattern_index,
         start_row,
         None,
@@ -100,6 +101,7 @@ fn run_pattern_with_audio_recording(
     pattern_index: usize,
     audio_sample_rate: u32,
 ) -> (PatternRunResult, Vec<RealtimeAudioCommand>) {
+    let mut song = song.clone();
     let messages = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
     let (_command_tx, command_rx) = mpsc::channel();
     let (update_tx, _update_rx) = mpsc::channel();
@@ -116,7 +118,7 @@ fn run_pattern_with_audio_recording(
         audio_sample_rate,
     };
 
-    let result = run_pattern(song, pattern_index, 0, None, false, &mut context);
+    let result = run_pattern(&mut song, pattern_index, 0, None, false, &mut context);
     (result, audio_rx.try_iter().collect())
 }
 
@@ -154,13 +156,17 @@ fn run_pattern_chain_with_recording(
     song: &Song,
     start_pattern_index: usize,
     loop_patterns: bool,
+    queued_command: Option<PlaybackCommand>,
 ) -> (
     Option<PlaybackCommand>,
     Vec<MidiMessage>,
     Vec<PlaybackUpdate>,
 ) {
     let messages = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
-    let (_command_tx, command_rx) = mpsc::channel();
+    let (command_tx, command_rx) = mpsc::channel();
+    if let Some(command) = queued_command {
+        command_tx.send(command).expect("queue playback command");
+    }
     let (update_tx, update_rx) = mpsc::channel();
     let mut output = PlaybackOutput::recording(messages.clone());
     let mut midi_logger = MidiLogger::new(None, &update_tx);
@@ -175,7 +181,13 @@ fn run_pattern_chain_with_recording(
         audio_sample_rate,
     };
 
-    let next_command = run_pattern_chain(song, start_pattern_index, 0, loop_patterns, &mut context);
+    let next_command = run_pattern_chain(
+        song.clone(),
+        start_pattern_index,
+        0,
+        loop_patterns,
+        &mut context,
+    );
     let sent = messages.lock().expect("recorded MIDI messages").clone();
     let updates = update_rx.try_iter().collect();
     (next_command, sent, updates)

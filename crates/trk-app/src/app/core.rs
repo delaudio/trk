@@ -81,6 +81,7 @@ impl App {
             help_scroll: 0,
             help_tab: HelpTab::Basics,
             command_buffer: String::new(),
+            strudel_live: None,
             command_palette_query: String::new(),
             command_palette_selected: 0,
             command_palette_recent: Vec::new(),

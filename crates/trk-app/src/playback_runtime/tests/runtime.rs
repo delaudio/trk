@@ -293,7 +293,7 @@ fn interrupted_pattern_playback_sends_audio_all_notes_off() {
     };
     command_tx.send(PlaybackCommand::Stop).expect("send stop");
 
-    let result = run_pattern(&song, 0, 0, None, true, &mut context);
+    let result = run_pattern(&mut song, 0, 0, None, true, &mut context);
     let commands = audio_rx.try_iter().collect::<Vec<_>>();
 
     assert!(matches!(result, PatternRunResult::Command(_)));

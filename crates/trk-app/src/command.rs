@@ -133,6 +133,7 @@ pub enum CommandDomain {
     Pattern,
     Sequence,
     Sample,
+    Strudel,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -272,6 +273,7 @@ impl TrkCommand {
             "pattern" => domain(CommandDomain::Pattern, arguments),
             "sequence" | "seq" => domain(CommandDomain::Sequence, arguments),
             "sample" | "sampler" => domain(CommandDomain::Sample, arguments),
+            "strudel" | "tidal" => domain(CommandDomain::Strudel, arguments),
             _ => return Err(CommandParseError::UnknownCommand(name.to_string())),
         };
         Ok(Some(command))

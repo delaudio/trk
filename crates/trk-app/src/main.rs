@@ -182,6 +182,7 @@ use trk_midi::{
     MidirMidiOutput,
 };
 use trk_sampler::{Sample, WaveformBucket, WaveformOverview};
+use trk_strudel::{apply_to_pattern as apply_strudel, EvaluateOptions, Evaluation, Program};
 use trk_transform::{apply_euclidean, EuclideanRhythm};
 use trk_tui::{
     interaction_region, render_calibration_overlay, render_with_interactions, AiChatMessageRole,
@@ -262,6 +263,7 @@ struct App {
     help_scroll: usize,
     help_tab: HelpTab,
     command_buffer: String,
+    strudel_live: Option<StrudelLiveSession>,
     command_palette_query: String,
     command_palette_selected: usize,
     command_palette_recent: Vec<String>,
@@ -322,6 +324,17 @@ struct App {
     dialog: Option<Dialog>,
     notification: Option<Notification>,
     last_tick: Instant,
+}
+
+#[derive(Debug, Clone)]
+struct StrudelLiveSession {
+    entry_song: Song,
+    pattern_index: usize,
+    start_track: usize,
+    buffer: String,
+    line: String,
+    error: Option<String>,
+    last_evaluation: Option<Evaluation>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

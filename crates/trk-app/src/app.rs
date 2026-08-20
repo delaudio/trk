@@ -33,6 +33,7 @@ mod sample_recorder_actions;
 mod sampler_actions;
 mod sampler_mouse;
 mod state;
+mod strudel_actions;
 mod text_notes;
 mod tracker_actions;
 mod tui_render;

@@ -37,6 +37,7 @@ mod preset_inventory;
 mod report_workflows;
 mod sampler_browsers;
 mod strudel_export;
+mod strudel_live;
 mod style_analysis;
 mod text_notes;
 mod tracks_panels;

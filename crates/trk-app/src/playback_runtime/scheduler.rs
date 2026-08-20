@@ -4,7 +4,9 @@ use std::{
 };
 
 use trk_audio::RealtimeAudioCommand;
-use trk_core::{pattern_events, row_duration_micros, sampler_events, PlaybackPosition, Song};
+use trk_core::{
+    pattern_events, row_duration_micros, sampler_events, Pattern, PlaybackPosition, Song,
+};
 use trk_midi::MidiError;
 
 use super::{
@@ -32,7 +34,7 @@ pub(super) struct PlaybackRunContext<'a> {
 }
 
 pub(super) fn run_pattern(
-    song: &Song,
+    song: &mut Song,
     pattern_index: usize,
     start_row: usize,
     sequence_index: Option<usize>,
@@ -43,12 +45,13 @@ pub(super) fn run_pattern(
         let _ = context.update_tx.send(PlaybackUpdate::Stopped);
         return PatternRunResult::Stopped;
     };
-    let pattern = pattern.clone();
+    let mut pattern = pattern.clone();
     let row_count = pattern.row_count();
     let row_duration_micros = row_duration_micros(&song.transport).max(1);
     let row_duration = Duration::from_micros(row_duration_micros);
-    let events = pattern_events(song, &pattern);
-    let sample_events = sampler_events(song, &pattern);
+    let mut events = pattern_events(song, &pattern);
+    let mut sample_events = sampler_events(song, &pattern);
+    let mut pending_pattern = None;
     let mut pass_start_row = start_row.min(row_count);
     loop {
         let loop_start = Instant::now();
@@ -56,15 +59,25 @@ pub(super) fn run_pattern(
         let mut active_sent_notes = Vec::new();
 
         for row in pass_start_row..=row_count {
+            if let Some(replacement) = pending_pattern.take() {
+                pattern = replacement;
+                events = pattern_events(song, &pattern);
+                sample_events = sampler_events(song, &pattern);
+            }
             let relative_row = row.saturating_sub(pass_start_row);
             let deadline = loop_start + row_duration.saturating_mul(relative_row as u32);
-            if let Some(command) = wait_until(context.command_rx, deadline) {
+            if let Some(command) = wait_until_pattern(
+                context.command_rx,
+                deadline,
+                pattern_index,
+                song,
+                &mut pending_pattern,
+            ) {
                 let _ = send_all_notes_off_logged(context.output, context.midi_logger);
                 send_all_audio_notes_off(context.audio_output);
                 let _ = context.update_tx.send(PlaybackUpdate::Stopped);
                 return PatternRunResult::Command(Box::new(command));
             }
-
             for event in events.iter().filter(|event| event.position.row == row) {
                 let event_deadline = loop_start
                     + Duration::from_micros(
@@ -73,7 +86,13 @@ pub(super) fn run_pattern(
                             .offset_micros
                             .saturating_sub(pass_start_offset),
                     );
-                if let Some(command) = wait_until(context.command_rx, event_deadline) {
+                if let Some(command) = wait_until_pattern(
+                    context.command_rx,
+                    event_deadline,
+                    pattern_index,
+                    song,
+                    &mut pending_pattern,
+                ) {
                     let _ = send_all_notes_off_logged(context.output, context.midi_logger);
                     send_all_audio_notes_off(context.audio_output);
                     let _ = context.update_tx.send(PlaybackUpdate::Stopped);
@@ -102,7 +121,13 @@ pub(super) fn run_pattern(
                     .offset_micros
                     .saturating_sub(pass_start_offset);
                 let event_deadline = loop_start + Duration::from_micros(relative_offset);
-                if let Some(command) = wait_until(context.command_rx, event_deadline) {
+                if let Some(command) = wait_until_pattern(
+                    context.command_rx,
+                    event_deadline,
+                    pattern_index,
+                    song,
+                    &mut pending_pattern,
+                ) {
                     let _ = send_all_notes_off_logged(context.output, context.midi_logger);
                     send_all_audio_notes_off(context.audio_output);
                     let _ = context.update_tx.send(PlaybackUpdate::Stopped);
@@ -143,7 +168,7 @@ pub(super) fn run_pattern(
 }
 
 pub(super) fn run_pattern_chain(
-    song: &Song,
+    mut song: Song,
     start_pattern_index: usize,
     start_row: usize,
     loop_patterns: bool,
@@ -161,7 +186,14 @@ pub(super) fn run_pattern_chain(
         let pattern_start_row = if first_pass { start_row } else { 0 };
         first_pass = false;
 
-        match run_pattern(song, pattern_index, pattern_start_row, None, false, context) {
+        match run_pattern(
+            &mut song,
+            pattern_index,
+            pattern_start_row,
+            None,
+            false,
+            context,
+        ) {
             PatternRunResult::Finished => {}
             PatternRunResult::Stopped => return None,
             PatternRunResult::Command(command) => return Some(*command),
@@ -185,12 +217,12 @@ pub(super) fn run_pattern_chain(
 }
 
 pub(super) fn run_sequence(
-    song: Song,
+    mut song: Song,
     start_sequence_index: usize,
     context: &mut PlaybackRunContext<'_>,
 ) -> Option<PlaybackCommand> {
-    for (sequence_index, pattern_id) in song.sequence.iter().enumerate().skip(start_sequence_index)
-    {
+    let sequence = song.sequence.clone();
+    for (sequence_index, pattern_id) in sequence.iter().enumerate().skip(start_sequence_index) {
         let Some(pattern_index) = song
             .patterns
             .iter()
@@ -200,7 +232,7 @@ pub(super) fn run_sequence(
         };
 
         match run_pattern(
-            &song,
+            &mut song,
             pattern_index,
             0,
             Some(sequence_index),
@@ -295,5 +327,42 @@ fn wait_until(
         Ok(command) => Some(command),
         Err(RecvTimeoutError::Timeout) => None,
         Err(RecvTimeoutError::Disconnected) => Some(PlaybackCommand::Shutdown),
+    }
+}
+
+fn wait_until_pattern(
+    command_rx: &Receiver<PlaybackCommand>,
+    deadline: Instant,
+    pattern_index: usize,
+    song: &mut Song,
+    pending_pattern: &mut Option<Pattern>,
+) -> Option<PlaybackCommand> {
+    loop {
+        match wait_until(command_rx, deadline) {
+            Some(PlaybackCommand::ReplacePattern {
+                pattern_index: replacement_index,
+                pattern,
+            }) => {
+                if let Some(target) = song.patterns.get_mut(replacement_index) {
+                    *target = pattern.clone();
+                } else {
+                    tracing::debug!(
+                        replacement_index,
+                        "ignored live replacement for an unknown pattern"
+                    );
+                    continue;
+                }
+                if replacement_index == pattern_index {
+                    *pending_pattern = Some(pattern);
+                } else {
+                    tracing::debug!(
+                        replacement_index,
+                        active_pattern_index = pattern_index,
+                        "stored live replacement for a later pattern"
+                    );
+                }
+            }
+            command => return command,
+        }
     }
 }
