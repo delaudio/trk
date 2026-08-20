@@ -27,9 +27,9 @@ musical song content, so it belongs in that envelope instead of inside `Song`.
 The existing undo transaction remains the authority for ordinary linear edits
 and must also make an explicit historical restore undoable.
 
-The plain `v` key currently aliases paste even though `Ctrl+v` already provides
-the conventional paste binding. The requested history browser takes plain `v`;
-clipboard paste remains available through `Ctrl+v`.
+The plain `v` key currently starts a visual selection, while `Ctrl+v` pastes.
+The requested history browser takes lowercase `v`; starting a visual selection
+moves to uppercase `V`, and clipboard paste remains on `Ctrl+v`.
 
 ## Capability statement
 
@@ -71,7 +71,8 @@ normal undoable mutation boundary.
    changes selection, Enter restores the selected version, and Esc or `v`
    closes without mutation. Entries show version, time, description,
    pattern/track context, and an `[ACTIVE]` badge; an empty history renders an
-   explicit empty state. `Ctrl+v` continues to paste.
+   explicit empty state. Uppercase `V` continues to start a visual selection,
+   and `Ctrl+v` continues to paste.
 5. Restore replaces only the recorded pattern through the existing undo
    transaction, selects that pattern and track when possible, marks the project
    dirty, closes the modal, and sets the requested active version even when two
@@ -111,6 +112,7 @@ normal undoable mutation boundary.
 |------|----------|--------|--------|
 | 2026-08-20 | r1 | default-agent | Recorded and accepted persistent, bounded pattern variation snapshots and undoable TUI restore. |
 | 2026-08-20 | r2 | default-agent | Fixed retention at 64 entries, defined active-marker reconciliation across undo/redo, and pinned prior-art references after Norn review. |
+| 2026-08-20 | r3 | default-agent | Corrected the existing key contract: lowercase v opens history, uppercase V starts selection, and Ctrl+v pastes. |
 
 ## Approvals
 
