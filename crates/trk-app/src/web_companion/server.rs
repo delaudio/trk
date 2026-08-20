@@ -370,11 +370,7 @@ fn action_response(
         return HttpResponse::text("403 Forbidden", "missing request marker");
     }
     let expected_origin = format!("http://{authority}");
-    if request
-        .headers
-        .get("origin")
-        .is_some_and(|origin| origin != &expected_origin)
-    {
+    if request.headers.get("origin") != Some(&expected_origin) {
         return HttpResponse::text("403 Forbidden", "invalid Origin header");
     }
     let action = match serde_json::from_slice::<WebActionRequest>(&request.body)

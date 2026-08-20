@@ -36,6 +36,14 @@ impl BrowserOpenMonitor {
     }
 }
 
+impl Drop for BrowserOpenMonitor {
+    fn drop(&mut self) {
+        // Reap an opener that has already exited, but deliberately detach one
+        // that is still handing the URL to the desktop environment.
+        let _ = self.child.try_wait();
+    }
+}
+
 pub(crate) fn open_browser(url: &str) -> Result<BrowserOpenMonitor, String> {
     let platform = current_platform();
     if !graphical_session_available(platform, |name| env::var_os(name).is_some()) {
