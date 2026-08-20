@@ -1,7 +1,7 @@
 ---
 adr: 0025
 title: Browse and restore persistent pattern variations
-status: Accepted
+status: Implemented
 date: 2026-08-20
 owner: default-agent
 supersedes:
@@ -102,7 +102,7 @@ normal undoable mutation boundary.
 
 - `0001-record-architecture-decisions.md`
 - `0024-select-ai-proposal-engines-at-runtime.md`
-- `../plan/todo/0023-pattern-variation-history.md`
+- `../plan/done/2026-08-20-pattern-variation-history.md`
 - GitHub issue #314.
 - [grain history manager](https://github.com/delaudio/grain/blob/c609fcd5a05d8862d88819690a051f5df13238be/src/history/manager.rs)
 - [grain history record](https://github.com/delaudio/grain/blob/c609fcd5a05d8862d88819690a051f5df13238be/src/history/record.rs)
@@ -115,6 +115,7 @@ normal undoable mutation boundary.
 | 2026-08-20 | r2 | default-agent | Fixed retention at 64 entries, defined active-marker reconciliation across undo/redo, and pinned prior-art references after Norn review. |
 | 2026-08-20 | r3 | default-agent | Corrected the existing key contract: lowercase v opens history, uppercase V starts selection, and Ctrl+v pastes. |
 | 2026-08-20 | r4 | default-agent | Required song-aware persisted-history validation and made identical-snapshot restore an explicit no-op after implementation review. |
+| 2026-08-20 | r5 | default-agent | Marked implemented after PR #336 merged with CI green and issue #314 closed. |
 
 ## Approvals
 
