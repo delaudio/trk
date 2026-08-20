@@ -140,7 +140,7 @@ impl App {
         &mut self,
         request_id: RequestId,
         path: PathBuf,
-        result: std::result::Result<Song, String>,
+        result: std::result::Result<crate::persistence::ProjectFile, String>,
     ) -> Vec<AppEffect> {
         if self.pending_project_load != Some(request_id) {
             tracing::debug!(
@@ -153,15 +153,19 @@ impl App {
         self.pending_project_load = None;
 
         match result {
-            Ok(song) => {
-                self.song = song;
+            Ok(project) => {
+                self.song = project.song;
+                self.variation_history = project.variation_history;
                 self.clean_song = self.song.clone();
+                self.clean_variation_history = self.variation_history.clone();
                 self.project_path = Some(path.clone());
                 self.pattern_index = 0;
                 self.cursor = Cursor::new();
                 self.row_offset = 0;
                 self.selection = None;
                 self.history.clear();
+                self.variation_history_open = false;
+                self.variation_history_cursor = 0;
                 self.is_playing = false;
                 self.playhead_row = None;
                 self.sequence_position = None;

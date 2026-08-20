@@ -66,7 +66,7 @@ fn text_annotations_persist_without_affecting_playback_state() {
         "hello persistence",
     );
 
-    save_project(&path, &song).expect("save");
+    save_song_project(&path, &song).expect("save");
     let loaded = load_project(&path).expect("load");
     let _ = std::fs::remove_file(&path);
 

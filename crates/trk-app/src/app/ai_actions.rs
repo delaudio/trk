@@ -60,12 +60,46 @@ impl App {
             return;
         };
         let mut touched_cells = Vec::new();
+        let original_song = self.song.clone();
+        let mut next_variation_history = self.variation_history.clone();
         let result = self.try_mutate_song(TransactionSpec::new("Apply AI proposal"), |song, _| {
-            touched_cells = apply_proposal(song, &pending.proposal)?.touched_cells;
-            Ok::<(), trk_ai::AiError>(())
+            touched_cells = apply_proposal(song, &pending.proposal)
+                .map_err(|error| error.to_string())?
+                .touched_cells;
+            if song == &original_song {
+                return Ok(());
+            }
+            let mut affected =
+                std::collections::BTreeMap::<usize, std::collections::BTreeSet<usize>>::new();
+            for cell in &touched_cells {
+                affected.entry(cell.pattern).or_default().insert(cell.track);
+            }
+            for (pattern_index, tracks) in affected {
+                let snapshot = song
+                    .patterns
+                    .get(pattern_index)
+                    .cloned()
+                    .ok_or_else(|| format!("pattern {} no longer exists", pattern_index + 1))?;
+                let track_index = (tracks.len() == 1)
+                    .then(|| tracks.into_iter().next().expect("one affected track"));
+                next_variation_history
+                    .record_now(
+                        pending.proposal.prompt.clone(),
+                        PatternVariationSource::AiProposal,
+                        pattern_index,
+                        track_index,
+                        snapshot,
+                    )
+                    .map_err(|error| error.to_string())?;
+            }
+            Ok::<(), String>(())
         });
         match result {
-            Ok(_) => {
+            Ok(changed) => {
+                if changed {
+                    self.variation_history = next_variation_history;
+                    self.refresh_dirty();
+                }
                 self.pending_ai_proposal = None;
                 let summary = format!(
                     "AI proposal applied to {} cell(s): {}",

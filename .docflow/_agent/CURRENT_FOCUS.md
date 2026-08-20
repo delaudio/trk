@@ -12,8 +12,9 @@ If status files and git disagree, git is authoritative; correct this file.
 - **Active item:** `.docflow/plan/todo/0023-pattern-variation-history.md` for
   GitHub issue #314.
 - **Blockers:** none.
-- **Pending integration:** implement persistent snapshots and the rollback
-  modal, pass the full gate and Norn Codex review, then merge through CI.
+- **Pending integration:** implementation and the full local gate are complete;
+  all actionable findings from Norn Codex runs `run-1787215929279596000` and
+  `run-1787216194634823000` are addressed. Commit, push, and merge through CI.
 
 ## Last shipped
 

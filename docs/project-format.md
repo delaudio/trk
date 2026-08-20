@@ -13,6 +13,13 @@ Every project file must contain:
 
 `formatVersion` is mandatory. The current supported version is `1`.
 
+Projects may also contain `variationHistory`, a bounded list of generated
+pattern snapshots. Each entry stores a monotonic project-local ID, Unix
+timestamp, description, `aiProposal` or `euclideanTransform` source, target
+pattern, optional target track, and the full resulting pattern snapshot. The
+optional `activeId` identifies the snapshot that exactly matches the live song.
+Older version-1 files that omit `variationHistory` load with an empty history.
+
 Within `song`, sample playback intent is represented by optional `samples`,
 `sampleAssignments`, `instruments`, and `trackInstrumentAssignments` arrays.
 Older version-1 files that omit those arrays still load as projects with no

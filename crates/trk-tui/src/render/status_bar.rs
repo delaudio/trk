@@ -105,6 +105,7 @@ fn status_segments(state: TuiState<'_>) -> (String, &'static [&'static str]) {
                     "Ctrl+P Palette",
                     "H Help",
                     "Space Play/Stop",
+                    "v History",
                     "Enter Row",
                     "Shift+Enter Seq",
                     "L Loop",

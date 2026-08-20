@@ -306,6 +306,36 @@ impl App {
             .collect()
     }
 
+    pub(crate) fn tui_pattern_variation_entries(&self) -> Vec<PatternVariationEntryView<'_>> {
+        self.variation_history
+            .entries()
+            .iter()
+            .map(|entry| PatternVariationEntryView {
+                id: entry.id.0,
+                timestamp: entry.timestamp,
+                description: entry.description.as_str(),
+                source: match entry.source {
+                    PatternVariationSource::AiProposal => "AI",
+                    PatternVariationSource::EuclideanTransform => "Euclidean",
+                },
+                pattern_index: entry.pattern_index,
+                track_index: entry.track_index,
+                active: self.variation_history.active_id() == Some(entry.id),
+            })
+            .collect()
+    }
+
+    pub(crate) fn tui_pattern_variation_history<'a>(
+        &self,
+        entries: &'a [PatternVariationEntryView<'a>],
+    ) -> Option<PatternVariationHistoryViewState<'a>> {
+        self.variation_history_open
+            .then_some(PatternVariationHistoryViewState {
+                entries,
+                selected: self.variation_history_cursor,
+            })
+    }
+
     pub(crate) fn tui_ai_engine_selector<'a>(
         &self,
         entries: &'a [AiEngineEntryView<'a>],

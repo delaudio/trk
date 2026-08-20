@@ -27,7 +27,7 @@ pub(crate) fn run_import_musicxml(args: &ImportMusicXmlArgs) -> Result<()> {
     let pattern_rows = song
         .current_pattern()
         .map_or(0, |pattern| pattern.row_count());
-    save_project(output_path, &song)?;
+    save_song_project(output_path, &song)?;
     println!(
         "Imported {} to {}: {} tracks, {} rows, {} diagnostic(s)",
         input_path.display(),

@@ -75,8 +75,9 @@ normal undoable mutation boundary.
    and `Ctrl+v` continues to paste.
 5. Restore replaces only the recorded pattern through the existing undo
    transaction, selects that pattern and track when possible, marks the project
-   dirty, closes the modal, and sets the requested active version even when two
-   entries contain identical snapshots. After ordinary edits, undo, or redo,
+   dirty, closes the modal, and sets the requested active version. Restoring a
+   snapshot already identical to the live pattern is an explicit no-op that
+   leaves the active marker and undo stack unchanged. After ordinary edits, undo, or redo,
    the active id is reconciled to the newest retained entry whose snapshot
    exactly equals its live affected pattern, or cleared when none matches;
    undoing a restore reinstates the prior song and reconciles the marker.
@@ -113,6 +114,7 @@ normal undoable mutation boundary.
 | 2026-08-20 | r1 | default-agent | Recorded and accepted persistent, bounded pattern variation snapshots and undoable TUI restore. |
 | 2026-08-20 | r2 | default-agent | Fixed retention at 64 entries, defined active-marker reconciliation across undo/redo, and pinned prior-art references after Norn review. |
 | 2026-08-20 | r3 | default-agent | Corrected the existing key contract: lowercase v opens history, uppercase V starts selection, and Ctrl+v pastes. |
+| 2026-08-20 | r4 | default-agent | Required song-aware persisted-history validation and made identical-snapshot restore an explicit no-op after implementation review. |
 
 ## Approvals
 

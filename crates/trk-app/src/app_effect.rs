@@ -6,7 +6,7 @@ use trk_core::Song;
 use crate::{
     app_event::{AppEvent, RequestId, RuntimeEvent},
     config::AiConfig,
-    persistence::{load_project, save_project},
+    persistence::{load_project_file, save_project_file, ProjectFile},
     App,
 };
 use trk_interop::import_smf;
@@ -23,7 +23,7 @@ pub enum AppEffect {
     },
     SaveProject {
         path: PathBuf,
-        song: Song,
+        project: ProjectFile,
         quit_after: bool,
     },
     SubmitAiProposal {
@@ -64,7 +64,7 @@ impl AppEffectExecutor for RuntimeEffectExecutor {
         match effect {
             AppEffect::Playback(effect) => execute_playback_effect(app, effect),
             AppEffect::LoadProject { request_id, path } => {
-                let result = load_project(&path).map_err(|error| error.to_string());
+                let result = load_project_file(&path).map_err(|error| error.to_string());
                 app.dispatch_event(AppEvent::Runtime(RuntimeEvent::ProjectLoaded {
                     request_id,
                     path,
@@ -88,13 +88,13 @@ impl AppEffectExecutor for RuntimeEffectExecutor {
             }
             AppEffect::SaveProject {
                 path,
-                song,
+                project,
                 quit_after,
             } => {
-                let result = save_project(&path, &song).map_err(|error| error.to_string());
+                let result = save_project_file(&path, &project).map_err(|error| error.to_string());
                 app.dispatch_event(AppEvent::Runtime(RuntimeEvent::ProjectSaved {
                     path,
-                    song: Box::new(song),
+                    project: Box::new(project),
                     quit_after,
                     result,
                 }));

@@ -6,7 +6,7 @@ use std::{
 
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
-use trk_core::Song;
+use trk_core::{PatternVariationHistory, Song};
 
 pub const CURRENT_FORMAT_VERSION: u32 = 1;
 
@@ -15,19 +15,35 @@ pub const CURRENT_FORMAT_VERSION: u32 = 1;
 pub struct ProjectFile {
     pub format_version: u32,
     pub song: Song,
+    #[serde(default, skip_serializing_if = "PatternVariationHistory::is_empty")]
+    pub variation_history: PatternVariationHistory,
 }
 
 impl ProjectFile {
     #[must_use]
-    pub const fn new(song: Song) -> Self {
+    pub fn new(song: Song) -> Self {
         Self {
             format_version: CURRENT_FORMAT_VERSION,
             song,
+            variation_history: PatternVariationHistory::default(),
+        }
+    }
+
+    #[must_use]
+    pub fn with_history(song: Song, variation_history: PatternVariationHistory) -> Self {
+        Self {
+            format_version: CURRENT_FORMAT_VERSION,
+            song,
+            variation_history,
         }
     }
 }
 
 pub fn load_project(path: &Path) -> Result<Song> {
+    Ok(load_project_file(path)?.song)
+}
+
+pub fn load_project_file(path: &Path) -> Result<ProjectFile> {
     let contents = fs::read_to_string(path)
         .with_context(|| format!("failed to read project {}", path.display()))?;
     let project: ProjectFile = serde_json::from_str(&contents)
@@ -35,10 +51,26 @@ pub fn load_project(path: &Path) -> Result<Song> {
     migrate_project(project, path)
 }
 
-pub fn save_project(path: &Path, song: &Song) -> Result<()> {
-    song.validate()
+/// Writes a new project from song data only; project-metadata round trips must
+/// use [`save_project_file`] so variation history is preserved.
+pub fn save_song_project(path: &Path, song: &Song) -> Result<()> {
+    save_project_file(path, &ProjectFile::new(song.clone()))
+}
+
+pub fn save_project_file(path: &Path, project: &ProjectFile) -> Result<()> {
+    project
+        .song
+        .validate()
         .with_context(|| format!("project validation failed before saving {}", path.display()))?;
-    let project = ProjectFile::new(song.clone());
+    project
+        .variation_history
+        .validate_for_song(&project.song)
+        .with_context(|| {
+            format!(
+                "variation history validation failed before saving {}",
+                path.display()
+            )
+        })?;
     let contents = serde_json::to_vec_pretty(&project).context("failed to serialize project")?;
     let temp_path = temp_path_for(path);
 
@@ -64,10 +96,11 @@ pub fn save_project(path: &Path, song: &Song) -> Result<()> {
     Ok(())
 }
 
-fn migrate_project(project: ProjectFile, path: &Path) -> Result<Song> {
+fn migrate_project(project: ProjectFile, path: &Path) -> Result<ProjectFile> {
     match project.format_version {
         CURRENT_FORMAT_VERSION => {
-            let mut song = project.song;
+            let mut project = project;
+            let song = &mut project.song;
             song.ensure_instruments_for_sample_assignments()
                 .with_context(|| {
                     format!(
@@ -79,7 +112,13 @@ fn migrate_project(project: ProjectFile, path: &Path) -> Result<Song> {
             song.validate().with_context(|| {
                 format!("project validation failed while loading {}", path.display())
             })?;
-            Ok(song)
+            project.variation_history.validate_for_song(song).with_context(|| {
+                format!(
+                    "variation history validation failed while loading {}",
+                    path.display()
+                )
+            })?;
+            Ok(project)
         }
         version => bail!(
             "unsupported project format version {version} in {}; current version is {CURRENT_FORMAT_VERSION}",
@@ -103,7 +142,10 @@ mod tests {
     use super::*;
     use serde_json::Value;
     use std::collections::BTreeSet;
-    use trk_core::{AutomationTarget, EffectDevice, NoteEvent, SampleEnvelope, SamplePlaybackMode};
+    use trk_core::{
+        AutomationTarget, EffectDevice, NoteEvent, PatternVariationSource, SampleEnvelope,
+        SamplePlaybackMode,
+    };
 
     #[test]
     fn saves_and_loads_project_file() {
@@ -115,11 +157,82 @@ mod tests {
             .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x7f)
             .expect("set note");
 
-        save_project(&path, &song).expect("save");
+        save_song_project(&path, &song).expect("save");
         let loaded = load_project(&path).expect("load");
         let _ = fs::remove_file(&path);
 
         assert_eq!(loaded, song);
+    }
+
+    #[test]
+    fn project_history_round_trips_and_legacy_projects_default_empty() {
+        let path = test_project_path("variation-history");
+        let legacy_path = test_project_path("variation-history-legacy");
+        let song = Song::empty();
+        let mut history = PatternVariationHistory::default();
+        history
+            .record_at(
+                123,
+                "AI bass variation",
+                PatternVariationSource::AiProposal,
+                0,
+                Some(0),
+                song.patterns[0].clone(),
+            )
+            .expect("record variation");
+        let project = ProjectFile::with_history(song.clone(), history.clone());
+
+        save_project_file(&path, &project).expect("save project with history");
+        let persisted: Value =
+            serde_json::from_str(&fs::read_to_string(&path).expect("read project with history"))
+                .expect("parse project with history");
+        assert_eq!(
+            persisted["variationHistory"]["entries"][0]["source"],
+            "aiProposal"
+        );
+        let loaded = load_project_file(&path).expect("load project with history");
+        assert_eq!(loaded, project);
+
+        let legacy = serde_json::json!({"formatVersion": 1, "song": song});
+        fs::write(
+            &legacy_path,
+            serde_json::to_vec_pretty(&legacy).expect("serialize legacy project"),
+        )
+        .expect("write legacy project");
+        assert!(load_project_file(&legacy_path)
+            .expect("load legacy project")
+            .variation_history
+            .is_empty());
+
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(legacy_path);
+    }
+
+    #[test]
+    fn load_rejects_invalid_persisted_variation_history() {
+        let path = test_project_path("invalid-variation-history");
+        let project = serde_json::json!({
+            "formatVersion": 1,
+            "song": Song::empty(),
+            "variationHistory": {
+                "nextId": 2,
+                "activeId": 99,
+                "entries": []
+            }
+        });
+        fs::write(
+            &path,
+            serde_json::to_vec_pretty(&project).expect("serialize invalid history"),
+        )
+        .expect("write invalid history");
+
+        let error = load_project_file(&path).expect_err("invalid history");
+        let _ = fs::remove_file(path);
+
+        assert!(error
+            .to_string()
+            .contains("variation history validation failed while loading"));
+        assert!(format!("{error:#}").contains("active variation v099 is not retained"));
     }
 
     #[test]
@@ -131,7 +244,7 @@ mod tests {
         song.assign_sample_to_track(track, sample)
             .expect("assign sample");
 
-        save_project(&path, &song).expect("save");
+        save_song_project(&path, &song).expect("save");
         let loaded = load_project(&path).expect("load");
         let _ = fs::remove_file(&path);
 
@@ -154,6 +267,7 @@ mod tests {
         let project = ProjectFile {
             format_version: 999,
             song: Song::empty(),
+            variation_history: PatternVariationHistory::default(),
         };
         fs::write(&path, serde_json::to_string(&project).expect("serialize")).expect("write");
 
@@ -197,7 +311,7 @@ mod tests {
         let mut song = Song::empty();
         song.tracks.clear();
 
-        let error = save_project(&path, &song).expect_err("validation error");
+        let error = save_song_project(&path, &song).expect_err("validation error");
         let _ = fs::remove_file(&path);
 
         assert!(error

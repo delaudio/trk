@@ -64,12 +64,13 @@ pub(crate) fn run_graph_compile(args: &GraphCompileArgs) -> Result<()> {
         .as_deref()
         .context("missing graph compile output project")?;
     let graph = load_composition_graph(graph_path)?;
-    let song = load_project(input_path)?;
-    let compiled = compile_composition_graph(&song, &graph)?;
-    save_project(output_path, &compiled)?;
+    let mut project = load_project_file(input_path)?;
+    project.song = compile_composition_graph(&project.song, &graph)?;
+    project.variation_history.reconcile(&project.song);
+    save_project_file(output_path, &project)?;
     println!(
         "Compiled composition graph to {} sequence position(s)",
-        compiled.sequence.len()
+        project.song.sequence.len()
     );
     Ok(())
 }

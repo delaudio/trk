@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use crossterm::event::KeyEvent;
-use trk_core::{Cursor, Song};
+use trk_core::{Cursor, PatternVariationHistory, Song};
 
 use crate::{
     app_effect::{AppEffect, AppEffectExecutor, RuntimeEffectExecutor},
@@ -60,10 +60,10 @@ impl App {
             }
             RuntimeAction::ApplyProjectSave {
                 path,
-                song,
+                project,
                 quit_after,
                 result,
-            } => self.apply_project_save(path, *song, quit_after, result),
+            } => self.apply_project_save(path, *project, quit_after, result),
             RuntimeAction::ApplyTaskUpdate(update) => self.apply_task_update(update),
             RuntimeAction::ShowNotification(notification) => self.show_notification(notification),
             RuntimeAction::KeepActiveViewportVisible {
@@ -140,6 +140,10 @@ impl App {
                 self.song = song;
                 self.project_path = None;
                 self.clean_song = Song::empty();
+                self.variation_history = PatternVariationHistory::default();
+                self.clean_variation_history = PatternVariationHistory::default();
+                self.variation_history_open = false;
+                self.variation_history_cursor = 0;
                 self.pattern_index = 0;
                 self.cursor = Cursor::new();
                 self.row_offset = 0;
@@ -366,7 +370,7 @@ mod tests {
             AppEvent::Runtime(RuntimeEvent::ProjectLoaded {
                 request_id: request_ids[0],
                 path: first_path,
-                result: Box::new(Ok(Song::empty())),
+                result: Box::new(Ok(crate::persistence::ProjectFile::new(Song::empty()))),
             }),
             &mut effects,
         );
@@ -377,7 +381,7 @@ mod tests {
             AppEvent::Runtime(RuntimeEvent::ProjectLoaded {
                 request_id: request_ids[1],
                 path: second_path.clone(),
-                result: Box::new(Ok(Song::empty())),
+                result: Box::new(Ok(crate::persistence::ProjectFile::new(Song::empty()))),
             }),
             &mut effects,
         );

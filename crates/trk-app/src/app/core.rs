@@ -43,6 +43,10 @@ impl App {
             keymap,
             clean_song: song.clone(),
             song,
+            variation_history: PatternVariationHistory::default(),
+            clean_variation_history: PatternVariationHistory::default(),
+            variation_history_open: false,
+            variation_history_cursor: 0,
             project_path: None,
             focus: FocusManager::default(),
             pattern_index: 0,
@@ -135,11 +139,13 @@ impl App {
     }
 
     pub(crate) fn from_file(path: &Path, config: AppConfig) -> Result<Self> {
-        let song = load_project(path)?;
+        let project = persistence::load_project_file(path)?;
         let mut app = Self::new(config);
-        app.clean_song = song.clone();
-        app.midi_clock_follow = song.midi.clock_in || song.midi.transport_in;
-        app.song = song;
+        app.clean_song = project.song.clone();
+        app.clean_variation_history = project.variation_history.clone();
+        app.midi_clock_follow = project.song.midi.clock_in || project.song.midi.transport_in;
+        app.song = project.song;
+        app.variation_history = project.variation_history;
         app.project_path = Some(path.to_path_buf());
         Ok(app)
     }

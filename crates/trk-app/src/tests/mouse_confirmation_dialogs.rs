@@ -105,7 +105,7 @@ fn open_project_confirm_and_cancel_clicks_use_existing_dialog_paths() {
     std::fs::create_dir_all(&dir).expect("create project dir");
     let mut target = Song::empty();
     target.transport.bpm = 155;
-    save_project(&project_path, &target).expect("save target project");
+    save_song_project(&project_path, &target).expect("save target project");
 
     let mut confirm = App {
         mode: AppMode::Dialog,

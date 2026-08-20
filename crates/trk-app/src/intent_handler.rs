@@ -45,7 +45,10 @@ impl App {
                 };
                 return vec![AppEffect::SaveProject {
                     path,
-                    song: self.song.clone(),
+                    project: crate::persistence::ProjectFile::with_history(
+                        self.song.clone(),
+                        self.variation_history.clone(),
+                    ),
                     quit_after,
                 }];
             }

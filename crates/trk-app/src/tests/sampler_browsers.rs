@@ -563,7 +563,7 @@ fn project_browser_discovers_projects_and_persists_recent_projects() {
     std::fs::create_dir_all(&dir).expect("create project dir");
     let mut song = Song::empty();
     song.metadata.title = "Discovery Test".to_string();
-    save_project(&project_path, &song).expect("save project");
+    save_song_project(&project_path, &song).expect("save project");
     std::fs::write(&invalid_path, "not json").expect("write invalid project");
 
     save_recent_projects(
@@ -599,7 +599,7 @@ fn project_browser_opens_valid_project_and_records_recent() {
     let mut song = Song::empty();
     song.metadata.title = "Opened Project".to_string();
     song.transport.bpm = 137;
-    save_project(&project_path, &song).expect("save project");
+    save_song_project(&project_path, &song).expect("save project");
     let mut app = App::new(AppConfig {
         project_browser: ProjectBrowserConfig {
             start_dir: Some(dir.clone()),
@@ -637,7 +637,7 @@ fn project_browser_requires_confirmation_before_discarding_dirty_song() {
     std::fs::create_dir_all(&dir).expect("create project dir");
     let mut target = Song::empty();
     target.transport.bpm = 155;
-    save_project(&project_path, &target).expect("save project");
+    save_song_project(&project_path, &target).expect("save project");
     let mut app = App::new(AppConfig {
         project_browser: ProjectBrowserConfig {
             start_dir: Some(dir.clone()),

@@ -46,8 +46,8 @@ fn cli_analyze_and_compare_write_text_and_json_outputs() {
         .expect("pattern")
         .set_note(4, 1, NoteEvent::Note { pitch: 43 }, 100)
         .expect("right note");
-    save_project(&left_path, &left).expect("left");
-    save_project(&right_path, &right).expect("right");
+    save_song_project(&left_path, &left).expect("left");
+    save_song_project(&right_path, &right).expect("right");
 
     assert_eq!(
         parse_compare_args([
@@ -99,7 +99,7 @@ fn tui_analyze_and_compare_append_reports_without_mutating() {
     let mut other = app.song.clone();
     other.metadata.title = "Other".to_string();
     other.transport.bpm = 130;
-    save_project(&other_path, &other).expect("other");
+    save_song_project(&other_path, &other).expect("other");
 
     type_command(&mut app, "analyze");
     assert_eq!(app.song, before);

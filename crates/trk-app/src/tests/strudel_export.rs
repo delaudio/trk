@@ -90,7 +90,7 @@ fn strudel_export_writes_project_scope_to_file() {
         .expect("pattern")
         .set_note(0, 0, NoteEvent::Note { pitch: 64 }, 100)
         .expect("set note");
-    save_project(&project_path, &song).expect("save project");
+    save_song_project(&project_path, &song).expect("save project");
 
     run_export_strudel(&StrudelExportArgs {
         input_path: Some(project_path.clone()),

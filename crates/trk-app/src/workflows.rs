@@ -16,9 +16,10 @@ pub(crate) fn run_transform_euclidean(args: &TransformEuclideanArgs) -> Result<(
         anyhow::bail!("--track is 1-based and must be greater than zero");
     }
 
-    let mut song = load_project(input_path)?;
+    let mut project = load_project_file(input_path)?;
+    let original_song = project.song.clone();
     let report = apply_euclidean(
-        &mut song,
+        &mut project.song,
         args.pattern - 1,
         EuclideanRhythm {
             steps: args.steps,
@@ -29,7 +30,26 @@ pub(crate) fn run_transform_euclidean(args: &TransformEuclideanArgs) -> Result<(
             velocity: args.velocity,
         },
     )?;
-    save_project(output_path, &song)?;
+    if project.song != original_song {
+        let pattern_index = args.pattern - 1;
+        let snapshot = project
+            .song
+            .patterns
+            .get(pattern_index)
+            .cloned()
+            .context("transformed pattern is missing")?;
+        project.variation_history.record_now(
+            format!(
+                "Euclidean {}/{} rotation {} pitch {} velocity {}",
+                args.pulses, args.steps, args.rotation, args.pitch, args.velocity
+            ),
+            PatternVariationSource::EuclideanTransform,
+            pattern_index,
+            Some(args.track - 1),
+            snapshot,
+        )?;
+    }
+    save_project_file(output_path, &project)?;
 
     println!(
         "Applied Euclidean transform to {} cells and wrote {}",
@@ -125,7 +145,7 @@ pub(crate) fn run_import_xrns(args: &ImportXrnsArgs) -> Result<()> {
     let pattern_count = song.patterns.len();
     let sequence_len = song.sequence.len();
     let sample_count = song.samples.len();
-    save_project(output_path, &song)?;
+    save_song_project(output_path, &song)?;
 
     println!(
         "Imported {} to {}: {} tracks, {} patterns, {} sequence entries, {} samples, {} extracted sample files",
@@ -156,7 +176,7 @@ pub(crate) fn run_import_midi(args: &ImportMidiArgs) -> Result<()> {
     let pattern_rows = song
         .current_pattern()
         .map_or(0, |pattern| pattern.row_count());
-    save_project(output_path, &song)?;
+    save_song_project(output_path, &song)?;
 
     println!(
         "Imported {} to {}: {} tracks, {} rows",
