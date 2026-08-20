@@ -32,4 +32,4 @@ metadata.
 | 0025 | Browse and restore persistent pattern variations | Implemented | 2026-08-20 | default-agent | history, patterns, persistence, tui, transforms, ai |
 | 0026 | Calibrate realtime output with live metering | Implemented | 2026-08-20 | default-agent | audio, dsp, metering, performance, tui |
 | 0027 | Edit and hot-reload projects externally | Implemented | 2026-08-20 | default-agent | workflow, editor, persistence, hot-reload, tui |
-| 0028 | Expose a local web companion | Accepted | 2026-08-20 | default-agent | web, visualization, transport, audio, tui |
+| 0028 | Expose a local web companion | Implemented | 2026-08-20 | default-agent | web, visualization, transport, audio, tui |
