@@ -8,24 +8,29 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** `agent/318-docflow-closeout`.
-- **Active item:** `.docflow/plan/done/2026-08-20-terminal-aware-audio-heatmaps.md`.
+- **Branch:** `agent/319-piano-roll`.
+- **Active item:** `.docflow/plan/todo/0028-synchronized-piano-roll-editing.md`.
 - **Blockers:** none.
-- **Pending integration:** squash-merge the Docflow closeout after CI is green.
+- **Pending integration:** publish the accepted decision and plan in a draft
+  PR, then implement, review, verify, and squash-merge issue #319.
 
 ## Last shipped
 
-Issue #318 implementation via PR #344 with CI run `32372743179` green; the
-GitHub issue is closed and implementation squash `287460b` is on `main`.
+Issue #318 implementation and Docflow closeout merged through PRs #344 and
+#345 with CI green; ADR 0029 is Implemented and the GitHub issue is closed.
 
 ## Next item
 
-Merge this closeout, clear operational context as requested, then select issue
-#319 as the next open item in priority order.
+Implement ADR 0030 through the issue #319 PR, close its Docflow state after the
+implementation merge, then clear operational context before the next issue.
 
 ## Exit criteria
 
-1. The completed plan lives under `plan/done/` with the implementation SHA,
-   PR, green CI run, and closed issue recorded.
-2. ADR 0029 and the generated index report `Implemented`.
-3. The closeout passes Docflow audit, Norn review, PR CI, and squash merge.
+1. Canonical gate rows and MIDI CC automation persist and schedule without
+   breaking legacy projects.
+2. TUI Piano Roll rendering and keyboard edits round-trip through pattern
+   cells with undo and collision safety.
+3. Web Canvas projection and revision-bound note/CC edits round-trip through
+   the bounded TUI-thread action bridge.
+4. Ghost overlays, responsive snapshots, loopback smoke coverage, repository
+   gate, Docflow audit, and Norn Codex review pass before publication.
