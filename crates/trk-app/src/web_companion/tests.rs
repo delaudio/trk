@@ -475,6 +475,32 @@ fn note_gate_velocity_and_cc_actions_update_the_shared_song_model() {
 }
 
 #[test]
+fn web_move_clamps_gate_at_pattern_end() {
+    let mut app = App::default();
+    app.song.patterns[0]
+        .set_note(62, 0, NoteEvent::Note { pitch: 60 }, 88)
+        .expect("note");
+    app.song.patterns[0].set_gate(62, 0, Some(2)).expect("gate");
+
+    app.apply_web_action(
+        WebAction::MoveNote {
+            revision: 0,
+            pattern: 0,
+            row: 62,
+            track: 0,
+            to_row: 63,
+            source_pitch: 60,
+            pitch: 60,
+        },
+        0,
+    );
+
+    let moved = app.song.patterns[0].cell(63, 0).expect("moved note");
+    assert_eq!(moved.note, Some(NoteEvent::Note { pitch: 60 }));
+    assert_eq!(moved.gate, Some(1));
+}
+
+#[test]
 fn full_action_queue_returns_retryable_response() {
     let app = App::default();
     let state = Arc::new(RwLock::new(app.web_bridge_state()));

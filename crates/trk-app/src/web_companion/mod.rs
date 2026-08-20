@@ -637,6 +637,13 @@ impl App {
                             return;
                         }
                         source.note = Some(NoteEvent::Note { pitch });
+                        if let Some(gate) = source.gate {
+                            let remaining = pattern
+                                .row_count()
+                                .saturating_sub(to_row)
+                                .clamp(1, 127) as u8;
+                            source.gate = Some(gate.clamp(1, remaining));
+                        }
                         if to_row != row {
                             let _ = pattern.clear_cell(row, track);
                         }

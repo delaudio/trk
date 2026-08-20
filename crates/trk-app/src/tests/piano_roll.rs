@@ -89,3 +89,21 @@ fn piano_roll_edits_do_not_mutate_a_different_pitch_in_the_same_cell() {
     assert_eq!(app.cursor.row, 4);
     assert_eq!(app.piano_roll_pitch, 61);
 }
+
+#[test]
+fn piano_roll_move_clamps_gate_at_pattern_end() {
+    let mut app = App::default();
+    app.open_piano_roll_view();
+    app.cursor.row = 62;
+    app.piano_roll_pitch = 60;
+    app.song.patterns[0]
+        .set_note(62, 0, NoteEvent::Note { pitch: 60 }, 88)
+        .expect("note");
+    app.song.patterns[0].set_gate(62, 0, Some(2)).expect("gate");
+
+    app.handle_key(key(KeyCode::Right, KeyModifiers::ALT));
+
+    let moved = app.song.patterns[0].cell(63, 0).expect("moved note");
+    assert_eq!(moved.note, Some(NoteEvent::Note { pitch: 60 }));
+    assert_eq!(moved.gate, Some(1));
+}

@@ -158,6 +158,13 @@ impl App {
                 moved.note = Some(NoteEvent::Note {
                     pitch: destination_pitch,
                 });
+                if let Some(gate) = moved.gate {
+                    let remaining = pattern
+                        .row_count()
+                        .saturating_sub(destination_row)
+                        .clamp(1, 127) as u8;
+                    moved.gate = Some(gate.clamp(1, remaining));
+                }
                 if destination_row != cursor.row {
                     let _ = pattern.clear_cell(cursor.row, cursor.track);
                 }
