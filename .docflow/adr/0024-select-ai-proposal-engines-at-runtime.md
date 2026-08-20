@@ -59,13 +59,21 @@ proposals without restarting the application.
 3. Activating an engine updates the runtime provider configuration and visible
    active-engine badge immediately; the next proposal uses the selected engine
    without an application restart.
-4. CLI engines are launched directly as child processes, receive a structured
-   composition request, and parse a JSON cell-diff response into the existing
-   `AiProposal` model; malformed output and process failures are reported as
-   provider errors.
-5. Automated tests cover discovery with present and absent executables and
+4. CLI engines are launched directly without a shell. Provider-specific fixed
+   arguments request non-interactive JSON output; the complete composition
+   request is supplied through stdin, and stdout must contain one JSON object
+   with a non-empty `summary` plus an `edits` array of tagged `set_note` or
+   `clear_cell` operations carrying pattern, row, and track coordinates.
+   Unknown or missing fields, non-zero exit, malformed stdout, and bounded
+   stderr diagnostics map to provider errors without applying partial output.
+5. External execution has a configurable finite timeout, observes task
+   cancellation, terminates and reaps the child process when cancelled or timed
+   out, and reports the distinction between cancellation, timeout, launch, exit,
+   and response-parse failures without blocking the TUI event loop.
+6. Automated tests cover discovery with present and absent executables and
    credentials, selection state and keyboard behavior, runtime provider
-   switching, selector rendering, and external JSON response parsing.
+   switching, selector rendering, external JSON response parsing, and bounded
+   process failure/cancellation behavior.
 
 ## Out of scope
 
@@ -90,6 +98,7 @@ proposals without restarting the application.
 | Date | Revision | Author | Change |
 |------|----------|--------|--------|
 | 2026-08-20 | r1 | default-agent | Recorded and accepted runtime AI engine discovery, selection, and external proposal generation. |
+| 2026-08-20 | r2 | default-agent | Defined the external JSON protocol and bounded timeout/cancellation contract after Norn review. |
 
 ## Approvals
 

@@ -21,11 +21,14 @@ existing proposal review flow.
    and cancellation (ADR AC2).
 3. Selection updates the active provider and the next proposal path without a
    restart (ADR AC3).
-4. CLI invocation and JSON cell-diff parsing return validated external
-   proposals or actionable errors (ADR AC4).
-5. Focused discovery, selection, app routing, rendering, and parser tests plus
-   the complete repository verification gate pass (ADR AC5).
-6. Norn review with the Codex provider reports no unresolved in-scope findings
+4. CLI invocation and the explicit stdin/stdout JSON cell-diff protocol return
+   validated external proposals or actionable errors (ADR AC4).
+5. External processes are bounded, cancellable, terminated and reaped on
+   cancellation/timeout, and never block the TUI loop (ADR AC5).
+6. Focused discovery, selection, app routing, rendering, parser, and process
+   lifecycle tests plus the complete repository verification gate pass (ADR
+   AC6).
+7. Norn review with the Codex provider reports no unresolved in-scope findings
    before publication.
 
 ## Dependencies
