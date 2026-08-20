@@ -6,6 +6,7 @@ use trk_tui::PatternFieldLayout;
 pub enum TrkCommand {
     Help,
     Config,
+    WebCompanion,
     View(ViewCommand),
     Browse {
         browser: BrowserCommand,
@@ -190,6 +191,7 @@ impl TrkCommand {
         let command = match name {
             "h" | "help" => Self::Help,
             "config" => Self::Config,
+            "web" | "web-companion" | "companion" => Self::WebCompanion,
             "t" | "tracker" | "normal" => Self::View(ViewCommand::Tracker),
             "layout" => parse_layout(&arguments)?,
             "p" | "patterns" => Self::View(ViewCommand::Patterns),
@@ -451,6 +453,10 @@ mod tests {
     #[test]
     fn parses_stable_view_and_browser_aliases() {
         assert_eq!(TrkCommand::parse("config"), Ok(Some(TrkCommand::Config)));
+        assert_eq!(
+            TrkCommand::parse("web-companion"),
+            Ok(Some(TrkCommand::WebCompanion))
+        );
         for alias in ["t", "tracker", "layout", "normal"] {
             assert_eq!(
                 TrkCommand::parse(alias),

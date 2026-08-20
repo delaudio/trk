@@ -15,6 +15,7 @@ impl App {
         match parsed {
             TrkCommand::Help => self.open_help(),
             TrkCommand::Config => self.notify_info(self.config_metadata.summary()),
+            TrkCommand::WebCompanion => self.request_web_companion(),
             TrkCommand::View(view) => match view {
                 ViewCommand::Tracker => self.open_tracker_view(),
                 ViewCommand::Patterns => self.open_patterns_view(),

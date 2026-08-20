@@ -679,6 +679,10 @@ impl App {
                 self.external_editor_requested = true;
                 return;
             }
+            KeyCode::Char('b') if key.modifiers.is_empty() => {
+                self.request_web_companion();
+                return;
+            }
             KeyCode::Char('t') if key.modifiers.is_empty() => {
                 self.open_calibration();
                 return;

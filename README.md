@@ -190,6 +190,7 @@ Inside the TUI:
 | `V` (normal mode) | Start visual selection |
 | `t` (normal mode) | Open live DSP calibration; arrows adjust, `r` resets, `t`/`Esc` closes |
 | `e` (normal mode) | Edit the current project in `$EDITOR` and reload it on exit |
+| `b` (normal mode) | Open the local browser companion visualizer ([details](docs/web-companion.md)) |
 
 ### Tracks, Patterns & Sequence
 
@@ -253,6 +254,7 @@ Inside the TUI:
 :pattern length LEN                 Set pattern length (e.g. :pattern length 64)
 
 # Sampler & Audio
+:web                                Open local browser companion
 :sample view PATH                   Load WAV sample for inspection
 :sample browse [DIR]                Open in-app sample browser
 :sample assign [TRACK]              Assign loaded sample to track

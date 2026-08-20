@@ -1,5 +1,6 @@
 use super::*;
 use crate::app::external_editor::run_external_editor;
+use crate::web_companion::{open_browser, BrowserOpenMonitor, WebCompanion};
 
 pub(crate) fn run_cli() -> Result<()> {
     let args = CliArgs::parse(std::env::args().skip(1));
@@ -135,6 +136,8 @@ fn run(args: CliArgs) -> Result<()> {
         tracing::warn!(?error, "failed to load configured AI session");
     }
     let mut terminal = TerminalGuard::enter()?;
+    let mut web_companion = None;
+    let mut browser_openers = Vec::new();
     if std::env::var_os("TRK_DEBUG_PANIC_AFTER_TERMINAL_ENTER").is_some() {
         panic!("debug panic after terminal enter");
     }
@@ -143,6 +146,8 @@ fn run(args: CliArgs) -> Result<()> {
         app.drain_task_updates();
         app.drain_playback_updates();
         app.drain_midi_input();
+        service_web_companion(&mut app, web_companion.as_mut());
+        drain_browser_openers(&mut app, &mut browser_openers);
         app.poll_project_hot_reload();
         app.expire_notification();
         app.dispatch_event(AppEvent::Runtime(RuntimeEvent::ViewportRefresh {
@@ -210,6 +215,8 @@ fn run(args: CliArgs) -> Result<()> {
             }
         }
 
+        open_requested_web_companion(&mut app, &mut web_companion, &mut browser_openers);
+
         if app.last_tick.elapsed() >= UI_TICK_RATE {
             app.last_tick = Instant::now();
             app.dispatch_event(AppEvent::Runtime(RuntimeEvent::ViewportRefresh {
@@ -220,4 +227,66 @@ fn run(args: CliArgs) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn service_web_companion(app: &mut App, companion: Option<&mut WebCompanion>) {
+    let Some(companion) = companion else {
+        return;
+    };
+    while let Some(action) = companion.try_recv_action() {
+        app.apply_web_action(action);
+    }
+    companion.publish_if_due(|| app.web_bridge_state());
+}
+
+fn open_requested_web_companion(
+    app: &mut App,
+    companion: &mut Option<WebCompanion>,
+    browser_openers: &mut Vec<BrowserOpenMonitor>,
+) {
+    if !app.take_web_companion_request() {
+        return;
+    }
+    if companion.is_none() {
+        match WebCompanion::start(app.web_bridge_state()) {
+            Ok(started) => *companion = Some(started),
+            Err(error) => {
+                app.notify_error(format!("Web companion failed to start: {error}"));
+                return;
+            }
+        }
+    }
+    let url = companion
+        .as_ref()
+        .expect("web companion was started")
+        .url()
+        .to_string();
+    match open_browser(&url) {
+        Ok(monitor) => {
+            browser_openers.push(monitor);
+            app.notify_success(format!("Web companion: {url}"));
+        }
+        Err(error) => app.notify_warning(format!(
+            "Web companion running at {url}; browser not opened: {error}"
+        )),
+    }
+}
+
+fn drain_browser_openers(app: &mut App, monitors: &mut Vec<BrowserOpenMonitor>) {
+    let mut index = 0;
+    while index < monitors.len() {
+        match monitors[index].try_result() {
+            None => index += 1,
+            Some(Ok(())) => {
+                monitors.remove(index);
+            }
+            Some(Err(error)) => {
+                let url = monitors[index].url().to_string();
+                monitors.remove(index);
+                app.notify_warning(format!(
+                    "Web companion running at {url}; browser did not open: {error}"
+                ));
+            }
+        }
+    }
 }

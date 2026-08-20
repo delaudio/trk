@@ -247,6 +247,16 @@ fn registered_actions() -> Vec<CommandPaletteAction> {
             Always,
         ),
         action(
+            "view.web-companion",
+            "Open Web Companion",
+            "View",
+            Execute("web-companion"),
+            Some("b"),
+            &["browser visualizer"],
+            &["canvas", "meters", "piano roll"],
+            Always,
+        ),
+        action(
             "view.sample-browser",
             "Open Sample Browser",
             "View",

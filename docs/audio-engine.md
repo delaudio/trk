@@ -45,5 +45,6 @@ Shutdown must stop the backend before the thread exits. Errors are reported as u
 
 - no user-facing device enumeration or selection;
 - no sample choking or loop crossfade;
-- realtime meters are currently scoped to the DSP calibration panel rather
-  than a persistent full mixer view.
+- realtime master meters are available in the DSP calibration panel and local
+  web companion, but there is no persistent full mixer-meter view or exact
+  per-track post-DSP meter bridge.
