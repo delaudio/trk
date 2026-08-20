@@ -84,6 +84,7 @@ fn sampler_workspace_disables_placeholders_but_keeps_direct_actions_enabled() {
         16
     ]);
     let sampler = SamplerViewState {
+        color_mode: TerminalColorMode::TrueColor,
         name: "break.wav",
         source_path: "/samples/break.wav",
         overview: &overview,

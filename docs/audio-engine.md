@@ -24,6 +24,10 @@ peak meters through the same lock-free handle. Selected-track trim runs before
 that track's DSP; band trim, gate, master trim, and bounded dynamic auto-gain
 run after the persisted master chain. Balanced defaults reconstruct the input
 at unity gain, and offline rendering intentionally bypasses calibration.
+Calibration meters use a decibel-aware green-to-yellow-to-orange/white scale:
+ordinary headroom remains green, the upper range becomes yellow, and samples
+approaching full scale become hot orange or white. The meter uses the same
+startup terminal-color detection and `NO_COLOR` fallback as sampler waveforms.
 
 ## Realtime Boundary
 

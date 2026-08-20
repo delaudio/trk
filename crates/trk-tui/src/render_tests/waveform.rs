@@ -81,3 +81,156 @@ fn waveform_lines_preserve_peaks_when_downsampling() {
 
     assert!(rendered.contains('█'));
 }
+
+#[test]
+fn waveform_styles_zero_crossings_and_attack_transients() {
+    let overview = test_waveform(vec![
+        trk_sampler::WaveformBucket { min: 0.0, max: 0.3 },
+        trk_sampler::WaveformBucket {
+            min: -0.1,
+            max: 0.9,
+        },
+    ]);
+
+    let lines = waveform_lines_with_style(
+        &overview,
+        WaveformWindow::full(&overview),
+        2,
+        2,
+        WaveformGlyphs::Unicode,
+        WaveformMarkers::default(),
+        TerminalColorMode::TrueColor,
+    );
+    let styles = lines
+        .iter()
+        .flat_map(|line| line.spans.iter())
+        .filter(|span| span.content != " ")
+        .map(|span| span.style)
+        .collect::<Vec<_>>();
+
+    assert!(styles.iter().any(|style| style
+        .fg
+        .is_some_and(|color| matches!(color, Color::Rgb(..)))));
+    assert!(styles
+        .iter()
+        .any(|style| style.add_modifier.contains(Modifier::UNDERLINED)));
+    assert!(styles
+        .iter()
+        .any(|style| style.add_modifier.contains(Modifier::BOLD)));
+    assert!(!is_attack_transient(&[0.3, 0.4], 1, 0.0));
+    assert!(is_attack_transient(&[0.3, 0.9], 1, 0.0));
+    assert!(!is_attack_transient(&[0.9], 0, 0.9));
+    assert!(is_attack_transient(&[0.9], 0, 0.2));
+}
+
+#[test]
+fn panned_waveform_uses_the_preceding_bucket_for_edge_transients() {
+    let overview = test_waveform(vec![
+        trk_sampler::WaveformBucket {
+            min: -0.9,
+            max: 0.9,
+        },
+        trk_sampler::WaveformBucket {
+            min: -0.9,
+            max: 0.9,
+        },
+    ]);
+    let lines = waveform_lines_with_style(
+        &overview,
+        WaveformWindow {
+            start_bucket: 1,
+            end_bucket: 2,
+            zoom: 1,
+        },
+        1,
+        1,
+        WaveformGlyphs::Unicode,
+        WaveformMarkers::default(),
+        TerminalColorMode::TrueColor,
+    );
+
+    assert!(lines
+        .iter()
+        .flat_map(|line| line.spans.iter())
+        .filter(|span| span.content != " ")
+        .all(|span| !span.style.add_modifier.contains(Modifier::BOLD)));
+}
+
+#[test]
+fn waveform_fallback_modes_never_emit_unsupported_colors() {
+    let overview = test_waveform(vec![trk_sampler::WaveformBucket {
+        min: -0.8,
+        max: 0.8,
+    }]);
+
+    for mode in [
+        TerminalColorMode::Indexed256,
+        TerminalColorMode::Ansi16,
+        TerminalColorMode::Monochrome,
+    ] {
+        let lines = waveform_lines_with_style(
+            &overview,
+            WaveformWindow::full(&overview),
+            2,
+            2,
+            WaveformGlyphs::Unicode,
+            WaveformMarkers::default(),
+            mode,
+        );
+        let colors = lines
+            .iter()
+            .flat_map(|line| line.spans.iter())
+            .filter_map(|span| span.style.fg)
+            .collect::<Vec<_>>();
+        assert!(!colors.iter().any(|color| matches!(color, Color::Rgb(..))));
+        match mode {
+            TerminalColorMode::Indexed256 => {
+                assert!(colors
+                    .iter()
+                    .any(|color| matches!(color, Color::Indexed(_))));
+            }
+            TerminalColorMode::Ansi16 => {
+                assert!(!colors.is_empty());
+                assert!(!colors
+                    .iter()
+                    .any(|color| matches!(color, Color::Indexed(_))));
+            }
+            TerminalColorMode::Monochrome => assert!(colors.is_empty()),
+            TerminalColorMode::TrueColor => unreachable!(),
+        }
+    }
+}
+
+#[test]
+fn waveform_marker_projection_is_bounded_and_rejects_invalid_pairs() {
+    let overview = test_waveform(vec![trk_sampler::WaveformBucket { min: 0.0, max: 0.0 }; 10]);
+    let projected = project_waveform_markers(
+        &overview,
+        WaveformWindow::full(&overview),
+        11,
+        WaveformMarkers {
+            sample_start_frame: Some(0),
+            sample_end_frame: Some(overview.frames),
+            loop_start_frame: Some(overview.frames / 4),
+            loop_end_frame: Some(overview.frames * 3 / 4),
+        },
+    );
+
+    assert_eq!(projected[0], Some(WaveformMarkerKind::SampleStart));
+    assert_eq!(projected[10], Some(WaveformMarkerKind::SampleEnd));
+    assert_eq!(projected[3], Some(WaveformMarkerKind::LoopStart));
+    assert_eq!(projected[8], Some(WaveformMarkerKind::LoopEnd));
+
+    let invalid = project_waveform_markers(
+        &overview,
+        WaveformWindow::full(&overview),
+        8,
+        WaveformMarkers {
+            sample_start_frame: Some(90),
+            sample_end_frame: Some(20),
+            loop_start_frame: Some(10),
+            loop_end_frame: None,
+        },
+    );
+    assert!(invalid.into_iter().all(|marker| marker.is_none()));
+}

@@ -1,7 +1,7 @@
 use super::render_test_support::{render_test_state, test_waveform};
 use super::*;
 use crate::{InteractionPayload, SamplerAction, ScrollTarget};
-use ratatui::{backend::TestBackend, Terminal};
+use ratatui::{backend::TestBackend, buffer::Buffer, Terminal};
 use trk_core::Song;
 use trk_sampler::WaveformBucket;
 
@@ -10,6 +10,14 @@ fn sampler_interactions(
     height: u16,
     sampler: Option<SamplerViewState<'_>>,
 ) -> InteractionMap {
+    render_sampler(width, height, sampler).1
+}
+
+fn render_sampler(
+    width: u16,
+    height: u16,
+    sampler: Option<SamplerViewState<'_>>,
+) -> (Buffer, InteractionMap) {
     let song = Song::empty();
     let backend = TestBackend::new(width, height);
     let mut terminal = Terminal::new(backend).expect("terminal");
@@ -22,11 +30,12 @@ fn sampler_interactions(
             interactions = render_with_interactions(frame, &song, state);
         })
         .expect("draw");
-    interactions
+    (terminal.backend().buffer().clone(), interactions)
 }
 
 fn loaded_sampler(overview: &WaveformOverview) -> SamplerViewState<'_> {
     SamplerViewState {
+        color_mode: TerminalColorMode::TrueColor,
         name: "break.wav",
         source_path: "/samples/break.wav",
         overview,
@@ -163,4 +172,70 @@ fn clipped_controls_never_register_partial_targets() {
         assert!(region.area.x.saturating_add(region.area.width) <= 39);
     }
     assert!(!sampler_actions(&interactions).contains(&SamplerAction::Browse));
+}
+
+#[test]
+fn rendered_waveform_buffer_honors_each_terminal_color_mode() {
+    let overview = test_waveform(vec![
+        WaveformBucket {
+            min: -0.2,
+            max: 0.2,
+        },
+        WaveformBucket {
+            min: -0.9,
+            max: 0.9,
+        },
+        WaveformBucket {
+            min: -0.4,
+            max: 0.5,
+        },
+    ]);
+
+    for mode in [
+        TerminalColorMode::TrueColor,
+        TerminalColorMode::Indexed256,
+        TerminalColorMode::Ansi16,
+        TerminalColorMode::Monochrome,
+    ] {
+        let mut sampler = loaded_sampler(&overview);
+        sampler.color_mode = mode;
+        sampler.start_frame = Some(0);
+        sampler.end_frame = Some(overview.frames);
+        sampler.loop_start_frame = Some(overview.frames / 3);
+        sampler.loop_end_frame = Some(overview.frames * 2 / 3);
+        let (buffer, interactions) = render_sampler(100, 28, Some(sampler));
+        let waveform = interactions
+            .region(interaction_region::SAMPLER_WAVEFORM)
+            .expect("waveform region");
+        let buffer = &buffer;
+        let cells = (waveform.area.y..waveform.area.y + waveform.area.height)
+            .flat_map(|y| {
+                (waveform.area.x..waveform.area.x + waveform.area.width)
+                    .map(move |x| (buffer[(x, y)].fg, buffer[(x, y)].bg))
+            })
+            .collect::<Vec<_>>();
+
+        match mode {
+            TerminalColorMode::TrueColor => assert!(cells
+                .iter()
+                .any(|(foreground, _)| matches!(foreground, Color::Rgb(..)))),
+            TerminalColorMode::Indexed256 => {
+                assert!(cells
+                    .iter()
+                    .any(|(foreground, _)| matches!(foreground, Color::Indexed(_))));
+                assert!(cells.iter().all(|(foreground, background)| {
+                    !matches!(foreground, Color::Rgb(..)) && !matches!(background, Color::Rgb(..))
+                }));
+            }
+            TerminalColorMode::Ansi16 => assert!(cells.iter().all(|(foreground, background)| {
+                !matches!(foreground, Color::Rgb(..) | Color::Indexed(_))
+                    && !matches!(background, Color::Rgb(..) | Color::Indexed(_))
+            })),
+            TerminalColorMode::Monochrome => {
+                assert!(cells.iter().all(|(foreground, background)| {
+                    matches!(foreground, Color::Reset) && matches!(background, Color::Reset)
+                }));
+            }
+        }
+    }
 }

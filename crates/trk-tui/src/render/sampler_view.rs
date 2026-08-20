@@ -82,7 +82,7 @@ pub(super) fn render_sampler_view(
             ),
         );
     }
-    render_waveform_overview_with_window(
+    render_waveform_overview_with_context(
         frame,
         sections[2],
         overview,
@@ -92,6 +92,13 @@ pub(super) fn render_sampler_view(
             zoom: sampler.waveform_zoom,
         },
         WaveformGlyphs::Unicode,
+        WaveformMarkers {
+            sample_start_frame: sampler.start_frame,
+            sample_end_frame: sampler.end_frame,
+            loop_start_frame: sampler.loop_start_frame,
+            loop_end_frame: sampler.loop_end_frame,
+        },
+        sampler.color_mode,
     );
 }
 

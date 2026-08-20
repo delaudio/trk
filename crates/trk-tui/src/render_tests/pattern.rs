@@ -537,6 +537,7 @@ fn renders_sample_browser_view() {
                         entries: &entries,
                         selected: 1,
                         preview: Some(SamplerViewState {
+                            color_mode: TerminalColorMode::TrueColor,
                             name: "kick.wav",
                             source_path: "/tmp/samples/kick.wav",
                             overview: &overview,

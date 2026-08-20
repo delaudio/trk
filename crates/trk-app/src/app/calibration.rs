@@ -82,6 +82,7 @@ impl App {
                 .map(|track| track.name.as_str())
         });
         Some(CalibrationViewState {
+            color_mode: self.terminal_color_mode,
             selected: self.calibration_cursor,
             track_name,
             master_gain: settings.master_gain,

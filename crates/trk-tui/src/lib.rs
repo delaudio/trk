@@ -1,8 +1,10 @@
+pub mod color;
 pub mod interaction;
 pub mod layout;
 pub mod render;
 pub mod viewport;
 
+pub use color::TerminalColorMode;
 pub use interaction::{
     region as interaction_region, ConfirmationAction, DspRackChain, InteractionMap,
     InteractionPayload, InteractionRegion, InteractionRegionId, MidiSettingsAction, SamplerAction,

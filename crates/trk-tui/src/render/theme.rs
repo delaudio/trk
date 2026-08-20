@@ -3,6 +3,8 @@ use ratatui::{
     widgets::{Block, Borders},
 };
 
+use crate::color::{terminal_color, RgbColor, TerminalColorMode};
+
 pub(super) const SURFACE: Color = Color::Rgb(12, 12, 12);
 pub(super) const PANEL: Color = Color::Rgb(18, 18, 18);
 pub(super) const BORDER: Color = Color::Rgb(88, 88, 88);
@@ -82,6 +84,49 @@ pub(super) fn block(title: impl Into<String>) -> Block<'static> {
         .borders(Borders::ALL)
         .border_style(Style::default().fg(BORDER).bg(SURFACE))
         .style(panel())
+}
+
+pub(super) fn block_for_color_mode(
+    title: impl Into<String>,
+    color_mode: TerminalColorMode,
+) -> Block<'static> {
+    if color_mode == TerminalColorMode::TrueColor {
+        return block(title);
+    }
+    let title_style = terminal_style(RgbColor::new(255, 128, 0), None, color_mode);
+    let border_style = terminal_style(
+        RgbColor::new(88, 88, 88),
+        Some(RgbColor::new(12, 12, 12)),
+        color_mode,
+    );
+    let panel_style = terminal_style(
+        RgbColor::new(220, 220, 220),
+        Some(RgbColor::new(18, 18, 18)),
+        color_mode,
+    );
+    Block::default()
+        .title(Line::from(Span::styled(title.into(), title_style)))
+        .borders(Borders::ALL)
+        .border_style(border_style)
+        .style(panel_style)
+}
+
+fn terminal_style(
+    foreground: RgbColor,
+    background: Option<RgbColor>,
+    color_mode: TerminalColorMode,
+) -> Style {
+    if color_mode == TerminalColorMode::Monochrome {
+        return Style::reset();
+    }
+    let mut style = Style::default();
+    if let Some(color) = terminal_color(foreground, color_mode) {
+        style = style.fg(color);
+    }
+    if let Some(color) = background.and_then(|rgb| terminal_color(rgb, color_mode)) {
+        style = style.bg(color);
+    }
+    style
 }
 
 pub(super) fn label_span(text: impl Into<String>) -> Span<'static> {

@@ -1,4 +1,4 @@
-use trk_tui::CalibrationViewState;
+use trk_tui::{CalibrationViewState, TerminalColorMode};
 
 #[allow(dead_code)]
 mod support;
@@ -9,6 +9,7 @@ fn snapshots_live_dsp_calibration_overlay() {
     assert_snapshot(
         "dsp-calibration-live",
         render_calibration_snapshot(CalibrationViewState {
+            color_mode: TerminalColorMode::TrueColor,
             selected: 4,
             track_name: Some("Lead Synth"),
             master_gain: 1.2,
