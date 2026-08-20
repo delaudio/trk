@@ -21,7 +21,8 @@ do not execute JavaScript or add sub-row event storage.
    meet ADR AC2.
 3. Note-name and scale-degree quantization meet ADR AC3.
 4. Atomic command mutation, rollback, undo, and result reporting meet ADR AC4.
-5. Live editing, preview, error, accept, and cancel semantics meet ADR AC5.
+5. Transactional live editing, canonical preview, error, one-step accept, and
+   cell plus playback-schedule rollback semantics meet ADR AC5.
 6. Playback applies live updates at a row boundary without a transport stop or
    audio-runtime reconstruction, satisfying ADR AC6.
 7. Unit, application, runtime tests, the complete repository verification

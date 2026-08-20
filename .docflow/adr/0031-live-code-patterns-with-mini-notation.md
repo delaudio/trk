@@ -27,6 +27,16 @@ event store, and must report syntax or evaluation errors without partially
 changing a pattern. During playback, accepted edits need to replace future
 pattern rows at a scheduling boundary without rebuilding the audio runtime.
 
+The supported timing semantics are row-quantized and explicit: a top-level
+space-separated sequence divides a cycle evenly; `[a b]` divides its parent's
+span between `a` and `b`; `[a,b]` evaluates both branches concurrently;
+`a*N` repeats `a` N times inside its span; `a/N` stretches `a` across N cycles;
+`<a b>` selects `a` on cycle zero, `b` on cycle one, then wraps; and
+`a(p,s,r)` gates `a` with the same deterministic `s`-step Euclidean mask as
+the existing transform, rotated right by `r` steps. For example, over eight
+rows, `c4*2 ~` starts C4 on rows 0 and 2, while `<c4 d4>` starts only C4 in
+the first evaluation cycle and only D4 in the next.
+
 ## Capability statement
 
 `trk` evaluates a documented, deterministic subset of TidalCycles/Strudel
@@ -62,10 +72,12 @@ pattern and playback schedule without interrupting the transport.
    undoable mutation, clears only the addressed output tracks, reports a
    concise result, and preserves the song when parsing or evaluation fails.
 5. `:strudel live [EXPR]` opens a dedicated bottom editing bar. Each valid
-   edit replaces the preview derived from the entry snapshot, invalid
-   intermediate text leaves the last valid pattern audible and displays an
-   error, Enter accepts the latest valid result, and Escape restores the entry
-   snapshot.
+   edit replaces canonical preview cells derived from the entry snapshot and
+   updates the active playback schedule. Invalid intermediate text leaves the
+   last valid preview audible and displays an error. Enter commits the latest
+   valid preview as one undoable mutation; Escape restores both canonical
+   cells and the active playback schedule to the entry snapshot without adding
+   undo history.
 6. While pattern playback is active, a valid live edit replaces future
    scheduled rows at a bounded row boundary without stopping transport,
    reconstructing the playback runtime, or producing a `Stopped` update.
@@ -102,6 +114,7 @@ pattern and playback schedule without interrupting the transport.
 | Date | Revision | Author | Change |
 |------|----------|--------|--------|
 | 2026-08-20 | r1 | default-agent | Recorded and accepted bounded mini-notation parsing, canonical evaluation, atomic commands, and uninterrupted live updates. |
+| 2026-08-20 | r2 | default-agent | Defined row-quantized operator behavior and transactional live preview rollback for canonical cells and playback. |
 
 ## Approvals
 
