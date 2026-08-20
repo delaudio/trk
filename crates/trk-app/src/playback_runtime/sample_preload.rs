@@ -5,20 +5,41 @@ use std::{
 };
 
 use trk_audio::{
-    apply_preview_envelope, prepare_realtime_sample, slice_preview_buffer, AudioConfig,
-    AudioSamplerPlaybackMode, AudioSamplerPlaybackSettings,
+    prepare_realtime_sample, AudioConfig, AudioSamplerPlaybackMode, AudioSamplerPlaybackSettings,
 };
 use trk_core::{SamplePlaybackMode, SamplePlaybackSettings, Song};
-use trk_sampler::{PreviewBuffer, PreviewSettings, Sample};
+use trk_sampler::{PreviewSettings, Sample};
 
 use super::transport::PlaybackUpdate;
+
+pub(super) struct RealtimeSampleLoad {
+    samples: Vec<(u32, trk_sampler::PreviewBuffer, f64)>,
+    pub(super) complete: bool,
+}
+
+impl std::ops::Deref for RealtimeSampleLoad {
+    type Target = [(u32, trk_sampler::PreviewBuffer, f64)];
+
+    fn deref(&self) -> &Self::Target {
+        &self.samples
+    }
+}
+
+impl IntoIterator for RealtimeSampleLoad {
+    type Item = (u32, trk_sampler::PreviewBuffer, f64);
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.samples.into_iter()
+    }
+}
 
 pub(super) fn load_realtime_samples(
     song: &Song,
     config: AudioConfig,
     update_tx: &Sender<PlaybackUpdate>,
     sample_base_dir: Option<&Path>,
-) -> Vec<(u32, trk_sampler::PreviewBuffer)> {
+) -> RealtimeSampleLoad {
     let assigned_samples = song
         .sample_assignments
         .iter()
@@ -39,27 +60,30 @@ pub(super) fn load_realtime_samples(
         )
         .collect::<HashSet<_>>();
     if assigned_samples.is_empty() {
-        return Vec::new();
+        return RealtimeSampleLoad {
+            samples: Vec::new(),
+            complete: true,
+        };
     }
 
-    song.samples
+    let samples = song
+        .samples
         .iter()
         .filter(|sample| assigned_samples.contains(&sample.id))
         .filter_map(|reference| {
             let path = resolve_sample_path(&reference.path, sample_base_dir);
             match Sample::load_wav(&path) {
                 Ok(sample) => {
-                    let prepared = apply_sample_playback_settings(
-                        &sample.preview(PreviewSettings::default()),
-                        reference.playback,
-                    );
+                    let preview = sample.preview(PreviewSettings::default());
+                    let frame_scale = if preview.sample_rate == 0 {
+                        1.0
+                    } else {
+                        f64::from(config.sample_rate) / f64::from(preview.sample_rate)
+                    };
                     Some((
                         reference.id.0,
-                        prepare_realtime_sample(
-                            &prepared.buffer,
-                            config.sample_rate,
-                            config.channels,
-                        ),
+                        prepare_realtime_sample(&preview, config.sample_rate, config.channels),
+                        frame_scale,
                     ))
                 }
                 Err(error) => {
@@ -71,7 +95,15 @@ pub(super) fn load_realtime_samples(
                 }
             }
         })
-        .collect()
+        .collect::<Vec<_>>();
+    let loaded_sample_ids = samples
+        .iter()
+        .map(|(sample_id, _, _)| trk_core::SampleId(*sample_id))
+        .collect::<HashSet<_>>();
+    RealtimeSampleLoad {
+        complete: loaded_sample_ids == assigned_samples,
+        samples,
+    }
 }
 
 pub(crate) fn resolve_sample_path(
@@ -85,38 +117,9 @@ pub(crate) fn resolve_sample_path(
     sample_base_dir.map_or_else(|| path.to_path_buf(), |base_dir| base_dir.join(path))
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct PreparedSamplePlayback {
-    pub(crate) buffer: PreviewBuffer,
-}
-
-pub(crate) fn apply_sample_playback_settings(
-    preview: &PreviewBuffer,
-    settings: SamplePlaybackSettings,
-) -> PreparedSamplePlayback {
-    let sliced = slice_preview_buffer(preview, settings.start_frame, settings.end_frame);
-    let sample_rate = sliced.sample_rate as f32;
-    let envelope = settings.envelope;
-    let buffer = apply_preview_envelope(
-        &sliced,
-        seconds_to_frames(envelope.attack_seconds, sample_rate),
-        seconds_to_frames(envelope.decay_seconds, sample_rate),
-        envelope.sustain,
-        seconds_to_frames(envelope.release_seconds, sample_rate),
-    );
-    PreparedSamplePlayback { buffer }
-}
-
 pub(crate) fn audio_sampler_playback_settings(
     settings: SamplePlaybackSettings,
 ) -> AudioSamplerPlaybackSettings {
-    let start_frame = settings.start_frame.unwrap_or(0);
-    let loop_start_frame = settings
-        .loop_start_frame
-        .map(|frame| frame.saturating_sub(start_frame));
-    let loop_end_frame = settings
-        .loop_end_frame
-        .map(|frame| frame.saturating_sub(start_frame));
     AudioSamplerPlaybackSettings {
         mode: match settings.mode {
             SamplePlaybackMode::OneShot => AudioSamplerPlaybackMode::OneShot,
@@ -127,15 +130,13 @@ pub(crate) fn audio_sampler_playback_settings(
             SamplePlaybackMode::PingPongLoop => AudioSamplerPlaybackMode::PingPongLoop,
             SamplePlaybackMode::Reverse => AudioSamplerPlaybackMode::Reverse,
         },
-        loop_start_frame,
-        loop_end_frame,
-    }
-}
-
-fn seconds_to_frames(seconds: f32, sample_rate: f32) -> usize {
-    if !seconds.is_finite() || seconds <= 0.0 || !sample_rate.is_finite() || sample_rate <= 0.0 {
-        0
-    } else {
-        (seconds * sample_rate).round() as usize
+        start_frame: settings.start_frame,
+        end_frame: settings.end_frame,
+        loop_start_frame: settings.loop_start_frame,
+        loop_end_frame: settings.loop_end_frame,
+        attack_seconds: settings.envelope.attack_seconds,
+        decay_seconds: settings.envelope.decay_seconds,
+        sustain: settings.envelope.sustain,
+        release_seconds: settings.envelope.release_seconds,
     }
 }

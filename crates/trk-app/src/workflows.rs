@@ -335,7 +335,7 @@ pub(crate) fn render_audio_export(
         channels: args.channels,
         frames: 0,
     };
-    let events = if args.sequence {
+    let mut events = if args.sequence {
         sequence_export_events(song, args.sample_rate)
     } else {
         if args.pattern == 0 {
@@ -343,8 +343,9 @@ pub(crate) fn render_audio_export(
         }
         pattern_export_events(song, args.pattern - 1, 0, args.sample_rate)?
     };
-    let samples =
+    let (samples, sample_frame_scales) =
         load_offline_export_samples(song, args.sample_rate, args.channels, sample_base_dir)?;
+    scale_offline_export_event_frames(&mut events, &sample_frame_scales);
     let frames = if events.is_empty() {
         export_duration_frames(song, args, args.sample_rate)?
     } else {
@@ -724,23 +725,50 @@ pub(crate) fn load_offline_export_samples(
     sample_rate: u32,
     channels: u16,
     sample_base_dir: Option<&Path>,
-) -> Result<Vec<OfflineSamplerSample>> {
-    song.samples
+) -> Result<(Vec<OfflineSamplerSample>, HashMap<u32, f64>)> {
+    let loaded = song
+        .samples
         .iter()
         .map(|reference| {
             let path = resolve_sample_path(&reference.path, sample_base_dir);
             let sample = Sample::load_wav(&path)
                 .with_context(|| format!("failed to load sample {}", path.display()))?;
-            let prepared = apply_sample_playback_settings(
-                &sample.preview(Default::default()),
-                reference.playback,
-            );
-            Ok(OfflineSamplerSample {
-                sample_id: reference.id.0,
-                buffer: prepare_realtime_sample(&prepared.buffer, sample_rate, channels),
-            })
+            let preview = sample.preview(Default::default());
+            let frame_scale = if preview.sample_rate == 0 {
+                1.0
+            } else {
+                f64::from(sample_rate) / f64::from(preview.sample_rate)
+            };
+            Ok((
+                OfflineSamplerSample {
+                    sample_id: reference.id.0,
+                    buffer: prepare_realtime_sample(&preview, sample_rate, channels),
+                },
+                frame_scale,
+            ))
         })
-        .collect()
+        .collect::<Result<Vec<_>>>()?;
+    let frame_scales = loaded
+        .iter()
+        .map(|(sample, frame_scale)| (sample.sample_id, *frame_scale))
+        .collect();
+    Ok((
+        loaded.into_iter().map(|(sample, _)| sample).collect(),
+        frame_scales,
+    ))
+}
+
+pub(crate) fn scale_offline_export_event_frames(
+    events: &mut [OfflineSamplerEvent],
+    sample_frame_scales: &HashMap<u32, f64>,
+) {
+    for event in events {
+        let frame_scale = sample_frame_scales
+            .get(&event.sample_id)
+            .copied()
+            .unwrap_or(1.0);
+        event.playback = trk_audio::scale_sampler_playback_frames(event.playback, frame_scale);
+    }
 }
 
 pub(crate) fn export_duration_frames(

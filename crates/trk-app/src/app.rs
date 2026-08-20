@@ -21,6 +21,7 @@ mod live_bridge_actions;
 mod midi_actions;
 mod mouse_wheel;
 mod navigation;
+mod parameter_pages;
 mod pattern_operations;
 mod performance_actions;
 mod piano_roll;

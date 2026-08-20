@@ -27,6 +27,7 @@ mod mouse_sequence_view;
 mod mouse_transport_header;
 mod mouse_wheel_routing;
 mod navigation_editing;
+mod parameter_pages;
 mod pattern_commands;
 mod pattern_operations;
 mod patterns_sequence;

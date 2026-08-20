@@ -86,9 +86,7 @@ use history::{SongTransaction, TransactionSpec, UndoHistory};
 use keymap::Keymap;
 use persistence::{load_project, load_project_file, save_project_file, save_song_project};
 use playback_runtime::PlaybackRuntime;
-use playback_runtime::{
-    apply_sample_playback_settings, audio_sampler_playback_settings, resolve_sample_path,
-};
+use playback_runtime::{audio_sampler_playback_settings, resolve_sample_path};
 use serde::{Deserialize, Serialize};
 use task_runtime::TaskRuntime;
 use terminal::TerminalGuard;
@@ -143,32 +141,32 @@ use trk_core::{
     EffectDeviceKind, FilterMode, FilterSpec, FlangerSpec, GateSpec, Instrument, InstrumentId,
     InstrumentSampleZone, LimiterSpec, MidiRoutingSettings, MixerSend, NoteEvent,
     ParameterDescriptor, ParameterId, ParameterLock, ParameterLockAction, ParameterLockTarget,
-    ParameterValue, Pattern, PatternCell, PatternRow, PatternVariationHistory,
-    PatternVariationSource, PhaserSpec, ReverbSpec, SampleEnvelope, SampleId, SamplePlaybackMode,
-    SamplePlaybackSettings, SampleReference, SelectionBounds, SelectionEndpoint, Song,
-    TextAnnotation, TextAnnotationKind, TextAnnotationScope, TrackSendLevel, TrackerCommand,
-    TrackerSelection, MIXER_MASTER_GAIN_PARAMETER_ID, MIXER_SEND_GAIN_PARAMETER_ID,
-    MIXER_TRACK_GAIN_PARAMETER_ID, MIXER_TRACK_PAN_PARAMETER_ID, NATIVE_BALANCE_PARAMETER_ID,
-    NATIVE_BITCRUSHER_BIT_DEPTH_PARAMETER_ID, NATIVE_BITCRUSHER_DITHER_PARAMETER_ID,
-    NATIVE_BITCRUSHER_MIX_PARAMETER_ID, NATIVE_BITCRUSHER_OUTPUT_PARAMETER_ID,
-    NATIVE_BITCRUSHER_REDUCTION_PARAMETER_ID, NATIVE_DELAY_FEEDBACK_PARAMETER_ID,
-    NATIVE_DELAY_FILTER_HIGH_CUT_PARAMETER_ID, NATIVE_DELAY_FILTER_LOW_CUT_PARAMETER_ID,
-    NATIVE_DELAY_MIX_PARAMETER_ID, NATIVE_DELAY_OUTPUT_PARAMETER_ID,
-    NATIVE_DELAY_PING_PONG_PARAMETER_ID, NATIVE_DELAY_SYNC_PARAMETER_ID,
-    NATIVE_DELAY_TIME_LEFT_PARAMETER_ID, NATIVE_DELAY_TIME_RIGHT_PARAMETER_ID,
-    NATIVE_DRIVE_BIAS_PARAMETER_ID, NATIVE_DRIVE_DRIVE_PARAMETER_ID, NATIVE_DRIVE_MIX_PARAMETER_ID,
-    NATIVE_DRIVE_MODE_PARAMETER_ID, NATIVE_DRIVE_OUTPUT_PARAMETER_ID,
-    NATIVE_DRIVE_TONE_PARAMETER_ID, NATIVE_FILTER_CUTOFF_PARAMETER_ID,
-    NATIVE_FILTER_DRIVE_PARAMETER_ID, NATIVE_FILTER_MIX_PARAMETER_ID,
-    NATIVE_FILTER_MODE_PARAMETER_ID, NATIVE_FILTER_RESONANCE_PARAMETER_ID,
-    NATIVE_GAIN_PARAMETER_ID, NATIVE_PAN_PARAMETER_ID, NATIVE_PHASE_INVERT_LEFT_PARAMETER_ID,
-    NATIVE_PHASE_INVERT_RIGHT_PARAMETER_ID, NATIVE_REVERB_DAMPING_PARAMETER_ID,
-    NATIVE_REVERB_DECAY_PARAMETER_ID, NATIVE_REVERB_DIFFUSION_PARAMETER_ID,
-    NATIVE_REVERB_EARLY_REFLECTIONS_PARAMETER_ID, NATIVE_REVERB_HIGH_CUT_PARAMETER_ID,
-    NATIVE_REVERB_LOW_CUT_PARAMETER_ID, NATIVE_REVERB_MIX_PARAMETER_ID,
-    NATIVE_REVERB_OUTPUT_PARAMETER_ID, NATIVE_REVERB_PREDELAY_PARAMETER_ID,
-    NATIVE_REVERB_SIZE_PARAMETER_ID, NATIVE_REVERB_WIDTH_PARAMETER_ID, NATIVE_WIDTH_PARAMETER_ID,
-    SAMPLE_GAIN_PARAMETER_ID,
+    ParameterPage, ParameterRange, ParameterValue, Pattern, PatternCell, PatternRow,
+    PatternVariationHistory, PatternVariationSource, PhaserSpec, ReverbSpec, SampleEnvelope,
+    SampleId, SamplePlaybackMode, SamplePlaybackSettings, SampleReference, SelectionBounds,
+    SelectionEndpoint, Song, TextAnnotation, TextAnnotationKind, TextAnnotationScope,
+    TrackSendLevel, TrackerCommand, TrackerSelection, MIXER_MASTER_GAIN_PARAMETER_ID,
+    MIXER_SEND_GAIN_PARAMETER_ID, MIXER_TRACK_GAIN_PARAMETER_ID, MIXER_TRACK_PAN_PARAMETER_ID,
+    NATIVE_BALANCE_PARAMETER_ID, NATIVE_BITCRUSHER_BIT_DEPTH_PARAMETER_ID,
+    NATIVE_BITCRUSHER_DITHER_PARAMETER_ID, NATIVE_BITCRUSHER_MIX_PARAMETER_ID,
+    NATIVE_BITCRUSHER_OUTPUT_PARAMETER_ID, NATIVE_BITCRUSHER_REDUCTION_PARAMETER_ID,
+    NATIVE_DELAY_FEEDBACK_PARAMETER_ID, NATIVE_DELAY_FILTER_HIGH_CUT_PARAMETER_ID,
+    NATIVE_DELAY_FILTER_LOW_CUT_PARAMETER_ID, NATIVE_DELAY_MIX_PARAMETER_ID,
+    NATIVE_DELAY_OUTPUT_PARAMETER_ID, NATIVE_DELAY_PING_PONG_PARAMETER_ID,
+    NATIVE_DELAY_SYNC_PARAMETER_ID, NATIVE_DELAY_TIME_LEFT_PARAMETER_ID,
+    NATIVE_DELAY_TIME_RIGHT_PARAMETER_ID, NATIVE_DRIVE_BIAS_PARAMETER_ID,
+    NATIVE_DRIVE_DRIVE_PARAMETER_ID, NATIVE_DRIVE_MIX_PARAMETER_ID, NATIVE_DRIVE_MODE_PARAMETER_ID,
+    NATIVE_DRIVE_OUTPUT_PARAMETER_ID, NATIVE_DRIVE_TONE_PARAMETER_ID,
+    NATIVE_FILTER_CUTOFF_PARAMETER_ID, NATIVE_FILTER_DRIVE_PARAMETER_ID,
+    NATIVE_FILTER_MIX_PARAMETER_ID, NATIVE_FILTER_MODE_PARAMETER_ID,
+    NATIVE_FILTER_RESONANCE_PARAMETER_ID, NATIVE_GAIN_PARAMETER_ID, NATIVE_PAN_PARAMETER_ID,
+    NATIVE_PHASE_INVERT_LEFT_PARAMETER_ID, NATIVE_PHASE_INVERT_RIGHT_PARAMETER_ID,
+    NATIVE_REVERB_DAMPING_PARAMETER_ID, NATIVE_REVERB_DECAY_PARAMETER_ID,
+    NATIVE_REVERB_DIFFUSION_PARAMETER_ID, NATIVE_REVERB_EARLY_REFLECTIONS_PARAMETER_ID,
+    NATIVE_REVERB_HIGH_CUT_PARAMETER_ID, NATIVE_REVERB_LOW_CUT_PARAMETER_ID,
+    NATIVE_REVERB_MIX_PARAMETER_ID, NATIVE_REVERB_OUTPUT_PARAMETER_ID,
+    NATIVE_REVERB_PREDELAY_PARAMETER_ID, NATIVE_REVERB_SIZE_PARAMETER_ID,
+    NATIVE_REVERB_WIDTH_PARAMETER_ID, NATIVE_WIDTH_PARAMETER_ID, SAMPLE_GAIN_PARAMETER_ID,
 };
 use trk_interop::{
     export_pattern_musicxml, extract_xrns_sample_payloads, import_musicxml, import_smf,
@@ -192,11 +190,12 @@ use trk_tui::{
     DspDevicePaletteViewState, DspParameterLockStatusView, DspRackChain, DspRackTargetView,
     DspRackViewState, HelpTab, InteractionMap, InteractionPayload, ManagedPanelId, MidiPortView,
     MidiSettingsAction, MidiSettingsState, NotificationKind, NotificationView,
-    PatternVariationEntryView, PatternVariationHistoryViewState, ProjectBrowserEntryKind,
-    ProjectBrowserEntryView, ProjectBrowserViewState, SampleBrowserEntryKind,
-    SampleBrowserEntryView, SampleBrowserViewState, SamplerAction, SamplerEnvelopeField,
-    SamplerViewState, ScrollTarget, SelectionRect, TerminalColorMode, TrackerLayoutPreset,
-    TrackerLayoutState, TransportAction, TuiState, TuiView, ViewportAxis,
+    ParameterPageSlotView, ParameterPageViewState, PatternVariationEntryView,
+    PatternVariationHistoryViewState, ProjectBrowserEntryKind, ProjectBrowserEntryView,
+    ProjectBrowserViewState, SampleBrowserEntryKind, SampleBrowserEntryView,
+    SampleBrowserViewState, SamplerAction, SamplerEnvelopeField, SamplerViewState, ScrollTarget,
+    SelectionRect, TerminalColorMode, TrackerLayoutPreset, TrackerLayoutState, TransportAction,
+    TuiState, TuiView, ViewportAxis,
 };
 
 const UI_TICK_RATE: Duration = Duration::from_millis(33);
@@ -276,6 +275,7 @@ struct App {
     playhead_row: Option<usize>,
     sequence_position: Option<usize>,
     performance: PerformanceState,
+    parameter_surface: ParameterSurfaceState,
     sequence_cursor: usize,
     clip_scene_cursor: usize,
     clip_track_cursor: usize,
@@ -335,6 +335,29 @@ struct StrudelLiveSession {
     line: String,
     error: Option<String>,
     last_evaluation: Option<Evaluation>,
+}
+
+#[derive(Debug, Clone)]
+struct ParameterSurfaceState {
+    page: ParameterPage,
+    selected: usize,
+    clear_armed: bool,
+    snapshot: Option<Song>,
+    pending_reload: Option<(u64, Song)>,
+    next_reload_token: u64,
+}
+
+impl Default for ParameterSurfaceState {
+    fn default() -> Self {
+        Self {
+            page: ParameterPage::Source,
+            selected: 0,
+            clear_armed: false,
+            snapshot: None,
+            pending_reload: None,
+            next_reload_token: 1,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

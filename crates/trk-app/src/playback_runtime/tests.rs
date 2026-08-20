@@ -81,6 +81,7 @@ fn run_pattern_with_recording(
         midi_logger: &mut midi_logger,
         audio_output: &mut audio_output,
         audio_sample_rate,
+        pending_reload: None,
     };
 
     let result = run_pattern(
@@ -116,6 +117,7 @@ fn run_pattern_with_audio_recording(
         midi_logger: &mut midi_logger,
         audio_output: &mut audio_output,
         audio_sample_rate,
+        pending_reload: None,
     };
 
     let result = run_pattern(&mut song, pattern_index, 0, None, false, &mut context);
@@ -144,6 +146,7 @@ fn run_sequence_with_recording(
         midi_logger: &mut midi_logger,
         audio_output: &mut audio_output,
         audio_sample_rate,
+        pending_reload: None,
     };
 
     let next_command = run_sequence(song, start_sequence_index, &mut context);
@@ -179,6 +182,7 @@ fn run_pattern_chain_with_recording(
         midi_logger: &mut midi_logger,
         audio_output: &mut audio_output,
         audio_sample_rate,
+        pending_reload: None,
     };
 
     let next_command = run_pattern_chain(

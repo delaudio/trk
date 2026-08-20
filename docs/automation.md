@@ -29,9 +29,11 @@ Current limitations:
 
 - MIDI CC points use normalized values, emit deterministic `0..127` Control
   Change messages, and respect the track's MIDI channel and `cc_out` routing;
-- generic row-level parameter locks can set or reset sampler gain, track mixer
-  gain/pan, master gain, send gain, and native gain/pan device parameters on the
-  current row through `:plock`;
+- generic row-level parameter locks can set or reset sampler gain, root note,
+  playback mode/window and envelope, track mixer gain/pan, master gain, send
+  gain, and native DSP parameters. Command mode exposes the documented
+  `:plock` subset, while the contextual parameter pages resolve the broader
+  descriptor catalog directly;
 - the Web Companion provides the graphical MIDI CC editor; sample-gain lanes
   remain command-driven;
 - linear interpolation is future work.
@@ -55,6 +57,6 @@ Parameter-lock commands:
 ```
 
 Values are parsed, formatted, and validated by `ParameterDescriptor` metadata.
-Realtime playback and offline export consume the same sampler/mixer row locks;
-native effect locks are emitted as ordered parameter events for the native module
-runtime boundary.
+Realtime playback and offline export consume the same sampler/mixer/source row
+locks. Realtime playback also resolves native effect and send locks into the DSP
+graph at row boundaries and restores the canonical graph on the following row.

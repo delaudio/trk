@@ -422,6 +422,7 @@ impl App {
     ) {
         let row = self.cursor.row;
         let track = self.cursor.track;
+        let pattern_index = self.pattern_index;
         let label = format_parameter_lock_target(&lock.target);
         let value_label = match &lock.action {
             ParameterLockAction::Set { value } => descriptor.format_value(value),
@@ -435,7 +436,7 @@ impl App {
             |song, cursor| {
                 song.validate_parameter_lock(&lock)
                     .map_err(|error| error.to_string())?;
-                if let Some(pattern) = song.current_pattern_mut() {
+                if let Some(pattern) = song.pattern_mut(pattern_index) {
                     pattern
                         .set_parameter_lock(cursor.row, cursor.track, lock)
                         .map_err(|error| error.to_string())?;
@@ -458,10 +459,11 @@ impl App {
         parameter: ParameterId,
     ) {
         let label = format_parameter_lock_target(&target);
+        let pattern_index = self.pattern_index;
         let result = self.try_mutate_song(
             TransactionSpec::new("Clear parameter lock"),
             |song, cursor| {
-                if let Some(pattern) = song.current_pattern_mut() {
+                if let Some(pattern) = song.pattern_mut(pattern_index) {
                     pattern.clear_parameter_lock(cursor.row, cursor.track, &target, &parameter)?;
                 }
                 Ok::<(), trk_core::EditError>(())

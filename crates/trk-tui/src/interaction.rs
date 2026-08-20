@@ -80,6 +80,7 @@ pub enum ScrollTarget {
     DspDevices { target: DspRackChain },
     DspParameters,
     DspPalette,
+    ParameterPageSlot { index: usize },
     CommandPalette,
     HelpContent,
     MidiPorts,
@@ -157,6 +158,9 @@ pub enum InteractionPayload {
         index: usize,
     },
     DspPaletteEntry {
+        index: usize,
+    },
+    ParameterPageSlot {
         index: usize,
     },
 }
@@ -278,6 +282,9 @@ impl InteractionMap {
             }
             (region::DSP_PARAMETER_ROW, _) => Some(ScrollTarget::DspParameters),
             (region::DSP_PALETTE_ENTRY, _) => Some(ScrollTarget::DspPalette),
+            (region::PARAMETER_PAGE_SLOT, InteractionPayload::ParameterPageSlot { index }) => {
+                Some(ScrollTarget::ParameterPageSlot { index })
+            }
             (region::COMMAND_PALETTE_RESULTS | region::COMMAND_PALETTE_ENTRY, _) => {
                 Some(ScrollTarget::CommandPalette)
             }
@@ -364,6 +371,10 @@ pub mod region {
         InteractionRegionId::new("dsp-rack.palette-entry");
     pub const SAMPLER_ACTION: InteractionRegionId = InteractionRegionId::new("sampler.action");
     pub const SAMPLER_WAVEFORM: InteractionRegionId = InteractionRegionId::new("sampler.waveform");
+    pub const PARAMETER_PAGE_SLOT: InteractionRegionId =
+        InteractionRegionId::new("parameter-page.slot");
+    pub const VIEW_PARAMETER_PAGE: InteractionRegionId =
+        InteractionRegionId::new("view.parameter-page");
 
     pub const OVERLAY_HELP: InteractionRegionId = InteractionRegionId::new("overlay.help");
     pub const OVERLAY_MIDI_SETTINGS: InteractionRegionId =

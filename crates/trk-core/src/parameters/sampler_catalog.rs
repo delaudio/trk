@@ -31,7 +31,7 @@ pub fn sample_root_note_descriptor() -> ParameterDescriptor {
         unit: ParameterUnit::Note,
         flags: ParameterFlags {
             stepped: true,
-            ..ParameterFlags::default()
+            ..ParameterFlags::automatable()
         },
         group: Some("sampler"),
         order: 20,
@@ -56,12 +56,28 @@ pub fn sample_playback_mode_descriptor() -> ParameterDescriptor {
                     id: "loop".to_string(),
                     label: "Loop".to_string(),
                 },
+                ParameterChoice {
+                    id: "forwardLoop".to_string(),
+                    label: "Forward loop".to_string(),
+                },
+                ParameterChoice {
+                    id: "backwardLoop".to_string(),
+                    label: "Backward loop".to_string(),
+                },
+                ParameterChoice {
+                    id: "pingPongLoop".to_string(),
+                    label: "Ping-pong loop".to_string(),
+                },
+                ParameterChoice {
+                    id: "reverse".to_string(),
+                    label: "Reverse".to_string(),
+                },
             ],
         },
         unit: ParameterUnit::Choice,
         flags: ParameterFlags {
             stepped: true,
-            ..ParameterFlags::default()
+            ..ParameterFlags::automatable()
         },
         group: Some(ParameterGroupId::from("sampler.playback")),
         order: 30,
@@ -142,7 +158,7 @@ pub fn sample_envelope_sustain_descriptor() -> ParameterDescriptor {
             step: Some(0.001),
         },
         unit: ParameterUnit::Percent,
-        flags: ParameterFlags::default(),
+        flags: ParameterFlags::automatable(),
         group: Some(ParameterGroupId::from("sampler.envelope")),
         order: 100,
     }
@@ -234,7 +250,7 @@ fn sample_frame_descriptor(
         flags: ParameterFlags {
             stepped: true,
             advanced: true,
-            ..ParameterFlags::default()
+            ..ParameterFlags::automatable()
         },
         group: Some("sampler.playback"),
         order,
@@ -259,7 +275,7 @@ fn sample_envelope_seconds_descriptor(
             step: None,
         },
         unit: ParameterUnit::Seconds,
-        flags: ParameterFlags::default(),
+        flags: ParameterFlags::automatable(),
         group: Some(ParameterGroupId::from("sampler.envelope")),
         order,
     }

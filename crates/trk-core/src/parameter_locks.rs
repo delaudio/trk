@@ -177,6 +177,70 @@ pub fn parameter_lock_events(song: &Song, pattern: &Pattern) -> Vec<ParameterLoc
     events
 }
 
+/// Builds the realtime DSP/mixer view for one row without mutating the
+/// canonical song. Reset locks naturally resolve to the canonical baseline.
+#[must_use]
+pub fn song_with_parameter_locks_at_row(song: &Song, pattern: &Pattern, row: usize) -> Song {
+    let mut resolved = song.clone();
+    let Some(pattern_row) = pattern.rows.get(row) else {
+        return resolved;
+    };
+    for lock in pattern_row
+        .cells
+        .iter()
+        .flat_map(|cell| cell.parameter_locks.iter())
+    {
+        let ParameterLockAction::Set { value } = &lock.action else {
+            continue;
+        };
+        match lock.target {
+            ParameterLockTarget::TrackSend { track, send }
+                if lock.parameter.as_str() == crate::MIXER_SEND_GAIN_PARAMETER_ID =>
+            {
+                if let Some(level) = resolved
+                    .mixer
+                    .tracks
+                    .iter_mut()
+                    .find(|mixer| mixer.track == track)
+                    .and_then(|mixer| mixer.sends.iter_mut().find(|level| level.send == send))
+                {
+                    if let Some(gain) = value.as_f32() {
+                        level.gain = gain;
+                    }
+                }
+            }
+            ParameterLockTarget::TrackEffect { track, device } => {
+                if let Some(effect) = resolved
+                    .mixer
+                    .tracks
+                    .iter_mut()
+                    .find(|mixer| mixer.track == track)
+                    .and_then(|mixer| mixer.effects.iter_mut().find(|effect| effect.id == device))
+                {
+                    let _ = effect.set_parameter_value(&lock.parameter, value.clone());
+                }
+            }
+            ParameterLockTarget::MasterEffect { device } => {
+                if let Some(effect) = resolved
+                    .mixer
+                    .master_effects
+                    .iter_mut()
+                    .find(|effect| effect.id == device)
+                {
+                    let _ = effect.set_parameter_value(&lock.parameter, value.clone());
+                }
+            }
+            ParameterLockTarget::Sample { .. }
+            | ParameterLockTarget::Instrument { .. }
+            | ParameterLockTarget::TrackMixer { .. }
+            | ParameterLockTarget::MasterMixer
+            | ParameterLockTarget::SendBus { .. }
+            | ParameterLockTarget::TrackSend { .. } => {}
+        }
+    }
+    resolved
+}
+
 #[must_use]
 pub(crate) fn parameter_lock_f32_at(
     pattern: &Pattern,
@@ -404,5 +468,60 @@ mod tests {
         assert_eq!(events[0].position.row, 2);
         assert_eq!(events[0].order, 0);
         assert!(song.parameter_lock_diagnostics().is_empty());
+    }
+
+    #[test]
+    fn row_resolution_applies_dsp_and_send_locks_without_mutating_song() {
+        let mut song = Song::empty();
+        let track = song.tracks[0].id;
+        song.mixer.tracks[0]
+            .effects
+            .push(EffectDevice::gain(9, 1.0));
+        song.mixer.tracks[0]
+            .sends
+            .push(TrackSendLevel { send: 4, gain: 0.1 });
+        let pattern = song.current_pattern_mut().expect("pattern");
+        pattern
+            .set_parameter_lock(
+                3,
+                0,
+                ParameterLock {
+                    target: ParameterLockTarget::TrackEffect { track, device: 9 },
+                    parameter: ParameterId::from(NATIVE_GAIN_PARAMETER_ID),
+                    action: ParameterLockAction::Set {
+                        value: ParameterValue::Float(0.4),
+                    },
+                },
+            )
+            .expect("gain lock");
+        pattern
+            .set_parameter_lock(
+                3,
+                0,
+                ParameterLock {
+                    target: ParameterLockTarget::TrackSend { track, send: 4 },
+                    parameter: ParameterId::from(MIXER_SEND_GAIN_PARAMETER_ID),
+                    action: ParameterLockAction::Set {
+                        value: ParameterValue::Float(0.8),
+                    },
+                },
+            )
+            .expect("send lock");
+
+        let resolved =
+            song_with_parameter_locks_at_row(&song, song.current_pattern().expect("pattern"), 3);
+
+        assert_eq!(
+            resolved.mixer.tracks[0].effects[0]
+                .parameter_value(&ParameterId::from(NATIVE_GAIN_PARAMETER_ID)),
+            Some(ParameterValue::Float(0.4))
+        );
+        assert_eq!(resolved.mixer.tracks[0].sends[0].gain, 0.8);
+        assert_eq!(song.mixer.tracks[0].sends[0].gain, 0.1);
+        assert_eq!(
+            song.mixer.tracks[0].effects[0]
+                .parameter_value(&ParameterId::from(NATIVE_GAIN_PARAMETER_ID)),
+            Some(ParameterValue::Float(1.0))
+        );
     }
 }

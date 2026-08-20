@@ -7,9 +7,7 @@ mod sample_preload;
 mod scheduler;
 mod transport;
 
-pub(crate) use sample_preload::{
-    apply_sample_playback_settings, audio_sampler_playback_settings, resolve_sample_path,
-};
+pub(crate) use sample_preload::{audio_sampler_playback_settings, resolve_sample_path};
 #[allow(unused_imports)]
 pub use transport::{PlaybackCursor, PlaybackRuntime, PlaybackUpdate};
 

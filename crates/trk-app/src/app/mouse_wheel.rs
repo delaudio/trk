@@ -19,6 +19,20 @@ impl App {
             return;
         }
 
+        if self.mode == AppMode::ParameterPage {
+            if let Some(ScrollTarget::ParameterPageSlot { index }) =
+                self.interaction_map.scroll_target_at(column, row)
+            {
+                let direction = match kind {
+                    MouseEventKind::ScrollUp => 1,
+                    MouseEventKind::ScrollDown => -1,
+                    _ => 0,
+                };
+                self.adjust_parameter_page_slot_from_pointer(index, direction);
+            }
+            return;
+        }
+
         let delta = match kind {
             MouseEventKind::ScrollUp => -3,
             MouseEventKind::ScrollDown => 3,

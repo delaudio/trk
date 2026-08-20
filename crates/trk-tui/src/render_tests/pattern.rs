@@ -51,6 +51,7 @@ fn renders_default_pattern_without_panic() {
                     project_browser: None,
                     ai_chat: None,
                     variation_history: None,
+                    parameter_page: None,
                     tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );
@@ -116,6 +117,7 @@ fn pattern_viewport_derives_visible_ranges_from_offsets_and_cursor() {
             project_browser: None,
             ai_chat: None,
             variation_history: None,
+            parameter_page: None,
             tracker_layout: crate::TrackerLayoutState::default(),
         },
     );
@@ -200,6 +202,7 @@ fn focused_pattern_layout_renders_more_tracks_with_selected_fields() {
                     project_browser: None,
                     ai_chat: None,
                     variation_history: None,
+                    parameter_page: None,
                     tracker_layout,
                 },
             );
@@ -285,6 +288,7 @@ fn track_desk_renders_sampler_mixer_and_native_effect_parameters_from_descriptor
                 project_browser: None,
                 ai_chat: None,
                 variation_history: None,
+                parameter_page: None,
                 tracker_layout: crate::TrackerLayoutState::default(),
             };
             render_track_properties(frame, Rect::new(0, 0, 100, 12), &song, state);
@@ -357,6 +361,7 @@ fn virtualized_pattern_render_omits_offscreen_rows_and_tracks() {
                     project_browser: None,
                     ai_chat: None,
                     variation_history: None,
+                    parameter_page: None,
                     tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );
@@ -452,6 +457,7 @@ fn renders_tracker_cell_subcolumns() {
                     project_browser: None,
                     ai_chat: None,
                     variation_history: None,
+                    parameter_page: None,
                     tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );
@@ -561,6 +567,7 @@ fn renders_sample_browser_view() {
                     project_browser: None,
                     ai_chat: None,
                     variation_history: None,
+                    parameter_page: None,
                     tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );
@@ -638,6 +645,7 @@ fn renders_project_browser_view() {
                     }),
                     ai_chat: None,
                     variation_history: None,
+                    parameter_page: None,
                     tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );
@@ -697,6 +705,7 @@ fn renders_small_layout_as_single_pattern_view() {
                     project_browser: None,
                     ai_chat: None,
                     variation_history: None,
+                    parameter_page: None,
                     tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );
@@ -763,6 +772,7 @@ fn renders_medium_layout_with_compact_side_panel() {
                     project_browser: None,
                     ai_chat: None,
                     variation_history: None,
+                    parameter_page: None,
                     tracker_layout: crate::TrackerLayoutState::default(),
                 },
             );

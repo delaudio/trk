@@ -163,10 +163,13 @@ Inside the TUI:
 | `Shift+Enter` | Play sequence from selected position |
 | `F8` | Stop playback |
 | `L` | Toggle pattern loop |
-| `F4` | Open MIDI settings |
+| `:midi outputs` | Open MIDI settings |
 | `F7` | Song slot / Sequence view |
 | `F9` | Tracks view |
 | `F10` | Patterns view |
+| `1`–`6` or `F1`–`F6` (normal mode) | Open `SRC`, `FLTR`, `AMP`, `FX`, `LFO`, or `ALG`; press the active page again for its deep editor |
+| `Shift+S` / `Shift+R` (normal mode) | Temporarily save the complete performance state / reload it on the next beat; inside a parameter page these remain coarse encoder keys |
+| `Shift+1`–`Shift+8` (normal or parameter page) | Instantly mute or unmute tracks 1–8 |
 | `Ctrl+J` | Sampler view |
 | `Ctrl+P` | Command palette |
 | `:` | Enter command mode |
@@ -183,7 +186,7 @@ Inside the TUI:
 | `i` / `Esc` | Enter edit mode / normal mode |
 | `z s x d c v...` | Play / enter notes from computer keyboard |
 | `o` / `.` | Note-off / note-cut |
-| `F1` / `F2` (or `-` / `+`) | Octave down / up |
+| `F1` / `F2` (edit mode) or `-` / `+` | Octave down / up |
 | `Delete` | Clear current cell or active selection |
 | `Insert` / `Ctrl+Delete` | Insert row / delete row |
 | `Ctrl+Z` / `Ctrl+Y` | Undo / Redo |
@@ -203,15 +206,31 @@ Inside the TUI:
 | `M` / `S` | Toggle mute / solo on current track |
 | `N` / `P` / `X` | New pattern / duplicate pattern / delete pattern |
 | `[` / `]` | Select previous / next pattern |
-| `F3` / `F6` | Rename pattern / change pattern length |
+| `:pattern rename <name>` / `:pattern length <rows>` | Rename pattern / change pattern length |
 | `A` / `Y` / `R` / `T` | Song slot: Add / Duplicate / Remove / Set pattern |
 | `<` / `>` | Move selected song slot up / down |
 
 ### Mouse Controls
 
-- **Left-Click**: Select or activate tracker cells, list rows, tabs, browser entries, overlays, sampler controls, or DSP parameters.
-- **Right-Click**: Open a Pattern Manager row in tracker, play from a Sequence row, or assign a Sample Browser entry to the active track.
-- **Scroll Wheel**: Scroll list/grid under pointer (horizontal wheel targets pattern grid, clip grid, or waveform).
+- **Left-Click**: Select or activate tracker cells, list rows, tabs, browser entries, overlays, sampler controls, or DSP parameters; on a parameter slot it selects that exact control without changing it.
+- **Right-Click**: Open a Pattern Manager row in tracker, play from a Sequence row, or assign a Sample Browser entry.
+- **Scroll Wheel**: Scroll the list/grid under the pointer; over a parameter-page slot it performs a fine adjustment.
+
+### Contextual Parameter Pages
+
+Normal mode exposes six fixed performance pages: `SRC`, `FLTR`, `AMP`, `FX`,
+`LFO`, and `ALG`. Each page has eight physical slots arranged as `Q W E R` /
+`A S D F`. Press an encoder key to select it, use arrows or `+`/`-` for fine
+changes, and hold Shift for a coarse change. `Backspace`, then an encoder key,
+clears only that row's lock; the note and every other lock remain untouched.
+
+Slots resolve against the active track's assigned sample, mixer strip, sends,
+and native DSP chain. The current row's lock is shown with an LED dot and a
+summary tag. Missing engines and non-lockable controls remain visible and inert
+with a reason. `ALG` opens the mini-notation live editor on a repeated page
+press; command mode remains available for project, import, export, and other
+administrative operations. Locks are row-local: DSP and send values return to
+their canonical state on the following row unless that row has its own lock.
 
 ### Layout Commands
 

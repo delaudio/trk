@@ -113,6 +113,7 @@ impl App {
             }
             PlaybackUpdate::Stopped => {
                 self.is_playing = false;
+                self.parameter_surface.pending_reload = None;
                 self.playhead_row = None;
                 self.sequence_position = None;
                 self.notify_info("Playback stopped");
@@ -139,12 +140,16 @@ impl App {
             PlaybackUpdate::AudioError(error) => {
                 self.notify_error(format!("Audio error: {error}"));
             }
+            PlaybackUpdate::PerformanceReloaded { token } => {
+                self.apply_pending_performance_reload(token);
+            }
         }
     }
 
     fn apply_midi_import(&mut self, path: PathBuf, result: Result<Song, String>) {
         match result {
             Ok(song) => {
+                self.clear_performance_state_for_project_change();
                 let pattern_count = song.patterns.len();
                 let track_count = song.tracks.len();
                 self.song = song;

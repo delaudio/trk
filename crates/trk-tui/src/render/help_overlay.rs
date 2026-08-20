@@ -179,6 +179,8 @@ fn help_basics_lines(mode_label: &str) -> Vec<Line<'static>> {
         Line::from("  Shift+Space Start"),
         Line::from("  Enter Play Row   Shift+Enter Play Sequence From Cursor   L Loop   F8 Stop"),
         Line::from("  b Web Companion   e External Editor"),
+        Line::from("  1-6/F1-F6 Parameter Pages   repeat page for deep editor"),
+        Line::from("  Normal: Shift+S Temp Save   Shift+R Reload next beat   Shift+1..8 Mute"),
         Line::from("  F7 Sequence View   F9 Track View   F10 Pattern View   Ctrl+J Sampler View"),
         Line::from("  :t Tracker   :p Patterns   :se Sequence   :tr Tracks   :sa Sampler   :web Companion"),
         Line::from("  Esc returns from focused views"),
@@ -208,8 +210,8 @@ fn help_editing_lines(mode_label: &str, edit_step: usize) -> Vec<Line<'static>> 
         )),
         Line::from("  i Edit   Esc Normal   Del/Backspace clear cell   Ctrl+C/X/V cell clipboard"),
         Line::from("  V select region   Esc cancel selection   Delete clears selection"),
-        Line::from("  Insert row   Ctrl+Delete delete row   F1/- octave down"),
-        Line::from("  F2/+/= octave up   VEL/INST/VOL/PAN/DLY/FX accept two hex digits"),
+        Line::from("  Insert row   Ctrl+Delete delete row   Edit mode: F1/- octave down"),
+        Line::from("  Edit mode: F2/+/= octave up   VEL/INST/VOL/PAN/DLY/FX accept two hex digits"),
         Line::from(format!(
             "  Step jump advances manual entry by {edit_step} row(s); 0 keeps the cursor in place"
         )),
@@ -221,7 +223,7 @@ fn help_editing_lines(mode_label: &str, edit_step: usize) -> Vec<Line<'static>> 
                 .add_modifier(Modifier::BOLD),
         )),
         Line::from(
-            "  N new pattern   P duplicate pattern   X delete pattern   F3 rename   F6 length",
+            "  N new pattern   P duplicate pattern   X delete pattern   :pattern rename/length",
         ),
         Line::from("  :pattern fill/copy/paste/invert/expand/shrink/duplicate-selection"),
         Line::from("  Pattern view: 1/2/3/4/5 set length 16/32/64/128/256"),
@@ -298,7 +300,7 @@ fn help_midi_lines(mode_label: &str) -> Vec<Line<'static>> {
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
         )),
-        Line::from("  F4 or :midi outputs opens MIDI settings and lists output ports"),
+        Line::from("  :midi outputs opens MIDI settings and lists output ports"),
         Line::from("  In MIDI settings: arrows select, Enter connects, F5/r refresh, p panic"),
         Line::from("  CLI fallback: trk --list-midi-outputs, then :midi connect 0"),
         Line::from("  Input: trk --list-midi-inputs, then :midi-input connect 0"),

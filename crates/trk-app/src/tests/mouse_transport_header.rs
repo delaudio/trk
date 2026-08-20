@@ -58,6 +58,18 @@ fn stop_click_is_idempotent_when_playback_is_already_stopped() {
 }
 
 #[test]
+fn parameter_page_keeps_global_transport_header_clickable() {
+    let mut app = App::default();
+    app.open_parameter_page(ParameterPage::Source);
+    register_action(&mut app, TransportAction::Play, 3);
+
+    click(&mut app, MouseEventKind::Down(MouseButton::Left), 3, 1);
+
+    assert!(app.is_playing);
+    assert_eq!(app.mode, AppMode::ParameterPage);
+}
+
+#[test]
 fn stop_click_clears_clip_launcher_and_transport_state_in_clips_view() {
     let mut app = App::default();
     app.open_clip_launcher_view();

@@ -14,7 +14,7 @@ use std::{
 use trk_audio::{
     AudioConfig, CalibrationControl, CalibrationError, CalibrationMeters, CalibrationSettings,
 };
-use trk_core::{Pattern, PlaybackPosition, Song};
+use trk_core::{Pattern, PlaybackPosition, Song, TrackId};
 use trk_midi::MidirMidiOutput;
 
 use super::{
@@ -33,6 +33,7 @@ pub enum PlaybackUpdate {
     MidiError(String),
     MidiLogError(String),
     AudioError(String),
+    PerformanceReloaded { token: u64 },
 }
 
 #[derive(Debug)]
@@ -52,6 +53,14 @@ pub(super) enum PlaybackCommand {
     ReplacePattern {
         pattern_index: usize,
         pattern: Pattern,
+    },
+    ApplyLiveMute {
+        track: TrackId,
+        muted: bool,
+    },
+    ReloadSongAtNextBeat {
+        song: Song,
+        token: u64,
     },
     ConnectMidi {
         port_index: usize,
@@ -126,6 +135,18 @@ impl PlaybackRuntime {
             pattern_index,
             pattern,
         });
+    }
+
+    pub fn apply_live_mute(&self, track: TrackId, muted: bool) {
+        let _ = self
+            .command_tx
+            .send(PlaybackCommand::ApplyLiveMute { track, muted });
+    }
+
+    pub fn reload_song_at_next_beat(&self, song: Song, token: u64) {
+        let _ = self
+            .command_tx
+            .send(PlaybackCommand::ReloadSongAtNextBeat { song, token });
     }
 
     pub fn connect_midi(&self, port_index: usize) {
@@ -219,6 +240,7 @@ fn playback_thread(
                     midi_logger: &mut midi_logger,
                     audio_output: &mut audio_output,
                     audio_sample_rate,
+                    pending_reload: None,
                 };
                 next_command =
                     run_pattern_chain(song, pattern_index, start_row, loop_pattern, &mut context);
@@ -246,6 +268,7 @@ fn playback_thread(
                     midi_logger: &mut midi_logger,
                     audio_output: &mut audio_output,
                     audio_sample_rate,
+                    pending_reload: None,
                 };
                 next_command = run_sequence(song, start_sequence_index, &mut context);
                 if matches!(next_command, Some(PlaybackCommand::Shutdown)) {
@@ -260,6 +283,12 @@ fn playback_thread(
                     pattern_index,
                     "ignored live replacement because playback is idle"
                 );
+            }
+            PlaybackCommand::ApplyLiveMute { track, muted } => {
+                tracing::debug!(?track, muted, "ignored live mute because playback is idle");
+            }
+            PlaybackCommand::ReloadSongAtNextBeat { token, .. } => {
+                tracing::debug!(token, "ignored performance reload because playback is idle");
             }
             PlaybackCommand::ConnectMidi { port_index } => {
                 midi_logger.log_line(format!("CONNECT_REQUEST port={port_index}"));

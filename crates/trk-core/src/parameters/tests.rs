@@ -198,7 +198,7 @@ fn sampler_catalog_describes_persisted_sampler_controls() {
     }
 
     assert!(sample_gain_descriptor().flags.automatable);
-    assert!(!sample_envelope_attack_descriptor().flags.automatable);
+    assert!(sample_envelope_attack_descriptor().flags.automatable);
     assert!(sample_envelope_attack_descriptor().validate_f32(60.0));
     assert!(!sample_envelope_attack_descriptor().validate_f32(60.001));
     assert_eq!(

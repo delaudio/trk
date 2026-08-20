@@ -11,6 +11,7 @@ mod modulation;
 mod playback_modes;
 mod preparation;
 mod send_routing;
+mod track_stop;
 
 #[test]
 fn slices_preview_buffers_by_frame_window() {

@@ -94,6 +94,7 @@ impl App {
             playhead_row: None,
             sequence_position: None,
             performance: PerformanceState::default(),
+            parameter_surface: ParameterSurfaceState::default(),
             sequence_cursor: 0,
             clip_scene_cursor: 0,
             clip_track_cursor: 0,
