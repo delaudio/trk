@@ -1,7 +1,7 @@
 ---
 adr: 0029
 title: Render audio intensity with terminal-aware color
-status: Accepted
+status: Implemented
 date: 2026-08-20
 owner: default-agent
 supersedes:
@@ -110,7 +110,7 @@ semantics without changing audio or project state.
 - `0001-record-architecture-decisions.md`
 - `0017-control-supported-sampler-actions-with-the-pointer.md`
 - `0026-calibrate-realtime-output-with-live-metering.md`
-- `../plan/todo/0027-terminal-aware-audio-heatmaps.md`
+- `../plan/done/2026-08-20-terminal-aware-audio-heatmaps.md`
 - GitHub issue #318.
 - [grain preview backend](https://github.com/delaudio/grain/blob/c609fcd5a05d8862d88819690a051f5df13238be/src/preview/backend.rs)
 - [grain headless color runtime](https://github.com/delaudio/grain/blob/c609fcd5a05d8862d88819690a051f5df13238be/src/runtime/js/runner.js)
@@ -120,6 +120,7 @@ semantics without changing audio or project state.
 | Date | Revision | Author | Change |
 |------|----------|--------|--------|
 | 2026-08-20 | r1 | default-agent | Recorded and accepted terminal-aware audio heatmaps, semantic waveform accents, loop markers, and live meter gradients. |
+| 2026-08-20 | r2 | default-agent | Marked the capability Implemented after PR #344 merged with CI green and issue #318 closed. |
 
 ## Approvals
 

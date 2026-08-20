@@ -33,3 +33,9 @@ fallbacks. Full mixer-console work and sample slicing remain outside this item.
 - `../../adr/0017-control-supported-sampler-actions-with-the-pointer.md`
 - `../../adr/0026-calibrate-realtime-output-with-live-metering.md`
 - Maintainer approval to execute issue #318 autonomously.
+
+---
+
+Shipped at HEAD `287460b1bbc1987468518ca0817d1b7aa98d6522` via
+[PR #344](https://github.com/delaudio/trk/pull/344), with GitHub Actions CI
+run `32372743179` green and issue #318 closed.
