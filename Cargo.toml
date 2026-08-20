@@ -25,6 +25,7 @@ anyhow = "1"
 crossterm = "0.28"
 ctrlc = "3"
 flate2 = "1"
+libc = "0.2"
 midir = { version = "0.10", features = ["coremidi_send_timestamped"] }
 ratatui = "0.29"
 serde = { version = "1", features = ["derive"] }

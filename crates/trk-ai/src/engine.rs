@@ -440,9 +440,6 @@ fn read_dotenv(path: PathBuf) -> HashMap<String, OsString> {
             let line = line.strip_prefix("export ").unwrap_or(line);
             let (key, value) = line.split_once('=')?;
             let key = key.trim();
-            if !DISCOVERY_ENV_KEYS.contains(&key) {
-                return None;
-            }
             let value = parse_dotenv_value(value.trim())?;
             Some((key.to_string(), OsString::from(value)))
         })

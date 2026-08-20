@@ -1,5 +1,6 @@
 use std::{
     borrow::Cow,
+    ffi::OsString,
     io::{Read, Write},
     process::{Command, Stdio},
     thread,
@@ -48,22 +49,11 @@ impl ExternalEngineProvider {
             )
         })?;
         let prompt = composition_prompt(song, request)?;
-        let (stdin, child_environment) = match self.engine.response_format {
-            ExternalResponseFormat::DirectProposal => (prompt.into_bytes(), Vec::new()),
+        let child_environment = resolve_child_environment(&self.engine)?;
+        let stdin = match self.engine.response_format {
+            ExternalResponseFormat::DirectProposal => prompt.into_bytes(),
             ExternalResponseFormat::OpenAiChatCompletions => {
-                let api_key = environment_value_from(
-                    "OPENAI_API_KEY",
-                    self.engine.environment_file.as_deref(),
-                )
-                .and_then(|value| value.into_string().ok())
-                .filter(|value| !value.is_empty())
-                .ok_or_else(|| {
-                    AiError::ProviderUnavailable("missing OPENAI_API_KEY".to_string())
-                })?;
-                (
-                    openai_request_body(&self.engine.model, &prompt)?.into_bytes(),
-                    vec![("OPENAI_API_KEY".to_string(), api_key)],
-                )
+                openai_request_body(&self.engine.model, &prompt)?.into_bytes()
             }
         };
         let stdout = run_bounded_process(
@@ -81,6 +71,21 @@ impl ExternalEngineProvider {
             request.prompt.as_str(),
         )
     }
+}
+
+fn resolve_child_environment(
+    engine: &EngineDescriptor,
+) -> Result<Vec<(String, OsString)>, AiError> {
+    engine
+        .required_env
+        .iter()
+        .map(|key| {
+            environment_value_from(key, engine.environment_file.as_deref())
+                .filter(|value| !value.is_empty())
+                .map(|value| (key.clone(), value))
+                .ok_or_else(|| AiError::ProviderUnavailable(format!("missing {key}")))
+        })
+        .collect()
 }
 
 #[derive(Debug, Deserialize)]
@@ -228,16 +233,19 @@ fn run_bounded_process(
     command: &std::path::Path,
     arguments: &[String],
     stdin: &[u8],
-    child_environment: &[(String, String)],
+    child_environment: &[(String, OsString)],
     timeout: Duration,
     is_cancelled: impl Fn() -> bool,
 ) -> Result<Vec<u8>, AiError> {
-    let mut child = Command::new(command)
+    let mut process = Command::new(command);
+    process
         .args(arguments)
         .envs(child_environment.iter().map(|(key, value)| (key, value)))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::piped());
+    configure_process_tree(&mut process);
+    let mut child = process
         .spawn()
         .map_err(|error| AiError::ProviderLaunch(error.to_string()))?;
     let mut child_stdin = child
@@ -265,17 +273,17 @@ fn run_bounded_process(
 
     let status = loop {
         if is_cancelled() {
-            terminate_child(&mut child);
-            let _ = stdin_writer.take().expect("stdin writer present").join();
-            join_reader(stdout_reader, "stdout")?;
-            join_reader(stderr_reader, "stderr")?;
+            terminate_child_tree(&mut child);
+            drop(stdin_writer.take());
+            drop(stdout_reader);
+            drop(stderr_reader);
             return Err(AiError::ProviderCancelled);
         }
         if started.elapsed() >= timeout {
-            terminate_child(&mut child);
-            let _ = stdin_writer.take().expect("stdin writer present").join();
-            join_reader(stdout_reader, "stdout")?;
-            join_reader(stderr_reader, "stderr")?;
+            terminate_child_tree(&mut child);
+            drop(stdin_writer.take());
+            drop(stdout_reader);
+            drop(stderr_reader);
             return Err(AiError::ProviderTimeout(
                 u64::try_from(timeout.as_millis()).unwrap_or(u64::MAX),
             ));
@@ -345,7 +353,25 @@ fn join_reader(
         .map_err(|error| AiError::ProviderIo(format!("read child {stream}: {error}")))
 }
 
-fn terminate_child(child: &mut std::process::Child) {
+#[cfg(unix)]
+fn configure_process_tree(command: &mut Command) {
+    use std::os::unix::process::CommandExt as _;
+    command.process_group(0);
+}
+
+#[cfg(not(unix))]
+fn configure_process_tree(_command: &mut Command) {}
+
+fn terminate_child_tree(child: &mut std::process::Child) {
+    #[cfg(unix)]
+    {
+        let process_group = i32::try_from(child.id()).unwrap_or(i32::MAX);
+        // SAFETY: the child was placed in a new process group whose id equals
+        // its pid; a negative pid targets exactly that group.
+        unsafe {
+            libc::kill(-process_group, libc::SIGKILL);
+        }
+    }
     let _ = child.kill();
     let _ = child.wait();
 }
@@ -415,6 +441,10 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn external_process_receives_stdin_and_returns_a_proposal() {
+        let environment_file =
+            std::env::temp_dir().join(format!("trk-ai-external-env-{}", std::process::id()));
+        std::fs::write(&environment_file, "TRK_TEST_AI_TOKEN=from-dotenv\n")
+            .expect("write dotenv fixture");
         let engine = EngineDescriptor::external(
             EngineId::Codex,
             "fixture",
@@ -422,17 +452,19 @@ mod tests {
             PathBuf::from("/bin/sh"),
             vec![
                 "-c".to_string(),
-                "cat >/dev/null; printf '%s' '{\"summary\":\"Generated\",\"edits\":[{\"op\":\"set_note\",\"pattern\":0,\"row\":0,\"track\":0,\"pitch\":60,\"velocity\":100}]}'".to_string(),
+                "test \"$TRK_TEST_AI_TOKEN\" = from-dotenv || exit 17; cat >/dev/null; printf '%s' '{\"summary\":\"Generated\",\"edits\":[{\"op\":\"set_note\",\"pattern\":0,\"row\":0,\"track\":0,\"pitch\":60,\"velocity\":100}]}'".to_string(),
             ],
-            Vec::new(),
+            vec!["TRK_TEST_AI_TOKEN".to_string()],
             ExternalResponseFormat::DirectProposal,
-        );
+        )
+        .with_environment_file(Some(environment_file.clone()));
         let proposal = ExternalEngineProvider::new(engine, Duration::from_secs(1))
             .propose_with_cancel(&Song::empty(), &fixture_request(), || false)
             .expect("external proposal");
 
         assert_eq!(proposal.summary, "Generated");
         assert_eq!(proposal.edits.len(), 1);
+        let _ = std::fs::remove_file(environment_file);
     }
 
     #[test]
@@ -502,7 +534,7 @@ mod tests {
                 label: "fixture".to_string(),
                 model: "fixture".to_string(),
                 command: Some(PathBuf::from("/bin/sh")),
-                arguments: vec!["-c".to_string(), "sleep 5".to_string()],
+                arguments: vec!["-c".to_string(), "sleep 5 & wait".to_string()],
                 required_env: Vec::new(),
                 response_format: ExternalResponseFormat::DirectProposal,
                 environment_file: None,
