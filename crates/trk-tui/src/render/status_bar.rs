@@ -105,6 +105,7 @@ fn status_segments(state: TuiState<'_>) -> (String, &'static [&'static str]) {
                     "Ctrl+P Palette",
                     "H Help",
                     "Space Play/Stop",
+                    "b Web",
                     "v History",
                     "Enter Row",
                     "Shift+Enter Seq",
@@ -352,12 +353,14 @@ mod tests {
     fn a_segment_is_omitted_whole_when_its_delimiter_and_label_do_not_fit() {
         let state = render_test_state();
         let first_three = compose_shortcut_status(state, 60);
-        let next_candidate = format!("{} | Enter Row", first_three.trim_end());
+        let (_, actions) = status_segments(state);
+        let next_action = actions[3];
+        let next_candidate = format!("{} | {next_action}", first_three.trim_end());
         let constrained_width = Line::from(next_candidate).width() - 1;
         let constrained = compose_shortcut_status(state, constrained_width as u16);
 
         assert_eq!(constrained.trim_end(), first_three.trim_end());
-        assert!(!constrained.contains("Enter Row"));
+        assert!(!constrained.contains(next_action));
         assert!(!constrained.ends_with(" |"));
         assert!(Line::from(constrained).width() <= constrained_width);
     }

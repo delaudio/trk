@@ -32,6 +32,7 @@ mod style_analysis;
 mod task_integration;
 mod task_runtime;
 mod terminal;
+mod web_companion;
 mod workflows;
 
 #[cfg(test)]
@@ -234,6 +235,7 @@ struct App {
     calibration_cursor: usize,
     project_path: Option<PathBuf>,
     external_editor_requested: bool,
+    web_companion_requested: bool,
     project_watch: Option<ProjectWatchState>,
     focus: FocusManager,
     pattern_index: usize,

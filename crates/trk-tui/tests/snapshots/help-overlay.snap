@@ -8,18 +8,18 @@
 ┌ UTIL│  Ctrl+P Command Palette   ?/H Help   :h/:help Help   q Quit   Space Play/Stop                            │─────┐
 │UTIL │  Shift+Space Start                                                                                       │     │
 │     │  Enter Play Row   Shift+Enter Play Sequence From Cursor   L Loop   F8 Stop                               │     │
-│BPM  │  F7 Sequence View   F9 Track View   F10 Pattern View   Ctrl+J Sampler View                               │     │
-│LPB  │  :t Tracker   :p Patterns   :se Sequence   :tr Tracks   :sa Sampler   :sb Browser                        │     │
-│OCT  │  Esc returns from focused views                                                                          │     │
-│--   │  :play pattern from start   :play sequence arrangement                                                   │     │
-│     │  Ctrl+S Save   Ctrl+Shift+S Save As   Ctrl+Z Undo   Ctrl+Y Redo   Ctrl+Arrows BPM/LPB                    │     │
-│Follo│                                                                                                          │     │
-│  Pat│Navigation                                                                                                │     │
-│Scrol│  Arrows or h/j/k/l move   Tab/Shift+Tab track   PageUp/PageDown jump                                     │     │
-│  Pag│  Home/End pattern bounds   gg first row   G last row                                                     │     │
-│     │                                                                                                          │     │
-│Edit │Mode: HELP   Close: Esc, q, or ?                                                                          │     │
-│     │                                                                                                          │     │
+│BPM  │  b Web Companion   e External Editor                                                                     │     │
+│LPB  │  F7 Sequence View   F9 Track View   F10 Pattern View   Ctrl+J Sampler View                               │     │
+│OCT  │  :t Tracker   :p Patterns   :se Sequence   :tr Tracks   :sa Sampler   :web Companion                     │     │
+│--   │  Esc returns from focused views                                                                          │     │
+│     │  :play pattern from start   :play sequence arrangement                                                   │     │
+│Follo│  Ctrl+S Save   Ctrl+Shift+S Save As   Ctrl+Z Undo   Ctrl+Y Redo   Ctrl+Arrows BPM/LPB                    │     │
+│  Pat│                                                                                                          │     │
+│Scrol│Navigation                                                                                                │     │
+│  Pag│  Arrows or h/j/k/l move   Tab/Shift+Tab track   PageUp/PageDown jump                                     │     │
+│     │  Home/End pattern bounds   gg first row   G last row                                                     │     │
+│Edit │                                                                                                          │     │
+│     │Mode: HELP   Close: Esc, q, or ?                                                                          │     │
 │     │                                                                                                          │     │
 │     │                                                                                                          │     │
 │     │                                                                                                          │     │
@@ -33,4 +33,4 @@
 │03 --└──────────────────────────────────────────────────────────────────────────────────────────────────────────┘     │
 │04 --                      ││Width    ██████────── +1.00    ││-48      -3.4 dB  -3.1││05 --                           │
 └───────────────────────────┘└───────────────────────────────┘└──────────────────────┘└────────────────────────────────┘
- HELP | Step 1 | Ctrl+P Palette | H Help | Space Play/Stop | v History | Enter Row | Shift+Enter Seq | L Loop···········
+ HELP | Step 1 | Ctrl+P Palette | H Help | Space Play/Stop | b Web | v History | Enter Row | Shift+Enter Seq | L Loop···

@@ -77,7 +77,7 @@ pub fn render_calibration_snapshot(state: CalibrationViewState<'_>) -> String {
             render_calibration_overlay(frame, frame.area(), state);
         })
         .expect("draw");
-    buffer_text(terminal.backend().buffer())
+    visualize_status_padding(buffer_text(terminal.backend().buffer()))
 }
 
 fn buffer_text(buffer: &ratatui::buffer::Buffer) -> String {

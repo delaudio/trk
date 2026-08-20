@@ -51,6 +51,7 @@ impl App {
             calibration_cursor: 0,
             project_path: None,
             external_editor_requested: false,
+            web_companion_requested: false,
             project_watch: None,
             focus: FocusManager::default(),
             pattern_index: 0,

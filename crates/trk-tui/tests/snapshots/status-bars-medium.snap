@@ -1,4 +1,4 @@
-Pattern         | NORMAL | Step 1 | Ctrl+P Palette | H Help | Space Play/Stop | v History | Enter Row
+Pattern         | NORMAL | Step 1 | Ctrl+P Palette | H Help | Space Play/Stop | b Web | v History | Enter Row
 Sequence        | SEQUENCE | H Help | Esc Pattern | A Add | R Remove | Y Duplicate | T Set Pattern | </> Move
 Clips           | CLIPS | H Help | Esc Pattern | Arrows Select | Enter Queue | Space Launch | F8 Stop | A Add Scene
 Tracks          | TRACKS | H Help | Esc Pattern | N New | D Duplicate | r Rename | c Channel | Del Delete | {/} Move
