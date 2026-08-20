@@ -18,6 +18,13 @@ CPAL is the preferred first backend for macOS and Linux because it provides a Ru
 
 The app playback runtime loads WAV files for assigned samples before playback, applies the persisted sample frame window and amplitude envelope, prepares them for the output sample rate and channel count, registers them with the CPAL backend, installs the native DSP graph, and then routes scheduled sampler events to realtime voices. Stepped sample-gain automation and mixer master/track gain, pan, and audio mute/solo are resolved into sampler event gain/pan before the realtime boundary. Per-track and master DSP gain/pan devices run in the audio layer for realtime playback and offline export. The broader native DSP parity matrix and effect implementation order are maintained in [Native DSP Roadmap](native-dsp-roadmap.md). MIDI output remains unchanged for non-sample tracks and external instruments. Forward, backward, ping-pong, and reverse sample playback modes use the same source-frame resolver in realtime and offline rendering.
 
+The live calibration layer is session-local and realtime-only. App controls are
+transferred through shared atomics and the callback publishes band, RMS, and
+peak meters through the same lock-free handle. Selected-track trim runs before
+that track's DSP; band trim, gate, master trim, and bounded dynamic auto-gain
+run after the persisted master chain. Balanced defaults reconstruct the input
+at unity gain, and offline rendering intentionally bypasses calibration.
+
 ## Realtime Boundary
 
 The audio callback must not depend on Ratatui, filesystem APIs, project serialization, logging, or unbounded allocation. Future communication from app/sequencer code to audio code should use bounded queues or preallocated buffers. Commands crossing the boundary should be immutable data such as sample IDs, track IDs, target frames, gain, pitch ratio, DSP graph specs, and all-notes-off markers.
@@ -38,4 +45,5 @@ Shutdown must stop the backend before the thread exits. Errors are reported as u
 
 - no user-facing device enumeration or selection;
 - no sample choking or loop crossfade;
-- no realtime meter transport or graphical meter rendering yet.
+- realtime meters are currently scoped to the DSP calibration panel rather
+  than a persistent full mixer view.

@@ -96,8 +96,8 @@ use trk_ai::{
 };
 use trk_audio::{
     encode_audio, prepare_realtime_sample, render_sampler_events_with_dsp, AudioConfig,
-    AudioExportFormat, AudioInputSource, CpalAudioInputSource, DspDeviceKind as AudioDspDeviceKind,
-    DspDeviceSpec, DspDriveMode as AudioDspDriveMode,
+    AudioExportFormat, AudioInputSource, CalibrationSettings, CpalAudioInputSource,
+    DspDeviceKind as AudioDspDeviceKind, DspDeviceSpec, DspDriveMode as AudioDspDriveMode,
     DspDynamicsDetector as AudioDspDynamicsDetector, DspFilterMode as AudioDspFilterMode,
     DspGraphSpec, OfflineRenderSpec, OfflineSamplerEvent, OfflineSamplerSample, SampleRecorder,
     SendDspBusSpec, TrackDspChainSpec, TrackSendSpec,
@@ -183,17 +183,18 @@ use trk_midi::{
 use trk_sampler::{Sample, WaveformBucket, WaveformOverview};
 use trk_transform::{apply_euclidean, EuclideanRhythm};
 use trk_tui::{
-    interaction_region, render_with_interactions, AiChatMessageRole, AiChatMessageView,
-    AiChatProposalPreviewView, AiChatViewState, AiEngineEntryView, AiEngineSelectorViewState,
-    CommandPaletteEntryView, CommandPaletteViewState, ConfirmationAction,
-    DspDevicePaletteEntryView, DspDevicePaletteViewState, DspParameterLockStatusView, DspRackChain,
-    DspRackTargetView, DspRackViewState, HelpTab, InteractionMap, InteractionPayload,
-    ManagedPanelId, MidiPortView, MidiSettingsAction, MidiSettingsState, NotificationKind,
-    NotificationView, PatternVariationEntryView, PatternVariationHistoryViewState,
-    ProjectBrowserEntryKind, ProjectBrowserEntryView, ProjectBrowserViewState,
-    SampleBrowserEntryKind, SampleBrowserEntryView, SampleBrowserViewState, SamplerAction,
-    SamplerEnvelopeField, SamplerViewState, ScrollTarget, SelectionRect, TrackerLayoutPreset,
-    TrackerLayoutState, TransportAction, TuiState, TuiView, ViewportAxis,
+    interaction_region, render_calibration_overlay, render_with_interactions, AiChatMessageRole,
+    AiChatMessageView, AiChatProposalPreviewView, AiChatViewState, AiEngineEntryView,
+    AiEngineSelectorViewState, CalibrationViewState, CommandPaletteEntryView,
+    CommandPaletteViewState, ConfirmationAction, DspDevicePaletteEntryView,
+    DspDevicePaletteViewState, DspParameterLockStatusView, DspRackChain, DspRackTargetView,
+    DspRackViewState, HelpTab, InteractionMap, InteractionPayload, ManagedPanelId, MidiPortView,
+    MidiSettingsAction, MidiSettingsState, NotificationKind, NotificationView,
+    PatternVariationEntryView, PatternVariationHistoryViewState, ProjectBrowserEntryKind,
+    ProjectBrowserEntryView, ProjectBrowserViewState, SampleBrowserEntryKind,
+    SampleBrowserEntryView, SampleBrowserViewState, SamplerAction, SamplerEnvelopeField,
+    SamplerViewState, ScrollTarget, SelectionRect, TrackerLayoutPreset, TrackerLayoutState,
+    TransportAction, TuiState, TuiView, ViewportAxis,
 };
 
 const UI_TICK_RATE: Duration = Duration::from_millis(33);
@@ -229,6 +230,8 @@ struct App {
     clean_variation_history: PatternVariationHistory,
     variation_history_open: bool,
     variation_history_cursor: usize,
+    calibration_open: bool,
+    calibration_cursor: usize,
     project_path: Option<PathBuf>,
     focus: FocusManager,
     pattern_index: usize,

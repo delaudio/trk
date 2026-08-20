@@ -323,6 +323,7 @@ fn help_command_lines(mode_label: &str) -> Vec<Line<'static>> {
                 .add_modifier(Modifier::BOLD),
         )),
         Line::from("  Ctrl+T create track   D duplicate track   {/} move track left/right"),
+        Line::from("  t live DSP calibration   arrows adjust   r reset   t/Esc close"),
         Line::from("  r rename track   c channel"),
         Line::from("  Del delete track   M mute   S solo"),
         Line::from("  :write [path]   :saveas path   :quit   :q!   :wq   :bpm 140   :lpb 4"),

@@ -3,7 +3,10 @@ use std::{fs, path::PathBuf};
 use ratatui::{backend::TestBackend, Terminal};
 use trk_core::{Cursor, Song};
 use trk_sampler::{WaveformBucket, WaveformOverview};
-use trk_tui::{render, render_waveform_overview, HelpTab, TuiState, TuiView};
+use trk_tui::{
+    render, render_calibration_overlay, render_waveform_overview, CalibrationViewState, HelpTab,
+    TuiState, TuiView,
+};
 
 pub fn test_state<'a>() -> TuiState<'a> {
     TuiState {
@@ -60,6 +63,19 @@ pub fn render_waveform_snapshot(overview: WaveformOverview) -> String {
     let mut terminal = Terminal::new(backend).expect("test terminal");
     terminal
         .draw(|frame| render_waveform_overview(frame, frame.area(), &overview))
+        .expect("draw");
+    buffer_text(terminal.backend().buffer())
+}
+
+#[allow(dead_code)]
+pub fn render_calibration_snapshot(state: CalibrationViewState<'_>) -> String {
+    let backend = TestBackend::new(100, 28);
+    let mut terminal = Terminal::new(backend).expect("test terminal");
+    terminal
+        .draw(|frame| {
+            render(frame, &Song::empty(), test_state());
+            render_calibration_overlay(frame, frame.area(), state);
+        })
         .expect("draw");
     buffer_text(terminal.backend().buffer())
 }

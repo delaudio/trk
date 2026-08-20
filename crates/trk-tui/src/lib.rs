@@ -14,9 +14,10 @@ pub use layout::{
     ResolvedPanel, ResolvedTrackerLayout, TrackerLayoutPreset, TrackerLayoutState,
 };
 pub use render::{
-    render, render_waveform_overview, render_waveform_overview_with_glyphs,
-    render_with_interactions, AiChatMessageRole, AiChatMessageView, AiChatProposalPreviewView,
-    AiChatViewState, AiEngineEntryView, AiEngineSelectorViewState, CommandPaletteEntryView,
+    render, render_calibration_overlay, render_waveform_overview,
+    render_waveform_overview_with_glyphs, render_with_interactions, AiChatMessageRole,
+    AiChatMessageView, AiChatProposalPreviewView, AiChatViewState, AiEngineEntryView,
+    AiEngineSelectorViewState, CalibrationViewState, CommandPaletteEntryView,
     CommandPaletteViewState, DspDevicePaletteEntryView, DspDevicePaletteViewState,
     DspParameterLockStatusView, DspRackTargetView, DspRackViewState, HelpTab, MidiPortView,
     MidiSettingsState, NotificationKind, NotificationView, PatternVariationEntryView,

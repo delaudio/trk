@@ -11,7 +11,9 @@ use std::{
     thread::{self, JoinHandle},
 };
 
-use trk_audio::AudioConfig;
+use trk_audio::{
+    AudioConfig, CalibrationControl, CalibrationError, CalibrationMeters, CalibrationSettings,
+};
 use trk_core::{PlaybackPosition, Song};
 use trk_midi::MidirMidiOutput;
 
@@ -60,18 +62,24 @@ pub struct PlaybackRuntime {
     command_tx: Sender<PlaybackCommand>,
     update_rx: Receiver<PlaybackUpdate>,
     handle: Option<JoinHandle<()>>,
+    calibration: CalibrationControl,
 }
 
 impl PlaybackRuntime {
     pub fn spawn(midi_log_path: Option<PathBuf>) -> Self {
         let (command_tx, command_rx) = mpsc::channel();
         let (update_tx, update_rx) = mpsc::channel();
-        let handle = thread::spawn(move || playback_thread(command_rx, update_tx, midi_log_path));
+        let calibration = CalibrationControl::new();
+        let thread_calibration = calibration.clone();
+        let handle = thread::spawn(move || {
+            playback_thread(command_rx, update_tx, midi_log_path, thread_calibration);
+        });
 
         Self {
             command_tx,
             update_rx,
             handle: Some(handle),
+            calibration,
         }
     }
 
@@ -126,6 +134,20 @@ impl PlaybackRuntime {
     pub fn try_recv(&self) -> Option<PlaybackUpdate> {
         self.update_rx.try_recv().ok()
     }
+
+    #[must_use]
+    pub fn calibration_settings(&self) -> CalibrationSettings {
+        self.calibration.settings()
+    }
+
+    pub fn set_calibration(&self, settings: CalibrationSettings) -> Result<(), CalibrationError> {
+        self.calibration.store(settings)
+    }
+
+    #[must_use]
+    pub fn calibration_meters(&self) -> CalibrationMeters {
+        self.calibration.meters()
+    }
 }
 
 impl std::fmt::Debug for PlaybackRuntime {
@@ -149,6 +171,7 @@ fn playback_thread(
     command_rx: Receiver<PlaybackCommand>,
     update_tx: Sender<PlaybackUpdate>,
     midi_log_path: Option<PathBuf>,
+    calibration: CalibrationControl,
 ) {
     let mut output = PlaybackOutput::fake();
     let mut midi_logger = MidiLogger::new(midi_log_path, &update_tx);
@@ -170,11 +193,12 @@ fn playback_thread(
                 start_row,
                 loop_pattern,
             } => {
-                let mut audio_output = PlaybackAudioOutput::for_song(
+                let mut audio_output = PlaybackAudioOutput::for_song_with_calibration(
                     &song,
                     AudioConfig::default(),
                     &update_tx,
                     sample_base_dir.as_deref(),
+                    calibration.clone(),
                 );
                 let audio_sample_rate = audio_output.sample_rate();
                 let mut context = PlaybackRunContext {
@@ -196,11 +220,12 @@ fn playback_thread(
                 sample_base_dir,
                 start_sequence_index,
             } => {
-                let mut audio_output = PlaybackAudioOutput::for_song(
+                let mut audio_output = PlaybackAudioOutput::for_song_with_calibration(
                     &song,
                     AudioConfig::default(),
                     &update_tx,
                     sample_base_dir.as_deref(),
+                    calibration.clone(),
                 );
                 let audio_sample_rate = audio_output.sample_rate();
                 let mut context = PlaybackRunContext {

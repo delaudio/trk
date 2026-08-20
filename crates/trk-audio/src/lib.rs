@@ -3,6 +3,7 @@
 pub mod backend;
 #[cfg(feature = "c-dsp-boundary")]
 pub mod c_dsp;
+pub mod calibration;
 pub mod cpal_backend;
 pub mod dsp;
 pub mod errors;
@@ -25,6 +26,9 @@ pub use c_dsp::{
     CNativeGainDescriptor, CNativeGainModule, CNativeGainParameterDescriptor,
     CNativeGainParameterValue, CNativeGainSpec, CNativeGainState, C_NATIVE_GAIN_GAIN_PARAMETER_ID,
     C_NATIVE_GAIN_MODULE_ID,
+};
+pub use calibration::{
+    CalibrationControl, CalibrationError, CalibrationMeters, CalibrationSettings,
 };
 pub use cpal_backend::CpalAudioBackend;
 pub use dsp::{

@@ -4,6 +4,7 @@ use trk_sampler::PreviewBuffer;
 
 use crate::{
     backend::AudioConfig,
+    calibration::{CalibrationControl, CalibrationProcessor},
     dsp::{
         apply_dsp_chain_to_buffer, apply_dsp_chain_to_frame, apply_dsp_gain_to_aux_sample,
         pan_gain, send_bus, track_dsp_chain, track_send_levels, DspDeviceSpec, DspFrameProcessor,
@@ -78,7 +79,7 @@ impl RealtimeSamplerVoice {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct RealtimeSampler {
     config: RealtimeSamplerConfig,
     samples: HashMap<u32, PreviewBuffer>,
@@ -86,11 +87,21 @@ pub struct RealtimeSampler {
     dsp_graph: DspGraphSpec,
     next_voice_id: u64,
     current_frame: u64,
+    calibration_control: CalibrationControl,
+    calibration_processor: CalibrationProcessor,
 }
 
 impl RealtimeSampler {
     #[must_use]
     pub fn new(config: RealtimeSamplerConfig) -> Self {
+        Self::with_calibration(config, CalibrationControl::new())
+    }
+
+    #[must_use]
+    pub fn with_calibration(
+        config: RealtimeSamplerConfig,
+        calibration_control: CalibrationControl,
+    ) -> Self {
         Self {
             config,
             samples: HashMap::new(),
@@ -98,6 +109,11 @@ impl RealtimeSampler {
             dsp_graph: DspGraphSpec::default(),
             next_voice_id: 1,
             current_frame: 0,
+            calibration_control,
+            calibration_processor: CalibrationProcessor::new(
+                config.sample_rate,
+                usize::from(config.channels),
+            ),
         }
     }
 
@@ -241,6 +257,7 @@ impl RealtimeSampler {
         let frames = data.len() / channels;
         let render_start = self.current_frame;
         let render_end = render_start.saturating_add(frames as u64);
+        let calibration = self.calibration_control.settings();
         let mut send_buffers = self
             .dsp_graph
             .sends
@@ -258,6 +275,9 @@ impl RealtimeSampler {
                 sample_rate: self.config.sample_rate,
             };
             let track_devices = track_dsp_chain(voice.track_id, &self.dsp_graph);
+            let calibrated_voice = (calibration.target_track_id == Some(voice.track_id))
+                .then(|| voice.with_gain(voice.gain * calibration.track_gain));
+            let voice = calibrated_voice.as_ref().unwrap_or(voice);
             mix_realtime_voice(data, channels, sample, voice, window, track_devices);
             for track_send in track_send_levels(voice.track_id, &self.dsp_graph) {
                 let Some(bus) = send_bus(track_send.send_id, &self.dsp_graph) else {
@@ -299,6 +319,8 @@ impl RealtimeSampler {
             self.config.sample_rate,
             &self.dsp_graph.master,
         );
+        self.calibration_processor
+            .process(data, calibration, &self.calibration_control);
 
         self.current_frame = render_end;
         let current_frame = self.current_frame;

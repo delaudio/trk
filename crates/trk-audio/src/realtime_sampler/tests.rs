@@ -140,6 +140,47 @@ fn realtime_sampler_applies_dsp_graph() {
     assert_approx_eq(rendered.data[0], 0.25);
 }
 
+#[test]
+fn realtime_calibration_targets_only_the_captured_track_and_updates_meters() {
+    let calibration = CalibrationControl::new();
+    calibration
+        .store(CalibrationSettings {
+            target_track_id: Some(1),
+            track_gain: 0.5,
+            ..CalibrationSettings::default()
+        })
+        .expect("calibration settings");
+    let mut sampler = RealtimeSampler::with_calibration(
+        RealtimeSamplerConfig {
+            sample_rate: 48_000,
+            channels: 1,
+            max_voices: 4,
+        },
+        calibration.clone(),
+    );
+    sampler
+        .register_sample(1, mono_sample(vec![0.25]))
+        .expect("register sample");
+    for track_id in [1, 2] {
+        sampler
+            .handle_command(RealtimeAudioCommand::TriggerSample {
+                track_id,
+                sample_id: 1,
+                frame: 0,
+                gain: 1.0,
+                pan: 0.0,
+                pitch_ratio: 1.0,
+                playback: AudioSamplerPlaybackSettings::default(),
+            })
+            .expect("trigger");
+    }
+
+    let rendered = sampler.render(1);
+
+    assert_approx_eq(rendered.data[0], 0.375);
+    assert_approx_eq(calibration.meters().peak, 0.375);
+}
+
 fn test_reverb_kind() -> DspDeviceKind {
     DspDeviceKind::Reverb {
         size: 0.5,

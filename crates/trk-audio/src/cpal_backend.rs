@@ -11,6 +11,7 @@ use trk_sampler::PreviewBuffer;
 
 use crate::{
     backend::{AudioBackend, AudioConfig},
+    calibration::CalibrationControl,
     dsp::DspGraphSpec,
     errors::AudioError,
     realtime_sampler::{RealtimeAudioCommand, RealtimeSampler, RealtimeSamplerConfig},
@@ -19,15 +20,29 @@ use crate::{
 #[cfg(test)]
 mod tests;
 
-#[derive(Default)]
 pub struct CpalAudioBackend {
     worker: Option<CpalStreamWorker>,
+    calibration: CalibrationControl,
+}
+
+impl Default for CpalAudioBackend {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CpalAudioBackend {
     #[must_use]
-    pub const fn new() -> Self {
-        Self { worker: None }
+    pub fn new() -> Self {
+        Self::with_calibration(CalibrationControl::new())
+    }
+
+    #[must_use]
+    pub fn with_calibration(calibration: CalibrationControl) -> Self {
+        Self {
+            worker: None,
+            calibration,
+        }
     }
 
     #[must_use]
@@ -72,7 +87,10 @@ impl AudioBackend for CpalAudioBackend {
 
         let (command_tx, command_rx) = mpsc::channel();
         let (startup_tx, startup_rx) = mpsc::channel();
-        let handle = thread::spawn(move || cpal_stream_thread(config, command_rx, startup_tx));
+        let calibration = self.calibration.clone();
+        let handle = thread::spawn(move || {
+            cpal_stream_thread(config, command_rx, startup_tx, calibration);
+        });
 
         match startup_rx.recv() {
             Ok(Ok(())) => {
@@ -100,6 +118,7 @@ impl AudioBackend for CpalAudioBackend {
                 .join()
                 .map_err(|_| AudioError::Stop("cpal stream thread panicked".to_string()))?;
         }
+        self.calibration.clear_meters();
         Ok(())
     }
 }
@@ -130,9 +149,10 @@ fn cpal_stream_thread(
     config: AudioConfig,
     command_rx: Receiver<CpalStreamCommand>,
     startup_tx: Sender<Result<(), AudioError>>,
+    calibration: CalibrationControl,
 ) {
     let (realtime_tx, realtime_rx) = mpsc::channel();
-    match start_realtime_cpal_stream(config, realtime_rx) {
+    match start_realtime_cpal_stream(config, realtime_rx, calibration) {
         Ok(stream) => {
             let _ = startup_tx.send(Ok(()));
             while let Ok(command) = command_rx.recv() {
@@ -152,6 +172,7 @@ fn cpal_stream_thread(
 fn start_realtime_cpal_stream(
     config: AudioConfig,
     command_rx: Receiver<CpalStreamCommand>,
+    calibration: CalibrationControl,
 ) -> Result<Stream, AudioError> {
     let host = cpal::default_host();
     let device = host
@@ -167,7 +188,13 @@ fn start_realtime_cpal_stream(
         buffer_size: cpal::BufferSize::Fixed(u32::from(config.buffer_frames)),
     };
 
-    let stream = build_realtime_output_stream(&device, &stream_config, sample_format, command_rx)?;
+    let stream = build_realtime_output_stream(
+        &device,
+        &stream_config,
+        sample_format,
+        command_rx,
+        calibration,
+    )?;
     stream
         .play()
         .map_err(|error| AudioError::Start(format!("failed to play stream: {error}")))?;
@@ -179,11 +206,18 @@ fn build_realtime_output_stream(
     config: &StreamConfig,
     sample_format: SampleFormat,
     command_rx: Receiver<CpalStreamCommand>,
+    calibration: CalibrationControl,
 ) -> Result<Stream, AudioError> {
     match sample_format {
-        SampleFormat::F32 => build_realtime_output_stream_for::<f32>(device, config, command_rx),
-        SampleFormat::I16 => build_realtime_output_stream_for::<i16>(device, config, command_rx),
-        SampleFormat::U16 => build_realtime_output_stream_for::<u16>(device, config, command_rx),
+        SampleFormat::F32 => {
+            build_realtime_output_stream_for::<f32>(device, config, command_rx, calibration)
+        }
+        SampleFormat::I16 => {
+            build_realtime_output_stream_for::<i16>(device, config, command_rx, calibration)
+        }
+        SampleFormat::U16 => {
+            build_realtime_output_stream_for::<u16>(device, config, command_rx, calibration)
+        }
         sample_format => Err(AudioError::Start(format!(
             "unsupported output sample format {sample_format}"
         ))),
@@ -194,6 +228,7 @@ fn build_realtime_output_stream_for<T>(
     device: &cpal::Device,
     config: &StreamConfig,
     command_rx: Receiver<CpalStreamCommand>,
+    calibration: CalibrationControl,
 ) -> Result<Stream, AudioError>
 where
     T: Sample + SizedSample + FromSample<f32> + 'static,
@@ -203,7 +238,7 @@ where
         channels: config.channels,
         max_voices: RealtimeSamplerConfig::default().max_voices,
     };
-    let mut sampler = RealtimeSampler::new(sampler_config);
+    let mut sampler = RealtimeSampler::with_calibration(sampler_config, calibration);
     let mut scratch = vec![0.0; usize::from(config.channels) * config.buffer_size_frame_hint()];
 
     device

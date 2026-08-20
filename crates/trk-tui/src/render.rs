@@ -1,6 +1,7 @@
 use std::ops::Range;
 
 mod browser_views;
+mod calibration_overlay;
 mod dsp_parameters;
 mod dsp_rack;
 mod help_overlay;
@@ -60,6 +61,7 @@ use crate::{
     ViewportAxis,
 };
 use browser_views::{render_project_browser, render_sample_browser};
+pub use calibration_overlay::render_calibration_overlay;
 use dsp_rack::render_dsp_rack_view;
 use help_overlay::render_help_overlay;
 use modal_overlays::{
@@ -140,6 +142,25 @@ pub struct PatternVariationEntryView<'a> {
     pub pattern_index: usize,
     pub track_index: Option<usize>,
     pub active: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CalibrationViewState<'a> {
+    pub selected: usize,
+    pub track_name: Option<&'a str>,
+    pub master_gain: f32,
+    pub track_gain: f32,
+    pub low_gain: f32,
+    pub mid_gain: f32,
+    pub high_gain: f32,
+    pub gate_threshold: f32,
+    pub meter_decay: f32,
+    pub auto_gain: bool,
+    pub meter_low: f32,
+    pub meter_mid: f32,
+    pub meter_high: f32,
+    pub meter_rms: f32,
+    pub meter_peak: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
