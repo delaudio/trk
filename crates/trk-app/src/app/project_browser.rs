@@ -154,6 +154,7 @@ impl App {
 
         match result {
             Ok(project) => {
+                self.clear_performance_state_for_project_change();
                 self.song = project.song;
                 self.variation_history = project.variation_history;
                 self.clean_song = self.song.clone();

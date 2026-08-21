@@ -224,13 +224,14 @@ fn midi_settings_connect_without_ports_reports_warning() {
 }
 
 #[test]
-fn f4_opens_midi_settings_without_mutating_song() {
+fn f4_opens_effects_parameter_page_without_mutating_song() {
     let mut app = App::default();
     let song = app.song.clone();
 
     app.handle_key(KeyEvent::new(KeyCode::F(4), KeyModifiers::NONE));
 
-    assert_eq!(app.mode, AppMode::MidiSettings);
+    assert_eq!(app.mode, AppMode::ParameterPage);
+    assert_eq!(app.parameter_surface.page, ParameterPage::Effects);
     assert_eq!(app.song, song);
     assert!(!app.dirty);
 }

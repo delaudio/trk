@@ -11,7 +11,10 @@ use crate::{
         DspGraphSpec, MixParams,
     },
     errors::AudioExportError,
-    offline_render::{AudioSamplerPlaybackSettings, OfflineRenderSpec, RenderedAudio},
+    offline_render::{
+        finite_playback_frames, playback_envelope_gain, AudioSamplerPlaybackSettings,
+        OfflineRenderSpec, RenderedAudio,
+    },
     shared::{
         converted_channel_sample, interpolated_sample, validate_sampler_render_sample,
         validated_pitch_ratio,
@@ -35,6 +38,9 @@ pub enum RealtimeAudioCommand {
     StopVoice {
         voice_id: u64,
         frame: u64,
+    },
+    StopTrack {
+        track_id: u32,
     },
     AllNotesOff {
         frame: u64,
@@ -195,6 +201,10 @@ impl RealtimeSampler {
                 self.voices.retain(|voice| voice.voice_id != voice_id);
                 Ok(None)
             }
+            RealtimeAudioCommand::StopTrack { track_id } => {
+                self.voices.retain(|voice| voice.track_id != track_id);
+                Ok(None)
+            }
             RealtimeAudioCommand::AllNotesOff { .. } => {
                 self.voices.clear();
                 Ok(None)
@@ -228,6 +238,9 @@ impl RealtimeSampler {
                 voice_id,
                 frame: self.current_frame,
             },
+            RealtimeAudioCommand::StopTrack { track_id } => {
+                RealtimeAudioCommand::StopTrack { track_id }
+            }
             RealtimeAudioCommand::AllNotesOff { .. } => RealtimeAudioCommand::AllNotesOff {
                 frame: self.current_frame,
             },
@@ -473,12 +486,14 @@ fn mix_realtime_voice(
         level: voice.gain,
         pan: voice.pan,
     };
+    let total_frames = finite_playback_frames(sample, voice.playback, voice.pitch_ratio);
     let mut processor = DspFrameProcessor::default();
     processor.prepare(window.sample_rate, channels, track_devices);
 
     for absolute_frame in mix_start..mix_end {
         let output_frame = (absolute_frame - window.start) as usize;
-        let source_frame = (absolute_frame - voice.start_frame) as f32 * voice.pitch_ratio;
+        let elapsed_frame = (absolute_frame - voice.start_frame) as usize;
+        let source_frame = elapsed_frame as f32 * voice.pitch_ratio;
         let Some(source_frame) = crate::offline_render::resolve_playback_source_frame(
             sample,
             voice.playback,
@@ -491,12 +506,22 @@ fn mix_realtime_voice(
             channels,
             sample_rate: window.sample_rate,
         };
+        let frame_params = MixParams {
+            level: params.level
+                * playback_envelope_gain(
+                    voice.playback,
+                    window.sample_rate,
+                    elapsed_frame,
+                    total_frames,
+                ),
+            ..params
+        };
         mix_realtime_frame(
             output,
             context,
             sample,
             source_frame,
-            params,
+            frame_params,
             track_devices,
             &mut processor,
         );
@@ -554,15 +579,6 @@ fn mix_realtime_frame(
 }
 
 fn voice_end_frame(voice: &RealtimeSamplerVoice, sample: &PreviewBuffer) -> Option<u64> {
-    if sample.frames == 0 {
-        return Some(voice.start_frame);
-    }
-    if crate::offline_render::valid_loop_window(sample, voice.playback).is_some() {
-        return None;
-    }
-    let rendered_frames = ((sample.frames as f32) / voice.pitch_ratio).ceil();
-    if !rendered_frames.is_finite() || rendered_frames <= 0.0 {
-        return None;
-    }
-    Some(voice.start_frame.saturating_add(rendered_frames as u64))
+    finite_playback_frames(sample, voice.playback, voice.pitch_ratio)
+        .map(|frames| voice.start_frame.saturating_add(frames as u64))
 }

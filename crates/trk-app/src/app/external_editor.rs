@@ -260,6 +260,7 @@ impl App {
     }
 
     fn adopt_external_project(&mut self, project: crate::persistence::ProjectFile, scratch: bool) {
+        self.clear_performance_state_for_project_change();
         self.song = project.song;
         self.variation_history = project.variation_history;
         if !scratch {

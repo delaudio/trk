@@ -10,9 +10,14 @@ impl App {
             self.handle_variation_history_key(key);
             return;
         }
-        if let Some(command) = self.keymap.command_for(self.mode.keymap_mode(), &key) {
-            self.dispatch_intent(AppIntent::Command(command));
+        if self.handle_performance_surface_shortcut(key) {
             return;
+        }
+        if self.mode != AppMode::ParameterPage {
+            if let Some(command) = self.keymap.command_for(self.mode.keymap_mode(), &key) {
+                self.dispatch_intent(AppIntent::Command(command));
+                return;
+            }
         }
         if self.mode != AppMode::CommandPalette && self.handle_control_key(key) {
             return;
@@ -22,6 +27,7 @@ impl App {
             AppMode::Normal => self.handle_normal_key(key),
             AppMode::Edit => self.handle_edit_key(key),
             AppMode::PianoRoll => self.handle_piano_roll_key(key),
+            AppMode::ParameterPage => self.handle_parameter_page_key(key),
             AppMode::Command => self.handle_command_key(key),
             AppMode::Strudel => self.handle_strudel_live_key(key),
             AppMode::CommandPalette => self.handle_command_palette_key(key),
@@ -113,6 +119,19 @@ impl App {
         if row < 3 {
             if primary_click {
                 self.handle_transport_mouse_click(column, row);
+            }
+            return;
+        }
+        if self.mode == AppMode::ParameterPage {
+            let target = self
+                .interaction_map
+                .hit_test(column, row)
+                .filter(|region| region.id == interaction_region::PARAMETER_PAGE_SLOT)
+                .map(|region| region.payload);
+            if let Some(InteractionPayload::ParameterPageSlot { index }) = target {
+                if primary_click {
+                    self.select_parameter_page_slot(index);
+                }
             }
             return;
         }

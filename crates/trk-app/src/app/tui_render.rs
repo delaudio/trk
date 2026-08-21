@@ -19,6 +19,8 @@ impl App {
         let ai_engine_selector = self.tui_ai_engine_selector(&ai_engine_entries);
         let variation_entries = self.tui_pattern_variation_entries();
         let variation_history = self.tui_pattern_variation_history(&variation_entries);
+        let parameter_slots = self.tui_parameter_page_slots();
+        let parameter_page = self.tui_parameter_page(&parameter_slots);
         let ai_provider = self.active_ai_engine_label();
         let ai_provider_status =
             crate::task_integration::format_ai_provider_status(&self.ai_config);
@@ -95,6 +97,7 @@ impl App {
                 project_browser,
                 ai_chat,
                 variation_history,
+                parameter_page,
                 tracker_layout: self.tracker_layout,
             },
         );

@@ -16,7 +16,7 @@ use crate::{
 #[cfg(test)]
 mod tests;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct OfflineRenderSpec {
     pub sample_rate: u32,
     pub channels: u16,
@@ -57,21 +57,58 @@ pub enum AudioSamplerPlaybackMode {
     Reverse,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AudioSamplerPlaybackSettings {
     pub mode: AudioSamplerPlaybackMode,
+    pub start_frame: Option<usize>,
+    pub end_frame: Option<usize>,
     pub loop_start_frame: Option<usize>,
     pub loop_end_frame: Option<usize>,
+    pub attack_seconds: f32,
+    pub decay_seconds: f32,
+    pub sustain: f32,
+    pub release_seconds: f32,
 }
 
 impl Default for AudioSamplerPlaybackSettings {
     fn default() -> Self {
         Self {
             mode: AudioSamplerPlaybackMode::OneShot,
+            start_frame: None,
+            end_frame: None,
             loop_start_frame: None,
             loop_end_frame: None,
+            attack_seconds: 0.0,
+            decay_seconds: 0.0,
+            sustain: 1.0,
+            release_seconds: 0.0,
         }
     }
+}
+
+#[must_use]
+pub fn scale_sampler_playback_frames(
+    mut playback: AudioSamplerPlaybackSettings,
+    frame_scale: f64,
+) -> AudioSamplerPlaybackSettings {
+    if !frame_scale.is_finite() || frame_scale <= 0.0 || frame_scale == 1.0 {
+        return playback;
+    }
+    let scale = |frame: Option<usize>| {
+        frame.map(|frame| {
+            let scaled = ((frame as f64) * frame_scale).round();
+            if scaled >= usize::MAX as f64 {
+                usize::MAX
+            } else {
+                scaled as usize
+            }
+        })
+    };
+    playback.start_frame = scale(playback.start_frame);
+    playback.end_frame = scale(playback.end_frame);
+    playback.loop_start_frame = scale(playback.loop_start_frame);
+    playback.loop_end_frame = scale(playback.loop_end_frame);
+    playback
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -271,15 +308,16 @@ fn inferred_event_frames(
     playback: AudioSamplerPlaybackSettings,
     pitch_ratio: f32,
 ) -> usize {
+    let window_frames = playback_window(sample, playback).map_or(0, |(start, end)| end - start);
     match playback.mode {
         AudioSamplerPlaybackMode::ForwardLoop
         | AudioSamplerPlaybackMode::BackwardLoop
         | AudioSamplerPlaybackMode::PingPongLoop
             if valid_loop_window(sample, playback).is_some() =>
         {
-            sample.frames
+            window_frames
         }
-        _ => ((sample.frames as f32) / pitch_ratio).ceil() as usize,
+        _ => ((window_frames as f32) / pitch_ratio).ceil() as usize,
     }
 }
 
@@ -301,6 +339,7 @@ fn mix_sample_event(
 ) {
     let mut source_frame = 0.0_f32;
     let mut output_frame = context.output_start_frame;
+    let voice_frames = finite_playback_frames(sample, playback, params.pitch_ratio);
     let mut processor = DspFrameProcessor::default();
     processor.prepare(context.sample_rate, context.channels, track_devices);
     while output_frame < context.output_frames {
@@ -309,12 +348,18 @@ fn mix_sample_event(
         else {
             break;
         };
+        let elapsed = output_frame.saturating_sub(context.output_start_frame);
+        let frame_params = MixParams {
+            level: params.level
+                * playback_envelope_gain(playback, context.sample_rate, elapsed, voice_frames),
+            ..params
+        };
         let output_offset = output_frame * context.channels;
         if context.channels == 1 {
             let mut frame =
                 [
                     interpolated_sample(sample, resolved_source_frame, 0, context.channels)
-                        * params.level,
+                        * frame_params.level,
                 ];
             apply_dsp_chain_to_frame(
                 &mut processor,
@@ -326,11 +371,11 @@ fn mix_sample_event(
         } else {
             let mut frame = [
                 interpolated_sample(sample, resolved_source_frame, 0, context.channels)
-                    * params.level
-                    * pan_gain(params.pan, 0, context.channels),
+                    * frame_params.level
+                    * pan_gain(frame_params.pan, 0, context.channels),
                 interpolated_sample(sample, resolved_source_frame, 1, context.channels)
-                    * params.level
-                    * pan_gain(params.pan, 1, context.channels),
+                    * frame_params.level
+                    * pan_gain(frame_params.pan, 1, context.channels),
             ];
             apply_dsp_chain_to_frame(
                 &mut processor,
@@ -343,8 +388,8 @@ fn mix_sample_event(
             for channel in 2..context.channels {
                 let sample_value =
                     interpolated_sample(sample, resolved_source_frame, channel, context.channels)
-                        * params.level
-                        * pan_gain(params.pan, channel, context.channels);
+                        * frame_params.level
+                        * pan_gain(frame_params.pan, channel, context.channels);
                 output[output_offset + channel] +=
                     apply_dsp_gain_to_aux_sample(sample_value, track_devices);
             }
@@ -354,17 +399,94 @@ fn mix_sample_event(
     }
 }
 
+pub(crate) fn finite_playback_frames(
+    sample: &PreviewBuffer,
+    playback: AudioSamplerPlaybackSettings,
+    pitch_ratio: f32,
+) -> Option<usize> {
+    if !pitch_ratio.is_finite() || pitch_ratio <= 0.0 {
+        return Some(0);
+    }
+    if matches!(
+        playback.mode,
+        AudioSamplerPlaybackMode::ForwardLoop
+            | AudioSamplerPlaybackMode::BackwardLoop
+            | AudioSamplerPlaybackMode::PingPongLoop
+    ) && valid_loop_window(sample, playback).is_some()
+    {
+        return None;
+    }
+    let (start, end) = playback_window(sample, playback)?;
+    Some((((end - start) as f32) / pitch_ratio).ceil() as usize)
+}
+
+pub(crate) fn playback_envelope_gain(
+    playback: AudioSamplerPlaybackSettings,
+    sample_rate: u32,
+    elapsed_frame: usize,
+    total_frames: Option<usize>,
+) -> f32 {
+    let seconds_to_frames = |seconds: f32| {
+        if seconds.is_finite() && seconds > 0.0 {
+            (seconds * sample_rate as f32).round() as usize
+        } else {
+            0
+        }
+    };
+    let attack = seconds_to_frames(playback.attack_seconds);
+    let decay = seconds_to_frames(playback.decay_seconds);
+    let release = seconds_to_frames(playback.release_seconds);
+    let sustain = playback.sustain.clamp(0.0, 1.0);
+    let mut gain = if attack > 0 && elapsed_frame < attack {
+        elapsed_frame as f32 / attack as f32
+    } else if decay > 0 && elapsed_frame < attack.saturating_add(decay) {
+        let position = elapsed_frame.saturating_sub(attack) as f32 / decay as f32;
+        1.0 - position * (1.0 - sustain)
+    } else {
+        sustain
+    };
+    if let Some(total) = total_frames {
+        let release = release.min(total);
+        let release_start = total.saturating_sub(release);
+        if release > 0 && elapsed_frame >= release_start {
+            let position = elapsed_frame.saturating_sub(release_start) as f32 / release as f32;
+            gain *= 1.0 - position;
+        }
+    }
+    gain.clamp(0.0, 1.0)
+}
+
 pub(crate) fn valid_loop_window(
     sample: &PreviewBuffer,
     playback: AudioSamplerPlaybackSettings,
 ) -> Option<(usize, usize)> {
-    let start = playback.loop_start_frame?;
-    let end = playback.loop_end_frame?;
-    if start < end && end <= sample.frames {
-        Some((start, end))
-    } else {
-        None
+    let (window_start, window_end) = playback_window(sample, playback)?;
+    let requested_start = playback.loop_start_frame?;
+    let requested_end = playback.loop_end_frame?;
+    if requested_end <= requested_start {
+        return None;
     }
+    let start = requested_start.clamp(window_start, window_end.saturating_sub(1));
+    let end = requested_end.min(window_end);
+    (end > start).then_some((start, end))
+}
+
+pub(crate) fn playback_window(
+    sample: &PreviewBuffer,
+    playback: AudioSamplerPlaybackSettings,
+) -> Option<(usize, usize)> {
+    if sample.frames == 0 {
+        return None;
+    }
+    let start = playback
+        .start_frame
+        .unwrap_or(0)
+        .min(sample.frames.saturating_sub(1));
+    let end = playback
+        .end_frame
+        .unwrap_or(sample.frames)
+        .clamp(start.saturating_add(1), sample.frames);
+    Some((start, end))
 }
 
 pub(crate) fn resolve_playback_source_frame(
@@ -372,30 +494,38 @@ pub(crate) fn resolve_playback_source_frame(
     playback: AudioSamplerPlaybackSettings,
     source_frame: f32,
 ) -> Option<f32> {
-    if sample.frames == 0 || !source_frame.is_finite() || source_frame < 0.0 {
+    if !source_frame.is_finite() || source_frame < 0.0 {
         return None;
     }
+    let (window_start, window_end) = playback_window(sample, playback)?;
+    let source_frame = window_start as f32 + source_frame;
     match playback.mode {
         AudioSamplerPlaybackMode::OneShot => {
-            (source_frame < sample.frames as f32).then_some(source_frame)
+            (source_frame < window_end as f32).then_some(source_frame)
         }
         AudioSamplerPlaybackMode::Reverse => {
-            if source_frame >= sample.frames as f32 {
+            if source_frame >= window_end as f32 {
                 None
             } else {
-                Some((sample.frames - 1) as f32 - source_frame)
+                Some((window_end - 1) as f32 - (source_frame - window_start as f32))
             }
         }
         AudioSamplerPlaybackMode::ForwardLoop => {
-            let (start, end) = valid_loop_window(sample, playback)?;
+            let Some((start, end)) = valid_loop_window(sample, playback) else {
+                return (source_frame < window_end as f32).then_some(source_frame);
+            };
             Some(resolve_forward_loop_frame(source_frame, start, end))
         }
         AudioSamplerPlaybackMode::BackwardLoop => {
-            let (start, end) = valid_loop_window(sample, playback)?;
+            let Some((start, end)) = valid_loop_window(sample, playback) else {
+                return (source_frame < window_end as f32).then_some(source_frame);
+            };
             Some(resolve_backward_loop_frame(source_frame, start, end))
         }
         AudioSamplerPlaybackMode::PingPongLoop => {
-            let (start, end) = valid_loop_window(sample, playback)?;
+            let Some((start, end)) = valid_loop_window(sample, playback) else {
+                return (source_frame < window_end as f32).then_some(source_frame);
+            };
             Some(resolve_ping_pong_loop_frame(source_frame, start, end))
         }
     }

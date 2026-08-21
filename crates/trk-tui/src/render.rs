@@ -6,6 +6,7 @@ mod dsp_parameters;
 mod dsp_rack;
 mod help_overlay;
 mod modal_overlays;
+mod parameter_page;
 mod piano_roll;
 mod renoise_layout;
 mod renoise_workspace;
@@ -13,6 +14,7 @@ mod sampler_view;
 mod status_bar;
 mod text;
 mod theme;
+mod view;
 
 use ratatui::{
     layout::{Constraint, Direction as LayoutDirection, Layout, Rect},
@@ -72,10 +74,13 @@ use modal_overlays::{
     render_midi_settings_overlay, render_pattern_variation_history_overlay,
     render_quit_confirmation,
 };
+use parameter_page::render_parameter_page;
+pub use parameter_page::{ParameterPageSlotView, ParameterPageViewState};
 use piano_roll::render_piano_roll;
 use sampler_view::render_sampler_view;
 use status_bar::render_status;
 use text::{fixed_decimal, format_row_number};
+pub use view::TuiView;
 
 const ROW_GUTTER_WIDTH: usize = 5;
 const PATTERN_CELL_WIDTH: usize = 31;
@@ -129,6 +134,7 @@ pub struct TuiState<'a> {
     pub project_browser: Option<ProjectBrowserViewState<'a>>,
     pub ai_chat: Option<AiChatViewState<'a>>,
     pub variation_history: Option<PatternVariationHistoryViewState<'a>>,
+    pub parameter_page: Option<ParameterPageViewState<'a>>,
     pub tracker_layout: TrackerLayoutState,
 }
 
@@ -167,21 +173,6 @@ pub struct CalibrationViewState<'a> {
     pub meter_high: f32,
     pub meter_rms: f32,
     pub meter_peak: f32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TuiView {
-    Pattern,
-    PianoRoll { pitch: u8, rows: u8, ghosts: bool },
-    Sequence,
-    Clips,
-    Tracks,
-    Patterns,
-    Sampler,
-    DspRack,
-    SampleBrowser,
-    ProjectBrowser,
-    AiChat,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -916,6 +907,10 @@ fn render_body(
     interactions: &mut InteractionMap,
 ) {
     interactions.register(active_view_region(state.active_view), area);
+    if state.active_view == TuiView::ParameterPage {
+        render_parameter_page(frame, area, state.parameter_page, interactions);
+        return;
+    }
     if matches!(state.active_view, TuiView::PianoRoll { .. }) {
         render_piano_roll(frame, area, song, state);
         return;
@@ -1013,6 +1008,7 @@ fn render_body(
 fn active_view_region(view: TuiView) -> crate::InteractionRegionId {
     match view {
         TuiView::Pattern => interaction_region::VIEW_PATTERN,
+        TuiView::ParameterPage => interaction_region::VIEW_PARAMETER_PAGE,
         TuiView::PianoRoll { .. } => interaction_region::VIEW_PIANO_ROLL,
         TuiView::Sequence => interaction_region::VIEW_SEQUENCE,
         TuiView::Clips => interaction_region::VIEW_CLIPS,

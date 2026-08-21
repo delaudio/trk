@@ -118,9 +118,9 @@ fn pattern_playback_routes_assigned_samples_to_audio_commands() {
                 pitch_ratio,
                 ..
             } => Some((*sample_id, *frame, *gain, *pan, *pitch_ratio)),
-            RealtimeAudioCommand::StopVoice { .. } | RealtimeAudioCommand::AllNotesOff { .. } => {
-                None
-            }
+            RealtimeAudioCommand::StopVoice { .. }
+            | RealtimeAudioCommand::StopTrack { .. }
+            | RealtimeAudioCommand::AllNotesOff { .. } => None,
         })
         .expect("trigger sample command");
 
@@ -162,7 +162,27 @@ fn realtime_sample_loader_prepares_assigned_wavs() {
     assert_eq!(samples[0].1.sample_rate, 48_000);
     assert_eq!(samples[0].1.channels, 2);
     assert!(samples[0].1.frames >= 4);
+    assert!((samples[0].2 - (48_000.0 / 44_100.0)).abs() < f64::EPSILON);
+    assert!(samples.complete);
     assert!(update_rx.try_iter().collect::<Vec<_>>().is_empty());
+}
+
+#[test]
+fn realtime_sample_loader_marks_partial_sets_incomplete() {
+    let mut song = Song::empty();
+    let track = song.tracks[0].id;
+    let sample = song.upsert_sample_reference("missing-sample.wav", "missing.wav");
+    song.assign_sample_to_track(track, sample)
+        .expect("assign sample");
+    let (update_tx, update_rx) = mpsc::channel();
+
+    let samples = load_realtime_samples(&song, AudioConfig::default(), &update_tx, None);
+
+    assert!(samples.is_empty());
+    assert!(!samples.complete);
+    assert!(update_rx
+        .try_iter()
+        .any(|update| matches!(update, PlaybackUpdate::AudioError(_))));
 }
 
 #[test]
@@ -264,7 +284,7 @@ fn realtime_sample_loader_prepares_zoned_instrument_samples() {
     let _ = std::fs::remove_file(&low_path);
     let _ = std::fs::remove_file(&high_path);
 
-    let sample_ids = samples.iter().map(|(id, _)| *id).collect::<Vec<_>>();
+    let sample_ids = samples.iter().map(|(id, _, _)| *id).collect::<Vec<_>>();
     assert!(sample_ids.contains(&low.0));
     assert!(sample_ids.contains(&high.0));
     assert!(update_rx.try_iter().collect::<Vec<_>>().is_empty());
@@ -290,6 +310,7 @@ fn interrupted_pattern_playback_sends_audio_all_notes_off() {
         midi_logger: &mut midi_logger,
         audio_output: &mut audio_output,
         audio_sample_rate,
+        pending_reload: None,
     };
     command_tx.send(PlaybackCommand::Stop).expect("send stop");
 

@@ -310,8 +310,10 @@ fn decode_samples(bytes: &[u8], format: WavFormat) -> Result<Vec<f32>, SamplerEr
                 return Err(SamplerError::InvalidWav("16-bit PCM data is truncated"));
             }
             Ok(bytes
-                .chunks_exact(2)
-                .map(|sample| i16::from_le_bytes([sample[0], sample[1]]) as f32 / 32768.0)
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|sample| i16::from_le_bytes(*sample) as f32 / 32768.0)
                 .collect())
         }
         (3, 32) => {
@@ -319,8 +321,10 @@ fn decode_samples(bytes: &[u8], format: WavFormat) -> Result<Vec<f32>, SamplerEr
                 return Err(SamplerError::InvalidWav("32-bit float data is truncated"));
             }
             Ok(bytes
-                .chunks_exact(4)
-                .map(|sample| f32::from_le_bytes([sample[0], sample[1], sample[2], sample[3]]))
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .map(|sample| f32::from_le_bytes(*sample))
                 .collect())
         }
         (1, _) => Err(SamplerError::UnsupportedWav(

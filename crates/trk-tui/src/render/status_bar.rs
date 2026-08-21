@@ -134,6 +134,18 @@ fn status_segments(state: TuiState<'_>) -> (String, &'static [&'static str]) {
                 ": Command",
             ],
         ),
+        TuiView::ParameterPage => (
+            state.mode_label.to_string(),
+            &[
+                "F1-F6 Pages",
+                "QWER/ASDF Select",
+                "+/- Adjust",
+                "Shift Coarse",
+                "Backspace+Key Clear",
+                "Shift+1..8 Mute",
+                "Esc Tracker",
+            ],
+        ),
         TuiView::Sequence => (
             state.mode_label.to_string(),
             &[
@@ -285,6 +297,7 @@ mod tests {
 
     const VIEWS: &[(TuiView, &str)] = &[
         (TuiView::Pattern, "NORMAL"),
+        (TuiView::ParameterPage, "PARAM"),
         (TuiView::Sequence, "SEQUENCE"),
         (TuiView::Clips, "CLIPS"),
         (TuiView::Tracks, "TRACKS"),

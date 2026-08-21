@@ -536,7 +536,7 @@ fn render_selection_audio(
         row_duration.saturating_mul(selection_rows as u64),
         sample_rate,
     );
-    let events = sampler_events(song, pattern)
+    let mut events = sampler_events(song, pattern)
         .into_iter()
         .filter(|event| {
             event.position.row >= selection.row_start
@@ -557,7 +557,9 @@ fn render_selection_audio(
             playback: audio_sampler_playback_settings(event.playback),
         })
         .collect::<Vec<_>>();
-    let samples = load_offline_export_samples(song, sample_rate, channels, sample_base_dir)?;
+    let (samples, sample_frame_scales) =
+        load_offline_export_samples(song, sample_rate, channels, sample_base_dir)?;
+    scale_offline_export_event_frames(&mut events, &sample_frame_scales);
     let rendered = render_sampler_events_with_dsp(
         &samples,
         &events,

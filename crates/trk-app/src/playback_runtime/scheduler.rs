@@ -5,7 +5,8 @@ use std::{
 
 use trk_audio::RealtimeAudioCommand;
 use trk_core::{
-    pattern_events, row_duration_micros, sampler_events, Pattern, PlaybackPosition, Song,
+    pattern_events, row_duration_micros, sampler_events, Pattern, PlaybackEvent, PlaybackEventKind,
+    PlaybackPosition, Song,
 };
 use trk_midi::MidiError;
 
@@ -17,10 +18,27 @@ use super::{
     transport::{PlaybackCommand, PlaybackCursor, PlaybackUpdate},
 };
 
+mod live_updates;
+use live_updates::{apply_live_mute, remap_active_pattern};
+
 #[derive(Debug)]
 pub(super) enum PatternRunResult {
     Finished,
     Stopped,
+    Command(Box<PlaybackCommand>),
+}
+
+enum PatternWaitResult {
+    Deadline,
+    ApplyLiveMute {
+        track: trk_core::TrackId,
+        muted: bool,
+    },
+    Command(Box<PlaybackCommand>),
+}
+
+enum SettledPatternWaitResult {
+    Deadline,
     Command(Box<PlaybackCommand>),
 }
 
@@ -31,6 +49,7 @@ pub(super) struct PlaybackRunContext<'a> {
     pub(super) midi_logger: &'a mut MidiLogger,
     pub(super) audio_output: &'a mut PlaybackAudioOutput,
     pub(super) audio_sample_rate: u32,
+    pub(super) pending_reload: Option<(Song, u64)>,
 }
 
 pub(super) fn run_pattern(
@@ -46,62 +65,147 @@ pub(super) fn run_pattern(
         return PatternRunResult::Stopped;
     };
     let mut pattern = pattern.clone();
-    let row_count = pattern.row_count();
-    let row_duration_micros = row_duration_micros(&song.transport).max(1);
-    let row_duration = Duration::from_micros(row_duration_micros);
+    let mut active_pattern_id = pattern.id;
+    let mut pattern_index = pattern_index;
+    let mut row_count = pattern.row_count();
+    let mut row_micros = row_duration_micros(&song.transport).max(1);
+    let mut row_duration = Duration::from_micros(row_micros);
     let mut events = pattern_events(song, &pattern);
     let mut sample_events = sampler_events(song, &pattern);
     let mut pending_pattern = None;
     let mut pass_start_row = start_row.min(row_count);
+    let mut audio_offset_micros = 0_u64;
+    let mut has_emitted_row = false;
     loop {
-        let loop_start = Instant::now();
-        let pass_start_offset = row_duration_micros.saturating_mul(pass_start_row as u64);
         let mut active_sent_notes = Vec::new();
+        let mut row = pass_start_row.min(row_count);
+        let mut row_deadline = Instant::now();
 
-        for row in pass_start_row..=row_count {
+        while row <= row_count {
             if let Some(replacement) = pending_pattern.take() {
                 pattern = replacement;
+                row_count = pattern.row_count();
                 events = pattern_events(song, &pattern);
                 sample_events = sampler_events(song, &pattern);
             }
-            let relative_row = row.saturating_sub(pass_start_row);
-            let deadline = loop_start + row_duration.saturating_mul(relative_row as u32);
-            if let Some(command) = wait_until_pattern(
-                context.command_rx,
-                deadline,
+            let mut song_changed = false;
+            match wait_until_pattern_with_live_mutes(
+                row_deadline,
                 pattern_index,
                 song,
                 &mut pending_pattern,
+                row,
+                &mut active_sent_notes,
+                context,
             ) {
-                let _ = send_all_notes_off_logged(context.output, context.midi_logger);
-                send_all_audio_notes_off(context.audio_output);
-                let _ = context.update_tx.send(PlaybackUpdate::Stopped);
-                return PatternRunResult::Command(Box::new(command));
+                Ok(SettledPatternWaitResult::Deadline) => {}
+                Ok(SettledPatternWaitResult::Command(command)) => {
+                    let _ = send_all_notes_off_logged(context.output, context.midi_logger);
+                    send_all_audio_notes_off(context.audio_output);
+                    let _ = context.update_tx.send(PlaybackUpdate::Stopped);
+                    return PatternRunResult::Command(command);
+                }
+                Err(error) => {
+                    handle_midi_send_failure(context, error);
+                    return PatternRunResult::Stopped;
+                }
             }
+            if let Some(replacement) = pending_pattern.take() {
+                pattern = replacement;
+                row_count = pattern.row_count();
+                events = pattern_events(song, &pattern);
+                sample_events = sampler_events(song, &pattern);
+            }
+
+            let beat_boundary = row % usize::from(song.transport.lines_per_beat.max(1)) == 0;
+            let mut reload_token = None;
+            if beat_boundary && has_emitted_row {
+                if let Some((replacement, token)) = context.pending_reload.take() {
+                    if let Err(error) =
+                        send_all_notes_off_logged(context.output, context.midi_logger)
+                    {
+                        send_all_audio_notes_off(context.audio_output);
+                        handle_midi_send_failure(context, error);
+                        return PatternRunResult::Stopped;
+                    }
+                    send_all_audio_notes_off(context.audio_output);
+                    active_sent_notes.clear();
+                    if !context
+                        .audio_output
+                        .sync_samples(&replacement, context.update_tx)
+                    {
+                        let _ = context.update_tx.send(PlaybackUpdate::Stopped);
+                        return PatternRunResult::Stopped;
+                    }
+                    *song = replacement;
+                    let Some(remapped_index) =
+                        remap_active_pattern(song, active_pattern_id, sequence_index)
+                    else {
+                        let _ = context.update_tx.send(PlaybackUpdate::Stopped);
+                        return PatternRunResult::Stopped;
+                    };
+                    pattern_index = remapped_index;
+                    active_pattern_id = song.patterns[pattern_index].id;
+                    song_changed = true;
+                    reload_token = Some(token);
+                }
+            }
+            if song_changed {
+                let Some(replacement) = song.pattern(pattern_index).cloned() else {
+                    let _ = context.update_tx.send(PlaybackUpdate::Stopped);
+                    return PatternRunResult::Stopped;
+                };
+                pattern = replacement;
+                row_count = pattern.row_count();
+                row_micros = row_duration_micros(&song.transport).max(1);
+                row_duration = Duration::from_micros(row_micros);
+                events = pattern_events(song, &pattern);
+                sample_events = sampler_events(song, &pattern);
+                context.audio_output.sync_dsp_graph(song, context.update_tx);
+            }
+            if let Some(token) = reload_token {
+                let _ = context
+                    .update_tx
+                    .send(PlaybackUpdate::PerformanceReloaded { token });
+            }
+            if row > row_count {
+                break;
+            }
+
+            context
+                .audio_output
+                .sync_dsp_graph_at_row(song, &pattern, row, context.update_tx);
             for event in events.iter().filter(|event| event.position.row == row) {
-                let event_deadline = loop_start
+                let row_offset = row_micros.saturating_mul(row as u64);
+                let event_deadline = row_deadline
                     + Duration::from_micros(
-                        event
-                            .position
-                            .offset_micros
-                            .saturating_sub(pass_start_offset),
+                        event.position.offset_micros.saturating_sub(row_offset),
                     );
-                if let Some(command) = wait_until_pattern(
-                    context.command_rx,
+                match wait_until_pattern_with_live_mutes(
                     event_deadline,
                     pattern_index,
                     song,
                     &mut pending_pattern,
+                    row,
+                    &mut active_sent_notes,
+                    context,
                 ) {
-                    let _ = send_all_notes_off_logged(context.output, context.midi_logger);
-                    send_all_audio_notes_off(context.audio_output);
-                    let _ = context.update_tx.send(PlaybackUpdate::Stopped);
-                    return PatternRunResult::Command(Box::new(command));
-                }
-                if !mark_event_for_started_playback(&mut active_sent_notes, event) {
-                    continue;
+                    Ok(SettledPatternWaitResult::Deadline) => {}
+                    Ok(SettledPatternWaitResult::Command(command)) => {
+                        let _ = send_all_notes_off_logged(context.output, context.midi_logger);
+                        send_all_audio_notes_off(context.audio_output);
+                        let _ = context.update_tx.send(PlaybackUpdate::Stopped);
+                        return PatternRunResult::Command(command);
+                    }
+                    Err(error) => {
+                        handle_midi_send_failure(context, error);
+                        return PatternRunResult::Stopped;
+                    }
                 }
                 if !midi_event_allowed(song, event) {
+                    continue;
+                }
+                if !event_can_be_sent(&active_sent_notes, event) {
                     continue;
                 }
                 if let Err(error) =
@@ -110,33 +214,45 @@ pub(super) fn run_pattern(
                     handle_midi_send_failure(context, error);
                     return PatternRunResult::Stopped;
                 }
+                mark_sent_event(&mut active_sent_notes, event);
             }
 
             for event in sample_events
                 .iter()
                 .filter(|event| event.position.row == row)
             {
-                let relative_offset = event
-                    .position
-                    .offset_micros
-                    .saturating_sub(pass_start_offset);
-                let event_deadline = loop_start + Duration::from_micros(relative_offset);
-                if let Some(command) = wait_until_pattern(
-                    context.command_rx,
+                let row_offset = row_micros.saturating_mul(row as u64);
+                let relative_offset = event.position.offset_micros.saturating_sub(row_offset);
+                let event_deadline = row_deadline + Duration::from_micros(relative_offset);
+                match wait_until_pattern_with_live_mutes(
                     event_deadline,
                     pattern_index,
                     song,
                     &mut pending_pattern,
+                    row,
+                    &mut active_sent_notes,
+                    context,
                 ) {
-                    let _ = send_all_notes_off_logged(context.output, context.midi_logger);
-                    send_all_audio_notes_off(context.audio_output);
-                    let _ = context.update_tx.send(PlaybackUpdate::Stopped);
-                    return PatternRunResult::Command(Box::new(command));
+                    Ok(SettledPatternWaitResult::Deadline) => {}
+                    Ok(SettledPatternWaitResult::Command(command)) => {
+                        let _ = send_all_notes_off_logged(context.output, context.midi_logger);
+                        send_all_audio_notes_off(context.audio_output);
+                        let _ = context.update_tx.send(PlaybackUpdate::Stopped);
+                        return PatternRunResult::Command(command);
+                    }
+                    Err(error) => {
+                        handle_midi_send_failure(context, error);
+                        return PatternRunResult::Stopped;
+                    }
                 }
+                if !track_is_audible_now(song, event.track) {
+                    continue;
+                }
+                let playback_offset = audio_offset_micros.saturating_add(relative_offset);
                 let command = RealtimeAudioCommand::TriggerSample {
                     track_id: event.track.0,
                     sample_id: event.sample.0,
-                    frame: micros_to_frames(relative_offset, context.audio_sample_rate),
+                    frame: micros_to_frames(playback_offset, context.audio_sample_rate),
                     gain: event.gain * (f32::from(event.velocity.min(0x7f)) / 127.0),
                     pan: event.pan,
                     pitch_ratio: event.pitch_ratio,
@@ -158,6 +274,12 @@ pub(super) fn run_pattern(
                         },
                     }));
             }
+            if row < row_count {
+                audio_offset_micros = audio_offset_micros.saturating_add(row_micros);
+                has_emitted_row = true;
+            }
+            row = row.saturating_add(1);
+            row_deadline += row_duration;
         }
 
         if !loop_pattern {
@@ -221,13 +343,14 @@ pub(super) fn run_sequence(
     start_sequence_index: usize,
     context: &mut PlaybackRunContext<'_>,
 ) -> Option<PlaybackCommand> {
-    let sequence = song.sequence.clone();
-    for (sequence_index, pattern_id) in sequence.iter().enumerate().skip(start_sequence_index) {
+    let mut sequence_index = start_sequence_index;
+    while let Some(pattern_id) = song.sequence.get(sequence_index).copied() {
         let Some(pattern_index) = song
             .patterns
             .iter()
-            .position(|pattern| pattern.id == *pattern_id)
+            .position(|pattern| pattern.id == pattern_id)
         else {
+            sequence_index = sequence_index.saturating_add(1);
             continue;
         };
 
@@ -243,6 +366,7 @@ pub(super) fn run_sequence(
             PatternRunResult::Stopped => return None,
             PatternRunResult::Command(command) => return Some(*command),
         }
+        sequence_index = sequence_index.saturating_add(1);
     }
 
     let _ = send_all_notes_off_logged(context.output, context.midi_logger);
@@ -258,32 +382,46 @@ fn midi_event_allowed(song: &Song, event: &trk_core::PlaybackEvent) -> bool {
         trk_core::PlaybackEventKind::ControlChange { .. } => song.midi.cc_out,
     };
     kind_allowed
+        && track_is_audible_now(song, event.track)
         && (song.midi.output_channels.is_empty()
             || song.midi.output_channels.contains(&event.midi_channel))
 }
 
-fn mark_event_for_started_playback(
-    active_notes: &mut Vec<(trk_core::TrackId, u8)>,
+fn track_is_audible_now(song: &Song, track_id: trk_core::TrackId) -> bool {
+    let solo_active = song.tracks.iter().any(|track| track.solo);
+    song.tracks
+        .iter()
+        .find(|track| track.id == track_id)
+        .is_some_and(|track| !track.muted && (!solo_active || track.solo))
+}
+
+fn event_can_be_sent(
+    active_notes: &[(trk_core::TrackId, u8)],
     event: &trk_core::PlaybackEvent,
 ) -> bool {
+    match event.kind {
+        trk_core::PlaybackEventKind::NoteOn { .. }
+        | trk_core::PlaybackEventKind::ControlChange { .. } => true,
+        trk_core::PlaybackEventKind::NoteOff { pitch } => active_notes
+            .iter()
+            .any(|(track, active_pitch)| *track == event.track && *active_pitch == pitch),
+    }
+}
+
+fn mark_sent_event(
+    active_notes: &mut Vec<(trk_core::TrackId, u8)>,
+    event: &trk_core::PlaybackEvent,
+) {
     match event.kind {
         trk_core::PlaybackEventKind::NoteOn { pitch, .. } => {
             active_notes.retain(|(track, _)| *track != event.track);
             active_notes.push((event.track, pitch));
-            true
         }
         trk_core::PlaybackEventKind::NoteOff { pitch } => {
-            let was_active = active_notes
-                .iter()
-                .any(|(track, active_pitch)| *track == event.track && *active_pitch == pitch);
-            if was_active {
-                active_notes.retain(|(track, active_pitch)| {
-                    *track != event.track || *active_pitch != pitch
-                });
-            }
-            was_active
+            active_notes
+                .retain(|(track, active_pitch)| *track != event.track || *active_pitch != pitch);
         }
-        trk_core::PlaybackEventKind::ControlChange { .. } => true,
+        trk_core::PlaybackEventKind::ControlChange { .. } => {}
     }
 }
 
@@ -336,7 +474,8 @@ fn wait_until_pattern(
     pattern_index: usize,
     song: &mut Song,
     pending_pattern: &mut Option<Pattern>,
-) -> Option<PlaybackCommand> {
+    pending_reload: &mut Option<(Song, u64)>,
+) -> PatternWaitResult {
     loop {
         match wait_until(command_rx, deadline) {
             Some(PlaybackCommand::ReplacePattern {
@@ -362,7 +501,43 @@ fn wait_until_pattern(
                     );
                 }
             }
-            command => return command,
+            Some(PlaybackCommand::ApplyLiveMute { track, muted }) => {
+                return PatternWaitResult::ApplyLiveMute { track, muted };
+            }
+            Some(PlaybackCommand::ReloadSongAtNextBeat { song, token }) => {
+                *pending_reload = Some((song, token));
+            }
+            Some(command) => return PatternWaitResult::Command(Box::new(command)),
+            None => return PatternWaitResult::Deadline,
+        }
+    }
+}
+
+fn wait_until_pattern_with_live_mutes(
+    deadline: Instant,
+    pattern_index: usize,
+    song: &mut Song,
+    pending_pattern: &mut Option<Pattern>,
+    row: usize,
+    active_notes: &mut Vec<(trk_core::TrackId, u8)>,
+    context: &mut PlaybackRunContext<'_>,
+) -> Result<SettledPatternWaitResult, MidiError> {
+    loop {
+        match wait_until_pattern(
+            context.command_rx,
+            deadline,
+            pattern_index,
+            song,
+            pending_pattern,
+            &mut context.pending_reload,
+        ) {
+            PatternWaitResult::Deadline => return Ok(SettledPatternWaitResult::Deadline),
+            PatternWaitResult::Command(command) => {
+                return Ok(SettledPatternWaitResult::Command(command));
+            }
+            PatternWaitResult::ApplyLiveMute { track, muted } => {
+                apply_live_mute(song, track, muted, row, active_notes, context)?;
+            }
         }
     }
 }

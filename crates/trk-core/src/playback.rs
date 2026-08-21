@@ -2,12 +2,14 @@ use crate::{
     parameter_locks::parameter_lock_f32_at, AutomationTarget, NoteEvent, ParameterLockTarget,
     Pattern, PatternCell, SampleId, SamplePlaybackSettings, Song, TrackId, TrackerCommand,
     TransportSettings, MIXER_MASTER_GAIN_PARAMETER_ID, MIXER_TRACK_GAIN_PARAMETER_ID,
-    MIXER_TRACK_PAN_PARAMETER_ID, SAMPLE_GAIN_PARAMETER_ID,
+    MIXER_TRACK_PAN_PARAMETER_ID, SAMPLE_GAIN_PARAMETER_ID, SAMPLE_ROOT_NOTE_PARAMETER_ID,
 };
 
 mod effects;
+mod sampler_locks;
 mod sampler_selection;
 use effects::{delay_command, retrigger_command};
+use sampler_locks::{locked_sample_float, locked_sample_note, locked_sample_playback};
 use sampler_selection::sample_for_cell;
 
 #[cfg(test)]
@@ -230,13 +232,9 @@ pub fn sampler_events(song: &Song, pattern: &Pattern) -> Vec<SamplerPlaybackEven
                 row_index,
                 sample.gain,
             );
-            let sample_gain = parameter_lock_f32_at(
-                pattern,
-                row_index,
-                ParameterLockTarget::Sample { sample: sample.id },
-                SAMPLE_GAIN_PARAMETER_ID,
-                sample_gain,
-            );
+            let sample_target = ParameterLockTarget::Sample { sample: sample.id };
+            let sample_gain =
+                locked_sample_float(cell, &sample_target, SAMPLE_GAIN_PARAMETER_ID, sample_gain);
             let mixer_gain = parameter_lock_f32_at(
                 pattern,
                 row_index,
@@ -260,6 +258,13 @@ pub fn sampler_events(song: &Song, pattern: &Pattern) -> Vec<SamplerPlaybackEven
             );
             let gain = sample_gain * cell_gain * mixer_gain * master_gain;
             let pan = combine_pan(sample.pan, cell.pan.map_or(mixer_pan, pan_u7_to_float));
+            let root_pitch = locked_sample_note(
+                cell,
+                &sample_target,
+                SAMPLE_ROOT_NOTE_PARAMETER_ID,
+                sample.root_pitch,
+            );
+            let playback = locked_sample_playback(cell, &sample_target, sample.playback);
             let trigger = SamplerPlaybackEvent {
                 position,
                 track: track.id,
@@ -271,11 +276,11 @@ pub fn sampler_events(song: &Song, pattern: &Pattern) -> Vec<SamplerPlaybackEven
                 pan,
                 pitch_ratio: pitch_ratio(
                     pitch,
-                    sample.root_pitch,
+                    root_pitch,
                     sample.transpose_semitones,
                     sample.fine_tune_cents,
                 ),
-                playback: sample.playback,
+                playback,
             };
             events.push(trigger.clone());
             emit_sampler_retrigger_events(
@@ -453,7 +458,11 @@ mod gate_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ParameterId, ParameterLockAction, ParameterValue};
+    use crate::{
+        ParameterId, ParameterLockAction, ParameterValue, SamplePlaybackMode,
+        SAMPLE_END_FRAME_PARAMETER_ID, SAMPLE_ENVELOPE_ATTACK_PARAMETER_ID,
+        SAMPLE_PLAYBACK_MODE_PARAMETER_ID, SAMPLE_START_FRAME_PARAMETER_ID,
+    };
     use crate::{PatternId, TrackId};
 
     #[test]
@@ -525,6 +534,81 @@ mod tests {
         let events = sampler_events(&song, song.current_pattern().expect("pattern"));
         let expected = 2.0_f32.powf(11.5 / 12.0);
         assert!((events[0].pitch_ratio - expected).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn sampler_events_apply_same_row_source_and_envelope_locks() {
+        let mut song = Song::empty();
+        let sample_id = song.upsert_sample_reference("samples/lead.wav", "lead.wav");
+        let track_id = song.tracks[0].id;
+        song.assign_sample_to_track(track_id, sample_id)
+            .expect("assign sample");
+        let pattern = song.current_pattern_mut().expect("pattern");
+        pattern
+            .set_note(2, 0, NoteEvent::Note { pitch: 60 }, 0x7f)
+            .expect("set note");
+        for (parameter, value) in [
+            (SAMPLE_ROOT_NOTE_PARAMETER_ID, ParameterValue::Note(72)),
+            (
+                SAMPLE_PLAYBACK_MODE_PARAMETER_ID,
+                ParameterValue::Enum("reverse".to_string()),
+            ),
+            (SAMPLE_START_FRAME_PARAMETER_ID, ParameterValue::Integer(12)),
+            (SAMPLE_END_FRAME_PARAMETER_ID, ParameterValue::Integer(100)),
+            (
+                SAMPLE_ENVELOPE_ATTACK_PARAMETER_ID,
+                ParameterValue::Seconds(0.2),
+            ),
+        ] {
+            pattern
+                .set_parameter_lock(
+                    2,
+                    0,
+                    crate::ParameterLock {
+                        target: ParameterLockTarget::Sample { sample: sample_id },
+                        parameter: ParameterId::from(parameter),
+                        action: ParameterLockAction::Set { value },
+                    },
+                )
+                .expect("source lock");
+        }
+
+        let events = sampler_events(&song, song.current_pattern().expect("pattern"));
+
+        assert_eq!(events.len(), 1);
+        assert!((events[0].pitch_ratio - 0.5).abs() < f32::EPSILON);
+        assert_eq!(events[0].playback.mode, SamplePlaybackMode::Reverse);
+        assert_eq!(events[0].playback.start_frame, Some(12));
+        assert_eq!(events[0].playback.end_frame, Some(100));
+        assert_eq!(events[0].playback.envelope.attack_seconds, 0.2);
+
+        song.current_pattern_mut()
+            .expect("pattern")
+            .set_parameter_lock(
+                2,
+                0,
+                crate::ParameterLock {
+                    target: ParameterLockTarget::Sample { sample: sample_id },
+                    parameter: ParameterId::from(SAMPLE_END_FRAME_PARAMETER_ID),
+                    action: ParameterLockAction::Set {
+                        value: ParameterValue::Integer(i64::MAX),
+                    },
+                },
+            )
+            .expect("oversized frame lock");
+        let events = sampler_events(&song, song.current_pattern().expect("pattern"));
+        assert_eq!(events[0].playback.end_frame, Some(i32::MAX as usize));
+
+        let attack_lock = song.current_pattern_mut().expect("pattern").rows[2].cells[0]
+            .parameter_locks
+            .iter_mut()
+            .find(|lock| lock.parameter.as_str() == SAMPLE_ENVELOPE_ATTACK_PARAMETER_ID)
+            .expect("attack lock");
+        attack_lock.action = ParameterLockAction::Set {
+            value: ParameterValue::Seconds(999.0),
+        };
+        let events = sampler_events(&song, song.current_pattern().expect("pattern"));
+        assert_eq!(events[0].playback.envelope.attack_seconds, 60.0);
     }
 
     #[test]

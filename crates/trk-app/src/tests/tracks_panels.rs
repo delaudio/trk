@@ -547,13 +547,17 @@ fn panel_aliases_do_not_fire_while_editing_text_or_cells() {
 }
 
 #[test]
-fn f1_and_f2_change_octave_in_normal_mode() {
+fn f1_and_f2_open_source_and_filter_pages_in_normal_mode() {
     let mut app = App::default();
 
     app.handle_key(KeyEvent::new(KeyCode::F(2), KeyModifiers::NONE));
-    assert_eq!(app.octave, 5);
-    assert_eq!(app.mode, AppMode::Normal);
+    assert_eq!(app.octave, 4);
+    assert_eq!(app.mode, AppMode::ParameterPage);
+    assert_eq!(app.parameter_surface.page, ParameterPage::Filter);
 
+    app.mode = AppMode::Normal;
     app.handle_key(KeyEvent::new(KeyCode::F(1), KeyModifiers::NONE));
     assert_eq!(app.octave, 4);
+    assert_eq!(app.mode, AppMode::ParameterPage);
+    assert_eq!(app.parameter_surface.page, ParameterPage::Source);
 }

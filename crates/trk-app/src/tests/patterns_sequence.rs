@@ -18,24 +18,13 @@ fn command_mode_renames_current_pattern() {
 }
 
 #[test]
-fn f3_prefills_current_pattern_rename_command() {
+fn f3_opens_amp_parameter_page() {
     let mut app = App::default();
 
     app.handle_key(KeyEvent::new(KeyCode::F(3), KeyModifiers::NONE));
 
-    assert_eq!(app.mode, AppMode::Command);
-    assert_eq!(app.command_buffer, "pattern rename ");
-
-    for value in "Intro Verse".chars() {
-        app.handle_key(KeyEvent::new(KeyCode::Char(value), KeyModifiers::NONE));
-    }
-    app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
-
-    assert_eq!(app.song.patterns[0].name, "Intro Verse");
-    assert_eq!(
-        app.notification.as_ref().map(|n| n.message.as_str()),
-        Some("Pattern renamed")
-    );
+    assert_eq!(app.mode, AppMode::ParameterPage);
+    assert_eq!(app.parameter_surface.page, ParameterPage::Amp);
 }
 
 #[test]
@@ -79,24 +68,13 @@ fn command_mode_resizes_current_pattern_and_clamps_cursor() {
 }
 
 #[test]
-fn f6_prefills_current_pattern_length_command() {
+fn f6_opens_algorithm_parameter_page() {
     let mut app = App::default();
 
     app.handle_key(KeyEvent::new(KeyCode::F(6), KeyModifiers::NONE));
 
-    assert_eq!(app.mode, AppMode::Command);
-    assert_eq!(app.command_buffer, "pattern length ");
-
-    for value in "32".chars() {
-        app.handle_key(KeyEvent::new(KeyCode::Char(value), KeyModifiers::NONE));
-    }
-    app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
-
-    assert_eq!(app.song.current_pattern().expect("pattern").row_count(), 32);
-    assert_eq!(
-        app.notification.as_ref().map(|n| n.message.as_str()),
-        Some("Pattern length set to 32")
-    );
+    assert_eq!(app.mode, AppMode::ParameterPage);
+    assert_eq!(app.parameter_surface.page, ParameterPage::Algorithm);
 }
 
 #[test]
@@ -257,7 +235,7 @@ fn keyboard_sequence_shortcuts_edit_selected_position() {
         ]
     );
 
-    app.handle_key(KeyEvent::new(KeyCode::Char('R'), KeyModifiers::SHIFT));
+    type_command(&mut app, "sequence remove 2");
     assert_eq!(
         app.song.sequence,
         vec![trk_core::PatternId(1), trk_core::PatternId(2)]

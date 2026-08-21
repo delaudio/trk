@@ -7,6 +7,7 @@ use crate::{
 
 mod dynamics;
 mod playback_modes;
+mod scaling;
 mod send_routing;
 
 #[test]

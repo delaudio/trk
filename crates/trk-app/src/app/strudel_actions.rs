@@ -61,7 +61,7 @@ impl App {
         Ok(evaluation.expect("successful Strudel evaluation records a report"))
     }
 
-    fn open_strudel_live(&mut self, expression: String) {
+    pub(crate) fn open_strudel_live(&mut self, expression: String) {
         self.strudel_live = Some(StrudelLiveSession {
             entry_song: self.song.clone(),
             pattern_index: self.pattern_index,
@@ -201,7 +201,7 @@ impl App {
         }
     }
 
-    fn update_live_playback_pattern(&self, pattern_index: usize) {
+    pub(crate) fn update_live_playback_pattern(&self, pattern_index: usize) {
         if !self.is_playing {
             return;
         }

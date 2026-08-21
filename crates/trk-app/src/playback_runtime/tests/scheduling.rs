@@ -176,6 +176,7 @@ fn runtime_disconnects_and_stops_when_midi_send_fails() {
         midi_logger: &mut midi_logger,
         audio_output: &mut audio_output,
         audio_sample_rate,
+        pending_reload: None,
     };
 
     let result = run_pattern(&mut song, 0, 0, None, true, &mut context);
@@ -314,6 +315,197 @@ fn live_pattern_replacement_is_applied_without_stopping_transport() {
     assert!(!updates
         .iter()
         .any(|update| matches!(update, PlaybackUpdate::Stopped)));
+}
+
+#[test]
+fn performance_reload_waits_for_next_beat_without_stopping_transport() {
+    let mut song = Song::empty();
+    song.transport.bpm = 600;
+    song.transport.lines_per_beat = 4;
+    song.current_pattern_mut()
+        .expect("pattern")
+        .rows
+        .truncate(8);
+    song.current_pattern_mut()
+        .expect("pattern")
+        .set_note(4, 0, NoteEvent::Note { pitch: 60 }, 0x60)
+        .expect("original beat note");
+    song.create_pattern(8);
+    let mut snapshot = song.clone();
+    snapshot.patterns[0]
+        .set_note(4, 0, NoteEvent::Note { pitch: 64 }, 0x60)
+        .expect("replacement beat note");
+    snapshot.patterns.swap(0, 1);
+    let (command_tx, command_rx) = mpsc::channel();
+    let delayed_tx = command_tx.clone();
+    let sender = thread::spawn(move || {
+        thread::sleep(Duration::from_millis(35));
+        delayed_tx
+            .send(PlaybackCommand::ReloadSongAtNextBeat {
+                song: snapshot,
+                token: 42,
+            })
+            .expect("queue beat reload");
+    });
+
+    let (result, sent, updates) = run_pattern_with_recording(&song, 0, 0, false, &command_rx);
+    sender.join().expect("reload sender");
+
+    assert!(matches!(result, PatternRunResult::Finished));
+    assert!(!sent.contains(&MidiMessage::note_on(10, 60, 0x60)));
+    assert!(sent.contains(&MidiMessage::note_on(10, 64, 0x60)));
+    assert!(updates
+        .iter()
+        .any(|update| matches!(update, PlaybackUpdate::PerformanceReloaded { token: 42 })));
+    assert!(updates.iter().any(|update| matches!(
+        update,
+        PlaybackUpdate::Position(position) if position.pattern_index == 1
+    )));
+    assert!(!updates
+        .iter()
+        .any(|update| matches!(update, PlaybackUpdate::Stopped)));
+}
+
+#[test]
+fn prequeued_performance_reload_skips_the_initial_row_zero_boundary() {
+    let mut song = Song::empty();
+    song.transport.bpm = 600;
+    song.transport.lines_per_beat = 4;
+    song.current_pattern_mut()
+        .expect("pattern")
+        .rows
+        .truncate(8);
+    song.current_pattern_mut()
+        .expect("pattern")
+        .set_note(0, 0, NoteEvent::Note { pitch: 55 }, 0x60)
+        .expect("current row-zero note");
+    let mut snapshot = song.clone();
+    snapshot.patterns[0]
+        .set_note(0, 0, NoteEvent::Note { pitch: 64 }, 0x60)
+        .expect("replacement row-zero note");
+    snapshot.patterns[0]
+        .set_note(4, 0, NoteEvent::Note { pitch: 65 }, 0x60)
+        .expect("replacement next-beat note");
+    let (command_tx, command_rx) = mpsc::channel();
+    command_tx
+        .send(PlaybackCommand::ReloadSongAtNextBeat {
+            song: snapshot,
+            token: 43,
+        })
+        .expect("queue reload before playback starts");
+
+    let (result, sent, updates) = run_pattern_with_recording(&song, 0, 0, false, &command_rx);
+
+    assert!(matches!(result, PatternRunResult::Finished));
+    assert!(sent.contains(&MidiMessage::note_on(10, 55, 0x60)));
+    assert!(!sent.contains(&MidiMessage::note_on(10, 64, 0x60)));
+    assert!(sent.contains(&MidiMessage::note_on(10, 65, 0x60)));
+    assert!(updates
+        .iter()
+        .any(|update| matches!(update, PlaybackUpdate::PerformanceReloaded { token: 43 })));
+}
+
+#[test]
+fn live_song_mute_releases_active_midi_note_without_stopping_transport() {
+    let mut song = Song::empty();
+    song.transport.bpm = 600;
+    song.transport.lines_per_beat = 4;
+    song.current_pattern_mut()
+        .expect("pattern")
+        .rows
+        .truncate(8);
+    song.current_pattern_mut()
+        .expect("pattern")
+        .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x60)
+        .expect("active note");
+    let mut muted = song.clone();
+    muted.toggle_mute(0).expect("mute track");
+    let (command_tx, command_rx) = mpsc::channel();
+    let delayed_tx = command_tx.clone();
+    let sender = thread::spawn(move || {
+        thread::sleep(Duration::from_millis(35));
+        delayed_tx
+            .send(PlaybackCommand::ApplyLiveMute {
+                track: muted.tracks[0].id,
+                muted: true,
+            })
+            .expect("queue mute");
+    });
+
+    let (result, sent, updates) = run_pattern_with_recording(&song, 0, 0, false, &command_rx);
+    sender.join().expect("mute sender");
+
+    assert!(matches!(result, PatternRunResult::Finished));
+    assert!(sent.contains(&MidiMessage::note_on(10, 60, 0x60)));
+    assert!(sent.contains(&MidiMessage::note_off(10, 60, 0)));
+    assert!(!updates
+        .iter()
+        .any(|update| matches!(update, PlaybackUpdate::Stopped)));
+}
+
+#[test]
+fn live_song_mute_releases_note_before_the_next_row_deadline() {
+    let mut song = Song::empty();
+    song.transport.bpm = 60;
+    song.transport.lines_per_beat = 1;
+    song.current_pattern_mut()
+        .expect("pattern")
+        .set_note(0, 0, NoteEvent::Note { pitch: 60 }, 0x60)
+        .expect("active note");
+    let mut muted = song.clone();
+    muted.toggle_mute(0).expect("mute track");
+    let messages = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let recorded = messages.clone();
+    let (command_tx, command_rx) = mpsc::channel();
+    let handle = thread::spawn(move || {
+        let (update_tx, _update_rx) = mpsc::channel();
+        let mut output = PlaybackOutput::recording(recorded);
+        let mut midi_logger = MidiLogger::new(None, &update_tx);
+        let mut audio_output = PlaybackAudioOutput::disabled(48_000);
+        let mut context = PlaybackRunContext {
+            command_rx: &command_rx,
+            update_tx: &update_tx,
+            output: &mut output,
+            midi_logger: &mut midi_logger,
+            audio_output: &mut audio_output,
+            audio_sample_rate: 48_000,
+            pending_reload: None,
+        };
+        run_pattern(&mut song, 0, 0, None, true, &mut context)
+    });
+
+    let deadline = Instant::now() + Duration::from_millis(100);
+    while Instant::now() < deadline
+        && !messages
+            .lock()
+            .expect("messages")
+            .contains(&MidiMessage::note_on(10, 60, 0x60))
+    {
+        thread::sleep(Duration::from_millis(1));
+    }
+    command_tx
+        .send(PlaybackCommand::ApplyLiveMute {
+            track: muted.tracks[0].id,
+            muted: true,
+        })
+        .expect("queue mute");
+    let deadline = Instant::now() + Duration::from_millis(100);
+    while Instant::now() < deadline
+        && !messages
+            .lock()
+            .expect("messages")
+            .contains(&MidiMessage::note_off(10, 60, 0))
+    {
+        thread::sleep(Duration::from_millis(1));
+    }
+    let released = messages
+        .lock()
+        .expect("messages")
+        .contains(&MidiMessage::note_off(10, 60, 0));
+    command_tx.send(PlaybackCommand::Stop).expect("stop");
+    handle.join().expect("scheduler thread");
+
+    assert!(released, "mute must release before the one-second row ends");
 }
 
 #[test]

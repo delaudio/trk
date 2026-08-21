@@ -244,7 +244,9 @@ impl App {
     }
 
     pub(crate) fn tui_active_view(&self) -> TuiView {
-        if self.focus.focused() == FocusPanel::PianoRoll {
+        if self.mode == AppMode::ParameterPage {
+            TuiView::ParameterPage
+        } else if self.focus.focused() == FocusPanel::PianoRoll {
             TuiView::PianoRoll {
                 pitch: self.piano_roll_pitch,
                 rows: self.piano_roll_rows,

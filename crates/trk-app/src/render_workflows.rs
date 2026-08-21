@@ -2,7 +2,8 @@ use super::*;
 
 use crate::workflows::{
     audio_dsp_graph, export_duration_frames, load_offline_export_samples, pattern_export_events,
-    sanitize_file_stem, sequence_export_events, write_bytes_atomically,
+    sanitize_file_stem, scale_offline_export_event_frames, sequence_export_events,
+    write_bytes_atomically,
 };
 
 pub(crate) fn run_export_plan(args: &RenderPlanArgs) -> Result<()> {
@@ -139,9 +140,10 @@ pub(crate) fn export_stems(
     fs::create_dir_all(output_dir)
         .with_context(|| format!("failed to create stem directory {}", output_dir.display()))?;
     let selected = selected_track_numbers(song, &args.tracks)?;
-    let events = render_scope_events(song, args.pattern, args.sequence, args.sample_rate)?;
-    let samples =
+    let mut events = render_scope_events(song, args.pattern, args.sequence, args.sample_rate)?;
+    let (samples, sample_frame_scales) =
         load_offline_export_samples(song, args.sample_rate, args.channels, sample_base_dir)?;
+    scale_offline_export_event_frames(&mut events, &sample_frame_scales);
     let duration_args = AudioExportArgs {
         input_path: None,
         output_path: None,

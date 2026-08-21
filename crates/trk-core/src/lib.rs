@@ -3,6 +3,7 @@ mod effect_kind;
 mod effect_parameters;
 mod model_validation;
 mod parameter_locks;
+mod parameter_pages;
 mod selection;
 mod tracker_effects;
 mod variation;
@@ -28,7 +29,10 @@ pub use model::{
     ValidationError,
 };
 pub use native_module::*;
-pub use parameter_locks::{parameter_lock_events, ParameterLockEvent};
+pub use parameter_locks::{
+    parameter_lock_events, song_with_parameter_locks_at_row, ParameterLockEvent,
+};
+pub use parameter_pages::*;
 pub use parameters::*;
 pub use playback::{
     pattern_events, row_duration_micros, sampler_events, PlaybackEvent, PlaybackEventKind,
