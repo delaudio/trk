@@ -37,3 +37,9 @@ and inert rather than introducing placeholder sound state.
 - `../../adr/0025-browse-and-restore-persistent-pattern-variations.md`
 - `../../adr/0031-live-code-patterns-with-mini-notation.md`
 - Maintainer approval to execute issue #321 autonomously.
+
+---
+
+Shipped at HEAD `91ab43da57f881fa88ec16e596ce52420212e1ec` via
+[PR #350](https://github.com/delaudio/trk/pull/350), with GitHub Actions CI
+run `32472424569` green and issue #321 closed.

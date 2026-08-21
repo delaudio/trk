@@ -1,7 +1,7 @@
 ---
 adr: 0032
 title: Control tracks through contextual parameter pages
-status: Accepted
+status: Implemented
 date: 2026-08-20
 owner: default-agent
 supersedes:
@@ -119,7 +119,7 @@ temporary song reload and instant track mutes.
 - `0017-control-supported-sampler-actions-with-the-pointer.md`
 - `0025-browse-and-restore-persistent-pattern-variations.md`
 - `0031-live-code-patterns-with-mini-notation.md`
-- `../plan/todo/0030-contextual-parameter-pages.md`
+- `../plan/done/2026-08-21-contextual-parameter-pages.md`
 - GitHub issue #321.
 
 ## Revision History
@@ -127,9 +127,10 @@ temporary song reload and instant track mutes.
 | Date | Revision | Author | Change |
 |------|----------|--------|--------|
 | 2026-08-20 | r1 | default-agent | Recorded and accepted canonical contextual pages, row locks, deep routing, and transport-safe performance controls. |
+| 2026-08-21 | r2 | default-agent | Marked the capability Implemented after PR #350 merged with the complete gate green. |
 
 ## Approvals
 
 | Role | Name | Date | Signature |
 |------|------|------|-----------|
-| Maintainer | fdg | 2026-08-20 | Approved autonomous resolution of the prioritized GitHub issue queue in chat. |
+| Maintainer | fdg | 2026-08-21 | Approved autonomous resolution and verified delivery through the merged implementation pull request. |

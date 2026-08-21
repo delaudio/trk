@@ -8,25 +8,26 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** `agent/321-elektron-parameter-workflow`.
-- **Active item:** `.docflow/plan/todo/0030-contextual-parameter-pages.md`.
+- **Branch:** `agent/321-docflow-closeout`.
+- **Active item:** `.docflow/plan/done/2026-08-21-contextual-parameter-pages.md`.
 - **Blockers:** none.
-- **Pending integration:** implement, verify, review, and integrate issue #321
-  through its own pull request.
+- **Pending integration:** commit the atomic Docflow closeout, open its draft
+  PR, and squash-merge it after CI is green.
 
 ## Last shipped
 
-Issue #320 implementation PR #348 and closeout PR #349 are merged; issue #320
-is closed and `main` is synchronized at `ce9c1d1`.
+Issue #321 implementation PR #350 is merged at `91ab43d` with CI run
+`32472424569` green, and the issue is closed.
 
 ## Next item
 
-Implement the six contextual parameter pages, canonical row locks,
-performance snapshot reload, and instant mute workflow.
+Stop after the Docflow closeout merges, as requested by the maintainer. A
+fresh session will select the next open issue by priority.
 
 ## Exit criteria
 
-1. ADR 0032 acceptance criteria are covered by implementation and tests.
-2. The complete repository verification gate and Norn Codex review pass.
-3. The implementation PR is squash-merged with CI green and issue #321 is
-   closed before the separate Docflow closeout.
+1. Plan item 0030 is in `plan/done` with the implementation SHA, PR, CI run,
+   and issue closure recorded.
+2. ADR 0032 and the generated index are `Implemented`.
+3. WORKLOG records the delivery and the closeout PR is squash-merged with CI
+   green.
