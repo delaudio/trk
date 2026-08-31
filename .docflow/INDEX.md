@@ -37,4 +37,4 @@ metadata.
 | 0030 | Edit patterns through synchronized piano rolls | Implemented | 2026-08-20 | default-agent | piano-roll, patterns, tui, web, editing, midi, automation |
 | 0031 | Live-code patterns with mini-notation | Implemented | 2026-08-20 | default-agent | strudel, live-coding, patterns, parser, transforms, tui, playback |
 | 0032 | Control tracks through contextual parameter pages | Implemented | 2026-08-20 | default-agent | performance, tui, parameters, p-locks, sampler, dsp, live |
-| 0033 | Lock QWERTY note entry to musical scales | Accepted | 2026-08-21 | default-agent | harmony, scales, chords, qwerty, tui, input, playback |
+| 0033 | Lock QWERTY note entry to musical scales | Implemented | 2026-08-21 | default-agent | harmony, scales, chords, qwerty, tui, input, playback |
