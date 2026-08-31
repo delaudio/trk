@@ -221,6 +221,7 @@ impl ChordQuality {
 pub struct ChordName {
     pub root: u8,
     pub quality: ChordQuality,
+    pub bass: u8,
 }
 
 impl fmt::Display for ChordName {
@@ -230,7 +231,11 @@ impl fmt::Display for ChordName {
             "{}{}",
             pitch_class_name(self.root),
             self.quality.suffix()
-        )
+        )?;
+        if self.bass != self.root {
+            write!(formatter, "/{}", pitch_class_name(self.bass))?;
+        }
+        Ok(())
     }
 }
 
@@ -293,7 +298,11 @@ pub fn identify_chord(pitches: &[u8]) -> Option<ChordName> {
             if normalized != template {
                 continue;
             }
-            let chord = ChordName { root, quality };
+            let chord = ChordName {
+                root,
+                quality,
+                bass,
+            };
             if root == bass {
                 return Some(chord);
             }
@@ -337,10 +346,17 @@ fn active_pitch_for_track(pattern: &Pattern, row: usize, track: usize) -> Option
             continue;
         };
         return match note {
-            NoteEvent::Note { pitch } => pattern
-                .note_gate_rows(event_row, track)
-                .filter(|gate| row < event_row.saturating_add(*gate))
-                .map(|_| pitch),
+            NoteEvent::Note { pitch } => {
+                let cell = pattern.cell(event_row, track)?;
+                if cell.gate.is_none() {
+                    Some(pitch)
+                } else {
+                    pattern
+                        .note_gate_rows(event_row, track)
+                        .filter(|gate| row < event_row.saturating_add(*gate))
+                        .map(|_| pitch)
+                }
+            }
             NoteEvent::NoteOff | NoteEvent::NoteCut => None,
         };
     }
@@ -388,7 +404,11 @@ mod tests {
         );
         assert_eq!(
             identify_chord(&[52, 55, 60]).map(|c| c.to_string()),
-            Some("C".into())
+            Some("C/E".into())
+        );
+        assert_eq!(
+            identify_chord(&[52, 55, 58, 60]).map(|c| c.to_string()),
+            Some("C7/E".into())
         );
         assert_eq!(
             identify_chord(&[57, 60, 64, 67]).map(|c| c.to_string()),
@@ -432,5 +452,25 @@ mod tests {
         song.tracks[0].solo = true;
         let pattern = song.pattern(0).expect("default pattern");
         assert_eq!(active_pitches_at_row(&song, pattern, 1), vec![50]);
+    }
+
+    #[test]
+    fn ungated_legacy_notes_sustain_until_replacement_or_terminator() {
+        let mut song = Song::empty();
+        let pattern = song.pattern_mut(0).expect("default pattern");
+        pattern
+            .set_note(0, 0, NoteEvent::Note { pitch: 48 }, 100)
+            .expect("legacy note");
+        pattern
+            .set_note(4, 0, NoteEvent::Note { pitch: 52 }, 100)
+            .expect("replacement");
+        pattern
+            .set_note_event(7, 0, NoteEvent::NoteCut, None)
+            .expect("cut");
+
+        let pattern = song.pattern(0).expect("default pattern");
+        assert_eq!(active_pitches_at_row(&song, pattern, 3), vec![48]);
+        assert_eq!(active_pitches_at_row(&song, pattern, 6), vec![52]);
+        assert!(active_pitches_at_row(&song, pattern, 7).is_empty());
     }
 }

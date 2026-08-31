@@ -137,3 +137,22 @@ fn live_harmonic_label_follows_playhead_audibility_and_transport_state() {
         "NORMAL K:D:min"
     );
 }
+
+#[test]
+fn live_harmonic_label_uses_the_active_sequence_pattern() {
+    let mut app = App::default();
+    let active_pattern_id = app.song.create_pattern(8);
+    let pattern = app.song.pattern_mut(1).expect("sequence pattern");
+    for (track, pitch) in [53, 57, 60].into_iter().enumerate() {
+        pattern
+            .set_note(0, track, NoteEvent::Note { pitch }, 100)
+            .expect("chord note");
+    }
+    app.song.sequence = vec![active_pattern_id];
+    app.pattern_index = 0;
+    app.sequence_position = Some(0);
+    app.is_playing = true;
+    app.playhead_row = Some(1);
+
+    assert_eq!(app.current_chord_name().as_deref(), Some("F"));
+}

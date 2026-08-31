@@ -69,7 +69,18 @@ impl App {
             return None;
         }
         let row = self.playhead_row?;
-        let pattern = self.song.pattern(self.pattern_index)?;
+        let sequence_pattern_id = self
+            .sequence_position
+            .and_then(|position| self.song.sequence.get(position))
+            .copied();
+        let pattern = sequence_pattern_id
+            .and_then(|pattern_id| {
+                self.song
+                    .patterns
+                    .iter()
+                    .find(|pattern| pattern.id == pattern_id)
+            })
+            .or_else(|| self.song.pattern(self.pattern_index))?;
         let pitches = active_pitches_at_row(&self.song, pattern, row);
         identify_chord(&pitches).map(|chord| chord.to_string())
     }
