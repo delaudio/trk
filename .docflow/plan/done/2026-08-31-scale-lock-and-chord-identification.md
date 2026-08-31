@@ -36,3 +36,9 @@ keep stored tracker notes as ordinary MIDI pitches.
 - `../../adr/0030-edit-patterns-through-synchronized-piano-rolls.md`
 - `../../adr/0031-live-code-patterns-with-mini-notation.md`
 - Maintainer approval to execute issue #322 autonomously.
+
+---
+
+Shipped at HEAD `0aabc9b6f96f9593b98f951f1003d0cc7d60967f` via
+[PR #352](https://github.com/delaudio/trk/pull/352), with GitHub Actions CI
+run `33398013486` green and issue #322 closed.

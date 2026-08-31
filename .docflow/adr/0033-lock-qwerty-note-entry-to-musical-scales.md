@@ -1,7 +1,7 @@
 ---
 adr: 0033
 title: Lock QWERTY note entry to musical scales
-status: Accepted
+status: Implemented
 date: 2026-08-21
 owner: default-agent
 supersedes:
@@ -121,7 +121,7 @@ responsive status-line contract.
 - `0020-compose-contextual-status-hints-by-width.md`
 - `0030-edit-patterns-through-synchronized-piano-rolls.md`
 - `0031-live-code-patterns-with-mini-notation.md`
-- `../plan/todo/0031-scale-lock-and-chord-identification.md`
+- `../plan/done/2026-08-31-scale-lock-and-chord-identification.md`
 - GitHub issue #322.
 
 ## Revision History
@@ -129,9 +129,10 @@ responsive status-line contract.
 | Date | Revision | Author | Change |
 |------|----------|--------|--------|
 | 2026-08-21 | r1 | default-agent | Recorded and accepted canonical scale-locked QWERTY entry and live audible-row chord identification. |
+| 2026-08-31 | r2 | default-agent | Marked the capability Implemented after PR #352 merged with the complete gate green. |
 
 ## Approvals
 
 | Role | Name | Date | Signature |
 |------|------|------|-----------|
-| Maintainer | fdg | 2026-08-21 | Approved autonomous resolution of the prioritized GitHub issue queue in chat. |
+| Maintainer | fdg | 2026-08-31 | Approved autonomous resolution and verified delivery through the merged implementation pull request. |

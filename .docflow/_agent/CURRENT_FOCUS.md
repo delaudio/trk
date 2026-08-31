@@ -8,25 +8,25 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** `agent/322-scale-lock-chord-identifier`.
-- **Active item:** `.docflow/plan/todo/0031-scale-lock-and-chord-identification.md`.
+- **Branch:** `agent/322-docflow-closeout`.
+- **Active item:** `.docflow/plan/done/2026-08-31-scale-lock-and-chord-identification.md`.
 - **Blockers:** none.
-- **Pending integration:** implement, verify, review, and integrate issue #322
-  through its own pull request.
+- **Pending integration:** merge the issue #322 Docflow closeout PR with CI green.
 
 ## Last shipped
 
-Issue #321 implementation PR #350 and closeout PR #351 are merged; issue #321
-is closed and `main` is synchronized at `c5f804a`.
+Issue #322 implementation PR #352 is merged with CI green, issue #322 is
+closed, and `main` is synchronized at `0aabc9b`.
 
 ## Next item
 
-Implement session-only Scale Lock QWERTY entry and real-time chord naming for
-issue #322.
+Paused by maintainer after issue #322. Re-list open issues by priority when
+work resumes; do not claim the next item before explicit resumption.
 
 ## Exit criteria
 
-1. ADR 0033 acceptance criteria are covered by implementation and tests.
-2. The complete repository verification gate and Norn Codex review pass.
-3. The implementation PR is squash-merged with CI green and issue #322 is
-   closed before the separate Docflow closeout.
+1. Move the shipped plan item to `plan/done/` and advance ADR 0033 to
+   Implemented.
+2. Regenerate the index and record the merge, gate, review, and pause state.
+3. Merge the closeout PR with CI green, then stop without claiming another
+   issue.
