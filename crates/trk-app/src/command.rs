@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use trk_core::{parse_pitch_class, HarmonicScale, ScaleMode};
 use trk_tui::PatternFieldLayout;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,6 +26,7 @@ pub enum TrkCommand {
     Loop(LoopCommand),
     Play(PlayCommand),
     Stop,
+    Scale(ScaleCommand),
     Task(TaskCommand),
     Domain {
         domain: CommandDomain,
@@ -107,6 +109,15 @@ pub enum PlayCommand {
 pub enum TaskCommand {
     List,
     Cancel(u64),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScaleCommand {
+    Status,
+    On,
+    Off,
+    Toggle,
+    Select(HarmonicScale),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -226,6 +237,7 @@ impl TrkCommand {
             "loop" => Self::Loop(parse_loop(&arguments)?),
             "play" => Self::Play(parse_play(&arguments)?),
             "stop" => Self::Stop,
+            "scale" => Self::Scale(parse_scale(&arguments)?),
             "tasks" | "task" => Self::Task(parse_task(&arguments)?),
             "fx" | "effect" => domain(CommandDomain::Fx, arguments),
             "fx2" | "effect2" => domain(CommandDomain::Fx2, arguments),
@@ -456,6 +468,26 @@ fn parse_task(arguments: &[String]) -> Result<TaskCommand, CommandParseError> {
     }
 }
 
+fn parse_scale(arguments: &[String]) -> Result<ScaleCommand, CommandParseError> {
+    const USAGE: &str = "Usage: :scale | :scale on|off|toggle | :scale ROOT major|minor|dorian|mixolydian|hirajoshi|pentatonic";
+    match arguments {
+        [] => Ok(ScaleCommand::Status),
+        [command] if command.eq_ignore_ascii_case("on") => Ok(ScaleCommand::On),
+        [command] if command.eq_ignore_ascii_case("off") => Ok(ScaleCommand::Off),
+        [command] if command.eq_ignore_ascii_case("toggle") => Ok(ScaleCommand::Toggle),
+        [root, mode] => {
+            let root = parse_pitch_class(root)
+                .ok_or(CommandParseError::InvalidArguments { usage: USAGE })?;
+            let mode = ScaleMode::parse(mode)
+                .ok_or(CommandParseError::InvalidArguments { usage: USAGE })?;
+            Ok(ScaleCommand::Select(
+                HarmonicScale::new(root, mode).expect("parsed pitch class is bounded"),
+            ))
+        }
+        _ => Err(CommandParseError::InvalidArguments { usage: USAGE }),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -526,6 +558,32 @@ mod tests {
             TrkCommand::parse("tasks"),
             Ok(Some(TrkCommand::Task(TaskCommand::List)))
         );
+    }
+
+    #[test]
+    fn parses_typed_scale_commands_without_accepting_partial_configuration() {
+        assert_eq!(
+            TrkCommand::parse("scale"),
+            Ok(Some(TrkCommand::Scale(ScaleCommand::Status)))
+        );
+        assert_eq!(
+            TrkCommand::parse("scale toggle"),
+            Ok(Some(TrkCommand::Scale(ScaleCommand::Toggle)))
+        );
+        assert_eq!(
+            TrkCommand::parse("scale Db dorian"),
+            Ok(Some(TrkCommand::Scale(ScaleCommand::Select(
+                HarmonicScale::new(1, ScaleMode::Dorian).expect("scale")
+            ))))
+        );
+        assert!(matches!(
+            TrkCommand::parse("scale D unknown"),
+            Err(CommandParseError::InvalidArguments { .. })
+        ));
+        assert!(matches!(
+            TrkCommand::parse("scale D"),
+            Err(CommandParseError::InvalidArguments { .. })
+        ));
     }
 
     #[test]

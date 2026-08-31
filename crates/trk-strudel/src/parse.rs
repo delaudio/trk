@@ -1,3 +1,5 @@
+use trk_core::{parse_pitch_class, HarmonicScale, ScaleMode};
+
 const MAX_NESTING: usize = 32;
 const MAX_ARGUMENT: usize = 1024;
 
@@ -174,15 +176,11 @@ fn parse_scale(value: &str, position: usize) -> Result<Scale, StrudelError> {
     let (root, mode) = value
         .split_once(':')
         .ok_or_else(|| error(position, "scale must be root:mode"))?;
-    let root = pitch_class(root).ok_or_else(|| error(position, "unknown scale root"))?;
-    let intervals: &'static [u8] = match mode.to_ascii_lowercase().as_str() {
-        "major" | "ionian" => &[0, 2, 4, 5, 7, 9, 11],
-        "minor" | "aeolian" => &[0, 2, 3, 5, 7, 8, 10],
-        "dorian" => &[0, 2, 3, 5, 7, 9, 10],
-        "mixolydian" => &[0, 2, 4, 5, 7, 9, 10],
-        "pentatonic" => &[0, 2, 4, 7, 9],
-        _ => return Err(error(position, "unknown scale mode")),
-    };
+    let root = parse_pitch_class(root).ok_or_else(|| error(position, "unknown scale root"))?;
+    let mode = ScaleMode::parse(mode).ok_or_else(|| error(position, "unknown scale mode"))?;
+    let intervals = HarmonicScale::new(root, mode)
+        .expect("parsed pitch classes are bounded")
+        .intervals();
     Ok(Scale {
         root,
         intervals,
@@ -191,21 +189,7 @@ fn parse_scale(value: &str, position: usize) -> Result<Scale, StrudelError> {
 }
 
 pub(crate) fn pitch_class(value: &str) -> Option<u8> {
-    match value.to_ascii_lowercase().as_str() {
-        "c" => Some(0),
-        "c#" | "db" => Some(1),
-        "d" => Some(2),
-        "d#" | "eb" => Some(3),
-        "e" | "fb" => Some(4),
-        "e#" | "f" => Some(5),
-        "f#" | "gb" => Some(6),
-        "g" => Some(7),
-        "g#" | "ab" => Some(8),
-        "a" => Some(9),
-        "a#" | "bb" => Some(10),
-        "b" | "cb" => Some(11),
-        _ => None,
-    }
+    parse_pitch_class(value)
 }
 
 struct Parser<'a> {

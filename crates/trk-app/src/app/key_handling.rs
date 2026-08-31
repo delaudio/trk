@@ -19,6 +19,9 @@ impl App {
                 return;
             }
         }
+        if self.handle_scale_lock_shortcut(key) {
+            return;
+        }
         if self.mode != AppMode::CommandPalette && self.handle_control_key(key) {
             return;
         }
@@ -840,7 +843,7 @@ impl App {
                 }
             }
             KeyCode::Char(value) => {
-                if let Some(note) = keyboard_note(value, self.octave) {
+                if let Some(note) = self.keyboard_note_for_entry(value) {
                     self.dispatch_intent(AppIntent::Tracker(TrackerIntent::InsertNote(note)));
                 }
             }

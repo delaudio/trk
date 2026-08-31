@@ -40,6 +40,7 @@ impl App {
             ai_engine_selector,
         );
         let active_view = self.tui_active_view();
+        let mode_label = self.tui_harmonic_mode_label(active_view);
         let mut tui_cursor = self.cursor;
         let tui_pattern_index = if active_view == TuiView::Clips {
             tui_cursor.track = self.clip_track_cursor;
@@ -68,7 +69,7 @@ impl App {
                 pattern_index: tui_pattern_index,
                 active_view,
                 selection: self.selection_rect(),
-                mode_label: self.mode.label(),
+                mode_label: mode_label.as_str(),
                 octave: self.octave,
                 edit_step: self.edit_step,
                 dirty: self.dirty,

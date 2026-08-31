@@ -33,6 +33,7 @@ mod sample_browser;
 mod sample_recorder_actions;
 mod sampler_actions;
 mod sampler_mouse;
+mod scale_lock;
 mod state;
 mod strudel_actions;
 mod text_notes;

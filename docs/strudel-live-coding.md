@@ -41,9 +41,10 @@ tokens directly between the quotes.
 :strudel note("0 2 4 7").scale("d:minor")
 ```
 
-Supported modes are major/ionian, minor/aeolian, dorian, mixolydian, and
-pentatonic. The `s(...)` form maps common drum names (`bd`, `sd`, `cp`, `hh`,
-and `oh`) to General MIDI percussion pitches.
+Supported modes are major/ionian, minor/aeolian, dorian, mixolydian,
+hirajoshi, and pentatonic. They share the same interval definitions as
+[Scale Lock](scale-lock.md). The `s(...)` form maps common drum names (`bd`,
+`sd`, `cp`, `hh`, and `oh`) to General MIDI percussion pitches.
 
 ## Live editor
 

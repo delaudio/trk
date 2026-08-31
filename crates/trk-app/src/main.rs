@@ -102,8 +102,9 @@ use trk_audio::{
     SendDspBusSpec, TrackDspChainSpec, TrackSendSpec,
 };
 use trk_core::{
-    mixer_master_gain_descriptor, mixer_send_gain_descriptor, mixer_track_gain_descriptor,
-    mixer_track_pan_descriptor, native_balance_descriptor, native_bitcrusher_bit_depth_descriptor,
+    active_pitches_at_row, identify_chord, mixer_master_gain_descriptor,
+    mixer_send_gain_descriptor, mixer_track_gain_descriptor, mixer_track_pan_descriptor,
+    native_balance_descriptor, native_bitcrusher_bit_depth_descriptor,
     native_bitcrusher_dither_descriptor, native_bitcrusher_mix_descriptor,
     native_bitcrusher_output_descriptor, native_bitcrusher_reduction_descriptor,
     native_chorus_depth_descriptor, native_chorus_mix_descriptor, native_chorus_rate_descriptor,
@@ -138,8 +139,8 @@ use trk_core::{
     sample_envelope_release_descriptor, sample_envelope_sustain_descriptor, sample_gain_descriptor,
     sampler_events, AutomationTarget, BitcrusherSpec, CellField, ChorusSpec, CompressorSpec,
     Cursor, DelaySpec, Direction, DriveMode, DriveSpec, DynamicsDetector, EditError, EffectDevice,
-    EffectDeviceKind, FilterMode, FilterSpec, FlangerSpec, GateSpec, Instrument, InstrumentId,
-    InstrumentSampleZone, LimiterSpec, MidiRoutingSettings, MixerSend, NoteEvent,
+    EffectDeviceKind, FilterMode, FilterSpec, FlangerSpec, GateSpec, HarmonicScale, Instrument,
+    InstrumentId, InstrumentSampleZone, LimiterSpec, MidiRoutingSettings, MixerSend, NoteEvent,
     ParameterDescriptor, ParameterId, ParameterLock, ParameterLockAction, ParameterLockTarget,
     ParameterPage, ParameterRange, ParameterValue, Pattern, PatternCell, PatternRow,
     PatternVariationHistory, PatternVariationSource, PhaserSpec, ReverbSpec, SampleEnvelope,
@@ -276,6 +277,7 @@ struct App {
     sequence_position: Option<usize>,
     performance: PerformanceState,
     parameter_surface: ParameterSurfaceState,
+    scale_lock: ScaleLockState,
     sequence_cursor: usize,
     clip_scene_cursor: usize,
     clip_track_cursor: usize,
@@ -358,6 +360,12 @@ impl Default for ParameterSurfaceState {
             next_reload_token: 1,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct ScaleLockState {
+    enabled: bool,
+    scale: HarmonicScale,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -37,6 +37,7 @@ mod piano_roll;
 mod preset_inventory;
 mod report_workflows;
 mod sampler_browsers;
+mod scale_lock;
 mod strudel_export;
 mod strudel_live;
 mod style_analysis;

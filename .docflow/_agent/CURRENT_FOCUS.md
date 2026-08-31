@@ -8,26 +8,25 @@ If status files and git disagree, git is authoritative; correct this file.
 
 ## Active state
 
-- **Branch:** `agent/321-docflow-closeout`.
-- **Active item:** `.docflow/plan/done/2026-08-21-contextual-parameter-pages.md`.
+- **Branch:** `agent/322-scale-lock-chord-identifier`.
+- **Active item:** `.docflow/plan/todo/0031-scale-lock-and-chord-identification.md`.
 - **Blockers:** none.
-- **Pending integration:** commit the atomic Docflow closeout, open its draft
-  PR, and squash-merge it after CI is green.
+- **Pending integration:** implement, verify, review, and integrate issue #322
+  through its own pull request.
 
 ## Last shipped
 
-Issue #321 implementation PR #350 is merged at `91ab43d` with CI run
-`32472424569` green, and the issue is closed.
+Issue #321 implementation PR #350 and closeout PR #351 are merged; issue #321
+is closed and `main` is synchronized at `c5f804a`.
 
 ## Next item
 
-Stop after the Docflow closeout merges, as requested by the maintainer. A
-fresh session will select the next open issue by priority.
+Implement session-only Scale Lock QWERTY entry and real-time chord naming for
+issue #322.
 
 ## Exit criteria
 
-1. Plan item 0030 is in `plan/done` with the implementation SHA, PR, CI run,
-   and issue closure recorded.
-2. ADR 0032 and the generated index are `Implemented`.
-3. WORKLOG records the delivery and the closeout PR is squash-merged with CI
-   green.
+1. ADR 0033 acceptance criteria are covered by implementation and tests.
+2. The complete repository verification gate and Norn Codex review pass.
+3. The implementation PR is squash-merged with CI green and issue #322 is
+   closed before the separate Docflow closeout.
