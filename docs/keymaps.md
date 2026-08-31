@@ -5,6 +5,10 @@ to one application mode and maps one key press to a typed command. Configured
 bindings take precedence in that mode; every other key keeps its built-in
 behavior.
 
+The built-in uppercase `K` action in normal and edit modes toggles Scale Lock
+when it is not replaced by a configured binding. Lowercase `k` remains Vim
+cursor-up navigation in normal mode and is not a Scale Lock shortcut.
+
 ## Layers
 
 The available TOML sections are:

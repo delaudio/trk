@@ -179,6 +179,7 @@ fn help_basics_lines(mode_label: &str) -> Vec<Line<'static>> {
         Line::from("  Shift+Space Start"),
         Line::from("  Enter Play Row   Shift+Enter Play Sequence From Cursor   L Loop   F8 Stop"),
         Line::from("  b Web Companion   e External Editor"),
+        Line::from("  K Scale Lock toggle   :scale ROOT MODE configures root and mode"),
         Line::from("  1-6/F1-F6 Parameter Pages   repeat page for deep editor"),
         Line::from("  Normal: Shift+S Temp Save   Shift+R Reload next beat   Shift+1..8 Mute"),
         Line::from("  F7 Sequence View   F9 Track View   F10 Pattern View   Ctrl+J Sampler View"),
@@ -212,6 +213,7 @@ fn help_editing_lines(mode_label: &str, edit_step: usize) -> Vec<Line<'static>> 
         Line::from("  V select region   Esc cancel selection   Delete clears selection"),
         Line::from("  Insert row   Ctrl+Delete delete row   Edit mode: F1/- octave down"),
         Line::from("  Edit mode: F2/+/= octave up   VEL/INST/VOL/PAN/DLY/FX accept two hex digits"),
+        Line::from("  Scale Lock: z/s/x/... and q/2/w/... enter successive in-scale degrees"),
         Line::from(format!(
             "  Step jump advances manual entry by {edit_step} row(s); 0 keeps the cursor in place"
         )),
@@ -331,6 +333,7 @@ fn help_command_lines(mode_label: &str) -> Vec<Line<'static>> {
         Line::from("  r rename track   c channel"),
         Line::from("  Del delete track   M mute   S solo"),
         Line::from("  :write [path]   :saveas path   :quit   :q!   :wq   :bpm 140   :lpb 4"),
+        Line::from("  :scale   :scale on|off|toggle   :scale D minor"),
         Line::from(
             "  Panel focus: :t tracker   :p patterns   :se sequence   :tr tracks   :sa sampler",
         ),

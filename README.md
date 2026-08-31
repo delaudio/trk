@@ -174,6 +174,8 @@ Inside the TUI:
 | `Ctrl+P` | Command palette |
 | `:` | Enter command mode |
 | `:view roll` | Open the synchronized Piano Roll editor (`Esc` returns) |
+| `K` (normal or edit mode) | Toggle session-only Scale Lock for QWERTY note entry |
+| `:scale ROOT MODE` | Select and enable a scale such as `:scale D minor` |
 
 ### Navigation & Editing
 
@@ -184,7 +186,7 @@ Inside the TUI:
 | `PageUp` / `PageDown` | Scroll rows by page |
 | `Home` / `End` / `gg` / `G` | Jump to first / last row |
 | `i` / `Esc` | Enter edit mode / normal mode |
-| `z s x d c v...` | Play / enter notes from computer keyboard |
+| `z s x d c v...` / `q 2 w 3 e...` | Enter chromatic notes, or successive scale degrees while Scale Lock is enabled |
 | `o` / `.` | Note-off / note-cut |
 | `F1` / `F2` (edit mode) or `-` / `+` | Octave down / up |
 | `Delete` | Clear current cell or active selection |
@@ -254,6 +256,9 @@ their canonical state on the following row unless that row has its own lock.
 # Song & Tempo
 :bpm BPM                            Set tempo (e.g. :bpm 140)
 :lpb LPB                            Set lines per beat (e.g. :lpb 4)
+:scale                              Show Scale Lock state
+:scale on|off|toggle                Change Scale Lock enablement
+:scale ROOT MODE                    Select and enable a scale (e.g. :scale D minor)
 
 # Tracker Cell & Effects
 :fx CMD VAL                         Set FX1 command (e.g. :fx D 20, :fx R 04, :fx clear)

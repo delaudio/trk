@@ -9,20 +9,20 @@
 │UTIL │  Shift+Space Start                                                                                       │     │
 │     │  Enter Play Row   Shift+Enter Play Sequence From Cursor   L Loop   F8 Stop                               │     │
 │BPM  │  b Web Companion   e External Editor                                                                     │     │
-│LPB  │  1-6/F1-F6 Parameter Pages   repeat page for deep editor                                                 │     │
-│OCT  │  Normal: Shift+S Temp Save   Shift+R Reload next beat   Shift+1..8 Mute                                  │     │
-│--   │  F7 Sequence View   F9 Track View   F10 Pattern View   Ctrl+J Sampler View                               │     │
-│     │  :t Tracker   :p Patterns   :se Sequence   :tr Tracks   :sa Sampler   :web Companion                     │     │
-│Follo│  Esc returns from focused views                                                                          │     │
-│  Pat│  :play pattern from start   :play sequence arrangement                                                   │     │
-│Scrol│  Ctrl+S Save   Ctrl+Shift+S Save As   Ctrl+Z Undo   Ctrl+Y Redo   Ctrl+Arrows BPM/LPB                    │     │
-│  Pag│                                                                                                          │     │
-│     │Navigation                                                                                                │     │
-│Edit │  Arrows or h/j/k/l move   Tab/Shift+Tab track   PageUp/PageDown jump                                     │     │
+│LPB  │  K Scale Lock toggle   :scale ROOT MODE configures root and mode                                         │     │
+│OCT  │  1-6/F1-F6 Parameter Pages   repeat page for deep editor                                                 │     │
+│--   │  Normal: Shift+S Temp Save   Shift+R Reload next beat   Shift+1..8 Mute                                  │     │
+│     │  F7 Sequence View   F9 Track View   F10 Pattern View   Ctrl+J Sampler View                               │     │
+│Follo│  :t Tracker   :p Patterns   :se Sequence   :tr Tracks   :sa Sampler   :web Companion                     │     │
+│  Pat│  Esc returns from focused views                                                                          │     │
+│Scrol│  :play pattern from start   :play sequence arrangement                                                   │     │
+│  Pag│  Ctrl+S Save   Ctrl+Shift+S Save As   Ctrl+Z Undo   Ctrl+Y Redo   Ctrl+Arrows BPM/LPB                    │     │
+│     │                                                                                                          │     │
+│Edit │Navigation                                                                                                │     │
+│     │  Arrows or h/j/k/l move   Tab/Shift+Tab track   PageUp/PageDown jump                                     │     │
 │     │  Home/End pattern bounds   gg first row   G last row                                                     │     │
 │     │                                                                                                          │     │
 │     │Mode: HELP   Close: Esc, q, or ?                                                                          │     │
-│     │                                                                                                          │     │
 │     │                                                                                                          │     │
 │     │                                                                                                          │     │
 └─────│                                                                                                          │─────┘

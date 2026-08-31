@@ -125,6 +125,7 @@ impl App {
                 PlayCommand::Pattern => self.start_playback(),
             },
             TrkCommand::Stop => self.stop_playback(),
+            TrkCommand::Scale(command) => self.apply_scale_command(command),
             TrkCommand::Task(command) => self.handle_task_command(command),
             TrkCommand::Domain {
                 domain: CommandDomain::Track,

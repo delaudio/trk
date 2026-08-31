@@ -1,6 +1,7 @@
 mod effect_device;
 mod effect_kind;
 mod effect_parameters;
+mod harmony;
 mod model_validation;
 mod parameter_locks;
 mod parameter_pages;
@@ -16,6 +17,10 @@ pub mod playback;
 pub use effect_device::{
     BitcrusherSpec, ChorusSpec, CompressorSpec, DelaySpec, DriveMode, DriveSpec, DynamicsDetector,
     FilterMode, FilterSpec, FlangerSpec, GateSpec, LimiterSpec, PhaserSpec, ReverbSpec,
+};
+pub use harmony::{
+    active_pitches_at_row, identify_chord, parse_pitch_class, pitch_class_name, ChordName,
+    ChordQuality, HarmonicScale, ScaleMode,
 };
 pub use model::{
     AutomationInterpolation, AutomationLane, AutomationPoint, AutomationTarget, CellField, Cursor,

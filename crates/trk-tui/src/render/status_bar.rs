@@ -353,6 +353,21 @@ mod tests {
     }
 
     #[test]
+    fn compact_harmonic_mode_label_keeps_chord_and_priority_actions_visible() {
+        let state = TuiState {
+            mode_label: "EDIT K:D:min Dm7",
+            ..render_test_state()
+        };
+        let text = compose_shortcut_status(state, 72);
+
+        assert!(text.contains("EDIT K:D:min Dm7"));
+        for action in ["Ctrl+P Palette", "H Help", "Space Play/Stop"] {
+            assert!(text.contains(action), "missing {action}: {text}");
+        }
+        assert!(Line::from(text).width() <= 72);
+    }
+
+    #[test]
     fn widening_compact_pattern_status_never_removes_an_already_visible_segment() {
         let mut state = render_test_state();
         state.tracker_layout.pattern_fields = PatternFieldLayout::Note;
